@@ -1,3 +1,5 @@
+<img height="50" align="left" src="assets/headerlogo.png" alt="HeaderLogo">
+
 # LenovoLegionLinux
 Tools for controlling Lenovo Legion laptop in Linux like fan control and power mode.
 
@@ -256,3 +258,22 @@ Note:
     - Currenlty, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
     - You might want to create different scritps for different usages. Just copy it and adapt the values.
 
+
+
+## Credits
+
+### Basis of this work
+Thank you for your work on Windows tools that were the basis of the Linux support:
+* [SmokelessCPU](https://github.com/SmokelessCPU), for engineering the embedded controller firmware
+    and 4-zone RGB and Sprectrum keyboard support in [LenovoLegionToolkit] and the direct IO control of the embedded controller
+* [Bartosz Cichecki](https://github.com/BartoszCichecki), for creating [LenovoLegionToolkit], a Windows tool for newer Legion models that controls the Laptop with ACPI/WMI methods. Even this README is heavily inspired on it.
+* [0x1F9F1](https://github.com/SmokelessCPU), for reverse engineering the fan curve in the embedded controller firmware 
+    and creating the windows tool [LegionFanControl]https://github.com/0x1F9F1/LegionFanControl
+* [Mario Bălănică](https://github.com/mariobalanica), for his contributions to [LenovoLegionToolkit]
+* [ViRb3](https://github.com/ViRb3), for creating [Lenovo Controller](https://github.com/ViRb3/LenovoController), which was used as a base 
+    for [LenovoLegionToolkit]
+* [Luke Cama](https://www.legionfancontrol.com/), for his closed-source tool [LegionFanControl](https://www.legionfancontrol.com/) that controls older laptops with direclty with the embedded controller 
+* [David Woodhouse], for his work on the ideapad Linux driver [ideapad-laptop](https://github.com/torvalds/linux/blob/0ec5a38bf8499f403f81cb81a0e3a60887d1993c/drivers/platform/x86/ideapad-laptop.c)
+
+### Contributors to Lenovo Legion Laptop Support
+:( Nothing here yet.
