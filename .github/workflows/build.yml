@@ -17,6 +17,6 @@ jobs:
     - name: Build
       run: ./deploy/build.sh
       shell: bash
-    - name: Build
+    - name: Install
       run: ./deploy/install.sh
       shell: bash
