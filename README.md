@@ -1,10 +1,11 @@
 <img height="50" align="left" src="assets/headerlogo.png" alt="HeaderLogo">
 
+# LenovoLegionLinux
+
 [![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=master)
 [![Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
 
-
-# LenovoLegionLinux
+---
 
 LenovoLegionLinux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
