@@ -79,6 +79,12 @@ sudo dnf group install "C Development Tools and Libraries"
 sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors
 ```
 
+Troubleshooting: 
+- Got error `ERROR: Kernel configuration is invalid.`. Just reinstall kernel headers, e.g. in Debian:
+```bash
+sudo apt install --reinstall linux-headers-$(uname -r)
+```
+
 ### Build and Test Instruction
 ```bash
 git clone https://github.com/johnfanv2/LenovoLegionLinux.git

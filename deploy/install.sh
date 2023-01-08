@@ -1,5 +1,5 @@
 #!/bin/bash
 set -ex
 cd kernel_module
-sudo make reloadmodule
+make
 sudo make install
