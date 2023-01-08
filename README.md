@@ -29,8 +29,8 @@ It allows to control a few feaures like fan curve and power mode.
 ## :warning: Disclaimer
 
 - **The tool comes with no warranty. Use at your own risk.**
+- **currently comes without a UI; commandline and script only**
 - this is a small hobby project; please be patient and read through this readme carefully before you ask for support
-- currently comes without a UI
 - if your Lenovo Legion laptop is not supported and you are ready to perform some tests please notify me
 - this is a Linux only tool and will probably also not run in WSL; for Windows use one of the availabe Windows tools
     - LenovoLegionToolkit
