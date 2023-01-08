@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "hwmon-sysfs.h": "c",
+        "acpi.h": "c",
+        "device.h": "c",
+        "system_error": "c",
+        "array": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "hash_map": "c",
+        "string_view": "c",
+        "initializer_list": "c"
+    }
+}
