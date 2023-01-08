@@ -23,6 +23,7 @@ It allows to control a few feaures like fan curve and power mode.
 
 - **The tool comes with no warranty. Use at your own risk.**
 - this is a small hobby project; please be patient and read through this readme carefully before you ask for support
+- currently comes without a UI
 - if your Lenovo Legion laptop is not supported and you are ready to perform some tests please notify me
 - this is a Linux only tool and will probably also not run in WSL; for Windows use one of the availabe Windows tools
     - LenovoLegionToolkit
@@ -31,10 +32,10 @@ It allows to control a few feaures like fan curve and power mode.
 
 ## :bulb: Instructions
 Please do the following: 
-- Step: **follow installation instructions**
-- Step: **then make the test**
-- Step: **if tests are succesful, install permantely**
-- Step: **create your fan curve**
+- **follow installation instructions**
+- **then make the test**
+- **if tests are succesful, install permantely**
+- **create your fan curve**
 
 ### Requirements
 You will need to install the following to download and build it. If there is an error of any package, find the alternative name in your distro install them.
@@ -90,9 +91,8 @@ sudo make uninstall
 
 ## :octocat: Initial Usage Testing
 Please note:
-- Please test in this order and try to fix a failed text before going to the next. 
+- Please test in the given order; try to fix a failed text before going to the next. 
 - These tests are manual and in the terminal because this is an early version of this tool
-- Using it if test are succesful is much easier
 - You can copy-and-paste the commands. Paste with `Ctrl+Shift+V` inside the terminal.
 
 ### Quick Test: Module is properly loaded
@@ -104,7 +104,7 @@ sudo make reloadmodule
 sudo dmesg
 ```
 Expected result: 
-- You should see a line like the following like `legion PNP0C09:00: legion_laptop loaded for this device`. "PNP0C09" might be replaced by other text.
+- You should see a line like the following like `legion PNP0C09:00: legion_laptop loaded for this device`. `PNP0C09` might be replaced by other text.
 
 Unexpected result:
 - `insmod: ERROR: could not insert module legion-laptop.ko: Invalid module format` after running `make reloadmodule`
@@ -234,7 +234,7 @@ XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 ```
 Unexpected: 
-- `file not found`: please report your problem
+- `file not found`: please report your problem as an Github Issue
 - the values have not changed
 - there are different values
 
@@ -251,18 +251,21 @@ Set a custom fan curve with the provided script. See `Creating and Setting your 
 - You also might to want to start this repository
 
 # :computer: Normal Usage
-- If you are satisfied with the test results, then install the kernel module permanently (see above), otherwise you must reload it manually after each restart.
+**you have to install the kernel module permanently (see above), otherwise you must reload it manually after each restart**
 
 ## Temperatuer and Fan Monitoring
 The tempereratues and fan speeds should be displayed in any graphical tool that monitors them, e.g. psensor. You have to install it first before running:
 ```bash
 psensor
 ```
+<p align="center">
+    <img height="450" style="float: center;" src="assets/psensor.png" alt="psensor">
+</p>
     
 ## Creating and Setting your own Fan Curve
 Just run the script to set the fan curve. It is in the folder `LenovoLegionLinux`.
 ```bash
-# Go to folder LenovoLegionLinux and run it. It should output "fancurve set"
+# Go to folder LenovoLegionLinux and run it. It should output "Writing fancurve succeful!" if it finishes successful
 sudo ./setmyfancurve.sh
 # And check new fan curve
 sudo cat /sys/kernel/debug/legion/fancurve
@@ -270,13 +273,13 @@ sudo cat /sys/kernel/debug/legion/fancurve
 Open the file `setmyfancurve.sh` and edit it to adapt the values in the script to create your own fan curve. Follow the description in the file.
 
 Unexpected output:
-    - `bash: ./setmyfancurve.sh: Permission denied`: You have to make the script executable with `chmod +x ./setmyfancurve` first
-    - script does not end with "fancurve set": maybe path to hwmon changed; Please report this
+- `bash: ./setmyfancurve.sh: Permission denied`: You have to make the script executable with `chmod +x ./setmyfancurve` first
+- script does not end with "fancurve set": maybe path to hwmon changed; Please report this
 
 Note: 
-    - Currently, there is no GUI available. 
-    - Currenlty, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
-    - You might want to create different scritps for different usages. Just copy it and adapt the values.
+- Currently, there is no GUI available. 
+- Currenlty, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
+- You might want to create different scritps for different usages. Just copy it and adapt the values.
 
 
 
@@ -295,4 +298,4 @@ Thank you for your work on Windows tools that were the basis of the Linux suppor
 * David Woodhouse, for his work on the ideapad Linux driver [ideapad-laptop](https://github.com/torvalds/linux/blob/0ec5a38bf8499f403f81cb81a0e3a60887d1993c/drivers/platform/x86/ideapad-laptop.c), which was a heavy inspiration for this Linux driver
 
 ### Contributors to Lenovo Legion Laptop Support
-:( Nothing here yet.
+:( Nothing here yet. Please tell me if it works on your laptop.
