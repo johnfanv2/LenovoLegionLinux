@@ -293,7 +293,7 @@ Note:
 - You might want to create different scritps for different usages. Just copy it and adapt the values.
 
 
-## Credits
+## :clap: Credits
 
 ### Basis of this work
 Thank you for your work on Windows tools that were the basis of the Linux support:
