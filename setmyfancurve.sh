@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+echo "MODEL"
+sudo dmidecode -s system-version
+echo "BIOS"
+sudo dmidecode -s bios-version
+
+echo ""
+
 hwmondir=`find /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon -mindepth 1 -name "hwmon*"`
 echo "Using hwmon directory: ${hwmondir}" 
 
@@ -87,6 +94,10 @@ echo 3 > ${hwmondir}/pwm1_auto_point4_decel
 echo 2 > ${hwmondir}/pwm1_auto_point5_decel
 echo 2 > ${hwmondir}/pwm1_auto_point6_decel
 
-echo "Writing fancurve succeful!"
+echo "Writing fancurve succesful!"
 cat /sys/kernel/debug/legion/fancurve
-echo "Writing fancurve succeful!"
+echo "Writing fancurve succesful!"
+echo "MODEL"
+sudo dmidecode -s system-version
+echo "BIOS"
+sudo dmidecode -s bios-version
