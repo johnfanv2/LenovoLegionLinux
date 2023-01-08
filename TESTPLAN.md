@@ -64,7 +64,7 @@ sudo cat /sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/hwmon/hw
 sudo cat /sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/hwmon/hwmon*/pwm3_auto_point*_temp_hyst
 
 
-# Display accelleration times for all levelsdecleration times for all levels
+# Display acceleration times for all levels decleration times for all levels
 sudo cat /sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/hwmon/hwmon*/pwm1_auto_point*_accel
 # Display decleration times for all levels
 sudo cat /sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/hwmon/hwmon*/pwm1_auto_point*_decel

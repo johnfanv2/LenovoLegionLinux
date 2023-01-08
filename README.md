@@ -12,7 +12,7 @@
 LenovoLegionLinux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
-It allows to control a few feaures like fan curve and power mode.
+It allows to control a few features like fan curve and power mode.
 
 :star: **Please star this repository if this is useful or might be useful in the future.**
 
@@ -55,27 +55,33 @@ You will need to install the following to download and build it. If there is an 
 **Ubuntu/Debian**
 ```bash
 sudo apt-get update
-sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors
+sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors dmidecode
 ```
 
 **RHEL/CentOS**
 ```bash
 sudo yum update
-sudo yum install kernel-headers kernel-devel lm-sensors
+sudo yum install kernel-headers kernel-devel lm-sensors dmidecode
 sudo yum groupinstall "Development Tools"
 sudo yum group install "C Development Tools and Libraries"
 ```
 
 **Fedora**
 ```bash
-sudo dnf install kernel-headers kernel-devel lm-sensors
+sudo dnf install kernel-headers kernel-devel lm-sensors dmidecode
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
 ```
 
 **openSUSE**
 ```bash
-sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors
+sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors dmidecode
+```
+
+*Note:* Check for the correct Header package.
+**Arch/Manjaro**
+```bash
+sudo pacman -S linux-headers base-devel lm-sensors git dmidecode 
 ```
 
 ### Build and Test Instruction
@@ -88,7 +94,7 @@ sudo make reloadmodule
 For tests see `Initial Usage Testing` below. Do them first.
 
 ### Permanent Install Instruction
-After succesful bulding and testing (see below) run from the folder `LenovoLegionLinux/kernel_module`
+After successfully building and testing (see below), run from the folder `LenovoLegionLinux/kernel_module`
 ```bash
 make
 sudo make install
@@ -232,7 +238,7 @@ echo 1800 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/h
 cat /sys/kernel/debug/legion/fancurve
 ```
 Expected: 
-- the controller might have loaded default values if you pressed Ctr+Q to change the powermode or waited too long; then try again
+- the controller might have loaded default values if you pressed Ctr+Q(or FN+Q on certain devices) to change the powermode or waited too long; then try again
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
 ```
 rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -249,7 +255,7 @@ XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 **If you want to reset your fan curve, just toggle with Ctrl+Q the powermode or restart and everything is gone.**
 
 Unexpected: 
-- `file not found`: please report your problem as an Github Issue
+- `file not found`: please report your problem as a Github Issue
 - the values have not changed
 - there are different values
 
@@ -262,14 +268,14 @@ Set a custom fan curve with the provided script. See `Creating and Setting your 
 - If you are satisfied with the test results, then you can install the kernel module permanently (see above).
 - Create a GitHub Issue and report if the test work or fail. 
     - Please include exact laptop model
-    - If errors occured, include output of commands.
+    - If errors occurred, include output of commands.
 - You also might to want to start this repository
 
 ## :computer: Normal Usage
 **you have to install the kernel module permanently (see above), otherwise you must reload it manually after each restart**
 
-### Temperatuer and Fan Monitoring
-The tempereratues and fan speeds should be displayed in any graphical tool that monitors them, e.g. psensor. You have to install it first before running:
+### Temperature and Fan Monitoring
+The temperatures and fan speeds should be displayed in any graphical tool that monitors them, e.g. psensor. You have to install it first before running:
 ```bash
 psensor
 ```
@@ -280,7 +286,7 @@ psensor
 ### Creating and Setting your own Fan Curve
 Just run the script to set the fan curve. It is in the folder `LenovoLegionLinux`.
 ```bash
-# Go to folder LenovoLegionLinux and run it. It should output "Writing fancurve succeful!" if it finishes successful
+# Go to folder LenovoLegionLinux and run it. It should output "Writing fancurve successful!" if it finishes successful
 sudo ./setmyfancurve.sh
 # And check new fan curve
 sudo cat /sys/kernel/debug/legion/fancurve
@@ -294,15 +300,15 @@ Unexpected output:
 Note: 
 - **If you want to reset your fan curve, just toggle with Ctrl+Q the powermode or restart and everything is gone.**
 - Currently, there is no GUI available. 
-- Currenlty, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
-- You might want to create different scritps for different usages. Just copy it and adapt the values.
+- Currently, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
+- You might want to create different scripts for different usages. Just copy it and adapt the values.
 
 
 ## :clap: Credits
 
 ### Basis of this work
 Thank you for your work on Windows tools that were the basis of the Linux support:
-* [SmokelessCPU](https://github.com/SmokelessCPUv2), for reverseengineering the embedded controller firmware
+* [SmokelessCPU](https://github.com/SmokelessCPUv2), for reverse engineering the embedded controller firmware
     and finding the direct IO control of the embedded controller
 * [Bartosz Cichecki](https://github.com/BartoszCichecki), for creating [LenovoLegionToolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit), a Windows tool for newer Legion models that controls the Laptop with ACPI/WMI methods. Even this README is heavily inspired on it.
 * [0x1F9F1](https://github.com/0x1F9F1), for reverse engineering the fan curve in the embedded controller firmware 
