@@ -22,7 +22,7 @@
  *        The fan curve in the form stored in the firmware in an
  *        human readable table.
  *
- *    - /sys/kernel/legion/power_mode (rw)
+ *    - /sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/powermode (rw)
  *       0: balanced mode (white)
  *       1: performance mode (red)
  *       2: quiet mode (blue)
@@ -1316,6 +1316,7 @@ struct legion_private {
 	//interfaces
 	struct dentry *debugfs_dir;
 	struct device *hwmon_dev;
+	struct platform_profile_handler platform_profile_handler;
 
 	// TODO: remove?
 	bool loaded;
@@ -1430,7 +1431,7 @@ static void legion_debugfs_exit(struct legion_private *priv)
 }
 
 /* =============================  */
-/* sysfs interface              */
+/* sysfs interface                */
 /* ============================   */
 
 static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
@@ -1458,8 +1459,11 @@ static ssize_t powermode_store(struct device *dev,
 	if (err)
 		return -EINVAL;
 
+	platform_profile_notify();
+
 	return count;
 }
+
 
 static DEVICE_ATTR_RW(powermode);
 
@@ -1481,6 +1485,96 @@ static void legion_sysfs_exit(struct legion_private *priv)
 	device_remove_group(&priv->platform_device->dev,
 				&legion_attribute_group);
 }
+
+/* =============================  */
+/* Platform profile               */
+/* ============================   */
+
+
+enum LEGION_POWERMODE{
+	LEGION_POWERMODE_BALANCED = 0,
+	LEGION_POWERMODE_PERFORMANCE = 1,
+	LEGION_POWERMODE_QUIET = 2,
+};
+
+static int legion_platform_profile_get(struct platform_profile_handler *pprof,
+					enum platform_profile_option *profile)
+{
+	int powermode;
+	struct legion_private *priv;
+	
+	priv = container_of(pprof, struct legion_private , platform_profile_handler);
+	powermode = read_powermode(&priv->ecram, priv->conf);
+
+	switch (powermode)
+	{
+	case LEGION_POWERMODE_BALANCED:
+		*profile = PLATFORM_PROFILE_BALANCED;
+		break;
+	case LEGION_POWERMODE_PERFORMANCE:
+		*profile = PLATFORM_PROFILE_PERFORMANCE;
+		break;
+	case LEGION_POWERMODE_QUIET:
+		*profile = PLATFORM_PROFILE_QUIET;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int legion_platform_profile_set(struct platform_profile_handler *pprof,
+					enum platform_profile_option profile)
+{
+	int powermode;
+	struct legion_private *priv;
+
+	priv = container_of(pprof, struct legion_private , platform_profile_handler);
+
+	switch (profile)
+	{
+	case PLATFORM_PROFILE_BALANCED :
+		powermode = LEGION_POWERMODE_BALANCED;
+		break;
+	case PLATFORM_PROFILE_PERFORMANCE :
+		powermode = LEGION_POWERMODE_PERFORMANCE;
+		break;
+	case PLATFORM_PROFILE_QUIET :
+		powermode = LEGION_POWERMODE_QUIET;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return write_powermode(&priv->ecram, priv->conf, powermode);
+}
+
+static int legion_platform_profile_init(struct legion_private *priv)
+{
+	int err;
+
+	priv->platform_profile_handler.profile_get = legion_platform_profile_get;
+	priv->platform_profile_handler.profile_set = legion_platform_profile_set;
+
+	set_bit(PLATFORM_PROFILE_QUIET, priv->platform_profile_handler.choices);
+	set_bit(PLATFORM_PROFILE_BALANCED,
+		priv->platform_profile_handler.choices);
+	set_bit(PLATFORM_PROFILE_PERFORMANCE,
+		priv->platform_profile_handler.choices);
+
+	err = platform_profile_register(&priv->platform_profile_handler);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+
+static void legion_platform_profile_exit(struct legion_private *priv)
+{
+	platform_profile_remove();
+}
+
 
 /* =============================  */
 /* hwom interface              */
@@ -2223,11 +2317,20 @@ int legion_add(struct platform_device *pdev)
 	if (err)
 		goto err_hwmon_init;
 
+	pr_info("Creating platform profile support\n");
+	err = legion_platform_profile_init(priv);
+	if (err)
+		goto err_platform_profile;
+
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
+
+
 // TODO: remove eventually
-//	legion_hwmon_exit(priv);
+// legion_platform_profile_exit();
+err_platform_profile:
+	legion_hwmon_exit(priv);
 err_hwmon_init:
 	legion_sysfs_exit(priv);
 err_sysfs_init:
@@ -2252,6 +2355,7 @@ int legion_remove(struct platform_device *pdev)
 	// again
 	toggle_powermode(&priv->ecram, priv->conf);
 
+	legion_platform_profile_exit(priv);
 	legion_hwmon_exit(priv);
 	legion_hwmon_exit(priv);
 	legion_sysfs_exit(priv);
