@@ -2,9 +2,9 @@
 set -e
 
 echo "MODEL"
-sudo dmidecode -s system-version
+dmidecode -s system-version
 echo "BIOS"
-sudo dmidecode -s bios-version
+dmidecode -s bios-version
 
 echo ""
 
@@ -98,6 +98,6 @@ echo "Writing fancurve succesful!"
 cat /sys/kernel/debug/legion/fancurve
 echo "Writing fancurve succesful!"
 echo "MODEL"
-sudo dmidecode -s system-version
+dmidecode -s system-version
 echo "BIOS"
-sudo dmidecode -s bios-version
+dmidecode -s bios-version
