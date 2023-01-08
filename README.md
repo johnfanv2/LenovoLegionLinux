@@ -78,12 +78,14 @@ sudo dnf group install "C Development Tools and Libraries"
 ```bash
 sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors dmidecode
 ```
-
 *Note:* Check for the correct Header package.
+
+
 **Arch/Manjaro**
 ```bash
 sudo pacman -S linux-headers base-devel lm-sensors git dmidecode 
 ```
+*Note:* Check for the correct Header package.
 
 Troubleshooting: 
 - Got error `ERROR: Kernel configuration is invalid.`. Just reinstall kernel headers, e.g. in Debian:
