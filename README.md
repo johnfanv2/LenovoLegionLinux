@@ -120,9 +120,9 @@ sudo cat /sys/kernel/debug/legion/fancurve
 
 Expected output:
 - EC Chip ID should be 8227
-- fan curve points size must NOT be 0
+- "fan curve points" size must NOT be 0
 - the table that shows the current fan curve must NOT be only zeros, the actual values might change
-- fan curve current point id and EC Chip Version might differ
+- "fan curve current point id" and "EC Chip Version" might differ from the example
     
 Example:
 ```text
@@ -161,7 +161,7 @@ All temperatures are in degree Celsius.
 
 
 Unexpected:
-- ` /sys/kernel/debug/legion/fancurve: No such file or directory`: Kernel module was not loaded properly
+- `/sys/kernel/debug/legion/fancurve: No such file or directory`: Kernel module was not loaded properly
 - `cat: /sys/kernel/debug/legion/fancurve: Permission denied` you have forgot sudo
 
 ### Quick Test: Read Sensor Values from Hardware
@@ -197,7 +197,7 @@ Expected output:
 
 Unexpected output:
 - `Command 'sensors' not found`: Install `sensors` from the package `lm-sensors`     
-- no entries for "Fan 1", "Fan 2" etc. are shown
+- no entries for "Fan 1", "Fan 2" etc. are shown. The kernel module was not loaded properly. Redo first test.
     
 
 ### Quick Test: Change Current Fancurve from Hardware with hwmon
