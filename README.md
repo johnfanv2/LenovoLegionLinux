@@ -250,10 +250,10 @@ Set a custom fan curve with the provided script. See `Creating and Setting your 
     - If errors occured, include output of commands.
 - You also might to want to start this repository
 
-# :computer: Normal Usage
+## :computer: Normal Usage
 **you have to install the kernel module permanently (see above), otherwise you must reload it manually after each restart**
 
-## Temperatuer and Fan Monitoring
+### Temperatuer and Fan Monitoring
 The tempereratues and fan speeds should be displayed in any graphical tool that monitors them, e.g. psensor. You have to install it first before running:
 ```bash
 psensor
@@ -262,7 +262,7 @@ psensor
     <img height="450" style="float: center;" src="assets/psensor.png" alt="psensor">
 </p>
     
-## Creating and Setting your own Fan Curve
+### Creating and Setting your own Fan Curve
 Just run the script to set the fan curve. It is in the folder `LenovoLegionLinux`.
 ```bash
 # Go to folder LenovoLegionLinux and run it. It should output "Writing fancurve succeful!" if it finishes successful
