@@ -233,6 +233,9 @@ XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 ```
+
+**If you want to reset your fan curve, just toggle with Ctrl+Q the powermode or restart and everything is gone.**
+
 Unexpected: 
 - `file not found`: please report your problem as an Github Issue
 - the values have not changed
@@ -277,10 +280,10 @@ Unexpected output:
 - script does not end with "fancurve set": maybe path to hwmon changed; Please report this
 
 Note: 
+- **If you want to reset your fan curve, just toggle with Ctrl+Q the powermode or restart and everything is gone.**
 - Currently, there is no GUI available. 
 - Currenlty, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
 - You might want to create different scritps for different usages. Just copy it and adapt the values.
-
 
 
 ## Credits
