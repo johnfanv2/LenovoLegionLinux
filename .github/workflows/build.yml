@@ -1,0 +1,20 @@
+name: Build
+run-name: ${{ github.actor }} running Build
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: ./deploy/install_dependencies_ubuntu.sh
+      shell: bash
+    - name: Build
+      run: ./deploy/build.sh
+      shell: bash
