@@ -4,39 +4,37 @@
  *   particular for fan curve control and power mode.
  *
  *  Copyright (C) 2022 johnfan <johnfan (at) example (dot) com>
- * 
- *  Driver supports the following models:
- *      - Lenovo Legion 5 (Gen 6 - 2021)
- * 
+ *
+ *
  *  This driver might work on other Lenovo Legion models. If you
- *  want to try it you can pass force=1 as argument 
- *  to the module which will force it to load even when the DMI 
+ *  want to try it you can pass force=1 as argument
+ *  to the module which will force it to load even when the DMI
  *  data doesn't match the model AND FIRMWARE.
- * 
+ *
  *  Support for other hardware of this model is already partially
  *  provided by the module ideapd-laptop.
- * 
+ *
  *  The development page for this driver is located at
  *  https://github.com/johnfanv2/LenovoLegionLinux
  *
  *  This driver exports the files:
  *    - /sys/kernel/debug/legion/fancurve (ro)
- *        The fan curve in the form stored in the firmware in an 
+ *        The fan curve in the form stored in the firmware in an
  *        human readable table.
- * 
+ *
  *    - /sys/kernel/legion/power_mode (rw)
  *       0: balanced mode (white)
  *       1: performance mode (red)
  *       2: quiet mode (blue)
  *       ?: custom mode (pink)
- *       
- * 		NOTE: Writing to this will load the default fan curve from
- *            the firmware for this mode, so the fan curve might
- *            have to be reconfigured if needed.
- * 
+ *
+ *  NOTE: Writing to this will load the default fan curve from
+ *        the firmware for this mode, so the fan curve might
+ *        have to be reconfigured if needed.
+ *
  *  It implements the usual hwmon interface to monitor fan speed and temmperature
  *  and allows to set the fan curve inside the firware.
- * 
+ *
  *    - /sys/class/hwmon/X/fan1_input or /sys/class/hwmon/X/fan2_input  (ro)
  *        Current fan speed of fan1/fan2.
  *    - /sys/class/hwmon/X/temp1_input (ro)
@@ -50,11 +48,11 @@
  *    - /sys/class/hwmon/X/pwmY_auto_pointZ_temp_hyst (rw)
  *          hysteris (CPU, GPU, or IC) at the Y-level in the fan curve. The lower
  *          temperatue of the level is the upper temperature minus the hysteris
- * 
- * 
+ *
+ *
  *  Credits for reverse engineering the firmware to:
  *      - Luke Cama: Windows version "LegionFanControl"
- *      - SmokelessCPU: reverse engineering of custom registers in EC 
+ *      - SmokelessCPU: reverse engineering of custom registers in EC
  *                      and commincation method with EC via ports
  *      - 0x1F9F1: additional reverse engineering for complete fan curve
  *      - heavily inspired by lenovo_laptop.c
@@ -74,16 +72,12 @@
 #include <linux/platform_profile.h>
 #include <linux/types.h>
 
-
-
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("johnfan");
 MODULE_DESCRIPTION("Lenovo Legion laptop extras");
 
-// module parameter
-static bool force = false;
-
-module_param(force, bool, S_IRUSR | S_IRGRP);
+static bool force;
+module_param(force, bool, 0440);
 MODULE_PARM_DESC(
 	force,
 	"Force loading this module even if model or BIOS does not match.");
@@ -93,7 +87,6 @@ MODULE_PARM_DESC(
 
 //Size of fancurve stored in embedded controller
 #define MAXFANCURVESIZE 10
-
 
 #define LEGION_DRVR_SHORTNAME "legion"
 #define LEGION_HWMON_NAME LEGION_DRVR_SHORTNAME "_hwmon"
@@ -105,14 +98,14 @@ MODULE_PARM_DESC(
 /* The configuration and registers to access the embedded controller
  * depending on different the version of the software on the
  * embedded controller or and the BIOS/UEFI firmware.
- * 
+ *
  * To control fan curve in the embedded controller (EC) one has to
  * write to its "RAM". There are different possibilities:
  *  - EC RAM is memory mapped (write to it with ioremap)
- *  - access EC RAM via ported mapped IO (outb/inb) 
+ *  - access EC RAM via ported mapped IO (outb/inb)
  *  - access EC RAM via ACPI methods. It is only possible to write
- * 		to part of it (first 0xFF bytes?)
- * 
+ *    to part of it (first 0xFF bytes?)
+ *
  * In later models the firmware directly exposes ACPI methods to
  * set the fan curve direclty, without writing to EC RAM. This
  * is done inside the ACPI method.
@@ -124,8 +117,8 @@ MODULE_PARM_DESC(
  * the EC, which can be updated by a BIOS update from Lenovo.
  */
 // TODO: same order as in initialization
-struct ec_register_offsets{
-    u16 ECINDAR0;
+struct ec_register_offsets {
+	u16 ECINDAR0;
 	u16 ECINDAR1;
 	u16 ECINDAR2;
 	u16 ECINDAR3;
@@ -208,28 +201,24 @@ struct ec_register_offsets{
 	u16 ALT_IC_TEMP2;
 };
 
-enum ECRAM_ACCESS{
-	ECRAM_ACCESS_PORTIO,
-	ECRAM_ACCESS_MEMORYIO
-};
+enum ECRAM_ACCESS { ECRAM_ACCESS_PORTIO, ECRAM_ACCESS_MEMORYIO };
 
-enum CONTROL_METHOD{
+enum CONTROL_METHOD {
 	// control EC by readin/writing to EC memory
 	CONTROL_METHOD_ECRAM,
 	// control EC only by ACPI calls
 	CONTROL_METHOD_ACPI
 };
 
-
-struct model_config{
-	const struct ec_register_offsets* registers;
+struct model_config {
+	const struct ec_register_offsets *registers;
 	u16 embedded_controller_id;
 	// how should the EC be acesses?
 	enum CONTROL_METHOD access_method;
 
 	// if EC is accessed by RAM, how sould it be access
 	enum ECRAM_ACCESS ecram_access_method;
-	
+
 	// if EC is accessed by memory mapped, what is its address
 	phys_addr_t memoryio_physical_start;
 	size_t memoryio_size;
@@ -239,65 +228,64 @@ struct model_config{
 /* Coinfiguration for different models */
 /* =================================== */
 
-
 // Idea by SmokelesssCPU (modified)
 // - all default names and register addresses are supported by datasheet
 // - register addresses for custom firmware by SmokelesssCPU
-static const struct ec_register_offsets ec_register_offsets_v0 = {	
+static const struct ec_register_offsets ec_register_offsets_v0 = {
 	// 6.3 Shared Memory Flash Interface Bridge (SMFI)
 	// "The SMFI provides an HLPC interface between the host bus a
 	// and the M bus. The flash is mapped into the
-    // host memory address space for host accesses. The flash is also 
+	// host memory address space for host accesses. The flash is also
 	// mapped into the EC memory address space for EC accesses"
-    .ECINDAR0 = 0x103B,
-    .ECINDAR1 = 0x103C,
-    .ECINDAR2 = 0x103D,
-    .ECINDAR3 = 0x103E,
-    .ECINDDR = 0x103F,
+	.ECINDAR0 = 0x103B,
+	.ECINDAR1 = 0x103C,
+	.ECINDAR2 = 0x103D,
+	.ECINDAR3 = 0x103E,
+	.ECINDDR = 0x103F,
 
 	// 7.5 General Purpose I/O Port (GPIO)
 	// I/O pins controlled by registers.
-    .GPDRA = 0x1601,
+	.GPDRA = 0x1601,
 	// port data, i.e. data to output to pins
 	// or data read from pins
-    .GPCRA0 = 0x1610,
-	// control register for each pin, 
+	.GPCRA0 = 0x1610,
+	// control register for each pin,
 	// set as input, output, ...
-    .GPCRA1 = 0x1611,
-    .GPCRA2 = 0x1612,
-    .GPCRA3 = 0x1613,
-    .GPCRA4 = 0x1614,
-    .GPCRA5 = 0x1615,
-    .GPCRA6 = 0x1616,
-    .GPCRA7 = 0x1617,
-    .GPOTA = 0x1671,
-    .GPDMRA = 0x1661,
+	.GPCRA1 = 0x1611,
+	.GPCRA2 = 0x1612,
+	.GPCRA3 = 0x1613,
+	.GPCRA4 = 0x1614,
+	.GPCRA5 = 0x1615,
+	.GPCRA6 = 0x1616,
+	.GPCRA7 = 0x1617,
+	.GPOTA = 0x1671,
+	.GPDMRA = 0x1661,
 
 	// Super I/O Configuration Registers
-	// 7.15 General Control (GCTRL) 
-	// General Control (GCTRL) 
+	// 7.15 General Control (GCTRL)
+	// General Control (GCTRL)
 	// (see EC Interface Registers  and 6.2 Plug and Play Configuration (PNPCFG)) in datasheet
 	// note: these are in two places saved
 	// in EC Interface Registers  and in super io configuraion registers
 	// Chip ID
-    .ECHIPID1 = 0x2000, // 0x20
-    .ECHIPID2 = 0x2001, // 0x21
+	.ECHIPID1 = 0x2000, // 0x20
+	.ECHIPID2 = 0x2001, // 0x21
 	// Chip Version
-    .ECHIPVER = 0x2002, // 0x22
-    .ECDEBUG = 0x2003, //0x23 SIOCTRL (super io control)
+	.ECHIPVER = 0x2002, // 0x22
+	.ECDEBUG = 0x2003, //0x23 SIOCTRL (super io control)
 
-	// External GPIO Controller (EGPC) 
+	// External GPIO Controller (EGPC)
 	// 7.16 External GPIO Controller (EGPC)
 	// Communication with an external GPIO chip
 	// (IT8301)
 	// Address
-    .EADDR = 0x2100,
+	.EADDR = 0x2100,
 	// Data
-    .EDAT = 0x2101,
+	.EDAT = 0x2101,
 	// Control
-    .ECNT = 0x2102,
+	.ECNT = 0x2102,
 	// Status
-    .ESTS = 0x2103,
+	.ESTS = 0x2103,
 
 	// FAN/PWM control by ITE
 	// 7.11 PWM
@@ -311,16 +299,16 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	//   is not used, but the fan is controlled
 	//   by a custom program flashed on the ITE
 	//   chip
-	
+
 	// duty cycle of each PWM output
-    .DCR0 = 0x1802,
-    .DCR1 = 0x1803,
-    .DCR2 = 0x1804,
-    .DCR3 = 0x1805,
-    .DCR4 = 0x1806,
-    .DCR5 = 0x1807,
-    .DCR6 = 0x1808,
-    .DCR7 = 0x1809,
+	.DCR0 = 0x1802,
+	.DCR1 = 0x1803,
+	.DCR2 = 0x1804,
+	.DCR3 = 0x1805,
+	.DCR4 = 0x1806,
+	.DCR5 = 0x1807,
+	.DCR6 = 0x1808,
+	.DCR7 = 0x1809,
 	// FAN1 tachometer (least, most signficant byte)
 	.F1TLRR = 0x181E,
 	.F1TMRR = 0x181F,
@@ -350,34 +338,33 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	// Firmware of ITE can be extended by
 	// custom program using its own "variables"
 	// These are the offsets to these "variables"
-    .FW_VER = 0xC2C7,
-    .FAN_CUR_POINT = 0xC534,
-    .FAN_POINTS_SIZE = 0xC535,
-    .FAN1_BASE = 0xC540,
-    .FAN2_BASE = 0xC550,
-    .FAN_ACC_BASE = 0xC560,
-    .FAN_DEC_BASE = 0xC570,
-    .CPU_TEMP = 0xC580,
-    .CPU_TEMP_HYST = 0xC590,
-    .GPU_TEMP = 0xC5A0,
-    .GPU_TEMP_HYST = 0xC5B0,
-    .VRM_TEMP = 0xC5C0,
-    .VRM_TEMP_HYST = 0xC5D0,
-    .CPU_TEMP_EN = 0xC631,
-    .GPU_TEMP_EN = 0xC632,
-    .VRM_TEMP_EN = 0xC633,
-    .FAN1_ACC_TIMER = 0xC3DA,
-    .FAN2_ACC_TIMER = 0xC3DB,
-    .FAN1_CUR_ACC = 0xC3DC,
-    .FAN1_CUR_DEC = 0xC3DD,
-    .FAN2_CUR_ACC = 0xC3DE,
-    .FAN2_CUR_DEC = 0xC3DF,
-    .FAN1_RPM_LSB = 0xC5E0,
-    .FAN1_RPM_MSB = 0xC5E1,
-    .FAN2_RPM_LSB = 0xC5E2,
-    .FAN2_RPM_MSB = 0xC5E3,
+	.FW_VER = 0xC2C7,
+	.FAN_CUR_POINT = 0xC534,
+	.FAN_POINTS_SIZE = 0xC535,
+	.FAN1_BASE = 0xC540,
+	.FAN2_BASE = 0xC550,
+	.FAN_ACC_BASE = 0xC560,
+	.FAN_DEC_BASE = 0xC570,
+	.CPU_TEMP = 0xC580,
+	.CPU_TEMP_HYST = 0xC590,
+	.GPU_TEMP = 0xC5A0,
+	.GPU_TEMP_HYST = 0xC5B0,
+	.VRM_TEMP = 0xC5C0,
+	.VRM_TEMP_HYST = 0xC5D0,
+	.CPU_TEMP_EN = 0xC631,
+	.GPU_TEMP_EN = 0xC632,
+	.VRM_TEMP_EN = 0xC633,
+	.FAN1_ACC_TIMER = 0xC3DA,
+	.FAN2_ACC_TIMER = 0xC3DB,
+	.FAN1_CUR_ACC = 0xC3DC,
+	.FAN1_CUR_DEC = 0xC3DD,
+	.FAN2_CUR_ACC = 0xC3DE,
+	.FAN2_CUR_DEC = 0xC3DF,
+	.FAN1_RPM_LSB = 0xC5E0,
+	.FAN1_RPM_MSB = 0xC5E1,
+	.FAN2_RPM_LSB = 0xC5E2,
+	.FAN2_RPM_MSB = 0xC5E3,
 
-	
 	.ALT_CPU_TEMP = 0xc538,
 	.ALT_GPU_TEMP = 0xc539,
 	.ALT_POWERMODE = 0xc420,
@@ -391,7 +378,7 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.ALT_IC_TEMP2 = 0xC5E8
 };
 
-static const struct model_config model_v0 ={
+static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
 	.embedded_controller_id = 0x8227,
 	.access_method = CONTROL_METHOD_ECRAM,
@@ -410,7 +397,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// Family: Legion 5 15ACH6H, ...
 		.ident = "GKCN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "GKCN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -419,7 +406,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// modelyear: 2020
 		.ident = "EUCN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "EUCN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -428,7 +415,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// modelyear: 2020
 		.ident = "EFCN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "EFCN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -437,7 +424,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// modelyear: 2020
 		.ident = "FSCN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "FSCN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -446,7 +433,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// modelyear: 2021
 		.ident = "HHCN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "HHCN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -455,7 +442,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// modelyear: 2022
 		.ident = "H1CN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "H1CN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -464,7 +451,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// modelyear: 2022
 		.ident = "J2CN",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "J2CN"),
 		},
 		.driver_data = (void *)&model_v0
@@ -476,7 +463,7 @@ static const struct dmi_system_id explicit_allowlist[] = {
 	{
 		.ident = "GKCN58WW",
 		.matches = {
-            DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "GKCN58WW"),
 		},
 		.driver_data = (void *)&model_v0
@@ -484,37 +471,34 @@ static const struct dmi_system_id explicit_allowlist[] = {
 	{}
 };
 
-
-
 /* ================================= */
 /* EC RAM Access with port-mapped IO */
 /* ================================= */
 
 /*
-* See datasheet of e.g. IT8502E/F/G, e.g. 
-* 6.2 Plug and Play Configuration (PNPCFG)
-*
-* Depending on configured BARDSEL register
-* the ports
-*   ECRAM_PORTIO_ADDR_PORT and 
-*   ECRAM_PORTIO_DATA_PORT
-* are configured.
-*
-* By performing IO on these ports one can
-* read/write to registers in the EC.
-*
-* "To access a register of PNPCFG, write target index to 
-*  address port and access this PNPCFG register via
-*  data port" [datasheet, 6.2 Plug and Play Configuration]
-*/
-
+ * See datasheet of e.g. IT8502E/F/G, e.g.
+ * 6.2 Plug and Play Configuration (PNPCFG)
+ *
+ * Depending on configured BARDSEL register
+ * the ports
+ *   ECRAM_PORTIO_ADDR_PORT and
+ *   ECRAM_PORTIO_DATA_PORT
+ * are configured.
+ *
+ * By performing IO on these ports one can
+ * read/write to registers in the EC.
+ *
+ * "To access a register of PNPCFG, write target index to
+ *  address port and access this PNPCFG register via
+ *  data port" [datasheet, 6.2 Plug and Play Configuration]
+ */
 
 // IO ports used to write to communicate with embedded controller
-// Start of used ports 
+// Start of used ports
 #define ECRAM_PORTIO_START_PORT 0x4E
 // Number of used ports
 #define ECRAM_PORTIO_PORTS_SIZE 2
-// Port used to specify address in EC RAM to read/write 
+// Port used to specify address in EC RAM to read/write
 // 0x4E/0x4F is the usual port for IO super controler
 // 0x2E/0x2F also common (ITE can also be configure to use these)
 #define ECRAM_PORTIO_ADDR_PORT 0x4E
@@ -523,36 +507,40 @@ static const struct dmi_system_id explicit_allowlist[] = {
 // Name used to request ports
 #define ECRAM_PORTIO_NAME "legion"
 
-
 struct ecram_portio {
-	/* protects read/write to EC RAM performed 
-	 * as a certain sequence of outb, inb 
+	/* protects read/write to EC RAM performed
+	 * as a certain sequence of outb, inb
 	 * commands on the IO ports. There can
 	 * be at most one.
 	 */
-	struct mutex io_port_mutex; 
+	struct mutex io_port_mutex;
 };
 
-ssize_t ecram_portio_init(struct ecram_portio* ec_portio){
-	if (!request_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE, ECRAM_PORTIO_NAME)) {
-	  pr_info("Cannot init ecram_portio the %x ports starting at %x \n", ECRAM_PORTIO_PORTS_SIZE, ECRAM_PORTIO_START_PORT);
-      return -ENODEV;
+ssize_t ecram_portio_init(struct ecram_portio *ec_portio)
+{
+	if (!request_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE,
+				ECRAM_PORTIO_NAME)) {
+		pr_info("Cannot init ecram_portio the %x ports starting at %x\n",
+			ECRAM_PORTIO_PORTS_SIZE, ECRAM_PORTIO_START_PORT);
+		return -ENODEV;
 	}
-	//pr_info("Reserved %x ports starting at %x \n", ECRAM_PORTIO_PORTS_SIZE, ECRAM_PORTIO_START_PORT);
+	//pr_info("Reserved %x ports starting at %x\n", ECRAM_PORTIO_PORTS_SIZE, ECRAM_PORTIO_START_PORT);
 	mutex_init(&ec_portio->io_port_mutex);
 	return 0;
 }
 
-void ecram_portio_exit(struct ecram_portio* ec_portio){
+void ecram_portio_exit(struct ecram_portio *ec_portio)
+{
 	release_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE);
 }
 
 /* Read a byte from the EC RAM.
-* 
-* Return status because of commong signature for alle
-* methods to access EC RAM.
-*/
-ssize_t ecram_portio_read(struct ecram_portio* ec_portio, u16 offset, u8 * value){
+ *
+ * Return status because of commong signature for alle
+ * methods to access EC RAM.
+ */
+ssize_t ecram_portio_read(struct ecram_portio *ec_portio, u16 offset, u8 *value)
+{
 	mutex_lock(&ec_portio->io_port_mutex);
 
 	outb(0x2E, ECRAM_PORTIO_ADDR_PORT);
@@ -577,11 +565,12 @@ ssize_t ecram_portio_read(struct ecram_portio* ec_portio, u16 offset, u8 * value
 }
 
 /* Write a byte to the EC RAM.
-* 
-* Return status because of commong signature for alle
-* methods to access EC RAM.
-*/
-ssize_t ecram_portio_write(struct ecram_portio* ec_portio, u16 offset, u8 value){
+ *
+ * Return status because of commong signature for alle
+ * methods to access EC RAM.
+ */
+ssize_t ecram_portio_write(struct ecram_portio *ec_portio, u16 offset, u8 value)
+{
 	mutex_lock(&ec_portio->io_port_mutex);
 
 	outb(0x2E, ECRAM_PORTIO_ADDR_PORT);
@@ -623,14 +612,14 @@ struct ecram_memoryio {
 	size_t size;
 };
 
-
 /**
  * physical_start : corresponds to EC RAM 0 inside EC
  * size: size of remapped region
- * 
+ *
  * strong exception safety
  */
-ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio, phys_addr_t physical_start, size_t size)
+ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
+				phys_addr_t physical_start, size_t size)
 {
 	void *virtual_start = ioremap(physical_start, size);
 
@@ -651,7 +640,7 @@ ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio, phys_addr_t phys
 
 void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
 {
-	if(ec_memoryio->virtual_start != NULL){
+	if (ec_memoryio->virtual_start != NULL) {
 		pr_info("Unmapping embedded controller memory at 0x%llx at virtual 0x%p\n",
 			ec_memoryio->physical_start,
 			ec_memoryio->virtual_start);
@@ -660,62 +649,64 @@ void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
 	}
 }
 
-
 /* Read a byte from the EC RAM.
-* 
-* Return status because of commong signature for alle
-* methods to access EC RAM.
-*/
-ssize_t ecram_memoryio_read(const struct ecram_memoryio* ec_memoryio, u16 ec_offset, u8 * value){
+ *
+ * Return status because of commong signature for alle
+ * methods to access EC RAM.
+ */
+ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
+				u16 ec_offset, u8 *value)
+{
 	if (ec_offset < ECRAM_OFFSET) {
-		pr_info("Unexpected read at offset %d into EC RAM\n", ec_offset);
+		pr_info("Unexpected read at offset %d into EC RAM\n",
+			ec_offset);
 		return -1;
-	} else {
-		*value = *(ec_memoryio->virtual_start + (ec_offset - ECRAM_OFFSET));
-		return 0;
 	}
+	*value = *(ec_memoryio->virtual_start + (ec_offset - ECRAM_OFFSET));
+	return 0;
 }
-
 
 /* Write a byte to the EC RAM.
-* 
-* Return status because of commong signature for alle
-* methods to access EC RAM.
-*/
-ssize_t ecram_memoryio_write(const struct ecram_memoryio* ec_memoryio, u16 ec_offset, u8 value){
+ *
+ * Return status because of commong signature for alle
+ * methods to access EC RAM.
+ */
+ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
+				 u16 ec_offset, u8 value)
+{
 	if (ec_offset < ECRAM_OFFSET) {
-		pr_info("Unexpected write at offset %d into EC RAM\n", ec_offset);
+		pr_info("Unexpected write at offset %d into EC RAM\n",
+			ec_offset);
 		return -1;
-	} else {
-		*(ec_memoryio->virtual_start + (ec_offset - ECRAM_OFFSET)) = value;
-		return 0;
 	}
+	*(ec_memoryio->virtual_start + (ec_offset - ECRAM_OFFSET)) = value;
+	return 0;
 }
-
 
 /* =================================== */
 /* EC RAM Access                       */
 /* =================================== */
 
-struct ecram{
+struct ecram {
 	struct ecram_memoryio memoryio;
 	struct ecram_portio portio;
 	enum ECRAM_ACCESS access_method;
 };
 
-ssize_t ecram_init(struct ecram *ecram, 
-	enum ECRAM_ACCESS access_method,
-	phys_addr_t memoryio_physical_start, size_t region_size){
+ssize_t ecram_init(struct ecram *ecram, enum ECRAM_ACCESS access_method,
+		   phys_addr_t memoryio_physical_start, size_t region_size)
+{
 	ssize_t err;
 
-	err = ecram_memoryio_init(&ecram->memoryio, memoryio_physical_start, region_size);
-	if(err){
-		pr_info("Failed ecram_memoryio_init \n");
+	err = ecram_memoryio_init(&ecram->memoryio, memoryio_physical_start,
+				  region_size);
+	if (err) {
+		pr_info("Failed ecram_memoryio_init\n");
 		goto err_ecram_memoryio_init;
 	}
 	err = ecram_portio_init(&ecram->portio);
-	if(err){
-		pr_info("Failed ecram_portio_init \n");
+	if (err) {
+		pr_info("Failed ecram_portio_init\n");
 		goto err_ecram_portio_init;
 	}
 
@@ -723,30 +714,31 @@ ssize_t ecram_init(struct ecram *ecram,
 
 	return 0;
 
-	err_ecram_portio_init:
-		ecram_memoryio_exit(&ecram->memoryio);
-	err_ecram_memoryio_init:
+err_ecram_portio_init:
+	ecram_memoryio_exit(&ecram->memoryio);
+err_ecram_memoryio_init:
 
 	return err;
 }
 
-void ecram_exit(struct ecram *ecram){
+void ecram_exit(struct ecram *ecram)
+{
 	ecram_portio_exit(&ecram->portio);
 	ecram_memoryio_exit(&ecram->memoryio);
 }
 
-
 /**
  * ecram_offset address on the EC
-*/
+ */
 static u8 ecram_read(struct ecram *ecram, u16 ecram_offset)
 {
 	u8 value;
 	int err;
-	switch (ecram->access_method )
-	{
+
+	switch (ecram->access_method) {
 	case ECRAM_ACCESS_MEMORYIO:
-		err = ecram_memoryio_read(&ecram->memoryio, ecram_offset, &value);
+		err = ecram_memoryio_read(&ecram->memoryio, ecram_offset,
+					  &value);
 		break;
 	case ECRAM_ACCESS_PORTIO:
 		err = ecram_portio_read(&ecram->portio, ecram_offset, &value);
@@ -754,19 +746,19 @@ static u8 ecram_read(struct ecram *ecram, u16 ecram_offset)
 	default:
 		break;
 	}
-	if(err){
-		pr_info("Error ecram_read at 0x%x \n", ecram_offset);
-	}
+	if (err)
+		pr_info("Error reading EC RAM at 0x%x\n", ecram_offset);
 	return value;
 }
 
 static void ecram_write(struct ecram *ecram, u16 ecram_offset, u8 value)
 {
 	int err;
-	switch (ecram->access_method )
-	{
+
+	switch (ecram->access_method) {
 	case ECRAM_ACCESS_MEMORYIO:
-		err = ecram_memoryio_write(&ecram->memoryio, ecram_offset, value);
+		err = ecram_memoryio_write(&ecram->memoryio, ecram_offset,
+					   value);
 		break;
 	case ECRAM_ACCESS_PORTIO:
 		err = ecram_portio_write(&ecram->portio, ecram_offset, value);
@@ -774,34 +766,33 @@ static void ecram_write(struct ecram *ecram, u16 ecram_offset, u8 value)
 	default:
 		break;
 	}
-	if(err){
-		pr_info("Error ecram_write at 0x%x \n", ecram_offset);
-	}
+	if (err)
+		pr_info("Error writing EC RAM at 0x%x\n", ecram_offset);
 }
 
 /* =============================== */
 /* Reads from EC  */
-/* ===============================  */ 
+/* ===============================  */
 
-
-u16 read_ec_id(struct ecram * ecram, 
-	const struct model_config * model){
+u16 read_ec_id(struct ecram *ecram, const struct model_config *model)
+{
 	u8 id1 = ecram_read(ecram, model->registers->ECHIPID1);
 	u8 id2 = ecram_read(ecram, model->registers->ECHIPID2);
+
 	return (id1 << 8) + id2;
 }
 
-u16 read_ec_version(struct ecram * ecram, 
-	const struct model_config * model){
+u16 read_ec_version(struct ecram *ecram, const struct model_config *model)
+{
 	u8 vers = ecram_read(ecram, model->registers->ECHIPVER);
 	u8 debug = ecram_read(ecram, model->registers->ECDEBUG);
+
 	return (vers << 8) + debug;
 }
 
-
 /* ============================= */
 /* Data model for sensor values  */
-/* ============================  */ 
+/* ============================  */
 
 struct sensor_values {
 	u16 fan1_rpm; // rpm1
@@ -813,7 +804,7 @@ struct sensor_values {
 	u8 ic_temp_celsius; // ic temperature in celcius
 };
 
-enum SENSOR_ATTR{
+enum SENSOR_ATTR {
 	SENSOR_CPU_TEMP_ID = 1,
 	SENSOR_GPU_TEMP_ID = 2,
 	SENSOR_IC_TEMP_ID = 3,
@@ -823,24 +814,29 @@ enum SENSOR_ATTR{
 	SENSOR_FAN_RPM_ID = 6
 };
 
-static int read_sensor_values(struct ecram * ecram, 
-	const struct model_config * model, struct sensor_values *values)
+static int read_sensor_values(struct ecram *ecram,
+				  const struct model_config *model,
+				  struct sensor_values *values)
 {
-	values->fan_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN_RPM);
+	values->fan_rpm =
+		100 * ecram_read(ecram, model->registers->ALT_FAN_RPM);
 	// TODO: what source toc choose?
 	// values->fan1_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN1_RPM);
 	// values->fan2_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN2_RPM);
 
-	values->fan1_rpm = 
+	values->fan1_rpm =
 		ecram_read(ecram, model->registers->FAN1_RPM_LSB) +
 		(((int)ecram_read(ecram, model->registers->FAN1_RPM_MSB)) << 8);
-	values->fan2_rpm= 
+	values->fan2_rpm =
 		ecram_read(ecram, model->registers->FAN2_RPM_LSB) +
-		(((int) ecram_read(ecram, model->registers->FAN2_RPM_MSB)) << 8);
+		(((int)ecram_read(ecram, model->registers->FAN2_RPM_MSB)) << 8);
 
-	values->cpu_temp_celsius = ecram_read(ecram, model->registers->ALT_CPU_TEMP);
-	values->gpu_temp_celsius = ecram_read(ecram, model->registers->ALT_GPU_TEMP);
-	values->ic_temp_celsius = ecram_read(ecram, model->registers->ALT_IC_TEMP2);
+	values->cpu_temp_celsius =
+		ecram_read(ecram, model->registers->ALT_CPU_TEMP);
+	values->gpu_temp_celsius =
+		ecram_read(ecram, model->registers->ALT_GPU_TEMP);
+	values->ic_temp_celsius =
+		ecram_read(ecram, model->registers->ALT_IC_TEMP2);
 
 	values->cpu_temp_celsius = ecram_read(ecram, 0xC5E6);
 	values->gpu_temp_celsius = ecram_read(ecram, 0xC5E7);
@@ -849,35 +845,31 @@ static int read_sensor_values(struct ecram * ecram,
 	return 0;
 }
 
-
 /* =============================== */
 /* Behaviour changing functions    */
-/* =============================== */ 
+/* =============================== */
 
-int read_powermode(struct ecram * ecram, 
-	const struct model_config * model)
+int read_powermode(struct ecram *ecram, const struct model_config *model)
 {
 	return ecram_read(ecram, model->registers->ALT_POWERMODE);
 }
 
-ssize_t write_powermode( struct ecram * ecram, 
-	const struct model_config * model, u8 value)
+ssize_t write_powermode(struct ecram *ecram, const struct model_config *model,
+			u8 value)
 {
-	if (value >= 0 && value <= 2) {
-		ecram_write(ecram, model->registers->ALT_POWERMODE, value);
-		return 0;
-	} else {
+	if (!(value >= 0 && value <= 2)) {
 		pr_info("Unexpected power mode value ignored: %d\n", value);
 		return -ENOMEM;
 	}
+	ecram_write(ecram, model->registers->ALT_POWERMODE, value);
+	return 0;
 }
 
 /**
  * Shortly toggle powermode to a different mode
  * and switch back, e.g. to reset fan curve.
-*/
-void toggle_powermode( struct ecram * ecram, 
-	const struct model_config * model)
+ */
+void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 {
 	int old_powermode = read_powermode(ecram, model);
 	int next_powermode = old_powermode == 0 ? 1 : 0;
@@ -887,39 +879,37 @@ void toggle_powermode( struct ecram * ecram,
 	write_powermode(ecram, model, old_powermode);
 }
 
-
 /* ============================= */
 /* Data model for fan curve      */
-/* ============================  */ 
-
+/* ============================  */
 
 struct fancurve_point {
 	// rpm1 devided by 100
-	u8 rpm1_raw; 
+	u8 rpm1_raw;
 	// rpm2 devided by 100
-	u8 rpm2_raw; 
+	u8 rpm2_raw;
 	// >=2 , <=5 (lower is faster); must be increasing by level
-	u8 accel; 
+	u8 accel;
 	// >=2 , <=5 (lower is faster); must be increasing by level
-	u8 decel; 
+	u8 decel;
 
 	// min must be lower or equal than max
 	// last level max must be 127
 	// <=127 cpu max temp for this level; must be increasing by level
-	u8 cpu_max_temp_celsius; 
+	u8 cpu_max_temp_celsius;
 	// <=127 cpu min temp for this level; must be increasing by level
-	u8 cpu_min_temp_celsius; 
+	u8 cpu_min_temp_celsius;
 	// <=127 gpu min temp for this level; must be increasing by level
-	u8 gpu_max_temp_celsius; 
+	u8 gpu_max_temp_celsius;
 	// <=127 gpu max temp for this level; must be increasing by level
 	u8 gpu_min_temp_celsius;
-	// <=127 ic max temp for this level; must be increasing by level 
-	u8 ic_max_temp_celsius; 
 	// <=127 ic max temp for this level; must be increasing by level
-	u8 ic_min_temp_celsius; 
+	u8 ic_max_temp_celsius;
+	// <=127 ic max temp for this level; must be increasing by level
+	u8 ic_min_temp_celsius;
 };
 
-enum FANCURVE_ATTR{
+enum FANCURVE_ATTR {
 	FANCURVE_ATTR_PWM1 = 1,
 	FANCURVE_ATTR_PWM2 = 2,
 	FANCURVE_ATTR_CPU_TEMP = 3,
@@ -933,36 +923,36 @@ enum FANCURVE_ATTR{
 	FANCURVE_SIZE = 11,
 };
 
-
 // used for clearing table entries
-static const struct fancurve_point fancurve_point_zero = {
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
+static const struct fancurve_point fancurve_point_zero = { 0, 0, 0, 0, 0,
+							   0, 0, 0, 0, 0 };
 
-struct fancurve{
+struct fancurve {
 	struct fancurve_point points[MAXFANCURVESIZE];
 	// number of points used; must be <= MAXFANCURVESIZE
 	size_t size;
 	// the point that at which fans are run currently
 	size_t current_point_i;
-	
 };
-
-
-
 
 // calculate derived values
 
-int fancurve_get_cpu_deltahyst(struct fancurve_point* point){
-	return ((int)point->cpu_max_temp_celsius) - ((int)point->cpu_min_temp_celsius);
+int fancurve_get_cpu_deltahyst(struct fancurve_point *point)
+{
+	return ((int)point->cpu_max_temp_celsius) -
+		   ((int)point->cpu_min_temp_celsius);
 }
 
-int fancurve_get_gpu_deltahyst(struct fancurve_point* point){
-	return ((int)point->gpu_max_temp_celsius) - ((int)point->gpu_min_temp_celsius);
+int fancurve_get_gpu_deltahyst(struct fancurve_point *point)
+{
+	return ((int)point->gpu_max_temp_celsius) -
+		   ((int)point->gpu_min_temp_celsius);
 }
 
-int fancurve_get_ic_deltahyst(struct fancurve_point* point){
-	return ((int)point->ic_max_temp_celsius) - ((int)point->ic_min_temp_celsius);
+int fancurve_get_ic_deltahyst(struct fancurve_point *point)
+{
+	return ((int)point->ic_max_temp_celsius) -
+		   ((int)point->ic_min_temp_celsius);
 }
 
 // validation functions
@@ -977,179 +967,192 @@ bool fancurve_is_valid_max_temp(int max_temp)
 	return max_temp >= 0 && max_temp <= 127;
 }
 
-// setters with validation 
+// setters with validation
 // - make hwmon implementation easier
 // - keep fancurve valid, otherwise EC will not properly control fan
 
-bool fancurve_set_rpm1(struct fancurve* fancurve, int point_id, int rpm)
+bool fancurve_set_rpm1(struct fancurve *fancurve, int point_id, int rpm)
 {
 	bool valid = point_id == 0 ? rpm == 0 : (rpm >= 0 && rpm <= 4500);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].rpm1_raw = rpm / 100;
-	}
 	return valid;
 }
 
-bool fancurve_set_rpm2(struct fancurve* fancurve, int point_id, int rpm)
+bool fancurve_set_rpm2(struct fancurve *fancurve, int point_id, int rpm)
 {
 	bool valid = point_id == 0 ? rpm == 0 : (rpm >= 0 && rpm <= 4500);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].rpm2_raw = rpm / 100;
-	}
 	return valid;
 }
 
 // TODO: remove { ... } from single line if body
 
-bool fancurve_set_accel(struct fancurve* fancurve, int point_id, int accel)
+bool fancurve_set_accel(struct fancurve *fancurve, int point_id, int accel)
 {
 	bool valid = accel >= 2 && accel <= 5;
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].accel = accel;
-	}
 	return valid;
 }
 
-bool fancurve_set_decel(struct fancurve* fancurve, int point_id, int decel)
+bool fancurve_set_decel(struct fancurve *fancurve, int point_id, int decel)
 {
 	bool valid = decel >= 2 && decel <= 5;
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].decel = decel;
-	}
 	return valid;
 }
 
-bool fancurve_set_cpu_temp_max(struct fancurve* fancurve, int point_id, int value)
+bool fancurve_set_cpu_temp_max(struct fancurve *fancurve, int point_id,
+				   int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].cpu_max_temp_celsius = value;
-	}
+
 	return valid;
 }
 
-bool fancurve_set_gpu_temp_max(struct fancurve* fancurve, int point_id, int value)
+bool fancurve_set_gpu_temp_max(struct fancurve *fancurve, int point_id,
+				   int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].gpu_max_temp_celsius = value;
-	}
 	return valid;
 }
 
-bool fancurve_set_ic_temp_max(struct fancurve* fancurve, int point_id, int value)
+bool fancurve_set_ic_temp_max(struct fancurve *fancurve, int point_id,
+				  int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].ic_max_temp_celsius = value;
-	}
 	return valid;
 }
 
-bool fancurve_set_cpu_temp_min(struct fancurve* fancurve, int point_id, int value)
+bool fancurve_set_cpu_temp_min(struct fancurve *fancurve, int point_id,
+				   int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].cpu_min_temp_celsius = value;
-	}
 	return valid;
 }
 
-bool fancurve_set_gpu_temp_min(struct fancurve* fancurve, int point_id, int value)
+bool fancurve_set_gpu_temp_min(struct fancurve *fancurve, int point_id,
+				   int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].gpu_min_temp_celsius = value;
-	}
 	return valid;
 }
 
-bool fancurve_set_ic_temp_min(struct fancurve* fancurve, int point_id, int value)
+bool fancurve_set_ic_temp_min(struct fancurve *fancurve, int point_id,
+				  int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
-	if(valid){
+
+	if (valid)
 		fancurve->points[point_id].ic_min_temp_celsius = value;
-	}
 	return valid;
 }
 
-// TODO: remove this if meaning of hyst in fan curve is clear!
+//TODO: remove this if meaning of hyst in fan curve is clear!
 //
-// bool fancurve_set_cpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
-// {
-// 	int max_temp = fancurve->points[point_id].cpu_max_temp_celsius;
-// 	bool valid = hyst_value < max_temp;
-// 	if(valid){
-// 		fancurve->points[point_id].cpu_min_temp_celsius = max_temp - hyst_value;
-// 	}
-// 	return valid;
-// }
+//bool fancurve_set_cpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
+//{
+//	int max_temp = fancurve->points[point_id].cpu_max_temp_celsius;
+//	bool valid = hyst_value < max_temp;
+//	if(valid){
+//		fancurve->points[point_id].cpu_min_temp_celsius = max_temp - hyst_value;
+//	}
+//	return valid;
+//}
 
-// bool fancurve_set_gpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
-// {
-// 	int max_temp = fancurve->points[point_id].gpu_max_temp_celsius;
-// 	bool valid = hyst_value < max_temp;
-// 	if(valid){
-// 		fancurve->points[point_id].gpu_min_temp_celsius = max_temp - hyst_value;
-// 	}
-// 	return valid;
-// }
+//bool fancurve_set_gpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
+//{
+//	int max_temp = fancurve->points[point_id].gpu_max_temp_celsius;
+//	bool valid = hyst_value < max_temp;
+//	if(valid){
+//		fancurve->points[point_id].gpu_min_temp_celsius = max_temp - hyst_value;
+//	}
+//	return valid;
+//}
 
-// bool fancurve_set_ic_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
-// {
-// 	int max_temp = fancurve->points[point_id].ic_max_temp_celsius;
-// 	bool valid = hyst_value < max_temp;
-// 	if(valid){
-// 		fancurve->points[point_id].ic_min_temp_celsius = max_temp - hyst_value;
-// 	}
-// 	return valid;
-// }
+//bool fancurve_set_ic_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
+//{
+//	int max_temp = fancurve->points[point_id].ic_max_temp_celsius;
+//	bool valid = hyst_value < max_temp;
+//	if(valid){
+//		fancurve->points[point_id].ic_min_temp_celsius = max_temp - hyst_value;
+//	}
+//	return valid;
+//}
 
-bool fancurve_set_size(struct fancurve* fancurve, int size, bool init_values)
+bool fancurve_set_size(struct fancurve *fancurve, int size, bool init_values)
 {
 	bool valid = size >= 1 && size <= MAXFANCURVESIZE;
-	if(!valid){
+
+	if (!valid)
 		return false;
-	}
-	if(init_values && size < fancurve->size){
+	if (init_values && size < fancurve->size) {
 		// fancurve size is decreased, but last etnry alwasy needs 127 temperatures
 		// Note: size >=1
 		// TODO: remove this comment
-		fancurve->points[size-1].cpu_max_temp_celsius = 127;
-		fancurve->points[size-1].ic_max_temp_celsius = 127;
-		fancurve->points[size-1].gpu_max_temp_celsius = 127;
+		fancurve->points[size - 1].cpu_max_temp_celsius = 127;
+		fancurve->points[size - 1].ic_max_temp_celsius = 127;
+		fancurve->points[size - 1].gpu_max_temp_celsius = 127;
 	}
-	if(init_values && size > fancurve->size){
+	if (init_values && size > fancurve->size) {
 		// fancurve increased, so new entries need valid values
 		int i;
 		int last = fancurve->size > 0 ? fancurve->size - 1 : 0;
-		for(i = fancurve->size; i<size; ++i){
+
+		for (i = fancurve->size; i < size; ++i)
 			fancurve->points[i] = fancurve->points[last];
-		}
 	}
 	return true;
 }
 
-
-
-/* Read the fan curve from the EC. 
+/* Read the fan curve from the EC.
  *
- * In newer models (>=2022) there is an ACPI/WMI to read fan curve as 
+ * In newer models (>=2022) there is an ACPI/WMI to read fan curve as
  * a whole. So read/write fan table as a whole to use
  * same interface for both cases.
+ *
+ * It reads all points from EC memory, even if stored fancurve is smaller, so
+ * it can contain 0 entries.
  */
-static int read_fancurve(struct ecram * ecram, 
-	const struct model_config * model, struct fancurve* fancurve)
+static int read_fancurve(struct ecram *ecram, const struct model_config *model,
+			 struct fancurve *fancurve)
 {
-	// Read all points from EC memory, even if stored fancurve is smaller
 	size_t i = 0;
-	for (i = 0; i < MAXFANCURVESIZE; ++i) {
-		struct fancurve_point * point = &fancurve->points[i];
-		point->rpm1_raw = ecram_read(ecram, model->registers->FAN1_BASE + i);
-		point->rpm2_raw = ecram_read(ecram, model->registers->FAN2_BASE + i);
 
-		point->accel = ecram_read(ecram, model->registers->FAN_ACC_BASE + i);
-		point->decel = ecram_read(ecram, model->registers->FAN_DEC_BASE + i);
+	for (i = 0; i < MAXFANCURVESIZE; ++i) {
+		struct fancurve_point *point = &fancurve->points[i];
+
+		point->rpm1_raw =
+			ecram_read(ecram, model->registers->FAN1_BASE + i);
+		point->rpm2_raw =
+			ecram_read(ecram, model->registers->FAN2_BASE + i);
+
+		point->accel =
+			ecram_read(ecram, model->registers->FAN_ACC_BASE + i);
+		point->decel =
+			ecram_read(ecram, model->registers->FAN_DEC_BASE + i);
 		point->cpu_max_temp_celsius =
 			ecram_read(ecram, model->registers->CPU_TEMP + i);
 		point->cpu_min_temp_celsius =
@@ -1165,16 +1168,19 @@ static int read_fancurve(struct ecram * ecram,
 	}
 
 	// Do not trust that hardware; It might suddendly report
-	// a larger size, so clamp it. 
+	// a larger size, so clamp it.
 	fancurve->size = ecram_read(ecram, model->registers->FAN_POINTS_SIZE);
-	fancurve->size = min(fancurve->size , (typeof(fancurve->size ))(MAXFANCURVESIZE));
-	fancurve->current_point_i = ecram_read(ecram, model->registers->FAN_CUR_POINT);
-	fancurve->current_point_i = min(fancurve->current_point_i , fancurve->size);
+	fancurve->size =
+		min(fancurve->size, (typeof(fancurve->size))(MAXFANCURVESIZE));
+	fancurve->current_point_i =
+		ecram_read(ecram, model->registers->FAN_CUR_POINT);
+	fancurve->current_point_i =
+		min(fancurve->current_point_i, fancurve->size);
 	return 0;
 }
 
-static int write_fancurve(struct ecram * ecram, 
-	const struct model_config * model, const struct fancurve* fancurve, bool write_size)
+static int write_fancurve(struct ecram *ecram, const struct model_config *model,
+			  const struct fancurve *fancurve, bool write_size)
 {
 	size_t i;
 	// Reset fan update counters (try to avoid any race conditions)
@@ -1183,35 +1189,41 @@ static int write_fancurve(struct ecram * ecram,
 	for (i = 0; i < MAXFANCURVESIZE; ++i) {
 		// Entries for points larger than fancurve size should be cleared
 		// to 0
-		const struct fancurve_point * point = 
-			i < fancurve->size ? &fancurve->points[i] : &fancurve_point_zero;
+		const struct fancurve_point *point =
+			i < fancurve->size ? &fancurve->points[i] :
+						 &fancurve_point_zero;
 
-		ecram_write(ecram, model->registers->FAN1_BASE + i, point->rpm1_raw);
-		ecram_write(ecram, model->registers->FAN2_BASE + i, point->rpm2_raw);
+		ecram_write(ecram, model->registers->FAN1_BASE + i,
+				point->rpm1_raw);
+		ecram_write(ecram, model->registers->FAN2_BASE + i,
+				point->rpm2_raw);
 
-		ecram_write(ecram, model->registers->FAN_ACC_BASE  + i, point->accel);
-		ecram_write(ecram, model->registers->FAN_DEC_BASE + i, point->decel);
+		ecram_write(ecram, model->registers->FAN_ACC_BASE + i,
+				point->accel);
+		ecram_write(ecram, model->registers->FAN_DEC_BASE + i,
+				point->decel);
 
 		ecram_write(ecram, model->registers->CPU_TEMP + i,
-				 point->cpu_max_temp_celsius);
+				point->cpu_max_temp_celsius);
 		ecram_write(ecram, model->registers->CPU_TEMP_HYST + i,
-				 point->cpu_min_temp_celsius);
+				point->cpu_min_temp_celsius);
 		ecram_write(ecram, model->registers->GPU_TEMP + i,
-				 point->gpu_max_temp_celsius);
+				point->gpu_max_temp_celsius);
 		ecram_write(ecram, model->registers->GPU_TEMP_HYST + i,
-				 point->gpu_min_temp_celsius);
+				point->gpu_min_temp_celsius);
 		ecram_write(ecram, model->registers->VRM_TEMP + i,
-				 point->ic_max_temp_celsius);
+				point->ic_max_temp_celsius);
 		ecram_write(ecram, model->registers->VRM_TEMP_HYST + i,
-				 point->ic_min_temp_celsius);
+				point->ic_min_temp_celsius);
 	}
 
-	if(write_size){
-		ecram_write(ecram, model->registers->FAN_POINTS_SIZE, fancurve->size);
+	if (write_size) {
+		ecram_write(ecram, model->registers->FAN_POINTS_SIZE,
+				fancurve->size);
 	}
-	
+
 	// Reset current fan level to 0, so algorithm in EC
-	// selects fan curve point again and resetting hysterisis 
+	// selects fan curve point again and resetting hysterisis
 	// effects
 	ecram_write(ecram, model->registers->FAN_CUR_POINT, 0);
 
@@ -1223,62 +1235,62 @@ static int write_fancurve(struct ecram * ecram,
 	return 0;
 }
 
-// TODO: still needed?
-// static ssize_t fancurve_print(const struct fancurve* fancurve, char *buf)
-// {
-// 	ssize_t output_char_count = 0;
-// 	size_t i;
-// 	for (i = 0; i < fancurve->size; ++i) {
-// 		const struct fancurve_point * point = &fancurve->points[i];
-// 		int res = sprintf(buf, "%d %d %d %d %d %d %d %d %d %d\n",
-// 				  point->rpm1_raw*100, point->rpm2_raw*100,
-// 				  point->accel, point->decel,
-// 				  point->cpu_min_temp_celsius,
-// 				  point->cpu_max_temp_celsius,
-// 				  point->gpu_min_temp_celsius,
-// 				  point->gpu_max_temp_celsius,
-// 				  point->ic_min_temp_celsius,
-// 				  point->ic_max_temp_celsius);
-// 		if (res > 0) {
-// 			output_char_count += res;
-// 		} else {
-// 			pr_debug(
-// 				"Error writing to buffer for output of fanCurveStructure \n");
-// 			return 0;
-// 		}
-// 		// go forward in buffer to append next print output
-// 		buf += res;
-// 	}
-// 	return output_char_count;
-// }
+//TODO: still needed?
+//static ssize_t fancurve_print(const struct fancurve* fancurve, char *buf)
+//{
+//	ssize_t output_char_count = 0;
+//	size_t i;
+//	for (i = 0; i < fancurve->size; ++i) {
+//		const struct fancurve_point * point = &fancurve->points[i];
+//		int res = sprintf(buf, "%d %d %d %d %d %d %d %d %d %d\n",
+//				  point->rpm1_raw*100, point->rpm2_raw*100,
+//				  point->accel, point->decel,
+//				  point->cpu_min_temp_celsius,
+//				  point->cpu_max_temp_celsius,
+//				  point->gpu_min_temp_celsius,
+//				  point->gpu_max_temp_celsius,
+//				  point->ic_min_temp_celsius,
+//				  point->ic_max_temp_celsius);
+//		if (res > 0) {
+//			output_char_count += res;
+//		} else {
+//			pr_debug(
+//				"Error writing to buffer for output of fanCurveStructure\n");
+//			return 0;
+//		}
+//		// go forward in buffer to append next print output
+//		buf += res;
+//	}
+//	return output_char_count;
+//}
 
-static ssize_t fancurve_print_seqfile(const struct fancurve* fancurve, 
-	struct seq_file *s)
+static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
+					  struct seq_file *s)
 {
 	int i;
+
 	seq_printf(
 		s,
 		"rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp\n");
 	for (i = 0; i < fancurve->size; ++i) {
-		const struct fancurve_point * point = &fancurve->points[i];
-		seq_printf(s, "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
-				  point->rpm1_raw*100, point->rpm2_raw*100,
-				  point->accel, point->decel,
-				  point->cpu_min_temp_celsius,
-				  point->cpu_max_temp_celsius,
-				  point->gpu_min_temp_celsius,
-				  point->gpu_max_temp_celsius,
-				  point->ic_min_temp_celsius,
-				  point->ic_max_temp_celsius);
+		const struct fancurve_point *point = &fancurve->points[i];
+
+		seq_printf(
+			s, "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
+			point->rpm1_raw * 100, point->rpm2_raw * 100,
+			point->accel, point->decel, point->cpu_min_temp_celsius,
+			point->cpu_max_temp_celsius,
+			point->gpu_min_temp_celsius,
+			point->gpu_max_temp_celsius, point->ic_min_temp_celsius,
+			point->ic_max_temp_celsius);
 	}
 	return 0;
 }
 
-
 /* =============================  */
 /* Global and shared data between */
 /* all calls to this module       */
-/* ============================   */ 
+/* ============================   */
 // Implemented like ideapad-laptop.c but currenlty still
 // wihtout dynamic memory allocation (instaed global _priv)
 
@@ -1290,7 +1302,7 @@ struct legion_private {
 	// Method to access ECRAM
 	struct ecram ecram;
 	// Configuration with registers an ECRAM access method
-	const struct model_config* conf;
+	const struct model_config *conf;
 
 	// TODO: maybe refactor an keep only local to each function
 	// last known fan curve
@@ -1309,8 +1321,7 @@ struct legion_private {
 	bool loaded;
 };
 
-
-static struct legion_private *legion_shared = NULL;
+static struct legion_private *legion_shared;
 static struct legion_private _priv;
 static DEFINE_MUTEX(legion_shared_mutex);
 
@@ -1338,26 +1349,24 @@ static void legion_shared_exit(struct legion_private *priv)
 {
 	mutex_lock(&legion_shared_mutex);
 
-	if (legion_shared == priv){
+	if (legion_shared == priv)
 		legion_shared = NULL;
-	}
-		
 
 	mutex_unlock(&legion_shared_mutex);
 }
 
-
 /* =============================  */
 /* debugfs interface              */
-/* ============================   */ 
-
+/* ============================   */
 
 static int debugfs_ecmemory_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
 	size_t offset;
-	for (offset= 0; offset < priv->conf->memoryio_size; ++offset) {
+
+	for (offset = 0; offset < priv->conf->memoryio_size; ++offset) {
 		char value = ecram_read(&priv->ecram, offset);
+
 		seq_write(s, &value, 1);
 	}
 	return 0;
@@ -1369,15 +1378,17 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
 
-	seq_printf(s, "EC Chip ID: %x \n", read_ec_id(&priv->ecram, priv->conf));
-	seq_printf(s, "EC Chip Version: %x \n", read_ec_version(&priv->ecram, priv->conf));
+	seq_printf(s, "EC Chip ID: %x\n",
+		   read_ec_id(&priv->ecram, priv->conf));
+	seq_printf(s, "EC Chip Version: %x\n",
+		   read_ec_version(&priv->ecram, priv->conf));
 
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
-	seq_printf(s, "fan curve current point id: %ld \n", priv->fancurve.current_point_i);
-	seq_printf(s, "fan curve points size: %ld \n", priv->fancurve.size);
+	seq_printf(s, "fan curve current point id: %ld\n",
+		   priv->fancurve.current_point_i);
+	seq_printf(s, "fan curve points size: %ld\n", priv->fancurve.size);
 
-	
 	seq_puts(s, "Current fan curve in UEFI\n");
 	fancurve_print_seqfile(&priv->fancurve, s);
 	seq_puts(s, "=====================\n");
@@ -1403,9 +1414,9 @@ static void legion_debugfs_init(struct legion_private *priv)
 	// other do 444
 	dir = debugfs_create_dir(LEGION_DRVR_SHORTNAME, NULL);
 	debugfs_create_file("fancurve", 0444, dir, priv,
-				    &debugfs_fancurve_fops);
+				&debugfs_fancurve_fops);
 	debugfs_create_file("ecmemory", 0444, dir, priv,
-				    &debugfs_ecmemory_fops);
+				&debugfs_ecmemory_fops);
 
 	priv->debugfs_dir = dir;
 }
@@ -1418,13 +1429,12 @@ static void legion_debugfs_exit(struct legion_private *priv)
 	priv->debugfs_dir = NULL;
 }
 
-
 /* =============================  */
 /* sysfs interface              */
-/* ============================   */ 
+/* ============================   */
 
-static ssize_t powermode_show(struct device *dev,
-				    struct device_attribute *attr, char *buf)
+static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
+				  char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int power_mode = read_powermode(&priv->ecram, priv->conf);
@@ -1433,8 +1443,8 @@ static ssize_t powermode_show(struct device *dev,
 }
 
 static ssize_t powermode_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				   struct device_attribute *attr, const char *buf,
+				   size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int powermode;
@@ -1453,15 +1463,12 @@ static ssize_t powermode_store(struct device *dev,
 
 static DEVICE_ATTR_RW(powermode);
 
-static struct attribute *legion_sysfs_attributes[] = {
-	&dev_attr_powermode.attr,
-	NULL
-};
+static struct attribute *legion_sysfs_attributes[] = { &dev_attr_powermode.attr,
+							   NULL };
 
 static const struct attribute_group legion_attribute_group = {
 	.attrs = legion_sysfs_attributes
 };
-
 
 static int legion_sysfs_init(struct legion_private *priv)
 {
@@ -1472,26 +1479,24 @@ static int legion_sysfs_init(struct legion_private *priv)
 static void legion_sysfs_exit(struct legion_private *priv)
 {
 	device_remove_group(&priv->platform_device->dev,
-			    &legion_attribute_group);
+				&legion_attribute_group);
 }
-
 
 /* =============================  */
 /* hwom interface              */
-/* ============================   */ 
-
+/* ============================   */
 
 // hw-mon interface
 
 // todo: register_group or register_info?
 
-
-
 // TODO: use one common function (like here) or one function per attribute?
 static ssize_t sensor_label_show(struct device *dev,
-			    struct device_attribute *attr, char *buf){
+				 struct device_attribute *attr, char *buf)
+{
 	int sensor_id = (to_sensor_dev_attr(attr))->index;
 	const char *label;
+
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
 		label = "CPU Temperature\n";
@@ -1518,25 +1523,26 @@ static ssize_t sensor_label_show(struct device *dev,
 	return sprintf(buf, label);
 }
 
-
 // TODO: use one common function (like here) or one function per attribute?
-static ssize_t sensor_show(struct device *dev,
-			    struct device_attribute *devattr, char *buf){
+static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
+			   char *buf)
+{
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int sensor_id = (to_sensor_dev_attr(devattr))->index;
 	struct sensor_values values;
 	int outval;
+
 	read_sensor_values(&priv->ecram, priv->conf, &values);
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		outval = 1000*values.cpu_temp_celsius;
+		outval = 1000 * values.cpu_temp_celsius;
 		break;
 	case SENSOR_GPU_TEMP_ID:
-		outval = 1000*values.gpu_temp_celsius;
+		outval = 1000 * values.gpu_temp_celsius;
 		break;
 	case SENSOR_IC_TEMP_ID:
-		outval = 1000*values.ic_temp_celsius;
+		outval = 1000 * values.ic_temp_celsius;
 		break;
 	case SENSOR_FAN1_RPM_ID:
 		outval = values.fan1_rpm;
@@ -1585,8 +1591,8 @@ static struct attribute *sensor_hwmon_attributes[] = {
 };
 
 static ssize_t autopoint_show(struct device *dev,
-					 struct device_attribute *devattr,
-					 char *buf){
+				  struct device_attribute *devattr, char *buf)
+{
 	struct fancurve fancurve;
 	int err;
 	int value;
@@ -1594,17 +1600,17 @@ static ssize_t autopoint_show(struct device *dev,
 	int fancurve_attr_id = to_sensor_dev_attr_2(devattr)->nr;
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 
-
 	mutex_lock(&priv->fancurve_mutex);
 	err = read_fancurve(&priv->ecram, priv->conf, &fancurve);
 	mutex_unlock(&priv->fancurve_mutex);
 
-	if(err){
+	if (err) {
 		pr_info("Reading fancurve failed\n");
 		return -EOPNOTSUPP;
 	}
-	if(!(point_id >= 0 && point_id < MAXFANCURVESIZE)){
-		pr_info("Reading fancurve failed due to wrong point id: %d\n", point_id);
+	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
+		pr_info("Reading fancurve failed due to wrong point id: %d\n",
+			point_id);
 		return -EOPNOTSUPP;
 	}
 
@@ -1643,18 +1649,18 @@ static ssize_t autopoint_show(struct device *dev,
 		value = fancurve.size;
 		break;
 	default:
-		pr_info("Reading fancurve failed due to wrong attribute id: %d\n", fancurve_attr_id);
+		pr_info("Reading fancurve failed due to wrong attribute id: %d\n",
+			fancurve_attr_id);
 		return -EOPNOTSUPP;
 	}
 
 	return sprintf(buf, "%d\n", value);
 }
 
-
-
 static ssize_t autopoint_store(struct device *dev,
-					  struct device_attribute *devattr,
-					  const char *buf, size_t count){
+				   struct device_attribute *devattr,
+				   const char *buf, size_t count)
+{
 	struct fancurve fancurve;
 	int err;
 	int value;
@@ -1663,14 +1669,15 @@ static ssize_t autopoint_store(struct device *dev,
 	int fancurve_attr_id = to_sensor_dev_attr_2(devattr)->nr;
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 
-	if(!(point_id >= 0 && point_id < MAXFANCURVESIZE)){
-		pr_info("Reading fancurve failed due to wrong point id: %d\n", point_id);
+	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
+		pr_info("Reading fancurve failed due to wrong point id: %d\n",
+			point_id);
 		err = -EOPNOTSUPP;
 		goto error;
 	}
 
 	err = kstrtoint(buf, 0, &value);
-	if (err){
+	if (err) {
 		pr_info("Parse for hwmon store is not succesful: error:%d; point_id: %d; fancurve_attr_id: %d\\n",
 			err, point_id, fancurve_attr_id);
 		goto error;
@@ -1678,8 +1685,8 @@ static ssize_t autopoint_store(struct device *dev,
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = read_fancurve(&priv->ecram, priv->conf, &fancurve);
-	
-	if(err){
+
+	if (err) {
 		pr_info("Reading fancurve failed\n");
 		err = -EOPNOTSUPP;
 		goto error_mutex;
@@ -1724,21 +1731,23 @@ static ssize_t autopoint_store(struct device *dev,
 		valid = fancurve_set_size(&fancurve, value, true);
 		break;
 	default:
-		pr_info("Writing fancurve failed due to wrong attribute id: %d\n", fancurve_attr_id);
+		pr_info("Writing fancurve failed due to wrong attribute id: %d\n",
+			fancurve_attr_id);
 		err = -EOPNOTSUPP;
 		goto error_mutex;
 	}
 
-	if(!valid){
-		pr_info("Ignoring invalid fancurve value %d for attribute %d at point %d\n", 
+	if (!valid) {
+		pr_info("Ignoring invalid fancurve value %d for attribute %d at point %d\n",
 			value, fancurve_attr_id, point_id);
 		err = -EOPNOTSUPP;
 		goto error_mutex;
 	}
 
 	err = write_fancurve(&priv->ecram, priv->conf, &fancurve, false);
-	if(err){
-		pr_info("Writing fancurve failed for accessing hwmon at point_id: %d\n", point_id);
+	if (err) {
+		pr_info("Writing fancurve failed for accessing hwmon at point_id: %d\n",
+			point_id);
 		err = -EOPNOTSUPP;
 		goto error_mutex;
 	}
@@ -1752,222 +1761,321 @@ error:
 	return count;
 }
 
-
 // rpm1
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_pwm, autopoint, FANCURVE_ATTR_PWM1,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_pwm, autopoint, FANCURVE_ATTR_PWM1,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_pwm, autopoint, FANCURVE_ATTR_PWM1,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_pwm, autopoint, FANCURVE_ATTR_PWM1,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_pwm, autopoint, FANCURVE_ATTR_PWM1,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_pwm, autopoint, FANCURVE_ATTR_PWM1,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_pwm, autopoint, FANCURVE_ATTR_PWM1,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_pwm, autopoint, FANCURVE_ATTR_PWM1,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_pwm, autopoint, FANCURVE_ATTR_PWM1,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_pwm, autopoint, FANCURVE_ATTR_PWM1, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_pwm, autopoint,
+				   FANCURVE_ATTR_PWM1, 9);
 // rpm2
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_pwm, autopoint, FANCURVE_ATTR_PWM2,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_pwm, autopoint, FANCURVE_ATTR_PWM2,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_pwm, autopoint, FANCURVE_ATTR_PWM2,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_pwm, autopoint, FANCURVE_ATTR_PWM2,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_pwm, autopoint, FANCURVE_ATTR_PWM2,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_pwm, autopoint, FANCURVE_ATTR_PWM2,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_pwm, autopoint, FANCURVE_ATTR_PWM2,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_pwm, autopoint, FANCURVE_ATTR_PWM2,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_pwm, autopoint, FANCURVE_ATTR_PWM2,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_pwm, autopoint, FANCURVE_ATTR_PWM2, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_pwm, autopoint,
+				   FANCURVE_ATTR_PWM2, 9);
 // CPU temp
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_temp, autopoint, FANCURVE_ATTR_CPU_TEMP,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_temp, autopoint, FANCURVE_ATTR_CPU_TEMP, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_temp, autopoint,
+				   FANCURVE_ATTR_CPU_TEMP, 9);
 // CPU temp hyst
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_temp_hyst, autopoint, FANCURVE_ATTR_CPU_HYST, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_temp_hyst, autopoint,
+				   FANCURVE_ATTR_CPU_HYST, 9);
 // GPU temp
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_temp, autopoint, FANCURVE_ATTR_GPU_TEMP,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_temp, autopoint, FANCURVE_ATTR_GPU_TEMP, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_temp, autopoint,
+				   FANCURVE_ATTR_GPU_TEMP, 9);
 // GPU temp hyst
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_temp_hyst, autopoint, FANCURVE_ATTR_GPU_HYST, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_temp_hyst, autopoint,
+				   FANCURVE_ATTR_GPU_HYST, 9);
 // IC temp
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point1_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point2_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point3_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point4_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point5_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point6_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point7_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point8_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point9_temp, autopoint, FANCURVE_ATTR_IC_TEMP,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point10_temp, autopoint, FANCURVE_ATTR_IC_TEMP, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point1_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point2_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point3_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point4_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point5_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point6_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point7_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point8_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point9_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point10_temp, autopoint,
+				   FANCURVE_ATTR_IC_TEMP, 9);
 // IC temp hyst
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point1_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point2_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point3_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point4_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point5_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point6_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point7_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point8_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point9_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point10_temp_hyst, autopoint, FANCURVE_ATTR_IC_HYST, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point1_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point2_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point3_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point4_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point5_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point6_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point7_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point8_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point9_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point10_temp_hyst, autopoint,
+				   FANCURVE_ATTR_IC_HYST, 9);
 // accel
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_accel, autopoint, FANCURVE_ATTR_ACCEL,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_accel, autopoint, FANCURVE_ATTR_ACCEL,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_accel, autopoint, FANCURVE_ATTR_ACCEL,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_accel, autopoint, FANCURVE_ATTR_ACCEL,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_accel, autopoint, FANCURVE_ATTR_ACCEL,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_accel, autopoint, FANCURVE_ATTR_ACCEL,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_accel, autopoint, FANCURVE_ATTR_ACCEL,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_accel, autopoint, FANCURVE_ATTR_ACCEL,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_accel, autopoint, FANCURVE_ATTR_ACCEL,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_accel, autopoint, FANCURVE_ATTR_ACCEL, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_accel, autopoint,
+				   FANCURVE_ATTR_ACCEL, 9);
 // decel
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_decel, autopoint, FANCURVE_ATTR_DECEL,  0);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_decel, autopoint, FANCURVE_ATTR_DECEL,  1);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_decel, autopoint, FANCURVE_ATTR_DECEL,  2);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_decel, autopoint, FANCURVE_ATTR_DECEL,  3);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_decel, autopoint, FANCURVE_ATTR_DECEL,  4);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_decel, autopoint, FANCURVE_ATTR_DECEL,  5);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_decel, autopoint, FANCURVE_ATTR_DECEL,  6);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_decel, autopoint, FANCURVE_ATTR_DECEL,  7);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_decel, autopoint, FANCURVE_ATTR_DECEL,  8);
-static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_decel, autopoint, FANCURVE_ATTR_DECEL, 9);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 0);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 1);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 2);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 3);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 4);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 5);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 6);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 7);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 8);
+static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_decel, autopoint,
+				   FANCURVE_ATTR_DECEL, 9);
 //size
 static SENSOR_DEVICE_ATTR_2_RW(auto_points_size, autopoint, FANCURVE_SIZE, 0);
 
 static struct attribute *fancurve_hwmon_attributes[] = {
-&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point3_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point4_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point5_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point6_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point1_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point2_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point3_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point4_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point5_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point6_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point7_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point8_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point9_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point10_pwm.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point1_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point2_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point3_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point4_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point5_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point6_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point7_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point8_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point9_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point10_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point1_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point2_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point3_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point4_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point5_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point6_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point7_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point8_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point9_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point10_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point1_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point2_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point3_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point4_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point5_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point6_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point7_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point8_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point9_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point10_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point1_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point2_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point3_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point4_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point5_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point6_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point7_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point8_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point9_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm2_auto_point10_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point1_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point2_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point3_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point4_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point5_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point6_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point7_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point8_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point9_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point10_temp.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point1_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point2_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point3_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point4_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point5_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point6_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point7_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point8_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point9_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm3_auto_point10_temp_hyst.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point1_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point2_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point3_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point4_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point5_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point6_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point7_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point8_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point9_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point10_accel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point1_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point2_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point3_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point4_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point5_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point6_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point7_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point8_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point9_decel.dev_attr.attr, 
-&sensor_dev_attr_pwm1_auto_point10_decel.dev_attr.attr, 
-&sensor_dev_attr_auto_points_size.dev_attr.attr, 
+	&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point1_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point2_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point3_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point4_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point5_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point6_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point7_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point8_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point9_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point10_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point1_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point1_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point1_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point2_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point3_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point4_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point5_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point6_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point7_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point8_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point9_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point10_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point1_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point2_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point3_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point4_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point5_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point6_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point7_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point8_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point9_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm2_auto_point10_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point1_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point2_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point3_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point4_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point5_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point6_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point7_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point8_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point9_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point10_temp.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point1_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point2_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point3_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point4_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point5_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point6_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point7_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point8_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point9_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm3_auto_point10_temp_hyst.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point1_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_accel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point1_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_decel.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_decel.dev_attr.attr,
+	&sensor_dev_attr_auto_points_size.dev_attr.attr,
 	NULL
 };
 
@@ -1981,10 +2089,8 @@ static const struct attribute_group legion_hwmon_fancurve_group = {
 	.is_visible = NULL // use modes from attributes
 };
 
-static const struct attribute_group* legion_hwmon_groups[] = {	\
-	&legion_hwmon_sensor_group,
-	&legion_hwmon_fancurve_group,
-	NULL
+static const struct attribute_group *legion_hwmon_groups[] = {
+	&legion_hwmon_sensor_group, &legion_hwmon_fancurve_group, NULL
 };
 
 ssize_t legion_hwmon_init(struct legion_private *priv)
@@ -1995,9 +2101,9 @@ ssize_t legion_hwmon_init(struct legion_private *priv)
 	// some laptop driver do it in one way, some in the other
 	// TODO: Use devm_hwmon_device_register_with_groups ?
 	// some laptop drivers use this, some
-	struct device * hwmon_dev = hwmon_device_register_with_groups(&
-		priv->platform_device->dev, "legion_hwmon",
-			NULL, legion_hwmon_groups);
+	struct device *hwmon_dev = hwmon_device_register_with_groups(
+		&priv->platform_device->dev, "legion_hwmon", NULL,
+		legion_hwmon_groups);
 	if (IS_ERR_OR_NULL(hwmon_dev)) {
 		pr_err("hwmon_device_register failed!\n");
 		return PTR_ERR(hwmon_dev);
@@ -2009,7 +2115,7 @@ ssize_t legion_hwmon_init(struct legion_private *priv)
 
 void legion_hwmon_exit(struct legion_private *priv)
 {
-	if(priv->hwmon_dev){
+	if (priv->hwmon_dev) {
 		hwmon_device_unregister(priv->hwmon_dev);
 		priv->hwmon_dev = NULL;
 	}
@@ -2017,10 +2123,9 @@ void legion_hwmon_exit(struct legion_private *priv)
 
 /* =============================  */
 /* Platform driver                */
-/* ============================   */ 
+/* ============================   */
 
-
-int legion_add(struct platform_device * pdev)
+int legion_add(struct platform_device *pdev)
 {
 	struct legion_private *priv;
 	const struct dmi_system_id *dmi_sys;
@@ -2031,18 +2136,18 @@ int legion_add(struct platform_device * pdev)
 	bool do_load_by_list = false;
 	bool do_load = false;
 	//struct legion_private *priv = dev_get_drvdata(&pdev->dev);
-	dev_info(&pdev->dev, "legion_laptop platform driver %s probing \n", MODULEVERSION);
+	dev_info(&pdev->dev, "legion_laptop platform driver %s probing\n",
+		 MODULEVERSION);
 
 	// TODO: allocate?
 	priv = &_priv;
 	priv->platform_device = pdev;
 	err = legion_shared_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "legion_laptop is forced to load. \n");
+		dev_info(&pdev->dev, "legion_laptop is forced to load.\n");
 		goto err_legion_shared_init;
 	}
 	dev_set_drvdata(&pdev->dev, priv);
-	
 
 	// TODO: remove
 	pr_info("Read identifying information: DMI_SYS_VENDOR: %s; DMI_PRODUCT_NAME: %s; DMI_BIOS_VERSION:%s\n",
@@ -2055,54 +2160,56 @@ int legion_add(struct platform_device * pdev)
 	is_allowed = dmi_check_system(optimistic_allowlist);
 
 	dev_info(&pdev->dev, "is_denied: %d; is_allowed: %d\n", is_denied,
-		is_allowed);
+		 is_allowed);
 
 	do_load_by_list = is_allowed && !is_denied;
 	do_load = do_load_by_list || force;
 
-	if (force) {
-		dev_info(&pdev->dev, "legion_laptop is forced to load. \n");
-	}
-	if(!do_load_by_list && do_load){
-		dev_info(&pdev->dev, "legion_laptop is forced to load and would otherwise be not loaded \n");
+	if (force)
+		dev_info(&pdev->dev, "legion_laptop is forced to load.\n");
+	if (!do_load_by_list && do_load) {
+		dev_info(
+			&pdev->dev,
+			"legion_laptop is forced to load and would otherwise be not loaded\n");
 	}
 
 	if (!(do_load)) {
-		dev_info(&pdev->dev, "Module not useable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.\n");
+		dev_info(
+			&pdev->dev,
+			"Module not useable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.\n");
 		err = -ENOMEM;
 		goto err_model_mismtach;
 	}
 
 	dmi_sys = dmi_first_match(optimistic_allowlist);
-	if(!dmi_sys){
-		dev_info(&pdev->dev, "No matching configuration found \n");
+	if (!dmi_sys) {
+		dev_info(&pdev->dev, "No matching configuration found\n");
 		err = -ENOMEM;
 		goto err_model_mismtach;
 	}
 	priv->conf = dmi_sys->driver_data;
 	priv->conf = &model_v0;
 
-	err = ecram_init(&priv->ecram, 
-		priv->conf->ecram_access_method, 
-		priv->conf->memoryio_physical_start,
-		priv->conf->memoryio_size);
+	err = ecram_init(&priv->ecram, priv->conf->ecram_access_method,
+			 priv->conf->memoryio_physical_start,
+			 priv->conf->memoryio_size);
 	if (err) {
-		dev_info(&pdev->dev, "Could not init access to embedded controller \n");
+		dev_info(&pdev->dev,
+			 "Could not init access to embedded controller\n");
 		goto err_ecram_init;
 	}
 
 	ec_read_id = read_ec_id(&priv->ecram, priv->conf);
-	if(!(ec_read_id == priv->conf->embedded_controller_id)){
+	if (!(ec_read_id == priv->conf->embedded_controller_id)) {
 		err = -ENOMEM;
-		dev_info(&pdev->dev, "Expected EC chip id 0x%x but read 0x%x \n", 
-			priv->conf->embedded_controller_id ,ec_read_id);
+		dev_info(&pdev->dev,
+			 "Expected EC chip id 0x%x but read 0x%x\n",
+			 priv->conf->embedded_controller_id, ec_read_id);
 		goto err_ecram_id;
 	}
 
-	
 	dev_info(&pdev->dev, "Creating debugfs inteface\n");
 	legion_debugfs_init(priv);
-
 
 	pr_info("Creating sysfs inteface\n");
 	err = legion_sysfs_init(priv);
@@ -2113,11 +2220,10 @@ int legion_add(struct platform_device * pdev)
 
 	pr_info("Creating hwmon interface");
 	err = legion_hwmon_init(priv);
-	if (err) {
+	if (err)
 		goto err_hwmon_init;
-	}
 
-	dev_info(&pdev->dev,"legion_laptop loaded for this device\n");
+	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
 // TODO: remove eventually
@@ -2132,11 +2238,11 @@ err_ecram_init:
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:
-	dev_info(&pdev->dev,"legion_laptop not loaded for this device\n");
+	dev_info(&pdev->dev, "legion_laptop not loaded for this device\n");
 	return err;
 }
 
-int legion_remove(struct platform_device * pdev)
+int legion_remove(struct platform_device *pdev)
 {
 	struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 	// TODO: remove this
@@ -2146,7 +2252,6 @@ int legion_remove(struct platform_device * pdev)
 	// again
 	toggle_powermode(&priv->ecram, priv->conf);
 
-
 	legion_hwmon_exit(priv);
 	legion_hwmon_exit(priv);
 	legion_sysfs_exit(priv);
@@ -2154,13 +2259,14 @@ int legion_remove(struct platform_device * pdev)
 	ecram_exit(&priv->ecram);
 	legion_shared_exit(priv);
 
-	pr_info("Legion platform unloaded \n");
+	pr_info("Legion platform unloaded\n");
 	return 0;
 }
 
-int legion_resume(struct platform_device * pdev){
+int legion_resume(struct platform_device *pdev)
+{
 	//struct legion_private *priv = dev_get_drvdata(&pdev->dev);
-	dev_info(&pdev->dev, "legion_resume in legion-laptop\n");
+	dev_info(&pdev->dev, "Resumed in legion-laptop\n");
 
 	return 0;
 }
@@ -2169,7 +2275,7 @@ int legion_resume(struct platform_device * pdev){
 static int legion_pm_resume(struct device *dev)
 {
 	//struct legion_private *priv = dev_get_drvdata(dev);
-	dev_info(dev, "legion_pm_resume in legion-laptop\n");
+	dev_info(dev, "Resumed PM in legion-laptop\n");
 
 	return 0;
 }
@@ -2178,8 +2284,8 @@ static SIMPLE_DEV_PM_OPS(legion_pm, NULL, legion_pm_resume);
 
 // same as ideapad
 static const struct acpi_device_id legion_device_ids[] = {
-	{"PNP0C09", 0}, // todo: change to "VPC2004"
-	{"", 0},
+	{ "PNP0C09", 0 }, // todo: change to "VPC2004"
+	{ "", 0 },
 };
 MODULE_DEVICE_TABLE(acpi, legion_device_ids);
 
@@ -2198,7 +2304,7 @@ int __init legion_init(void)
 {
 	int err;
 	// TODO: remove version
-	pr_info("legion_laptop %s starts loading \n", MODULEVERSION);
+	pr_info("legion_laptop %s starts loading\n", MODULEVERSION);
 
 	// TODO: remove this, make a comment
 	if (!(MAXFANCURVESIZE <= 10)) {
@@ -2234,10 +2340,10 @@ module_init(legion_init);
 void __exit legion_exit(void)
 {
 	// TODO: remove this
-	pr_info("legion_laptop %s starts unloading \n", MODULEVERSION);
+	pr_info("legion_laptop %s starts unloading\n", MODULEVERSION);
 	platform_driver_unregister(&legion_driver);
 	// TODO: remove this
-	pr_info("legion_laptop %s unloaded \n", MODULEVERSION);
+	pr_info("legion_laptop %s unloaded\n", MODULEVERSION);
 }
 
 module_exit(legion_exit);
