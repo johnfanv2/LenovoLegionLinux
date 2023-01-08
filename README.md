@@ -1,7 +1,30 @@
 <img height="50" align="left" src="assets/headerlogo.png" alt="HeaderLogo">
 
 # LenovoLegionLinux
-Tools for controlling Lenovo Legion laptop in Linux like fan control and power mode.
+---
+LenovoLegionLinux (LLLLS) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
+is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
+
+It allows to control a few feaures that are only available in the closed source Windows tools Lenovo Vantage or Legion Zone or open source Windows tools like Lenovo Legion Toolkit. The latter was one of the inspiration for this collection of tools.
+
+:star: **Please star this repository if this is useful or might be useful in the future.**
+
+:star2: **My goal is to merge the driver into the main Linux kernel so it comes automatically with Linux and no recompilation is required after a Linux update**
+
+:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
+
+- it comes with a driver (kernel module) that implements the Linux standard interfaces (sysfs, debugfs, hwmon) 
+- using standard Linux interfaces makes it is compatible with the command line/file interface or standard GUI tools like psensor
+- compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
+    slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
+
+
+## :warning: Disclaimer
+
+- **The tool comes with no warranty. Use at your own risk.**
+- this is a small hobby project; please be patient and read through this readme carefully before you ask for support
+- if your Lenovo Legion laptop is not supported and you are ready to perform some tests please notify me
+- this is a Linux only tool and will probably also not run in WSL; for Windows use one of the availabe Windows tools
 
 
 ## Windows
@@ -16,7 +39,6 @@ Please do the following:
     - Step: **If tests are succesful, install permantely.**
     - Step: **create your fan curve**
 
-## Installation Instruction
 ### Requirements
 You will need to install the following to download and build it. If there is an error of any package find the alternative name in your distro install them.
 
