@@ -1258,7 +1258,8 @@ static ssize_t fancurve_print_seqfile(const struct fancurve* fancurve,
 	seq_printf(
 		s,
 		"rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp\n");
-	for (int i = 0; i < fancurve->size; ++i) {
+	int i;
+	for (i = 0; i < fancurve->size; ++i) {
 		const struct fancurve_point * point = &fancurve->points[i];
 		seq_printf(s, "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
 				  point->rpm1_raw*100, point->rpm2_raw*100,
