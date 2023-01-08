@@ -26,6 +26,27 @@ It allows to control a few feaures like fan curve and power mode.
 - compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
     slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
 
+## :rocket: Features
+- [x] light on RAM and CPU and without telemetry
+- [x] set a fully featured custom fan curve with up to 10 points
+    - even allows speed below 1600 RPM
+    - set temperatere points when the fan speed (level) should change
+    - you can use CPU, GPU and IC temperature to control the fan all at the same it
+    - set the fan speed (RPM) at each level
+    - set minimum temperature for each level that must be fallen below before slowing down the fans again
+    - set accelleration and deceleration for each the fan when the fan speed should increase or decrease
+- [x] switch power mode (quiet, balanced, performance) with software
+    - changing with `Fn+Q` also possible
+    - now you can do it with software in your normal system settings
+    - depening on your distribution, e.g. you could automatically switch to quiet mode if you are on battery
+- [x] monitor fan speeds and temperatures (CPU, GPU, IC (?)) and with additional sensors
+
+
+<p align="center">
+    <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
+    <img height="300" style="float: center;" src="assets/powermode.png" alt="psensor">
+</p>
+
 ## :pushpin: Confirmed Compatible Models
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed
 - Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors and fan curve
@@ -303,6 +324,46 @@ Note:
 - Currently, there is no GUI available. 
 - Currenlty, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
 - You might want to create different scritps for different usages. Just copy it and adapt the values.
+
+### Change powermode from software
+For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power deamon after
+reloading the module (`systemctl reload power-profiles-daemon.service` in Ubuntu).
+
+#### Modify/Control with GUI
+In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
+<p align="center">
+    <img height="450" style="float: center;" src="assets/powermode.png" alt="psensor">
+</p>
+Automatic change of power mode can be changed in the settings of the distribution ( in Ubuntu).
+
+
+#### Modify with CLI
+```bash
+# List all profiles (power-saver = quiet= blue)
+powerprofilesctl list
+
+#   performance:
+#     Driver:     platform_profile
+#     Degraded:   no
+
+#   balanced:
+#     Driver:     platform_profile
+
+# * power-saver:
+#     Driver:     platform_profile
+
+# Set a profile, e.g. balanced
+powerprofilesctl set balanced
+```
+
+Alternatively, you can also directly access it on a lower level:
+```bash
+# Access current profile
+cat /sys/firmware/acpi/platform_profile
+
+# Change current profile (AS ROOT): available modes quiet, balanced, performance
+echo balanced > /sys/firmware/acpi/platform_profile
+```
 
 
 ## :clap: Credits
