@@ -12,7 +12,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
     - name: Install Dependencies
-      run: ./deploy/install_dependencies_ubuntu.sh
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
     - name: Build
       run: ./deploy/build.sh
@@ -20,3 +20,15 @@ jobs:
     - name: Install
       run: ./deploy/install.sh
       shell: bash
+  run-linters:
+    name: Run linters
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v2
+      - name: Install Development Dependencies
+        run: ./deploy/dependencies/install_development_dependencies.sh
+        shell: bash
+      - name: Lint with Linux checkpath
+        run: ./tests/test_checkpath.sh
+        shell: bash
