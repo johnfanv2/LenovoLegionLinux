@@ -29,7 +29,8 @@ It allows to control a few features like fan curve and power mode.
 ## :pushpin: Confirmed Compatible Models
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed
 - Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors and fan curve
-- Lenovo Legion 5 15ACH6H (BIOS GKCN58WW): sensors and fan curve
+- Lenovo Legion 5 15ACH6H (BIOS GKCN58WW), Gen 6: sensors and fan curve
+- Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors and fan curve
 
 ## :warning: Disclaimer
 
@@ -82,6 +83,12 @@ sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-de
 **Arch/Manjaro**
 ```bash
 sudo pacman -S linux-headers base-devel lm-sensors git dmidecode 
+```
+
+Troubleshooting: 
+- Got error `ERROR: Kernel configuration is invalid.`. Just reinstall kernel headers, e.g. in Debian:
+```bash
+sudo apt install --reinstall linux-headers-$(uname -r)
 ```
 
 ### Build and Test Instruction

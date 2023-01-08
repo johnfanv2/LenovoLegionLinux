@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ main ]
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,4 +16,7 @@ jobs:
       shell: bash
     - name: Build
       run: ./deploy/build.sh
+      shell: bash
+    - name: Install
+      run: ./deploy/install.sh
       shell: bash

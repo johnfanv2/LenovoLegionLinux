@@ -4,14 +4,15 @@ KSRC := /lib/modules/$(KVER)/build
 
 #install dir for kernel drivers
 INSTALLDIR := /lib/modules/$(KVER)/kernel/drivers/platform/x86
+MODDESTDIR := /lib/modules/$(KVER)/kernel/drivers/platform/x86
 
 obj-m += legion-laptop.o
 
 all:
-	$(MAKE) -C $(KSRC) M=$(PWD) modules
+	$(MAKE) -C $(KSRC) M=$(shell pwd) modules
 
 clean:
-	make -C $(KSRC) M=$(PWD) clean
+	make -C $(KSRC) M=$(shell pwd) clean
 
 install: all
 	@rm -f $(INSTALLDIR)/legion-laptop.ko

@@ -953,26 +953,26 @@ struct fancurve{
 
 // calculate derived values
 
-int get_cpu_hyst(struct fancurve_point* point){
+int fancurve_get_cpu_deltahyst(struct fancurve_point* point){
 	return ((int)point->cpu_max_temp_celsius) - ((int)point->cpu_min_temp_celsius);
 }
 
-int get_gpu_hyst(struct fancurve_point* point){
+int fancurve_get_gpu_deltahyst(struct fancurve_point* point){
 	return ((int)point->gpu_max_temp_celsius) - ((int)point->gpu_min_temp_celsius);
 }
 
-int get_ic_hyst(struct fancurve_point* point){
+int fancurve_get_ic_deltahyst(struct fancurve_point* point){
 	return ((int)point->ic_max_temp_celsius) - ((int)point->ic_min_temp_celsius);
 }
 
 // validation functions
 
-bool fancurve_entry_is_valid_min_temp(int min_temp)
+bool fancurve_is_valid_min_temp(int min_temp)
 {
 	return min_temp >= 0 && min_temp <= 127;
 }
 
-bool fancurve_entry_is_valid_max_temp(int max_temp)
+bool fancurve_is_valid_max_temp(int max_temp)
 {
 	return max_temp >= 0 && max_temp <= 127;
 }
@@ -1021,7 +1021,7 @@ bool fancurve_set_decel(struct fancurve* fancurve, int point_id, int decel)
 
 bool fancurve_set_cpu_temp_max(struct fancurve* fancurve, int point_id, int value)
 {
-	bool valid = fancurve_entry_is_valid_max_temp(value);
+	bool valid = fancurve_is_valid_max_temp(value);
 	if(valid){
 		fancurve->points[point_id].cpu_max_temp_celsius = value;
 	}
@@ -1030,7 +1030,7 @@ bool fancurve_set_cpu_temp_max(struct fancurve* fancurve, int point_id, int valu
 
 bool fancurve_set_gpu_temp_max(struct fancurve* fancurve, int point_id, int value)
 {
-	bool valid = fancurve_entry_is_valid_max_temp(value);
+	bool valid = fancurve_is_valid_max_temp(value);
 	if(valid){
 		fancurve->points[point_id].gpu_max_temp_celsius = value;
 	}
@@ -1039,7 +1039,7 @@ bool fancurve_set_gpu_temp_max(struct fancurve* fancurve, int point_id, int valu
 
 bool fancurve_set_ic_temp_max(struct fancurve* fancurve, int point_id, int value)
 {
-	bool valid = fancurve_entry_is_valid_max_temp(value);
+	bool valid = fancurve_is_valid_max_temp(value);
 	if(valid){
 		fancurve->points[point_id].ic_max_temp_celsius = value;
 	}
@@ -1048,7 +1048,7 @@ bool fancurve_set_ic_temp_max(struct fancurve* fancurve, int point_id, int value
 
 bool fancurve_set_cpu_temp_min(struct fancurve* fancurve, int point_id, int value)
 {
-	bool valid = fancurve_entry_is_valid_max_temp(value);
+	bool valid = fancurve_is_valid_max_temp(value);
 	if(valid){
 		fancurve->points[point_id].cpu_min_temp_celsius = value;
 	}
@@ -1057,7 +1057,7 @@ bool fancurve_set_cpu_temp_min(struct fancurve* fancurve, int point_id, int valu
 
 bool fancurve_set_gpu_temp_min(struct fancurve* fancurve, int point_id, int value)
 {
-	bool valid = fancurve_entry_is_valid_max_temp(value);
+	bool valid = fancurve_is_valid_max_temp(value);
 	if(valid){
 		fancurve->points[point_id].gpu_min_temp_celsius = value;
 	}
@@ -1066,7 +1066,7 @@ bool fancurve_set_gpu_temp_min(struct fancurve* fancurve, int point_id, int valu
 
 bool fancurve_set_ic_temp_min(struct fancurve* fancurve, int point_id, int value)
 {
-	bool valid = fancurve_entry_is_valid_max_temp(value);
+	bool valid = fancurve_is_valid_max_temp(value);
 	if(valid){
 		fancurve->points[point_id].ic_min_temp_celsius = value;
 	}
@@ -1075,7 +1075,7 @@ bool fancurve_set_ic_temp_min(struct fancurve* fancurve, int point_id, int value
 
 // TODO: remove this if meaning of hyst in fan curve is clear!
 //
-// bool fancurve_set_cpu_hyst(struct fancurve* fancurve, int point_id, int hyst_value)
+// bool fancurve_set_cpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
 // {
 // 	int max_temp = fancurve->points[point_id].cpu_max_temp_celsius;
 // 	bool valid = hyst_value < max_temp;
@@ -1085,7 +1085,7 @@ bool fancurve_set_ic_temp_min(struct fancurve* fancurve, int point_id, int value
 // 	return valid;
 // }
 
-// bool fancurve_set_gpu_hyst(struct fancurve* fancurve, int point_id, int hyst_value)
+// bool fancurve_set_gpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
 // {
 // 	int max_temp = fancurve->points[point_id].gpu_max_temp_celsius;
 // 	bool valid = hyst_value < max_temp;
@@ -1095,7 +1095,7 @@ bool fancurve_set_ic_temp_min(struct fancurve* fancurve, int point_id, int value
 // 	return valid;
 // }
 
-// bool fancurve_set_ic_hyst(struct fancurve* fancurve, int point_id, int hyst_value)
+// bool fancurve_set_ic_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
 // {
 // 	int max_temp = fancurve->points[point_id].ic_max_temp_celsius;
 // 	bool valid = hyst_value < max_temp;
@@ -1255,10 +1255,10 @@ static int write_fancurve(struct ecram * ecram,
 static ssize_t fancurve_print_seqfile(const struct fancurve* fancurve, 
 	struct seq_file *s)
 {
+	int i;
 	seq_printf(
 		s,
 		"rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp\n");
-	int i;
 	for (i = 0; i < fancurve->size; ++i) {
 		const struct fancurve_point * point = &fancurve->points[i];
 		seq_printf(s, "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
