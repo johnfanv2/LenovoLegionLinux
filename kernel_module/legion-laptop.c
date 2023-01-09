@@ -519,7 +519,7 @@ struct ecram_portio {
 ssize_t ecram_portio_init(struct ecram_portio *ec_portio)
 {
 	if (!request_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE,
-				ECRAM_PORTIO_NAME)) {
+			    ECRAM_PORTIO_NAME)) {
 		pr_info("Cannot init ecram_portio the %x ports starting at %x\n",
 			ECRAM_PORTIO_PORTS_SIZE, ECRAM_PORTIO_START_PORT);
 		return -ENODEV;
@@ -619,7 +619,7 @@ struct ecram_memoryio {
  * strong exception safety
  */
 ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
-				phys_addr_t physical_start, size_t size)
+			    phys_addr_t physical_start, size_t size)
 {
 	void *virtual_start = ioremap(physical_start, size);
 
@@ -655,7 +655,7 @@ void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
  * methods to access EC RAM.
  */
 ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
-				u16 ec_offset, u8 *value)
+			    u16 ec_offset, u8 *value)
 {
 	if (ec_offset < ECRAM_OFFSET) {
 		pr_info("Unexpected read at offset %d into EC RAM\n",
@@ -672,7 +672,7 @@ ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
  * methods to access EC RAM.
  */
 ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
-				 u16 ec_offset, u8 value)
+			     u16 ec_offset, u8 value)
 {
 	if (ec_offset < ECRAM_OFFSET) {
 		pr_info("Unexpected write at offset %d into EC RAM\n",
@@ -815,8 +815,8 @@ enum SENSOR_ATTR {
 };
 
 static int read_sensor_values(struct ecram *ecram,
-				  const struct model_config *model,
-				  struct sensor_values *values)
+			      const struct model_config *model,
+			      struct sensor_values *values)
 {
 	values->fan_rpm =
 		100 * ecram_read(ecram, model->registers->ALT_FAN_RPM);
@@ -940,19 +940,19 @@ struct fancurve {
 int fancurve_get_cpu_deltahyst(struct fancurve_point *point)
 {
 	return ((int)point->cpu_max_temp_celsius) -
-		   ((int)point->cpu_min_temp_celsius);
+	       ((int)point->cpu_min_temp_celsius);
 }
 
 int fancurve_get_gpu_deltahyst(struct fancurve_point *point)
 {
 	return ((int)point->gpu_max_temp_celsius) -
-		   ((int)point->gpu_min_temp_celsius);
+	       ((int)point->gpu_min_temp_celsius);
 }
 
 int fancurve_get_ic_deltahyst(struct fancurve_point *point)
 {
 	return ((int)point->ic_max_temp_celsius) -
-		   ((int)point->ic_min_temp_celsius);
+	       ((int)point->ic_min_temp_celsius);
 }
 
 // validation functions
@@ -1010,7 +1010,7 @@ bool fancurve_set_decel(struct fancurve *fancurve, int point_id, int decel)
 }
 
 bool fancurve_set_cpu_temp_max(struct fancurve *fancurve, int point_id,
-				   int value)
+			       int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
 
@@ -1021,7 +1021,7 @@ bool fancurve_set_cpu_temp_max(struct fancurve *fancurve, int point_id,
 }
 
 bool fancurve_set_gpu_temp_max(struct fancurve *fancurve, int point_id,
-				   int value)
+			       int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
 
@@ -1031,7 +1031,7 @@ bool fancurve_set_gpu_temp_max(struct fancurve *fancurve, int point_id,
 }
 
 bool fancurve_set_ic_temp_max(struct fancurve *fancurve, int point_id,
-				  int value)
+			      int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
 
@@ -1041,7 +1041,7 @@ bool fancurve_set_ic_temp_max(struct fancurve *fancurve, int point_id,
 }
 
 bool fancurve_set_cpu_temp_min(struct fancurve *fancurve, int point_id,
-				   int value)
+			       int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
 
@@ -1051,7 +1051,7 @@ bool fancurve_set_cpu_temp_min(struct fancurve *fancurve, int point_id,
 }
 
 bool fancurve_set_gpu_temp_min(struct fancurve *fancurve, int point_id,
-				   int value)
+			       int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
 
@@ -1061,7 +1061,7 @@ bool fancurve_set_gpu_temp_min(struct fancurve *fancurve, int point_id,
 }
 
 bool fancurve_set_ic_temp_min(struct fancurve *fancurve, int point_id,
-				  int value)
+			      int value)
 {
 	bool valid = fancurve_is_valid_max_temp(value);
 
@@ -1191,35 +1191,35 @@ static int write_fancurve(struct ecram *ecram, const struct model_config *model,
 		// to 0
 		const struct fancurve_point *point =
 			i < fancurve->size ? &fancurve->points[i] :
-						 &fancurve_point_zero;
+					     &fancurve_point_zero;
 
 		ecram_write(ecram, model->registers->FAN1_BASE + i,
-				point->rpm1_raw);
+			    point->rpm1_raw);
 		ecram_write(ecram, model->registers->FAN2_BASE + i,
-				point->rpm2_raw);
+			    point->rpm2_raw);
 
 		ecram_write(ecram, model->registers->FAN_ACC_BASE + i,
-				point->accel);
+			    point->accel);
 		ecram_write(ecram, model->registers->FAN_DEC_BASE + i,
-				point->decel);
+			    point->decel);
 
 		ecram_write(ecram, model->registers->CPU_TEMP + i,
-				point->cpu_max_temp_celsius);
+			    point->cpu_max_temp_celsius);
 		ecram_write(ecram, model->registers->CPU_TEMP_HYST + i,
-				point->cpu_min_temp_celsius);
+			    point->cpu_min_temp_celsius);
 		ecram_write(ecram, model->registers->GPU_TEMP + i,
-				point->gpu_max_temp_celsius);
+			    point->gpu_max_temp_celsius);
 		ecram_write(ecram, model->registers->GPU_TEMP_HYST + i,
-				point->gpu_min_temp_celsius);
+			    point->gpu_min_temp_celsius);
 		ecram_write(ecram, model->registers->VRM_TEMP + i,
-				point->ic_max_temp_celsius);
+			    point->ic_max_temp_celsius);
 		ecram_write(ecram, model->registers->VRM_TEMP_HYST + i,
-				point->ic_min_temp_celsius);
+			    point->ic_min_temp_celsius);
 	}
 
 	if (write_size) {
 		ecram_write(ecram, model->registers->FAN_POINTS_SIZE,
-				fancurve->size);
+			    fancurve->size);
 	}
 
 	// Reset current fan level to 0, so algorithm in EC
@@ -1265,7 +1265,7 @@ static int write_fancurve(struct ecram *ecram, const struct model_config *model,
 //}
 
 static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
-					  struct seq_file *s)
+				      struct seq_file *s)
 {
 	int i;
 
@@ -1379,8 +1379,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
 
-	seq_printf(s, "EC Chip ID: %x\n",
-		   read_ec_id(&priv->ecram, priv->conf));
+	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
 	seq_printf(s, "EC Chip Version: %x\n",
 		   read_ec_version(&priv->ecram, priv->conf));
 
@@ -1415,9 +1414,9 @@ static void legion_debugfs_init(struct legion_private *priv)
 	// other do 444
 	dir = debugfs_create_dir(LEGION_DRVR_SHORTNAME, NULL);
 	debugfs_create_file("fancurve", 0444, dir, priv,
-				&debugfs_fancurve_fops);
+			    &debugfs_fancurve_fops);
 	debugfs_create_file("ecmemory", 0444, dir, priv,
-				&debugfs_ecmemory_fops);
+			    &debugfs_ecmemory_fops);
 
 	priv->debugfs_dir = dir;
 }
@@ -1435,7 +1434,7 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* ============================   */
 
 static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
-				  char *buf)
+			      char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int power_mode = read_powermode(&priv->ecram, priv->conf);
@@ -1444,8 +1443,8 @@ static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 }
 
 static ssize_t powermode_store(struct device *dev,
-				   struct device_attribute *attr, const char *buf,
-				   size_t count)
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int powermode;
@@ -1464,11 +1463,10 @@ static ssize_t powermode_store(struct device *dev,
 	return count;
 }
 
-
 static DEVICE_ATTR_RW(powermode);
 
 static struct attribute *legion_sysfs_attributes[] = { &dev_attr_powermode.attr,
-							   NULL };
+						       NULL };
 
 static const struct attribute_group legion_attribute_group = {
 	.attrs = legion_sysfs_attributes
@@ -1483,31 +1481,30 @@ static int legion_sysfs_init(struct legion_private *priv)
 static void legion_sysfs_exit(struct legion_private *priv)
 {
 	device_remove_group(&priv->platform_device->dev,
-				&legion_attribute_group);
+			    &legion_attribute_group);
 }
 
 /* =============================  */
 /* Platform profile               */
 /* ============================   */
 
-
-enum LEGION_POWERMODE{
+enum LEGION_POWERMODE {
 	LEGION_POWERMODE_BALANCED = 0,
 	LEGION_POWERMODE_PERFORMANCE = 1,
 	LEGION_POWERMODE_QUIET = 2,
 };
 
 static int legion_platform_profile_get(struct platform_profile_handler *pprof,
-					enum platform_profile_option *profile)
+				       enum platform_profile_option *profile)
 {
 	int powermode;
 	struct legion_private *priv;
-	
-	priv = container_of(pprof, struct legion_private , platform_profile_handler);
+
+	priv = container_of(pprof, struct legion_private,
+			    platform_profile_handler);
 	powermode = read_powermode(&priv->ecram, priv->conf);
 
-	switch (powermode)
-	{
+	switch (powermode) {
 	case LEGION_POWERMODE_BALANCED:
 		*profile = PLATFORM_PROFILE_BALANCED;
 		break;
@@ -1524,22 +1521,22 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 }
 
 static int legion_platform_profile_set(struct platform_profile_handler *pprof,
-					enum platform_profile_option profile)
+				       enum platform_profile_option profile)
 {
 	int powermode;
 	struct legion_private *priv;
 
-	priv = container_of(pprof, struct legion_private , platform_profile_handler);
+	priv = container_of(pprof, struct legion_private,
+			    platform_profile_handler);
 
-	switch (profile)
-	{
-	case PLATFORM_PROFILE_BALANCED :
+	switch (profile) {
+	case PLATFORM_PROFILE_BALANCED:
 		powermode = LEGION_POWERMODE_BALANCED;
 		break;
-	case PLATFORM_PROFILE_PERFORMANCE :
+	case PLATFORM_PROFILE_PERFORMANCE:
 		powermode = LEGION_POWERMODE_PERFORMANCE;
 		break;
-	case PLATFORM_PROFILE_QUIET :
+	case PLATFORM_PROFILE_QUIET:
 		powermode = LEGION_POWERMODE_QUIET;
 		break;
 	default:
@@ -1553,8 +1550,10 @@ static int legion_platform_profile_init(struct legion_private *priv)
 {
 	int err;
 
-	priv->platform_profile_handler.profile_get = legion_platform_profile_get;
-	priv->platform_profile_handler.profile_set = legion_platform_profile_set;
+	priv->platform_profile_handler.profile_get =
+		legion_platform_profile_get;
+	priv->platform_profile_handler.profile_set =
+		legion_platform_profile_set;
 
 	set_bit(PLATFORM_PROFILE_QUIET, priv->platform_profile_handler.choices);
 	set_bit(PLATFORM_PROFILE_BALANCED,
@@ -1569,12 +1568,10 @@ static int legion_platform_profile_init(struct legion_private *priv)
 	return 0;
 }
 
-
 static void legion_platform_profile_exit(struct legion_private *priv)
 {
 	platform_profile_remove();
 }
-
 
 /* =============================  */
 /* hwom interface              */
@@ -1685,7 +1682,7 @@ static struct attribute *sensor_hwmon_attributes[] = {
 };
 
 static ssize_t autopoint_show(struct device *dev,
-				  struct device_attribute *devattr, char *buf)
+			      struct device_attribute *devattr, char *buf)
 {
 	struct fancurve fancurve;
 	int err;
@@ -1752,8 +1749,8 @@ static ssize_t autopoint_show(struct device *dev,
 }
 
 static ssize_t autopoint_store(struct device *dev,
-				   struct device_attribute *devattr,
-				   const char *buf, size_t count)
+			       struct device_attribute *devattr,
+			       const char *buf, size_t count)
 {
 	struct fancurve fancurve;
 	int err;
@@ -1857,214 +1854,214 @@ error:
 
 // rpm1
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 0);
+			       FANCURVE_ATTR_PWM1, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 1);
+			       FANCURVE_ATTR_PWM1, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 2);
+			       FANCURVE_ATTR_PWM1, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 3);
+			       FANCURVE_ATTR_PWM1, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 4);
+			       FANCURVE_ATTR_PWM1, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 5);
+			       FANCURVE_ATTR_PWM1, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 6);
+			       FANCURVE_ATTR_PWM1, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 7);
+			       FANCURVE_ATTR_PWM1, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 8);
+			       FANCURVE_ATTR_PWM1, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_pwm, autopoint,
-				   FANCURVE_ATTR_PWM1, 9);
+			       FANCURVE_ATTR_PWM1, 9);
 // rpm2
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 0);
+			       FANCURVE_ATTR_PWM2, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 1);
+			       FANCURVE_ATTR_PWM2, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 2);
+			       FANCURVE_ATTR_PWM2, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 3);
+			       FANCURVE_ATTR_PWM2, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 4);
+			       FANCURVE_ATTR_PWM2, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 5);
+			       FANCURVE_ATTR_PWM2, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 6);
+			       FANCURVE_ATTR_PWM2, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 7);
+			       FANCURVE_ATTR_PWM2, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 8);
+			       FANCURVE_ATTR_PWM2, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_pwm, autopoint,
-				   FANCURVE_ATTR_PWM2, 9);
+			       FANCURVE_ATTR_PWM2, 9);
 // CPU temp
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 0);
+			       FANCURVE_ATTR_CPU_TEMP, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 1);
+			       FANCURVE_ATTR_CPU_TEMP, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 2);
+			       FANCURVE_ATTR_CPU_TEMP, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 3);
+			       FANCURVE_ATTR_CPU_TEMP, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 4);
+			       FANCURVE_ATTR_CPU_TEMP, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 5);
+			       FANCURVE_ATTR_CPU_TEMP, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 6);
+			       FANCURVE_ATTR_CPU_TEMP, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 7);
+			       FANCURVE_ATTR_CPU_TEMP, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 8);
+			       FANCURVE_ATTR_CPU_TEMP, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_temp, autopoint,
-				   FANCURVE_ATTR_CPU_TEMP, 9);
+			       FANCURVE_ATTR_CPU_TEMP, 9);
 // CPU temp hyst
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 0);
+			       FANCURVE_ATTR_CPU_HYST, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 1);
+			       FANCURVE_ATTR_CPU_HYST, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 2);
+			       FANCURVE_ATTR_CPU_HYST, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 3);
+			       FANCURVE_ATTR_CPU_HYST, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 4);
+			       FANCURVE_ATTR_CPU_HYST, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 5);
+			       FANCURVE_ATTR_CPU_HYST, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 6);
+			       FANCURVE_ATTR_CPU_HYST, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 7);
+			       FANCURVE_ATTR_CPU_HYST, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 8);
+			       FANCURVE_ATTR_CPU_HYST, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_temp_hyst, autopoint,
-				   FANCURVE_ATTR_CPU_HYST, 9);
+			       FANCURVE_ATTR_CPU_HYST, 9);
 // GPU temp
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 0);
+			       FANCURVE_ATTR_GPU_TEMP, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 1);
+			       FANCURVE_ATTR_GPU_TEMP, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 2);
+			       FANCURVE_ATTR_GPU_TEMP, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 3);
+			       FANCURVE_ATTR_GPU_TEMP, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 4);
+			       FANCURVE_ATTR_GPU_TEMP, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 5);
+			       FANCURVE_ATTR_GPU_TEMP, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 6);
+			       FANCURVE_ATTR_GPU_TEMP, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 7);
+			       FANCURVE_ATTR_GPU_TEMP, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 8);
+			       FANCURVE_ATTR_GPU_TEMP, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_temp, autopoint,
-				   FANCURVE_ATTR_GPU_TEMP, 9);
+			       FANCURVE_ATTR_GPU_TEMP, 9);
 // GPU temp hyst
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 0);
+			       FANCURVE_ATTR_GPU_HYST, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 1);
+			       FANCURVE_ATTR_GPU_HYST, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point3_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 2);
+			       FANCURVE_ATTR_GPU_HYST, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point4_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 3);
+			       FANCURVE_ATTR_GPU_HYST, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point5_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 4);
+			       FANCURVE_ATTR_GPU_HYST, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point6_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 5);
+			       FANCURVE_ATTR_GPU_HYST, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point7_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 6);
+			       FANCURVE_ATTR_GPU_HYST, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point8_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 7);
+			       FANCURVE_ATTR_GPU_HYST, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point9_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 8);
+			       FANCURVE_ATTR_GPU_HYST, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point10_temp_hyst, autopoint,
-				   FANCURVE_ATTR_GPU_HYST, 9);
+			       FANCURVE_ATTR_GPU_HYST, 9);
 // IC temp
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point1_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 0);
+			       FANCURVE_ATTR_IC_TEMP, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point2_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 1);
+			       FANCURVE_ATTR_IC_TEMP, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point3_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 2);
+			       FANCURVE_ATTR_IC_TEMP, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point4_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 3);
+			       FANCURVE_ATTR_IC_TEMP, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point5_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 4);
+			       FANCURVE_ATTR_IC_TEMP, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point6_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 5);
+			       FANCURVE_ATTR_IC_TEMP, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point7_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 6);
+			       FANCURVE_ATTR_IC_TEMP, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point8_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 7);
+			       FANCURVE_ATTR_IC_TEMP, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point9_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 8);
+			       FANCURVE_ATTR_IC_TEMP, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point10_temp, autopoint,
-				   FANCURVE_ATTR_IC_TEMP, 9);
+			       FANCURVE_ATTR_IC_TEMP, 9);
 // IC temp hyst
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point1_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 0);
+			       FANCURVE_ATTR_IC_HYST, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point2_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 1);
+			       FANCURVE_ATTR_IC_HYST, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point3_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 2);
+			       FANCURVE_ATTR_IC_HYST, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point4_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 3);
+			       FANCURVE_ATTR_IC_HYST, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point5_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 4);
+			       FANCURVE_ATTR_IC_HYST, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point6_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 5);
+			       FANCURVE_ATTR_IC_HYST, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point7_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 6);
+			       FANCURVE_ATTR_IC_HYST, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point8_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 7);
+			       FANCURVE_ATTR_IC_HYST, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point9_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 8);
+			       FANCURVE_ATTR_IC_HYST, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm3_auto_point10_temp_hyst, autopoint,
-				   FANCURVE_ATTR_IC_HYST, 9);
+			       FANCURVE_ATTR_IC_HYST, 9);
 // accel
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 0);
+			       FANCURVE_ATTR_ACCEL, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 1);
+			       FANCURVE_ATTR_ACCEL, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 2);
+			       FANCURVE_ATTR_ACCEL, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 3);
+			       FANCURVE_ATTR_ACCEL, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 4);
+			       FANCURVE_ATTR_ACCEL, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 5);
+			       FANCURVE_ATTR_ACCEL, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 6);
+			       FANCURVE_ATTR_ACCEL, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 7);
+			       FANCURVE_ATTR_ACCEL, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 8);
+			       FANCURVE_ATTR_ACCEL, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_accel, autopoint,
-				   FANCURVE_ATTR_ACCEL, 9);
+			       FANCURVE_ATTR_ACCEL, 9);
 // decel
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 0);
+			       FANCURVE_ATTR_DECEL, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point2_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 1);
+			       FANCURVE_ATTR_DECEL, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point3_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 2);
+			       FANCURVE_ATTR_DECEL, 2);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point4_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 3);
+			       FANCURVE_ATTR_DECEL, 3);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point5_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 4);
+			       FANCURVE_ATTR_DECEL, 4);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point6_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 5);
+			       FANCURVE_ATTR_DECEL, 5);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point7_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 6);
+			       FANCURVE_ATTR_DECEL, 6);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point8_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 7);
+			       FANCURVE_ATTR_DECEL, 7);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 8);
+			       FANCURVE_ATTR_DECEL, 8);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_decel, autopoint,
-				   FANCURVE_ATTR_DECEL, 9);
+			       FANCURVE_ATTR_DECEL, 9);
 //size
 static SENSOR_DEVICE_ATTR_2_RW(auto_points_size, autopoint, FANCURVE_SIZE, 0);
 
@@ -2296,8 +2293,7 @@ int legion_add(struct platform_device *pdev)
 	ec_read_id = read_ec_id(&priv->ecram, priv->conf);
 	if (!(ec_read_id == priv->conf->embedded_controller_id)) {
 		err = -ENOMEM;
-		dev_info(&pdev->dev,
-			 "Expected EC chip id 0x%x but read 0x%x\n",
+		dev_info(&pdev->dev, "Expected EC chip id 0x%x but read 0x%x\n",
 			 priv->conf->embedded_controller_id, ec_read_id);
 		goto err_ecram_id;
 	}
@@ -2324,8 +2320,6 @@ int legion_add(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
-
-
 
 // TODO: remove eventually
 // legion_platform_profile_exit();
