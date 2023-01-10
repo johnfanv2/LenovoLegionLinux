@@ -5,15 +5,17 @@ echo "MODEL"
 dmidecode -s system-version
 echo "BIOS"
 dmidecode -s bios-version
-
 echo ""
 
 hwmondir=`find /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon -mindepth 1 -name "hwmon*"`
 echo "Using hwmon directory: ${hwmondir}" 
 
+# Disable (0) or Enable (1) switching to minifancurve when everything seems very cool
+echo 1    > ${hwmondir}/minifancurve
+
 # 1. Fan: Set the fan speed (rmp) of the first fan for the first 6 points (first must be 0)
 # If you want more, just continue 
-echo 0    > "${hwmondir}/pwm1_auto_point1_pwm"
+echo 0    > ${hwmondir}/pwm1_auto_point1_pwm
 echo 1500 > ${hwmondir}/pwm1_auto_point2_pwm
 echo 1900 > ${hwmondir}/pwm1_auto_point3_pwm
 echo 2100 > ${hwmondir}/pwm1_auto_point4_pwm

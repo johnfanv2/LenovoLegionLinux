@@ -51,11 +51,11 @@
  *
  *
  *  Credits for reverse engineering the firmware to:
+ *      - David Woodhouse: heavily inspired by lenovo_laptop.c
  *      - Luke Cama: Windows version "LegionFanControl"
  *      - SmokelessCPU: reverse engineering of custom registers in EC
  *                      and commincation method with EC via ports
  *      - 0x1F9F1: additional reverse engineering for complete fan curve
- *      - heavily inspired by lenovo_laptop.c
  */
 
 #include <linux/acpi.h>
@@ -71,6 +71,7 @@
 #include <linux/platform_device.h>
 #include <linux/platform_profile.h>
 #include <linux/types.h>
+#include <linux/wmi.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("johnfan");
@@ -84,6 +85,8 @@ MODULE_PARM_DESC(
 
 //TODO: remove this, kernel modules do not have versions
 #define MODULEVERSION "0.1"
+#define LEGIONFEATURES \
+	"fancurve powermode platformprofile platformprofilenotify minifancurve"
 
 //Size of fancurve stored in embedded controller
 #define MAXFANCURVESIZE 10
@@ -199,6 +202,8 @@ struct ec_register_offsets {
 	u16 ALT_CPU_TEMP2;
 	u16 ALT_GPU_TEMP2;
 	u16 ALT_IC_TEMP2;
+
+	u16 MINIFANCURVE_ON_COOL;
 };
 
 enum ECRAM_ACCESS { ECRAM_ACCESS_PORTIO, ECRAM_ACCESS_MEMORYIO };
@@ -364,6 +369,13 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.FAN1_RPM_MSB = 0xC5E1,
 	.FAN2_RPM_LSB = 0xC5E2,
 	.FAN2_RPM_MSB = 0xC5E3,
+
+	// values
+	// 0x04: enable mini fan curve if very long on cool level
+	//      - this might be due to potential temp failure
+	//      - or just because really so cool
+	// 0xA0: disable it
+	.MINIFANCURVE_ON_COOL = 0xC536,
 
 	.ALT_CPU_TEMP = 0xc538,
 	.ALT_GPU_TEMP = 0xc539,
@@ -879,6 +891,36 @@ void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 	write_powermode(ecram, model, old_powermode);
 }
 
+#define MINIFANCUVE_ON_COOL_ON 0x04
+#define MINIFANCUVE_ON_COOL_OFF 0xA0
+
+int read_minifancurve(struct ecram *ecram, const struct model_config *model,
+		      bool *state)
+{
+	int value = ecram_read(ecram, model->registers->MINIFANCURVE_ON_COOL);
+
+	switch (value) {
+	case MINIFANCUVE_ON_COOL_ON:
+		*state = true;
+		break;
+	case MINIFANCUVE_ON_COOL_OFF:
+		*state = false;
+		break;
+	default:
+		return -1;
+	}
+	return 0;
+}
+
+ssize_t write_minifancurve(struct ecram *ecram,
+			   const struct model_config *model, bool state)
+{
+	u8 val = state ? MINIFANCUVE_ON_COOL_ON : MINIFANCUVE_ON_COOL_OFF;
+
+	ecram_write(ecram, model->registers->MINIFANCURVE_ON_COOL, val);
+	return 0;
+}
+
 /* ============================= */
 /* Data model for fan curve      */
 /* ============================  */
@@ -921,6 +963,7 @@ enum FANCURVE_ATTR {
 	FANCURVE_ATTR_ACCEL = 9,
 	FANCURVE_ATTR_DECEL = 10,
 	FANCURVE_SIZE = 11,
+	FANCURVE_MINIFANCURVE_ON_COOL = 12
 };
 
 // used for clearing table entries
@@ -1318,10 +1361,14 @@ struct legion_private {
 	struct device *hwmon_dev;
 	struct platform_profile_handler platform_profile_handler;
 
+	// EC enables mini fancurve if long enough on low temp
+	bool has_minifancurve_on_cool;
+
 	// TODO: remove?
 	bool loaded;
 };
 
+// shared between different drivers: WMI, platform and proteced by mutex
 static struct legion_private *legion_shared;
 static struct legion_private _priv;
 static DEFINE_MUTEX(legion_shared_mutex);
@@ -1378,13 +1425,20 @@ DEFINE_SHOW_ATTRIBUTE(debugfs_ecmemory);
 static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
+	bool is_minifancurve;
+	int err;
 
 	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
 	seq_printf(s, "EC Chip Version: %x\n",
 		   read_ec_version(&priv->ecram, priv->conf));
-
+	// TODO: remove this
+	seq_printf(s, "legion_laptop version: %s\n", MODULEVERSION);
+	seq_printf(s, "legion_laptop features: %s\n", LEGIONFEATURES);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
+	err = read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
+	seq_printf(s, "minifancurve on cool: %s\n",
+		   err ? "error" : (is_minifancurve ? "true" : "false"));
 	seq_printf(s, "fan curve current point id: %ld\n",
 		   priv->fancurve.current_point_i);
 	seq_printf(s, "fan curve points size: %ld\n", priv->fancurve.size);
@@ -1458,6 +1512,11 @@ static ssize_t powermode_store(struct device *dev,
 	if (err)
 		return -EINVAL;
 
+	// TODO: better?
+	// we have to wait a bit before change is done in hardware and
+	// readback done after notifying returns correct value, otherwise
+	// the notified reader will read old value
+	msleep(500);
 	platform_profile_notify();
 
 	return count;
@@ -1482,6 +1541,157 @@ static void legion_sysfs_exit(struct legion_private *priv)
 {
 	device_remove_group(&priv->platform_device->dev,
 			    &legion_attribute_group);
+}
+
+/* =============================  */
+/* WMI + ACPI                     */
+/* ============================   */
+// heavily based on ideapad_laptop.c
+
+// TODO: proper names if meaning of all events is clear
+enum LEGION_WMI_EVENT {
+	LEGION_WMI_EVENT_GAMEZONE = 1,
+	LEGION_EVENT_A,
+	LEGION_EVENT_B,
+	LEGION_EVENT_C,
+	LEGION_EVENT_D,
+	LEGION_EVENT_E,
+	LEGION_EVENT_F,
+	LEGION_EVENT_G
+};
+
+struct legion_wmi_private {
+	enum LEGION_WMI_EVENT event;
+};
+
+//static void legion_wmi_notify2(u32 value, void *context)
+//    {
+//	pr_info("WMI notify\n" );
+//    }
+
+static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
+{
+	struct legion_wmi_private *wpriv = dev_get_drvdata(&wdev->dev);
+	struct legion_private *priv;
+
+	mutex_lock(&legion_shared_mutex);
+	priv = legion_shared;
+	if (!priv)
+		goto unlock;
+
+	switch (wpriv->event) {
+	case LEGION_EVENT_A:
+		pr_info("Fan event: legion type: %d;  acpi type: %d (%d=integer)",
+			wpriv->event, data->type, ACPI_TYPE_INTEGER);
+		// TODO: here it is too early (first unlock mutext, then wait a bit)
+		//platform_profile_notify();
+		break;
+	default:
+		pr_info("Event: legion type: %d;  acpi type: %d (%d=integer)",
+			wpriv->event, data->type, ACPI_TYPE_INTEGER);
+		break;
+	}
+
+unlock:
+	mutex_unlock(&legion_shared_mutex);
+	// todo; fix that!
+	// problem: we get a event just before the powermode change (from the key?),
+	// so if we notify to early, it will read the old power mode/platform profile
+	msleep(500);
+	platform_profile_notify();
+}
+
+static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
+{
+	struct legion_wmi_private *wpriv;
+
+	wpriv = devm_kzalloc(&wdev->dev, sizeof(*wpriv), GFP_KERNEL);
+	if (!wpriv)
+		return -ENOMEM;
+
+	*wpriv = *(const struct legion_wmi_private *)context;
+
+	dev_set_drvdata(&wdev->dev, wpriv);
+	dev_info(&wdev->dev, "Register after probing for WMI.\n");
+	return 0;
+}
+
+static const struct legion_wmi_private legion_wmi_context_gamezone = {
+	.event = LEGION_WMI_EVENT_GAMEZONE
+};
+static const struct legion_wmi_private legion_wmi_context_a = {
+	.event = LEGION_EVENT_A
+};
+static const struct legion_wmi_private legion_wmi_context_b = {
+	.event = LEGION_EVENT_B
+};
+static const struct legion_wmi_private legion_wmi_context_c = {
+	.event = LEGION_EVENT_C
+};
+static const struct legion_wmi_private legion_wmi_context_d = {
+	.event = LEGION_EVENT_D
+};
+static const struct legion_wmi_private legion_wmi_context_e = {
+	.event = LEGION_EVENT_E
+};
+static const struct legion_wmi_private legion_wmi_context_f = {
+	.event = LEGION_EVENT_F
+};
+
+// check if really a method
+#define LEGION_WMI_GAMEZONE_GUID "887B54E3-DDDC-4B2C-8B88-68A26A8835D0"
+
+#define LEGION_WMI_GUID_FAN_EVENT "D320289E-8FEA-41E0-86F9-611D83151B5F"
+#define LEGION_WMI_GUID_FAN2_EVENT "bc72a435-e8c1-4275-b3e2-d8b8074aba59"
+#define LEGION_WMI_GUID_GAMEZONE_KEY_EVENT \
+	"10afc6d9-ea8b-4590-a2e7-1cd3c84bb4b1"
+#define LEGION_WMI_GUID_GAMEZONE_GPU_EVENT \
+	"bfd42481-aee3-4502-a107-afb68425c5f8"
+#define LEGION_WMI_GUID_GAMEZONE_OC_EVENT "d062906b-12d4-4510-999d-4831ee80e985"
+#define LEGION_WMI_GUID_GAMEZONE_TEMP_EVENT \
+	"bfd42481-aee3-4501-a107-afb68425c5f8"
+//#define LEGION_WMI_GUID_GAMEZONE_DATA_EVENT  "887b54e3-dddc-4b2c-8b88-68a26a8835d0"
+
+static const struct wmi_device_id legion_wmi_ids[] = {
+	{ LEGION_WMI_GAMEZONE_GUID, &legion_wmi_context_gamezone },
+	{ LEGION_WMI_GUID_FAN_EVENT, &legion_wmi_context_a },
+	{ LEGION_WMI_GUID_FAN2_EVENT, &legion_wmi_context_b },
+	{ LEGION_WMI_GUID_GAMEZONE_KEY_EVENT, &legion_wmi_context_c },
+	{ LEGION_WMI_GUID_GAMEZONE_GPU_EVENT, &legion_wmi_context_d },
+	{ LEGION_WMI_GUID_GAMEZONE_OC_EVENT, &legion_wmi_context_e },
+	{ LEGION_WMI_GUID_GAMEZONE_TEMP_EVENT, &legion_wmi_context_f },
+	{ "8FC0DE0C-B4E4-43FD-B0F3-8871711C1294",
+	  &legion_wmi_context_gamezone }, /* Legion 5 */
+	{},
+};
+MODULE_DEVICE_TABLE(wmi, legion_wmi_ids);
+
+static struct wmi_driver legion_wmi_driver = {
+	.driver = {
+		.name = "legion_wmi",
+	},
+	.id_table = legion_wmi_ids,
+	.probe = legion_wmi_probe,
+	.notify = legion_wmi_notify,
+};
+
+
+//acpi_status status = wmi_install_notify_handler(LEGION_WMI_GAMEZONE_GUID,
+//				legion_wmi_notify2, NULL);
+//if (ACPI_FAILURE(status)) {
+//    return -ENODEV;
+//}
+//return 0;
+
+static int legion_wmi_init(void)
+{
+	return wmi_driver_register(&legion_wmi_driver);
+}
+
+static void legion_wmi_exit(void)
+{
+	//wmi_remove_notify_handler(LEGION_WMI_GAMEZONE_GUID);
+	wmi_driver_unregister(&legion_wmi_driver);
 }
 
 /* =============================  */
@@ -2065,6 +2275,62 @@ static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_decel, autopoint,
 //size
 static SENSOR_DEVICE_ATTR_2_RW(auto_points_size, autopoint, FANCURVE_SIZE, 0);
 
+static ssize_t minifancurve_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	bool value;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = read_minifancurve(&priv->ecram, priv->conf, &value);
+	if (err) {
+		err = -1;
+		pr_info("Writing minifancurve not succesful\n");
+		goto error_unlock;
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+	return sprintf(buf, "%d\n", value);
+
+error_unlock:
+	mutex_unlock(&priv->fancurve_mutex);
+	return -1;
+}
+
+static ssize_t minifancurve_store(struct device *dev,
+				  struct device_attribute *devattr,
+				  const char *buf, size_t count)
+{
+	int value;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtoint(buf, 0, &value);
+	if (err) {
+		err = -1;
+		pr_info("Parse for hwmon store is not succesful: error:%d\n",
+			err);
+		goto error;
+	}
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = write_minifancurve(&priv->ecram, priv->conf, value);
+	if (err) {
+		err = -1;
+		pr_info("Writing minifancurve not succesful\n");
+		goto error_unlock;
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+	return count;
+
+error_unlock:
+	mutex_unlock(&priv->fancurve_mutex);
+error:
+	return err;
+}
+
+static SENSOR_DEVICE_ATTR_RW(minifancurve, minifancurve, 0);
+
 static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr,
 	&sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr,
@@ -2166,8 +2432,9 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_auto_point8_decel.dev_attr.attr,
 	&sensor_dev_attr_pwm1_auto_point9_decel.dev_attr.attr,
 	&sensor_dev_attr_pwm1_auto_point10_decel.dev_attr.attr,
+	//
 	&sensor_dev_attr_auto_points_size.dev_attr.attr,
-	NULL
+	&sensor_dev_attr_minifancurve.dev_attr.attr, NULL
 };
 
 static const struct attribute_group legion_hwmon_sensor_group = {
@@ -2315,14 +2582,25 @@ int legion_add(struct platform_device *pdev)
 
 	pr_info("Creating platform profile support\n");
 	err = legion_platform_profile_init(priv);
-	if (err)
+	if (err) {
+		dev_info(&pdev->dev, "Creating platform profile failed\n");
 		goto err_platform_profile;
+	}
+
+	pr_info("Init WMI driver support\n");
+	err = legion_wmi_init();
+	if (err) {
+		dev_info(&pdev->dev, "Init WMI driver failed\n");
+		goto err_wmi;
+	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
-// TODO: remove eventually
-// legion_platform_profile_exit();
+	// TODO: remove eventually
+	legion_wmi_exit();
+err_wmi:
+	legion_platform_profile_exit(priv);
 err_platform_profile:
 	legion_hwmon_exit(priv);
 err_hwmon_init:
@@ -2349,8 +2627,8 @@ int legion_remove(struct platform_device *pdev)
 	// again
 	toggle_powermode(&priv->ecram, priv->conf);
 
+	legion_wmi_exit();
 	legion_platform_profile_exit(priv);
-	legion_hwmon_exit(priv);
 	legion_hwmon_exit(priv);
 	legion_sysfs_exit(priv);
 	legion_debugfs_exit(priv);

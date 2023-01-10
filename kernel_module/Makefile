@@ -1,10 +1,10 @@
 SHELL := /bin/bash
-KVER  ?= $(shell uname -r)
-KSRC := /lib/modules/$(KVER)/build
+KERNELVERSION  ?= $(shell uname -r)
+KSRC := /lib/modules/$(KERNELVERSION)/build
 
 #install dir for kernel drivers
-INSTALLDIR := /lib/modules/$(KVER)/kernel/drivers/platform/x86
-MODDESTDIR := /lib/modules/$(KVER)/kernel/drivers/platform/x86
+INSTALLDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
+MODDESTDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
 
 obj-m += legion-laptop.o
 
