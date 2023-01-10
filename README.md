@@ -48,10 +48,12 @@ It allows to control a few features like fan curve and power mode.
 </p>
 
 ## :pushpin: Confirmed Compatible Models
-Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed
-- Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors and fan curve
-- Lenovo Legion 5 15ACH6H (BIOS GKCN58WW), Gen 6: sensors and fan curve
-- Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors and fan curve
+Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed.
+- Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors, fan curve
+- Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
+- Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
+- Lenovo Legion 5 15ITH6H (BIOS ???, Intel): sensors, fan curve, power profile
+*Note:* Features that are not confirmed proabably also work. They were just not tested.
 
 ## :warning: Disclaimer
 
@@ -334,8 +336,7 @@ Note:
 - You might want to create different scripts for different usages. Just copy it and adapt the values.
 
 ### Change powermode from software
-For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power deamon after
-reloading the module (`systemctl reload power-profiles-daemon.service` in Ubuntu).
+For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power deamon (`systemctl reload power-profiles-daemon.service` in Ubuntu) after reloading the kernel module (see above).
 
 #### Modify/Control with GUI
 In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
