@@ -54,6 +54,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
+- Lenovo Legion 5 Pro 82JQ (BIOS 16AC6H): sensors, fan curve, power profile
 
 *Note:* Features that are not confirmed proabably also work. They were just not tested.
 
