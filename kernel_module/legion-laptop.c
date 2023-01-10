@@ -468,6 +468,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_v0
 	},
+	{
+		// modelyear: 2022
+		.ident = "JUCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "JUCN"),
+		},
+		.driver_data = (void *)&model_v0
+	},
 	{}
 };
 
@@ -1674,7 +1683,6 @@ static struct wmi_driver legion_wmi_driver = {
 	.probe = legion_wmi_probe,
 	.notify = legion_wmi_notify,
 };
-
 
 //acpi_status status = wmi_install_notify_handler(LEGION_WMI_GAMEZONE_GUID,
 //				legion_wmi_notify2, NULL);
