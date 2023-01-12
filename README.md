@@ -20,13 +20,13 @@ It allows to control a few features like fan curve and power mode.
 
 :boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
 
-## :mega: Overview
-- it comes with a driver (kernel module) that implements the Linux standard interfaces (sysfs, debugfs, hwmon) 
-- using standard Linux interfaces makes it is compatible with the command line/file interface or standard GUI tools like psensor
-- compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
-    slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
-
 ## :rocket: Features
+<p align="center">
+    <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
+    <img height="300" style="float: center;" src="assets/powermode.png" alt="powermode">
+</p>
+
 - [x] light on RAM and CPU and without telemetry
 - [x] small GUI for fan curve; other features by GUI tools of distribution
 - [x] also fully controllable by scripts or from terminal
@@ -44,11 +44,13 @@ It allows to control a few features like fan curve and power mode.
 - [x] monitor fan speeds and temperatures (CPU, GPU, IC (?)) and with additional sensors
 
 
-<p align="center">
-    <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
-    <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
-    <img height="300" style="float: center;" src="assets/powermode.png" alt="powermode">
-</p>
+
+## :mega: Overview
+- it comes with a driver (kernel module) that implements the Linux standard interfaces (sysfs, debugfs, hwmon) 
+- using standard Linux interfaces makes it is compatible with the command line/file interface or standard GUI tools like psensor
+- compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
+    slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
+
 
 ## :pushpin: Confirmed Compatible Models
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed.
