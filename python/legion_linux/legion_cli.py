@@ -5,8 +5,10 @@ from legion import LegionModelFacade
 
 def main():
     parser = argparse.ArgumentParser(description='Legion CLI')
-    subcommands = parser.add_subparsers(title='subcommands', dest='subcommand')
+    parser.add_argument(
+        '--donotexpecthwmon', action='store_true', help='Do not check hwmon dir when not needed', default=False)
 
+    subcommands = parser.add_subparsers(title='subcommands', dest='subcommand')
     preset_to_hw_parser = subcommands.add_parser(
         'fancurve-write-preset-to-hw', help='Write fan curve from preset to hardware')
     preset_to_hw_parser.add_argument(
