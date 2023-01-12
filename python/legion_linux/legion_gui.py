@@ -1,20 +1,21 @@
 #!/usr/bin/python3
 import sys
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
      QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
      QCheckBox
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry
+from legion import LegionModelFacade, FanCurve, FanCurveEntry
 
 class LegionController:
     model:LegionModelFacade
 
-    def __init__(self):
-        self.model = LegionModelFacade()
+    def __init__(self, expect_hwmon=True):
+        self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
         self.view_fancurve = None
 
-    def init(self):
-        self.model.read_fancurve_from_hw()
+    def init(self, read_from_hw=True):
+        if read_from_hw:
+            self.model.read_fancurve_from_hw()
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
@@ -44,7 +45,7 @@ class LegionController:
 
 class FanCurveEntryView():
     def __init__(self, point_id, layout):
-        self.point_id_label = QLabel("{point_id}")
+        self.point_id_label = QLabel(f'{point_id}')
         self.point_id_label.setAlignment(Qt.AlignCenter)
         self.fan_speed1_edit = QLineEdit()
         self.fan_speed2_edit = QLineEdit()
@@ -168,11 +169,13 @@ class FanCurveTab(QWidget):
 
         self.load_button = QPushButton("Read from HW")
         self.write_button = QPushButton("Apply to HW")
+        self.note_label = QLabel("Fan curve is reset to default if you toggle power mode (Fn + Q)")
         self.load_button.clicked.connect(self.controller.on_read_fan_curve_from_hw)
         self.write_button.clicked.connect(self.controller.on_write_fan_curve_to_hw)
         self.button1_group.setLayout(self.button1_layout)
         self.button1_layout.addWidget(self.load_button, 0, 0)
         self.button1_layout.addWidget(self.write_button, 0, 1)
+        self.button1_layout.addWidget(self.note_label, 1, 0)
 
         self.button2_group = QGroupBox("Fancurve Preset")
         self.button2_layout = QGridLayout()
@@ -213,14 +216,25 @@ class MainWindow(QTabWidget):
         super().__init__()
         self.fan_curve_tab = FanCurveTab(controller)
         self.about_tab = AboutTab()
+        self.close_timer = QTimer()
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.about_tab, "About")
 
+    def close_after(self, milliseconds:int):
+        self.close_timer.timeout.connect(self.close)
+        self.close_timer.start(milliseconds)
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    contr = LegionController()
+    AUTOMATIC_CLOSE = '--automaticclose' in sys.argv
+    DO_NOT_EXPECT_HWMON = '--donotexpecthwmon' in sys.argv
+
+    contr = LegionController(expect_hwmon=not DO_NOT_EXPECT_HWMON)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
-    contr.init()
+    contr.init(read_from_hw= not DO_NOT_EXPECT_HWMON)
+    contr.model.fancurve_repo.create_preset_folder()
+    if AUTOMATIC_CLOSE:
+        main_window.close_after(3000)
     main_window.show()
     sys.exit(app.exec_())

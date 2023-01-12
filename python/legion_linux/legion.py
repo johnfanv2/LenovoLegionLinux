@@ -2,10 +2,12 @@ import os
 import glob
 from dataclasses import asdict, dataclass
 from typing import List
+from pathlib import Path
 
 import yaml
 
 DEFAULT_ENCODING = "utf8"
+CONFIG_FOLDER = ".config/legion_linux"
 
 @dataclass(order=True)
 class FanCurveEntry:
@@ -62,9 +64,9 @@ class FanCurveIO:
     minifancurve = "minifancurve"
     encoding = DEFAULT_ENCODING
 
-    def __init__(self):
+    def __init__(self, expect_hwmon=True):
         self.hwmon_path = self._find_hwmon_dir()
-        if not self.hwmon_path:
+        if (not self.hwmon_path) and expect_hwmon:
             raise Exception("hwmon dir not found")
 
     def _find_hwmon_dir(self):
@@ -248,7 +250,13 @@ class FanCurveRepository:
             "balanced-ac": None,
             "performance-ac": None
         }
-        self.preset_dir = '.'
+
+        self.preset_dir = os.path.join(os.getenv("HOME"), CONFIG_FOLDER)
+
+
+    def create_preset_folder(self):
+        print(f"Create path {self.preset_dir}")
+        Path(self.preset_dir).mkdir(parents=True, exist_ok=True)
 
     def _name_to_filename(self, name):
         return os.path.join(self.preset_dir, name+".yaml")
@@ -273,10 +281,12 @@ class FanCurveRepository:
 
 
 class LegionModelFacade:
-    def __init__(self):
-        self.fancurve_io = FanCurveIO()
+    def __init__(self, expect_hwmon=True):
+        self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
         self.fancurve_repo = FanCurveRepository()
-        self.fan_curve = self.fancurve_io.read_fan_curve()
+        self.fan_curve = FanCurve(name='unknown',
+            entries=[FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
+            enable_minifancurve=False)
 
     def get_preset_folder(self):
         return self.fancurve_repo.preset_dir
