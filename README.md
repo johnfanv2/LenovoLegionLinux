@@ -28,6 +28,8 @@ It allows to control a few features like fan curve and power mode.
 
 ## :rocket: Features
 - [x] light on RAM and CPU and without telemetry
+- [x] small GUI for fan curve; other features by GUI tools of distribution
+- [x] also fully controllable by scripts or from terminal
 - [x] set a fully featured custom fan curve with up to 10 points
     - even allows speed below 1600 RPM
     - set temperatere points when the fan speed (level) should change
@@ -43,8 +45,9 @@ It allows to control a few features like fan curve and power mode.
 
 
 <p align="center">
+    <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
     <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
-    <img height="300" style="float: center;" src="assets/powermode.png" alt="psensor">
+    <img height="300" style="float: center;" src="assets/powermode.png" alt="powermode">
 </p>
 
 ## :pushpin: Confirmed Compatible Models
@@ -62,7 +65,8 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 ## :warning: Disclaimer
 
 - **The tool comes with no warranty. Use at your own risk.**
-- **currently comes without a UI; commandline and script only**
+- **currently comes without a UI; commandline and script only.**
+- **this project is not affiliated with Lenovo in any way.**
 - this is a small hobby project; please be patient and read through this readme carefully before you ask for support
 - if your Lenovo Legion laptop is not supported and you are ready to perform some tests please notify me
 - this is a Linux only tool and will probably also not run in WSL; for Windows use one of the availabe Windows tools
@@ -83,34 +87,34 @@ You will need to install the following to download and build it. If there is an 
 **Ubuntu/Debian**
 ```bash
 sudo apt-get update
-sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors dmidecode
+sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors dmidecode python3-pyqt5
 ```
 
 **RHEL/CentOS**
 ```bash
 sudo yum update
-sudo yum install kernel-headers kernel-devel lm-sensors dmidecode
+sudo yum install kernel-headers kernel-devel lm-sensors dmidecode python3-pyqt5
 sudo yum groupinstall "Development Tools"
 sudo yum group install "C Development Tools and Libraries"
 ```
 
 **Fedora**
 ```bash
-sudo dnf install kernel-headers kernel-devel lm-sensors dmidecode
+sudo dnf install kernel-headers kernel-devel lm-sensors dmidecode python3-pyqt5
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
 ```
 
 **openSUSE**
 ```bash
-sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors dmidecode
+sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors dmidecode python3-pyqt5
 ```
 *Note:* Check for the correct Header package.
 
 
 **Arch/Manjaro**
 ```bash
-sudo pacman -S linux-headers base-devel lm-sensors git dmidecode 
+sudo pacman -S linux-headers base-devel lm-sensors git dmidecode  python3-pyqt5
 ```
 *Note:* Check for the correct Header package.
 
@@ -318,8 +322,58 @@ psensor
 <p align="center">
     <img height="450" style="float: center;" src="assets/psensor.png" alt="psensor">
 </p>
+
+### Changing and Setting your own Fan Curve with the Python GUI
+Start the GUI as root
+```bash
+# run from folder LenovoLegionLinux
+sudo python/legion_linux/legion_gui.py
+```
+<p align="center">
+    <img height="450" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
+</p>
+
+
+- with `Read from HW` you can read the current fan curve that is saved in the hardware and display it.
+- you can edit the values of the fancurve. They will not applied to hardware until your press `Apply to HW`
+- press `Apply to HW` to write the currently displayed fancurve to hardware and activate it
+- you can load and save a fancurve to a preset. Select the preset with the drop-down menu and press `Load from Preset` or `Save to preset`.  
+- loading a preset will just display it. You still have to press `Apply to HW` to activate it
+- presets are stored in a yaml file in `/root/.config/legion_linux/`. You can edit them also manually.
+- the number of points is fixed depending on power mode. Deactivated points are currently displayed as `0`s.
+
+Unexpected:
+- an error is displayed or evyerthing is `0`: kernel module not loaded or installed (see above) or not compatible (do manual tests from above)
+- an value is not accepeted when `Write to HW`: the value is out-of-range and was not accepted by hardware
     
-### Creating and Setting your own Fan Curve
+### Changing and Setting your own Fan Curve with the Python CLI
+You can do the same as the GUI from a CLI program. It will access the same presets.
+```bash
+# run from folder LenovoLegionLinux
+sudo python/legion_linux/legion_cli.py
+```
+
+```text
+usage: legion_cli.py [-h] {fancurve-write-preset-to-hw,fancurve-write-hw-to-preset,fancurve-write-file-to-hw,fancurve-write-hw-to-file} ...
+
+Legion CLI
+
+options:
+  -h, --help            show this help message and exit
+
+subcommands:
+  {fancurve-write-preset-to-hw,fancurve-write-hw-to-preset,fancurve-write-file-to-hw,fancurve-write-hw-to-file}
+    fancurve-write-preset-to-hw
+                        Write fan curve from preset to hardware
+    fancurve-write-hw-to-preset
+                        Write fan curve from hardware to preset
+    fancurve-write-file-to-hw
+                        Write fan curve from file to hardware
+    fancurve-write-hw-to-file
+                        Write fan curve from hardware to file
+```
+
+### Creating and Setting your own Fan Curve with Script
 Just run the script to set the fan curve. It is in the folder `LenovoLegionLinux`.
 ```bash
 # Go to folder LenovoLegionLinux and run it. It should output "Writing fancurve successful!" if it finishes successful
