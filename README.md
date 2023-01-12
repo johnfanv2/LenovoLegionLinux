@@ -378,6 +378,10 @@ cat /sys/firmware/acpi/platform_profile
 echo balanced > /sys/firmware/acpi/platform_profile
 ```
 
+## Known Bugs
+Some bugs cannot be fixed due to the firmware in the hardware:
+- size of fan curve cannot be changed (size is 10 on performance mode, 9 otherwise) but you can practically disable points by setting the temperature limits to 127, as already done when writing to `auto_points_size`
+
 
 ## :clap: Credits
 
