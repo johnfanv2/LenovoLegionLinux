@@ -9,8 +9,8 @@ from legion import LegionModelFacade, FanCurve, FanCurveEntry
 class LegionController:
     model:LegionModelFacade
 
-    def __init__(self):
-        self.model = LegionModelFacade()
+    def __init__(self, expect_hwmon=True):
+        self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
         self.view_fancurve = None
 
     def init(self):
@@ -226,8 +226,9 @@ class MainWindow(QTabWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     AUTOMATIC_CLOSE = '--automaticclose' in sys.argv
+    DO_NOT_EXPECT_HWMON = '--donotexpecthwmon' in sys.argv
 
-    contr = LegionController()
+    contr = LegionController(expect_hwmon=not DO_NOT_EXPECT_HWMON)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
     contr.init()

@@ -64,9 +64,9 @@ class FanCurveIO:
     minifancurve = "minifancurve"
     encoding = DEFAULT_ENCODING
 
-    def __init__(self):
+    def __init__(self, expect_hwmon=True):
         self.hwmon_path = self._find_hwmon_dir()
-        if not self.hwmon_path:
+        if (not self.hwmon_path) and expect_hwmon:
             raise Exception("hwmon dir not found")
 
     def _find_hwmon_dir(self):
@@ -281,8 +281,8 @@ class FanCurveRepository:
 
 
 class LegionModelFacade:
-    def __init__(self):
-        self.fancurve_io = FanCurveIO()
+    def __init__(self, expect_hwmon=True):
+        self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
         self.fancurve_repo = FanCurveRepository()
         self.fan_curve = self.fancurve_io.read_fan_curve()
 
