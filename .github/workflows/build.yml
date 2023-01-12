@@ -32,3 +32,7 @@ jobs:
       - name: Lint with Linux checkpath
         run: ./tests/test_checkpath.sh
         shell: bash
+      - name: Lint with pylint
+        run: ./tests/test_python.sh
+        shell: bash
+  

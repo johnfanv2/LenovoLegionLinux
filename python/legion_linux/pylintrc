@@ -1,0 +1,5 @@
+[MESSAGES CONTROL]
+disable=missing-docstring,too-many-arguments,too-many-locals, duplicate-code, missing-module-docstring, too-many-instance-attributes, too-many-public-methods, no-name-in-module
+
+[FORMAT]
+max-line-length=120
