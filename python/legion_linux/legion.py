@@ -284,7 +284,9 @@ class LegionModelFacade:
     def __init__(self, expect_hwmon=True):
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
         self.fancurve_repo = FanCurveRepository()
-        self.fan_curve = self.fancurve_io.read_fan_curve()
+        self.fan_curve = FanCurve(name='unknown',
+            entries=[FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
+            enable_minifancurve=False)
 
     def get_preset_folder(self):
         return self.fancurve_repo.preset_dir

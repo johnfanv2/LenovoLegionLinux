@@ -42,7 +42,7 @@ def main():
     if args.subcommand is None:
         parser.print_help()
     else:
-        legion = LegionModelFacade()
+        legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon)
 
         # set global options
         if "preset_dir" in args and args.preset_dir is not None:

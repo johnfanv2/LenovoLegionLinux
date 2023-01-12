@@ -14,7 +14,8 @@ class LegionController:
         self.view_fancurve = None
 
     def init(self, read_from_hw=True):
-        self.model.read_fancurve_from_hw()
+        if read_from_hw:
+            self.model.read_fancurve_from_hw()
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
