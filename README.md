@@ -116,7 +116,7 @@ sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-de
 
 **Arch/Manjaro**
 ```bash
-sudo pacman -S linux-headers base-devel lm-sensors git dmidecode  python3-pyqt5
+sudo pacman -S linux-headers base-devel lm-sensors git dmidecode python-pyqt5
 ```
 *Note:* Check for the correct Header package.
 
