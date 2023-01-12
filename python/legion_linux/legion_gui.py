@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import sys
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
      QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
      QCheckBox
@@ -218,12 +218,24 @@ class MainWindow(QTabWidget):
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.about_tab, "About")
 
+    def close_after(self, milliseconds:int):
+        self.close_timer=QTimer()
+        self.close_timer.timeout.connect(self.close)
+        self.close_timer.start(milliseconds)
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    if '--automaticclose' in sys.argv:
+        automaticlose = True
+    else:
+        automaticlose = False
+
     contr = LegionController()
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
     contr.init()
     contr.model.fancurve_repo.create_preset_folder()
+    if automaticlose:
+        main_window.close_after(3000)
     main_window.show()
     sys.exit(app.exec_())

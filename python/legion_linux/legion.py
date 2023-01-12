@@ -252,7 +252,7 @@ class FanCurveRepository:
         }
 
         self.preset_dir = os.path.join(os.getenv("HOME"), CONFIG_FOLDER)
-        
+
 
     def create_preset_folder(self):
         print(f"Create path {self.preset_dir}")

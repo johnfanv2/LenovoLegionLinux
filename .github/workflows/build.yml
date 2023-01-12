@@ -35,4 +35,9 @@ jobs:
       - name: Lint with pylint
         run: ./tests/test_python.sh
         shell: bash
-  
+      - name: Test python
+        run: ./tests/test_python_cli.sh
+        shell: bash
+      - name: Test python
+        run: ./tests/test_python_gui.sh
+        shell: bash
