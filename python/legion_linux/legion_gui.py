@@ -215,27 +215,24 @@ class MainWindow(QTabWidget):
         super().__init__()
         self.fan_curve_tab = FanCurveTab(controller)
         self.about_tab = AboutTab()
+        self.close_timer = QTimer()
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.about_tab, "About")
 
     def close_after(self, milliseconds:int):
-        self.close_timer=QTimer()
         self.close_timer.timeout.connect(self.close)
         self.close_timer.start(milliseconds)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    if '--automaticclose' in sys.argv:
-        automaticlose = True
-    else:
-        automaticlose = False
+    AUTOMATIC_CLOSE = '--automaticclose' in sys.argv
 
     contr = LegionController()
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
     contr.init()
     contr.model.fancurve_repo.create_preset_folder()
-    if automaticlose:
+    if AUTOMATIC_CLOSE:
         main_window.close_after(3000)
     main_window.show()
     sys.exit(app.exec_())
