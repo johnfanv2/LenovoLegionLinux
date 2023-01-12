@@ -13,7 +13,7 @@ class LegionController:
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
         self.view_fancurve = None
 
-    def init(self):
+    def init(self, read_from_hw=True):
         self.model.read_fancurve_from_hw()
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     contr = LegionController(expect_hwmon=not DO_NOT_EXPECT_HWMON)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
-    contr.init()
+    contr.init(read_from_hw= not DO_NOT_EXPECT_HWMON)
     contr.model.fancurve_repo.create_preset_folder()
     if AUTOMATIC_CLOSE:
         main_window.close_after(3000)
