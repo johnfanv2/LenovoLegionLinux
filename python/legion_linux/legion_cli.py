@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import argparse
-from legion_linux.legion import LegionModelFacade
+from legion import LegionModelFacade
 
 
 def main():

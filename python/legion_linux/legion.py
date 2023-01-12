@@ -2,10 +2,12 @@ import os
 import glob
 from dataclasses import asdict, dataclass
 from typing import List
+from pathlib import Path
 
 import yaml
 
 DEFAULT_ENCODING = "utf8"
+CONFIG_FOLDER = ".config/legion_linux"
 
 @dataclass(order=True)
 class FanCurveEntry:
@@ -248,7 +250,13 @@ class FanCurveRepository:
             "balanced-ac": None,
             "performance-ac": None
         }
-        self.preset_dir = '.'
+
+        self.preset_dir = os.path.join(os.getenv("HOME"), CONFIG_FOLDER)
+        
+
+    def create_preset_folder(self):
+        print(f"Create path {self.preset_dir}")
+        Path(self.preset_dir).mkdir(parents=True, exist_ok=True)
 
     def _name_to_filename(self, name):
         return os.path.join(self.preset_dir, name+".yaml")
