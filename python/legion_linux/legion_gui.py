@@ -19,6 +19,8 @@ class LegionController:
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
+        newlocked = self.model.fancurve_io.get_lockfancontroller()
+        self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -40,6 +42,12 @@ class LegionController:
         name = self.view_fancurve.preset_combobox.currentText()
         self.model.fan_curve = self.view_fancurve.get_fancurve()
         self.model.save_fancurve_to_preset(name)
+
+    def on_lockfancontroller(self):
+        locked = self.view_fancurve.lockfancontroller_check.isChecked()
+        self.model.fancurve_io.set_lockfancontroller(locked)
+        newlocked = self.model.fancurve_io.get_lockfancontroller()
+        self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
 
 
 
@@ -148,6 +156,8 @@ class FanCurveTab(QWidget):
         self.accel_label = QLabel("Acceleration [s]")
         self.decel_label = QLabel("Deceleration [s]")
         self.minfancurve_check = QCheckBox("Minifancurve if too cold")
+        self.lockfancontroller_check = QCheckBox("Lock fan controller, lock temperature sensors, and lock current fan speed")
+        self.lockfancontroller_check.clicked.connect(self.controller.on_lockfancontroller)
         self.layout.addWidget(self.point_id_label, 0, 0)
         self.layout.addWidget(self.fan_speed1_label, 1, 0)
         self.layout.addWidget(self.fan_speed2_label, 2, 0)
@@ -160,6 +170,7 @@ class FanCurveTab(QWidget):
         self.layout.addWidget(self.accel_label, 9, 0)
         self.layout.addWidget(self.decel_label, 10, 0)
         self.layout.addWidget(self.minfancurve_check, 11, 0)
+        self.layout.addWidget(self.lockfancontroller_check, 12, 0)
         for i in range(1,11):
             self.create_fancurve_entry_view(self.layout, i)
         self.fancurve_group.setLayout(self.layout)

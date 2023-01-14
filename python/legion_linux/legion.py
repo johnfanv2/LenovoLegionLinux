@@ -62,6 +62,9 @@ class FanCurveIO:
     pwm1_accel = "pwm1_auto_point{}_accel"
     pwm1_decel = "pwm1_auto_point{}_decel"
     minifancurve = "minifancurve"
+
+    sysfs_dir = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
+    lockfancontroller = "lockfancontroller"
     encoding = DEFAULT_ENCODING
 
     def __init__(self, expect_hwmon=True):
@@ -201,6 +204,16 @@ class FanCurveIO:
         invalue = self._read_file(file_path)
         return invalue != 0
 
+    def set_lockfancontroller(self, value):
+        file_path = os.path.join(self.sysfs_dir, self.lockfancontroller)
+        outvalue = 1 if value else 0
+        return self._write_file(file_path, outvalue)
+
+    def get_lockfancontroller(self):
+        file_path = os.path.join(self.sysfs_dir, self.lockfancontroller)
+        invalue = self._read_file(file_path)
+        return invalue != 0
+
     def write_fan_curve(self, fan_curve: FanCurve):
         """Writes a fan curve object to the file system"""
         self.set_minifancuve(fan_curve.enable_minifancurve)
@@ -287,6 +300,12 @@ class LegionModelFacade:
         self.fan_curve = FanCurve(name='unknown',
             entries=[FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
             enable_minifancurve=False)
+
+    def set_lockfancontroller(self, value):
+        self.fancurve_io.set_lockfancontroller(value)
+
+    def get_lockfancontroller(self):
+        return self.fancurve_io.get_lockfancontroller()
 
     def get_preset_folder(self):
         return self.fancurve_repo.preset_dir

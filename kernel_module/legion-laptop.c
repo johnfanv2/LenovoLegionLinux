@@ -204,6 +204,7 @@ struct ec_register_offsets {
 	u16 ALT_IC_TEMP2;
 
 	u16 MINIFANCURVE_ON_COOL;
+	u16 LOCKFANCONTROLLER;
 };
 
 enum ECRAM_ACCESS { ECRAM_ACCESS_PORTIO, ECRAM_ACCESS_MEMORYIO };
@@ -376,6 +377,8 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	//      - or just because really so cool
 	// 0xA0: disable it
 	.MINIFANCURVE_ON_COOL = 0xC536,
+
+	.LOCKFANCONTROLLER = 0xc4AB,
 
 	.ALT_CPU_TEMP = 0xc538,
 	.ALT_GPU_TEMP = 0xc539,
@@ -744,8 +747,10 @@ err_ecram_memoryio_init:
 
 void ecram_exit(struct ecram *ecram)
 {
+	pr_info("Unloading legion ecram\n");
 	ecram_portio_exit(&ecram->portio);
 	ecram_memoryio_exit(&ecram->memoryio);
+	pr_info("Unloading legion ecram done\n");
 }
 
 /**
@@ -898,6 +903,36 @@ void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 	write_powermode(ecram, model, next_powermode);
 	mdelay(1500);
 	write_powermode(ecram, model, old_powermode);
+}
+
+#define lockfancontroller_ON 8
+#define lockfancontroller_OFF 0
+
+int read_lockfancontroller(struct ecram *ecram, const struct model_config *model,
+		      bool *state)
+{
+	int value = ecram_read(ecram, model->registers->LOCKFANCONTROLLER);
+
+	switch (value) {
+	case lockfancontroller_ON:
+		*state = true;
+		break;
+	case lockfancontroller_OFF:
+		*state = false;
+		break;
+	default:
+		return -1;
+	}
+	return 0;
+}
+
+ssize_t write_lockfancontroller(struct ecram *ecram,
+			   const struct model_config *model, bool state)
+{
+	u8 val = state ? lockfancontroller_ON : lockfancontroller_OFF;
+
+	ecram_write(ecram, model->registers->LOCKFANCONTROLLER, val);
+	return 0;
 }
 
 #define MINIFANCUVE_ON_COOL_ON 0x04
@@ -1404,12 +1439,14 @@ static int legion_shared_init(struct legion_private *priv)
 
 static void legion_shared_exit(struct legion_private *priv)
 {
+	pr_info("Unloading legion shared\n");
 	mutex_lock(&legion_shared_mutex);
 
 	if (legion_shared == priv)
 		legion_shared = NULL;
 
 	mutex_unlock(&legion_shared_mutex);
+	pr_info("Unloading legion shared done\n");
 }
 
 /* =============================  */
@@ -1435,6 +1472,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
 	bool is_minifancurve;
+	bool is_lockfancontroller;
 	int err;
 
 	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
@@ -1448,6 +1486,9 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	err = read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
 	seq_printf(s, "minifancurve on cool: %s\n",
 		   err ? "error" : (is_minifancurve ? "true" : "false"));
+	err = read_lockfancontroller(&priv->ecram, priv->conf, &is_lockfancontroller);
+	seq_printf(s, "lock fan controller: %s\n",
+		   err ? "error" : (is_lockfancontroller ? "true" : "false"));
 	seq_printf(s, "fan curve current point id: %ld\n",
 		   priv->fancurve.current_point_i);
 	seq_printf(s, "fan curve points size: %ld\n", priv->fancurve.size);
@@ -1486,10 +1527,12 @@ static void legion_debugfs_init(struct legion_private *priv)
 
 static void legion_debugfs_exit(struct legion_private *priv)
 {
+	pr_info("Unloading legion dubugfs\n");
 	// TODO: remove this note
 	// Note: does nothing if null
 	debugfs_remove_recursive(priv->debugfs_dir);
 	priv->debugfs_dir = NULL;
+	pr_info("Unloading legion dubugfs done\n");
 }
 
 /* =============================  */
@@ -1533,8 +1576,48 @@ static ssize_t powermode_store(struct device *dev,
 
 static DEVICE_ATTR_RW(powermode);
 
-static struct attribute *legion_sysfs_attributes[] = { &dev_attr_powermode.attr,
-						       NULL };
+static ssize_t lockfancontroller_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool is_lockfancontroller;
+	int err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = read_lockfancontroller(&priv->ecram, priv->conf, &is_lockfancontroller);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	return sysfs_emit(buf, "%d\n", is_lockfancontroller);
+}
+
+static ssize_t lockfancontroller_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool is_lockfancontroller;
+	int err;
+
+	err = kstrtobool(buf, &is_lockfancontroller);
+	if (err)
+		return err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = write_lockfancontroller(&priv->ecram, priv->conf, is_lockfancontroller);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(lockfancontroller);
+
+static struct attribute *legion_sysfs_attributes[] = {
+	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr, NULL
+};
 
 static const struct attribute_group legion_attribute_group = {
 	.attrs = legion_sysfs_attributes
@@ -1548,8 +1631,10 @@ static int legion_sysfs_init(struct legion_private *priv)
 
 static void legion_sysfs_exit(struct legion_private *priv)
 {
+	pr_info("Unloading legion sysfs\n");
 	device_remove_group(&priv->platform_device->dev,
 			    &legion_attribute_group);
+	pr_info("Unloading legion sysfs done\n");
 }
 
 /* =============================  */
@@ -1698,8 +1783,12 @@ static int legion_wmi_init(void)
 
 static void legion_wmi_exit(void)
 {
+	// TODO: remove this
+	pr_info("Unloading legion WMI\n");
+
 	//wmi_remove_notify_handler(LEGION_WMI_GAMEZONE_GUID);
 	wmi_driver_unregister(&legion_wmi_driver);
+	pr_info("Unloading legion WMI done\n");
 }
 
 /* =============================  */
@@ -1788,7 +1877,9 @@ static int legion_platform_profile_init(struct legion_private *priv)
 
 static void legion_platform_profile_exit(struct legion_private *priv)
 {
+	pr_info("Unloading legion platform profile\n");
 	platform_profile_remove();
+	pr_info("Unloading legion platform profile done\n");
 }
 
 /* =============================  */
@@ -2481,10 +2572,12 @@ ssize_t legion_hwmon_init(struct legion_private *priv)
 
 void legion_hwmon_exit(struct legion_private *priv)
 {
+	pr_info("Unloading legion hwon\n");
 	if (priv->hwmon_dev) {
 		hwmon_device_unregister(priv->hwmon_dev);
 		priv->hwmon_dev = NULL;
 	}
+	pr_info("Unloading legion hwon done\n");
 }
 
 /* =============================  */
@@ -2629,7 +2722,7 @@ int legion_remove(struct platform_device *pdev)
 {
 	struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 	// TODO: remove this
-	pr_info("Unloading legion platform\n");
+	pr_info("Unloading legion\n");
 
 	// toggle power mode to load default setting from embedded controller
 	// again
