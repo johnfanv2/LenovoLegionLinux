@@ -344,6 +344,7 @@ sudo python/legion_linux/legion_gui.py
 - loading a preset will just display it. You still have to press `Apply to HW` to activate it
 - presets are stored in a yaml file in `/root/.config/legion_linux/`. You can edit them also manually.
 - the number of points is fixed depending on power mode. Deactivated points are currently displayed as `0`s.
+- lock fan controller: enabling this will freeze the current fan speed and the temperatures used to control the fan controller
 
 Unexpected:
 - an error is displayed or evyerthing is `0`: kernel module not loaded or installed (see above) or not compatible (do manual tests from above)
@@ -456,3 +457,46 @@ Thank you for your work on Windows tools that were the basis of the Linux suppor
 
 ### Contributors to Lenovo Legion Laptop Support
 :( Nothing here yet. Please tell me if it works on your laptop.
+
+
+## Frequency Asked Questions
+
+
+
+### My fans do not spin up, never stop, or never change speed (after using other tools)?
+
+If they alwasy have roughly constant speed, maybe you have locked the fan controller, often called locking fan speed.
+You can unlock/lock the fan speed controller in the GUI (see above). I would recommend not locking them.
+
+If the fans never spin up fast even under hight load, the fan controller might be locked (above). Additionally,
+also check that the reported temperatures for CPU (or GPU) really increase under load. Only, the temperatures
+"CPU Temperature", "GPU Temperature", and "IC Temperature" are used for fan control. These, are used internally
+by the fan controller in hardware.
+
+If otherwise the fans never stop, you might have set a very low upper temperatue limit for CPU, GPU or IC. Many
+models also come with a low temperatue limit even on quiet mode, so fans never really turn off. You can just increase the temperature
+limits for the lowest level.
+
+### The reported temperatures do not change or seem wrong?
+
+See above.
+
+### Even under high load the fans are going not fast enough?
+
+See above.
+
+### What does quiet, balanced, or performance mode do?
+You can switch the mode by pressing Fn + Q and it will change the mode in the firmware and the color of the LED, even without any driver support (= without LenovoLegionLinux).
+
+Changing mode without LenovoLegionLinux is purely implemented in hardware:
+- color of LED changes
+- fan curve in embedded controller changes
+- other purely hardware configs might also change, but I have not observed one
+- as far as I know, power saving or performance of CPU does not change, as this is controlled by kernel or tools like cpupower
+- without LenovoLegionLinux the kernel or other system tools will not know that you have changed the mode
+
+Changing mode with LenovoLegionLinux:
+- it changes all of the above 
+- additionally the driver in LenovoLegionLinux makes this information available to the kernel and other services like the Power Profiles daemon; these can, if configured, change the performance of the CPU or GPU
+
+In Windows it is similar: Changing the power mode is reported to the system or tools like Vantage which change the power plan.
