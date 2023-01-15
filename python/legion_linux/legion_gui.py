@@ -2,12 +2,13 @@
 import sys
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
-     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-     QCheckBox
+    QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
+    QCheckBox
 from legion import LegionModelFacade, FanCurve, FanCurveEntry
 
+
 class LegionController:
-    model:LegionModelFacade
+    model: LegionModelFacade
 
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
@@ -50,7 +51,6 @@ class LegionController:
         self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
 
 
-
 class FanCurveEntryView():
     def __init__(self, point_id, layout):
         self.point_id_label = QLabel(f'{point_id}')
@@ -78,7 +78,7 @@ class FanCurveEntryView():
         layout.addWidget(self.accel_edit, 9, point_id)
         layout.addWidget(self.decel_edit, 10, point_id)
 
-    def set(self, entry:FanCurveEntry):
+    def set(self, entry: FanCurveEntry):
         self.fan_speed1_edit.setText(str(entry.fan1_speed))
         self.fan_speed2_edit.setText(str(entry.fan2_speed))
         self.cpu_lower_temp_edit.setText(str(entry.cpu_lower_temp))
@@ -91,26 +91,26 @@ class FanCurveEntryView():
         self.decel_edit.setText(str(entry.deceleration))
 
     def get(self) -> FanCurveEntry:
-        fan1_speed =        int(self.fan_speed1_edit.text())
-        fan2_speed =        int(self.fan_speed2_edit.text())
-        cpu_lower_temp =    int(self.cpu_lower_temp_edit.text())
-        cpu_upper_temp =    int(self.cpu_upper_temp_edit.text())
-        gpu_lower_temp =    int(self.gpu_lower_temp_edit.text())
-        gpu_upper_temp =    int(self.gpu_upper_temp_edit.text())
-        ic_lower_temp =     int(self.ic_lower_temp_edit.text())
-        ic_upper_temp =     int(self.ic_upper_temp_edit.text())
-        acceleration =      int(self.accel_edit.text())
-        deceleration =      int(self.decel_edit.text())
+        fan1_speed = int(self.fan_speed1_edit.text())
+        fan2_speed = int(self.fan_speed2_edit.text())
+        cpu_lower_temp = int(self.cpu_lower_temp_edit.text())
+        cpu_upper_temp = int(self.cpu_upper_temp_edit.text())
+        gpu_lower_temp = int(self.gpu_lower_temp_edit.text())
+        gpu_upper_temp = int(self.gpu_upper_temp_edit.text())
+        ic_lower_temp = int(self.ic_lower_temp_edit.text())
+        ic_upper_temp = int(self.ic_upper_temp_edit.text())
+        acceleration = int(self.accel_edit.text())
+        deceleration = int(self.decel_edit.text())
         entry = FanCurveEntry(fan1_speed=fan1_speed, fan2_speed=fan2_speed,
-                                  cpu_lower_temp=cpu_lower_temp, cpu_upper_temp=cpu_upper_temp,
-                                  gpu_lower_temp=gpu_lower_temp, gpu_upper_temp= gpu_upper_temp,
-                                  ic_lower_temp=ic_lower_temp, ic_upper_temp=ic_upper_temp,
-                                  acceleration=acceleration, deceleration=deceleration)
+                              cpu_lower_temp=cpu_lower_temp, cpu_upper_temp=cpu_upper_temp,
+                              gpu_lower_temp=gpu_lower_temp, gpu_upper_temp=gpu_upper_temp,
+                              ic_lower_temp=ic_lower_temp, ic_upper_temp=ic_upper_temp,
+                              acceleration=acceleration, deceleration=deceleration)
         return entry
 
 
 class FanCurveTab(QWidget):
-    def __init__(self, controller:LegionController):
+    def __init__(self, controller: LegionController):
         super().__init__()
         self.controller = controller
         self.entry_edits = []
@@ -118,8 +118,7 @@ class FanCurveTab(QWidget):
 
         self.controller.view_fancurve = self
 
-
-    def set_fancurve(self, fancurve:FanCurve):
+    def set_fancurve(self, fancurve: FanCurve):
         for i, entry in enumerate(fancurve.entries):
             self.entry_edits[i].set(entry)
         self.minfancurve_check.setChecked(fancurve.enable_minifancurve)
@@ -130,7 +129,7 @@ class FanCurveTab(QWidget):
             entry = self.entry_edits[i].get()
             entries.append(entry)
         return FanCurve(name='unknown', entries=entries,
-                enable_minifancurve=self.minfancurve_check.isChecked())
+                        enable_minifancurve=self.minfancurve_check.isChecked())
 
     def create_fancurve_entry_view(self, layout, point_id):
         self.entry_edits.append(FanCurveEntryView(point_id, layout))
@@ -156,8 +155,10 @@ class FanCurveTab(QWidget):
         self.accel_label = QLabel("Acceleration [s]")
         self.decel_label = QLabel("Deceleration [s]")
         self.minfancurve_check = QCheckBox("Minifancurve if too cold")
-        self.lockfancontroller_check = QCheckBox("Lock fan controller, lock temperature sensors, and lock current fan speed")
-        self.lockfancontroller_check.clicked.connect(self.controller.on_lockfancontroller)
+        self.lockfancontroller_check = QCheckBox(
+            "Lock fan controller, lock temperature sensors, and lock current fan speed")
+        self.lockfancontroller_check.clicked.connect(
+            self.controller.on_lockfancontroller)
         self.layout.addWidget(self.point_id_label, 0, 0)
         self.layout.addWidget(self.fan_speed1_label, 1, 0)
         self.layout.addWidget(self.fan_speed2_label, 2, 0)
@@ -171,7 +172,7 @@ class FanCurveTab(QWidget):
         self.layout.addWidget(self.decel_label, 10, 0)
         self.layout.addWidget(self.minfancurve_check, 11, 0)
         self.layout.addWidget(self.lockfancontroller_check, 12, 0)
-        for i in range(1,11):
+        for i in range(1, 11):
             self.create_fancurve_entry_view(self.layout, i)
         self.fancurve_group.setLayout(self.layout)
 
@@ -180,9 +181,12 @@ class FanCurveTab(QWidget):
 
         self.load_button = QPushButton("Read from HW")
         self.write_button = QPushButton("Apply to HW")
-        self.note_label = QLabel("Fan curve is reset to default if you toggle power mode (Fn + Q)")
-        self.load_button.clicked.connect(self.controller.on_read_fan_curve_from_hw)
-        self.write_button.clicked.connect(self.controller.on_write_fan_curve_to_hw)
+        self.note_label = QLabel(
+            "Fan curve is reset to default if you toggle power mode (Fn + Q)")
+        self.load_button.clicked.connect(
+            self.controller.on_read_fan_curve_from_hw)
+        self.write_button.clicked.connect(
+            self.controller.on_write_fan_curve_to_hw)
         self.button1_group.setLayout(self.button1_layout)
         self.button1_layout.addWidget(self.load_button, 0, 0)
         self.button1_layout.addWidget(self.write_button, 0, 1)
@@ -192,14 +196,15 @@ class FanCurveTab(QWidget):
         self.button2_layout = QGridLayout()
         self.save_to_preset_button = QPushButton("Save to Preset")
         self.load_from_preset_button = QPushButton("Load from Preset")
-        self.save_to_preset_button.clicked.connect(self.controller.on_save_to_preset)
-        self.load_from_preset_button.clicked.connect(self.controller.on_load_from_preset)
-        self.preset_combobox =  QComboBox(self)
+        self.save_to_preset_button.clicked.connect(
+            self.controller.on_save_to_preset)
+        self.load_from_preset_button.clicked.connect(
+            self.controller.on_load_from_preset)
+        self.preset_combobox = QComboBox(self)
         self.button2_group.setLayout(self.button2_layout)
         self.button2_layout.addWidget(self.preset_combobox, 0, 0)
         self.button2_layout.addWidget(self.save_to_preset_button, 1, 0)
         self.button2_layout.addWidget(self.load_from_preset_button, 1, 1)
-
 
         self.main_layout = QGridLayout()
         self.main_layout.addWidget(self.button1_group, 1, 0)
@@ -209,6 +214,8 @@ class FanCurveTab(QWidget):
         self.setLayout(self.main_layout)
 
 # pylint: disable=too-few-public-methods
+
+
 class AboutTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -222,6 +229,8 @@ class AboutTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
+
+
 class MainWindow(QTabWidget):
     def __init__(self, controller):
         super().__init__()
@@ -231,9 +240,10 @@ class MainWindow(QTabWidget):
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.about_tab, "About")
 
-    def close_after(self, milliseconds:int):
+    def close_after(self, milliseconds: int):
         self.close_timer.timeout.connect(self.close)
         self.close_timer.start(milliseconds)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
@@ -243,7 +253,7 @@ if __name__ == '__main__':
     contr = LegionController(expect_hwmon=not DO_NOT_EXPECT_HWMON)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
-    contr.init(read_from_hw= not DO_NOT_EXPECT_HWMON)
+    contr.init(read_from_hw=not DO_NOT_EXPECT_HWMON)
     contr.model.fancurve_repo.create_preset_folder()
     if AUTOMATIC_CLOSE:
         main_window.close_after(3000)
