@@ -17,11 +17,12 @@ class LegionController:
     def init(self, read_from_hw=True):
         if read_from_hw:
             self.model.read_fancurve_from_hw()
+            newlocked = self.model.fancurve_io.get_lockfancontroller()
+            self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
-        newlocked = self.model.fancurve_io.get_lockfancontroller()
-        self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
+
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
