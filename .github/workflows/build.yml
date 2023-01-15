@@ -47,14 +47,18 @@ jobs:
         run: ./deploy/dependencies/install_development_dependencies.sh
         shell: bash
       - name: Lint with Linux checkpath
+        if: always()
         run: ./tests/test_checkpath.sh
         shell: bash
       - name: Lint with pylint
+        if: always()
         run: ./tests/test_python.sh
         shell: bash
       - name: Test python CLI
+        if: always()
         run: ./tests/test_python_cli.sh
         shell: bash
       - name: Test python GUI
+        if: always()
         run: ./tests/test_python_gui.sh
         shell: bash
