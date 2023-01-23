@@ -1,5 +1,6 @@
 #!/bin/bash
-cd python/kernel_module
+set -ex
+cd python/legion_linux
 python3 -m pip install --upgrade build
 python3 -m build
 sudo python3 -m pip install -e .
