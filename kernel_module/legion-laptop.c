@@ -565,21 +565,20 @@ void ecram_portio_exit(struct ecram_portio *ec_portio)
 	release_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE);
 }
 
-// ssize_t ecram_portio_read_low(struct ecram_portio *ec_portio, u8 offset, u8 *value){
-// 	mutex_lock(&ec_portio->io_port_mutex);
-// 	outb(0x66, 0x80);
-// 	outb(offset, ECRAM_PORTIO_DATA_PORT);
-// 	*value = inb(ECRAM_PORTIO_DATA_PORT);
-// 	mutex_unlock(&ec_portio->io_port_mutex);
-// }
-
-// ssize_t ecram_portio_write_low(struct ecram_portio *ec_portio, u8 offset, u8 value){
-// 	mutex_lock(&ec_portio->io_port_mutex);
-// 	outb(0x66, ECRAM_PORTIO_ADDR_PORT);
-// 	outb(offset, ECRAM_PORTIO_DATA_PORT);
-// 	outb(value, ECRAM_PORTIO_DATA_PORT);
-// 	mutex_unlock(&ec_portio->io_port_mutex);
-// }
+//ssize_t ecram_portio_read_low(struct ecram_portio *ec_portio, u8 offset, u8 *value){
+//	mutex_lock(&ec_portio->io_port_mutex);
+//	outb(0x66, 0x80);
+//	outb(offset, ECRAM_PORTIO_DATA_PORT);
+//	*value = inb(ECRAM_PORTIO_DATA_PORT);
+//	mutex_unlock(&ec_portio->io_port_mutex);
+//}
+//ssize_t ecram_portio_write_low(struct ecram_portio *ec_portio, u8 offset, u8 value){
+//	mutex_lock(&ec_portio->io_port_mutex);
+//	outb(0x66, ECRAM_PORTIO_ADDR_PORT);
+//	outb(offset, ECRAM_PORTIO_DATA_PORT);
+//	outb(value, ECRAM_PORTIO_DATA_PORT);
+//	mutex_unlock(&ec_portio->io_port_mutex);
+//}
 
 /* Read a byte from the EC RAM.
  *
@@ -934,7 +933,7 @@ void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 #define lockfancontroller_OFF 0
 
 ssize_t write_lockfancontroller(struct ecram *ecram,
-			   const struct model_config *model, bool state)
+				const struct model_config *model, bool state)
 {
 	u8 val = state ? lockfancontroller_ON : lockfancontroller_OFF;
 
@@ -942,8 +941,8 @@ ssize_t write_lockfancontroller(struct ecram *ecram,
 	return 0;
 }
 
-int read_lockfancontroller(struct ecram *ecram, const struct model_config *model,
-		      bool *state)
+int read_lockfancontroller(struct ecram *ecram,
+			   const struct model_config *model, bool *state)
 {
 	int value = ecram_read(ecram, model->registers->LOCKFANCONTROLLER);
 
@@ -955,7 +954,8 @@ int read_lockfancontroller(struct ecram *ecram, const struct model_config *model
 		*state = false;
 		break;
 	default:
-		pr_info("Unexpected value in lockfanspeed register:%d\n", value);
+		pr_info("Unexpected value in lockfanspeed register:%d\n",
+			value);
 		return -1;
 	}
 	return 0;
@@ -965,7 +965,7 @@ int read_lockfancontroller(struct ecram *ecram, const struct model_config *model
 #define MAXIMUMFANSPEED_OFF 0x00
 
 int read_maximumfanspeed(struct ecram *ecram, const struct model_config *model,
-		      bool *state)
+			 bool *state)
 {
 	int value = ecram_read(ecram, model->registers->MAXIMUMFANSPEED);
 
@@ -977,14 +977,15 @@ int read_maximumfanspeed(struct ecram *ecram, const struct model_config *model,
 		*state = false;
 		break;
 	default:
-		pr_info("Unexpected value in maximumfanspeed register:%d\n", value);
+		pr_info("Unexpected value in maximumfanspeed register:%d\n",
+			value);
 		return -1;
 	}
 	return 0;
 }
 
 ssize_t write_maximumfanspeed(struct ecram *ecram,
-			   const struct model_config *model, bool state)
+			      const struct model_config *model, bool state)
 {
 	u8 val = state ? MAXIMUMFANSPEED_ON : MAXIMUMFANSPEED_OFF;
 
@@ -1008,7 +1009,8 @@ int read_minifancurve(struct ecram *ecram, const struct model_config *model,
 		*state = false;
 		break;
 	default:
-		pr_info("Unexpected value in MINIFANCURVE register:%d\n", value);
+		pr_info("Unexpected value in MINIFANCURVE register:%d\n",
+			value);
 		return -1;
 	}
 	return 0;
@@ -1550,7 +1552,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 				     &is_lockfancontroller);
 	seq_printf(s, "lock fan controller: %s\n",
 		   err ? "error" : (is_lockfancontroller ? "true" : "false"));
-	err = read_maximumfanspeed(&priv->ecram, priv->conf, &is_maximumfanspeed);
+	err = read_maximumfanspeed(&priv->ecram, priv->conf,
+				   &is_maximumfanspeed);
 	seq_printf(s, "enable maximumfanspeed: %s\n",
 		   err ? "error" : (is_maximumfanspeed ? "true" : "false"));
 	seq_printf(s, "enable maximumfanspeed status: %d\n", err);
@@ -1733,16 +1736,15 @@ struct legion_wmi_private {
 
 static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 {
-	struct legion_wmi_private *wpriv;	
+	struct legion_wmi_private *wpriv;
 	struct legion_private *priv;
 
 	mutex_lock(&legion_shared_mutex);
 	priv = legion_shared;
-	if ((!priv) && (priv->loaded)){
+	if ((!priv) && (priv->loaded)) {
 		pr_info("Received WMI event while not initialized!\n");
 		goto unlock;
 	}
-		
 
 	wpriv = dev_get_drvdata(&wdev->dev);
 	switch (wpriv->event) {
@@ -2508,9 +2510,8 @@ error:
 
 static SENSOR_DEVICE_ATTR_RW(minifancurve, minifancurve, 0);
 
-
 static ssize_t pwm1_mode_show(struct device *dev,
-				 struct device_attribute *devattr, char *buf)
+			      struct device_attribute *devattr, char *buf)
 {
 	bool value;
 	int err;
@@ -2532,8 +2533,8 @@ error_unlock:
 }
 
 static ssize_t pwm1_mode_store(struct device *dev,
-				  struct device_attribute *devattr,
-				  const char *buf, size_t count)
+			       struct device_attribute *devattr,
+			       const char *buf, size_t count)
 {
 	int value;
 	int is_maximumfanspeed;
@@ -2550,7 +2551,8 @@ static ssize_t pwm1_mode_store(struct device *dev,
 	is_maximumfanspeed = value == 0;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = write_maximumfanspeed(&priv->ecram, priv->conf, is_maximumfanspeed);
+	err = write_maximumfanspeed(&priv->ecram, priv->conf,
+				    is_maximumfanspeed);
 	if (err) {
 		err = -1;
 		pr_info("Writing pwm1_mode/maximumfanspeed not succesful\n");
@@ -2566,7 +2568,6 @@ error:
 }
 
 static SENSOR_DEVICE_ATTR_RW(pwm1_mode, pwm1_mode, 0);
-
 
 static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr,
@@ -2672,8 +2673,7 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	//
 	&sensor_dev_attr_auto_points_size.dev_attr.attr,
 	&sensor_dev_attr_minifancurve.dev_attr.attr,
-	&sensor_dev_attr_pwm1_mode.dev_attr.attr, 
-	NULL
+	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
 };
 
 static const struct attribute_group legion_hwmon_sensor_group = {
@@ -2867,7 +2867,7 @@ int legion_remove(struct platform_device *pdev)
 	priv->loaded = false;
 	mutex_unlock(&legion_shared_mutex);
 
-	// first unregister wmi, so toggling powermode does not 
+	// first unregister wmi, so toggling powermode does not
 	// generate events anymore that even might be delayed
 	legion_wmi_exit();
 	legion_platform_profile_exit(priv);
