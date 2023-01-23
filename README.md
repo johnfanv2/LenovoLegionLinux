@@ -32,18 +32,19 @@ It allows to control a few features like fan curve and power mode.
 - [x] also fully controllable by scripts or from terminal
 - [x] set a fully featured custom fan curve with up to 10 points
     - even allows speed below 1600 RPM
-    - set temperatere points when the fan speed (level) should change
+    - set temperature points when the fan speed (level) should change
     - you can use CPU, GPU and IC temperature to control the fan all at the same it
     - set the fan speed (RPM) at each level
     - set minimum temperature for each level that must be fallen below before slowing down the fans again
-    - set accelleration and deceleration for each the fan when the fan speed should increase or decrease
+    - set acceleration and deceleration for each the fan when the fan speed should increase or decrease
 - [x] switch power mode (quiet, balanced, performance) with software
     - changing with `Fn+Q` also possible
     - now you can do it with software in your normal system settings
-    - depening on your distribution, e.g. you could automatically switch to quiet mode if you are on battery
-- [x] monitor fan speeds and temperatures (CPU, GPU, IC (?)) and with additional sensors
-
-
+    - depending on your distribution, e.g. you could automatically switch to quiet mode if you are on battery
+- [x] monitor fan speeds and temperatures (CPU, GPU, IC) with additional sensors
+- [x] lock and unlock the fan controller and fan speed
+- [x] switch battery conservation mode
+- [x] toggle fn lock
 
 ## :mega: Overview
 - it comes with a driver (kernel module) that implements the Linux standard interfaces (sysfs, debugfs, hwmon) 
@@ -63,29 +64,29 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 
 
-*Note:* Features that are not confirmed proabably also work. They were just not tested.
+*Note:* Features that are not confirmed probably also work. They were just not tested.
 
 ## :warning: Disclaimer
 
 - **The tool comes with no warranty. Use at your own risk.**
-- **currently comes without a UI; commandline and script only.**
+- **currently comes without a UI; command line and script only.**
 - **this project is not affiliated with Lenovo in any way.**
 - this is a small hobby project; please be patient and read through this readme carefully before you ask for support
 - if your Lenovo Legion laptop is not supported and you are ready to perform some tests please notify me
-- this is a Linux only tool and will probably also not run in WSL; for Windows use one of the availabe Windows tools
-    - LenovoLegionToolkit
-    - LegionFanControl
+- this is a Linux only tool and will probably also not run in WSL; for Windows use one of the available Windows tools
+    - [LenovoLegionToolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit)
+    - [LegionFanControl](https://www.legionfancontrol.com/) 
 
 
 ## :bulb: Instructions
 Please do the following: 
 - **follow installation instructions**
 - **then make the test**
-- **if tests are succesful, install permantely**
+- **if tests are successful, install permanently**
 - **create your fan curve**
 
 ### Requirements
-You will need to install the following to download and build it. If there is an error of any package, find the alternative name in your distro install them.
+You will need to install the following to download and build it. If there is an error of any package, find the alternative name in your distribution and install them.
 
 **Ubuntu/Debian**
 ```bash
@@ -134,7 +135,8 @@ cd LenovoLegionLinux/kernel_module
 make
 sudo make reloadmodule
 ```
-For tests see `Initial Usage Testing` below. Do them first.
+**For further insturctions, problems, and tests see `Initial Usage Testing` below. Do them first before a permanent installation.**
+
 
 ### Permanent Install Instruction
 After successfully building and testing (see below), run from the folder `LenovoLegionLinux/kernel_module`
@@ -170,8 +172,13 @@ Expected result:
 Unexpected result:
 - `insmod: ERROR: could not insert module legion-laptop.ko: Invalid module format` after running `make reloadmodule`
 - `legion PNP0C09:00: legion_laptop not loaded for this device`. The kernel module was not loaded properly. Redo first test.
-
-
+- `insmod: ERROR: could not insert module legion-laptop.ko: Key was rejected by service`: because you enable secure boot, you cannot load kernel modules.   Disable secure boot (in BIOS) or sign the kernel module with a private key.
+- if you see the following, the driver was not tested for your laptop model; please raise an issue with the maintainer if you think it should be compatible. If you want to try it anyhow with your model use `sudo make forcereloadmodule`
+```text
+[126675.495983] legion PNP0C09:00: Module not useable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.
+[126675.495984] legion PNP0C09:00: legion_laptop not loaded for this device
+[126675.496014] legion: probe of PNP0C09:00 failed with error -12
+```
 
 ### Quick Test: Reading Current Fancurve from Hardware
 ```bash
@@ -207,9 +214,9 @@ The fan curve is displayed as a table with the following columns:
 ```text
 rpm1: speed in rpm for fan1 at this point
 rpm2: speed in rpm for fan1 at this point
-acceleration: accelleration time (higher = slower)
+acceleration: acceleration time (higher = slower)
 deceleration: deceleration time (higher = slower)
-cpu_min_temp: CPU temperatue must go below this before leaving this point
+cpu_min_temp: CPU temperature must go below this before leaving this point
 cpu_max_temp: if CPU temperature is above this value, go to next point 
 gpu_min_temp: GPU temp must go below this before leaving this level
 gpu_max_temp: if GPU temperature is above this value, go to next point 
@@ -261,7 +268,7 @@ Unexpected output:
 - no entries for "Fan 1", "Fan 2" etc. are shown. The kernel module was not loaded properly. Redo first test.
     
 
-### Quick Test: Change Current Fancurve from Hardware with hwmon
+### Quick Test: Change Current Fan Curve from Hardware with hwmon
 ```bash
 # Change the RPM of fans at the second and third point of the fan curve to 1500 rpm, 1600 rpm, 1700 rpm, 1800 rpm.
 # Get root
@@ -281,7 +288,7 @@ echo 1800 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/h
 cat /sys/kernel/debug/legion/fancurve
 ```
 Expected: 
-- the controller might have loaded default values if you pressed Ctr+Q(or FN+Q on certain devices) to change the powermode or waited too long; then try again
+- the controller might have loaded default values if you pressed Ctr+Q(or FN+Q on certain devices) to change the power mode or waited too long; then try again
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
 ```
 rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -295,7 +302,7 @@ XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 ```
 
-**If you want to reset your fan curve, just toggle with Ctrl+Q the powermode or restart and everything is gone.**
+**If you want to reset your fan curve, just toggle with Ctrl+Q the power mode or restart and everything is gone.**
 
 Unexpected: 
 - `file not found`: please report your problem as a Github Issue
@@ -347,8 +354,8 @@ sudo python/legion_linux/legion_gui.py
 - lock fan controller: enabling this will freeze the current fan speed and the temperatures used to control the fan controller
 
 Unexpected:
-- an error is displayed or evyerthing is `0`: kernel module not loaded or installed (see above) or not compatible (do manual tests from above)
-- an value is not accepeted when `Write to HW`: the value is out-of-range and was not accepted by hardware
+- an error is displayed or everything is `0`: kernel module not loaded or installed (see above) or not compatible (do manual tests from above)
+- an value is not accepted when `Write to HW`: the value is out-of-range and was not accepted by hardware
     
 ### Changing and Setting your own Fan Curve with the Python CLI
 You can do the same as the GUI from a CLI program. It will access the same presets.
@@ -392,13 +399,13 @@ Unexpected output:
 - script does not end with "fancurve set": maybe path to hwmon changed; Please report this
 
 Note: 
-- **If you want to reset your fan curve, just toggle with Ctrl+Q the powermode or restart and everything is gone.**
+- **If you want to reset your fan curve, just toggle with Ctrl+Q the power mode or restart and everything is gone.**
 - Currently, there is no GUI available. 
-- Currently, the hardware resets the fan curve randomly or if you change powermode, suspend, or restart. Just run the script again. 
+- Currently, the hardware resets the fan curve randomly or if you change power mode, suspend, or restart. Just run the script again. 
 - You might want to create different scripts for different usages. Just copy it and adapt the values.
 
-### Change powermode from software
-For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power deamon (`systemctl reload power-profiles-daemon.service` in Ubuntu) after reloading the kernel module (see above).
+### Change power mode from software
+For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power daemon (`systemctl reload power-profiles-daemon.service` in Ubuntu) after reloading the kernel module (see above).
 
 #### Modify/Control with GUI
 In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
@@ -446,36 +453,63 @@ Some bugs cannot be fixed due to the firmware in the hardware:
 ### Basis of this work
 Thank you for your work on Windows tools that were the basis of the Linux support:
 * [SmokelessCPU](https://github.com/SmokelessCPUv2), for reverse engineering the embedded controller firmware
-    and finding the direct IO control of the embedded controller
+    and finding the direct IO control method to communicate with the embedded controller
+* [FanFella](https://github.com/SmokelessCPUv2), for finding the address to lock or unlock the fan controller
 * [Bartosz Cichecki](https://github.com/BartoszCichecki), for creating [LenovoLegionToolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit), a Windows tool for newer Legion models that controls the Laptop with ACPI/WMI methods. Even this README is heavily inspired on it.
 * [0x1F9F1](https://github.com/0x1F9F1), for reverse engineering the fan curve in the embedded controller firmware 
     and creating the Windows tool [LegionFanControl](https://github.com/0x1F9F1/LegionFanControl)
 * [ViRb3](https://github.com/ViRb3), for creating [Lenovo Controller](https://github.com/ViRb3/LenovoController), which was used as a base 
     for [LenovoLegionToolkit]
-* [Luke Cama](https://www.legionfancontrol.com/), for his closed-source tool [LegionFanControl](https://www.legionfancontrol.com/) that controls older laptops with direclty with the embedded controller 
+* [Luke Cama](https://www.legionfancontrol.com/), for his closed-source tool [LegionFanControl](https://www.legionfancontrol.com/) that controls older laptops with directly with the embedded controller 
 * David Woodhouse, for his work on the ideapad Linux driver [ideapad-laptop](https://github.com/torvalds/linux/blob/0ec5a38bf8499f403f81cb81a0e3a60887d1993c/drivers/platform/x86/ideapad-laptop.c), which was a heavy inspiration for this Linux driver
 
 ### Contributors to Lenovo Legion Laptop Support
 :( Nothing here yet. Please tell me if it works on your laptop.
 
 
-## Frequency Asked Questions
+## :interrobang: Frequency Asked Questions
 
+### What are the new temperatures?
+These are the temperatures measured and used by the embedded controller. Only they are relevant for the fan controller.
+They are provided by the new kernel module and otherwise not accessible because they are read from the embedded controller.
+
+### What are the new fan speed sensors?
+They report the fan speed in rounds per minute (rpm). They are provided by the new kernel module and otherwise not accessible because they are read from the embedded controller.
+
+### What temperatures are used for controlling the fan speed?
+The CPU, GPU, and "IC" temperature is used. These are (usually) additional sensors that are different from the temperature sensors that are reported when you do not use the kernel model. In particular, the "IC" temperature limit might be set to a low value which results in almost-always running fans.
+
+### My CPU and GPU temperatures are low but the fan is still running?
+See above. In particular, the  "IC" temperature sensor.
+
+### Is the fan speed controlled by power consumption?
+I have no reason to believe that. As far as I know and observed, only the temperatures are used.
 
 
 ### My fans do not spin up, never stop, or never change speed (after using other tools)?
 
-If they alwasy have roughly constant speed, maybe you have locked the fan controller, often called locking fan speed.
-You can unlock/lock the fan speed controller in the GUI (see above). I would recommend not locking them.
+If they always have roughly constant speed, maybe you have locked the fan controller, often called locking fan speed.
+You can unlock/lock the fan speed controller in the GUI (see above). I would recommend not locking them. Doing 
+a BIOS/UEFI update usually also unlocks it. But beware and consider making a BIOS (re)-update.
 
 If the fans never spin up fast even under hight load, the fan controller might be locked (above). Additionally,
 also check that the reported temperatures for CPU (or GPU) really increase under load. Only, the temperatures
 "CPU Temperature", "GPU Temperature", and "IC Temperature" are used for fan control. These, are used internally
 by the fan controller in hardware.
 
-If otherwise the fans never stop, you might have set a very low upper temperatue limit for CPU, GPU or IC. Many
-models also come with a low temperatue limit even on quiet mode, so fans never really turn off. You can just increase the temperature
+If otherwise the fans never stop, you might have set a very low upper temperature limit for CPU, GPU or IC. Many
+models also come with a low temperature limit even on quiet mode, so fans never really turn off. You can just increase the temperature
 limits for the lowest level.
+
+### The fans of the Legion Laptop are loud when idle?
+See above.
+
+### The fans turn on when doing light work like browsing?
+Even when browsing there might be small bursts of work for the CPU. So it gets hot for a short time and the fans turn on. You can
+- change the fan curve, in particular increase temperature limit and increase acceleration time
+- disable CPU boost mode
+- also see above
+
 
 ### The reported temperatures do not change or seem wrong?
 
@@ -484,6 +518,13 @@ See above.
 ### Even under high load the fans are going not fast enough?
 
 See above.
+
+### After a BIOS update something, e.g. with the fans, does not work anymore?
+Maybe there was a problem during the BIOS update. Downgrade to a older version again. Then test it with the old version. Then do the BIOS upgrade again and check with the version.
+
+### How to do a BIOS upgrade or reset to fix a problem?
+The easiest way is to downgrade to a older version and then upgrade to the current version again. Also test it with the old version.
+
 
 ### What does quiet, balanced, or performance mode do?
 You can switch the mode by pressing Fn + Q and it will change the mode in the firmware and the color of the LED, even without any driver support (= without LenovoLegionLinux).
@@ -500,3 +541,14 @@ Changing mode with LenovoLegionLinux:
 - additionally the driver in LenovoLegionLinux makes this information available to the kernel and other services like the Power Profiles daemon; these can, if configured, change the performance of the CPU or GPU
 
 In Windows it is similar: Changing the power mode is reported to the system or tools like Vantage which change the power plan.
+
+### Should I use balanced mode or performance for gaming?
+The difference in usable performance (FPS) is minimal. Use performance mode to get the utmost highest performance, otherwise use balanced mode.
+
+### One fan runs at full speed all the time. What should I do?
+First check that the fan curve is set properly and this is not a misconfiguration. Then check if the temperatures used for fan control (see "new temperatures" above) have low values on idle. If just one fan is on full speed but the other one is controlled according to fan curve, then you
+should reset the BIOS and EC controller. 
+
+## :question: Open Questions
+- What exactly is the third temperature? Currently, it is currently called IC Temperature.
+- Can I use quiet mode for gaming?
