@@ -37,14 +37,17 @@ It allows to control a few features like fan curve and power mode.
     - set the fan speed (RPM) at each level
     - set minimum temperature for each level that must be fallen below before slowing down the fans again
     - set acceleration and deceleration for each the fan when the fan speed should increase or decrease
+    - save and load presets for different modes
 - [x] switch power mode (quiet, balanced, performance) with software
     - changing with `Fn+Q` also possible
     - now you can do it with software in your normal system settings
     - depending on your distribution, e.g. you could automatically switch to quiet mode if you are on battery
 - [x] monitor fan speeds and temperatures (CPU, GPU, IC) with additional sensors
 - [x] lock and unlock the fan controller and fan speed
-- [x] switch battery conservation mode
-- [x] toggle fn lock
+- [x] enable or disable automatic switching to a "mini fan curve" if temperatures are low for a longer time
+- [x] switch battery conservation mode by software; keep battery at around 50% when on AC to prolong battery life
+- [x] toggle fn lock by software; use special function on F1-F12 keys without pressing Fn key
+- [x] enable or disable touchpad by software
 
 ## :mega: Overview
 - it comes with a driver (kernel module) that implements the Linux standard interfaces (sysfs, debugfs, hwmon) 
@@ -442,6 +445,34 @@ cat /sys/firmware/acpi/platform_profile
 # Change current profile (AS ROOT): available modes quiet, balanced, performance
 echo balanced > /sys/firmware/acpi/platform_profile
 ```
+
+### Enable or disable the mini fan curve
+If the laptop stays cool for a longer time, it will enable the "mini fan curve", a special fan curve with only a few points. It will usually spin the fans. You can enable or disable that. If you want to use your configured fan curve in any case, disable it.
+
+With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the box `Minifancurve if cold` and pressing `Apply to HW`.
+
+### Lock and Unlock the Fan Controller and Fan Speed
+
+You can lock the current fan speed. If it is locked, the fan speed will stays constant and does not react to temperature changes. You might want to lock the fan at a high speed during a game. I would not recommend keeping it locked all the time. If your fan controller gets locked accidentally, e.g. by Windows tools, you can unlock it. A locked fan controller might be the reason for a non-working fan control. If the fan controller is locked, the additional temperature sensors are not updated anymore and also stay constant.
+
+With the GUI, the fan controller is locked by checking the box `Lock fan controller` and pressing `Apply to HW`.
+
+### Set Battery Conservation Mode to Prolong Battery Life when AC is plugged in
+You can enable battery conservation mode. When conservation mode is enabled, the constant charging of the battery is disabled when the AC (charger) is plugged in. It will try to keep your battery state of charge at around 50%. This is said to prolong the battery life. 
+
+With the GUI, the battery conservation is enabled by checking the box `Battery conservation` (changes should apply immediately).
+
+### Toggle Fn lock to use special functions on F1-F12 keys without pressing Fn key
+You can lock the Fn keys. You can do it by pressing Fn+Esc. This should also toggle the light in the Esc key (if available in your model). 
+If enabled, the special functions, e.g. increase sound volume on F3, is triggered without pressing Fn.
+
+With the GUI, the Fn-lock is enabled/disabled by checking/unchecking the box `Fn Lock` (changes should apply immediately).
+
+### Enable/Disable Touch Pad
+You can enable or disable the touch pad. You can do it by pressing Fn+F10 (or similar). 
+
+With the GUI, the touch pad is enabled/disabled by checking/unchecking the box `Touch Pad Enabled` (changes should apply immediately).
+
 
 ## Known Bugs
 Some bugs cannot be fixed due to the firmware in the hardware:
