@@ -33,3 +33,8 @@ reloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko
 	dmesg
+
+forcereloadmodule:
+	rmmod legion-laptop.ko || true
+	insmod legion-laptop.ko force=1
+	dmesg
