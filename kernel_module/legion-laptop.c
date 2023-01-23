@@ -908,8 +908,8 @@ void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 #define lockfancontroller_ON 8
 #define lockfancontroller_OFF 0
 
-int read_lockfancontroller(struct ecram *ecram, const struct model_config *model,
-		      bool *state)
+int read_lockfancontroller(struct ecram *ecram,
+			   const struct model_config *model, bool *state)
 {
 	int value = ecram_read(ecram, model->registers->LOCKFANCONTROLLER);
 
@@ -927,7 +927,7 @@ int read_lockfancontroller(struct ecram *ecram, const struct model_config *model
 }
 
 ssize_t write_lockfancontroller(struct ecram *ecram,
-			   const struct model_config *model, bool state)
+				const struct model_config *model, bool state)
 {
 	u8 val = state ? lockfancontroller_ON : lockfancontroller_OFF;
 
@@ -1486,7 +1486,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	err = read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
 	seq_printf(s, "minifancurve on cool: %s\n",
 		   err ? "error" : (is_minifancurve ? "true" : "false"));
-	err = read_lockfancontroller(&priv->ecram, priv->conf, &is_lockfancontroller);
+	err = read_lockfancontroller(&priv->ecram, priv->conf,
+				     &is_lockfancontroller);
 	seq_printf(s, "lock fan controller: %s\n",
 		   err ? "error" : (is_lockfancontroller ? "true" : "false"));
 	seq_printf(s, "fan curve current point id: %ld\n",
@@ -1577,14 +1578,15 @@ static ssize_t powermode_store(struct device *dev,
 static DEVICE_ATTR_RW(powermode);
 
 static ssize_t lockfancontroller_show(struct device *dev,
-				 struct device_attribute *attr, char *buf)
+				      struct device_attribute *attr, char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	bool is_lockfancontroller;
 	int err;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = read_lockfancontroller(&priv->ecram, priv->conf, &is_lockfancontroller);
+	err = read_lockfancontroller(&priv->ecram, priv->conf,
+				     &is_lockfancontroller);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
@@ -1593,8 +1595,8 @@ static ssize_t lockfancontroller_show(struct device *dev,
 }
 
 static ssize_t lockfancontroller_store(struct device *dev,
-				  struct device_attribute *attr,
-				  const char *buf, size_t count)
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	bool is_lockfancontroller;
@@ -1605,7 +1607,8 @@ static ssize_t lockfancontroller_store(struct device *dev,
 		return err;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = write_lockfancontroller(&priv->ecram, priv->conf, is_lockfancontroller);
+	err = write_lockfancontroller(&priv->ecram, priv->conf,
+				      is_lockfancontroller);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
@@ -2614,23 +2617,16 @@ int legion_add(struct platform_device *pdev)
 		dmi_get_system_info(DMI_PRODUCT_NAME),
 		dmi_get_system_info(DMI_BIOS_VERSION));
 
+	dmi_sys = dmi_first_match(optimistic_allowlist);
+	is_allowed = dmi_sys != NULL;
 	is_denied = dmi_check_system(denylist);
-	//is_allowed = dmi_check_system(explicit_allowlist);
-	is_allowed = dmi_check_system(optimistic_allowlist);
-
-	dev_info(&pdev->dev, "is_denied: %d; is_allowed: %d\n", is_denied,
-		 is_allowed);
-
 	do_load_by_list = is_allowed && !is_denied;
 	do_load = do_load_by_list || force;
 
-	if (force)
-		dev_info(&pdev->dev, "legion_laptop is forced to load.\n");
-	if (!do_load_by_list && do_load) {
-		dev_info(
-			&pdev->dev,
-			"legion_laptop is forced to load and would otherwise be not loaded\n");
-	}
+	dev_info(
+		&pdev->dev,
+		"is_denied: %d; is_allowed: %d; do_load_by_list: %d; do_load: %d\n",
+		is_denied, is_allowed, do_load_by_list, do_load);
 
 	if (!(do_load)) {
 		dev_info(
@@ -2640,12 +2636,19 @@ int legion_add(struct platform_device *pdev)
 		goto err_model_mismtach;
 	}
 
-	dmi_sys = dmi_first_match(optimistic_allowlist);
-	if (!dmi_sys) {
-		dev_info(&pdev->dev, "No matching configuration found\n");
-		err = -ENOMEM;
-		goto err_model_mismtach;
+	if (force)
+		dev_info(&pdev->dev, "legion_laptop is forced to load.\n");
+
+	if (!do_load_by_list && do_load) {
+		dev_info(
+			&pdev->dev,
+			"legion_laptop is forced to load and would otherwise be not loaded\n");
 	}
+
+	// if forced and no module found, use config for first model
+	if (dmi_sys == NULL)
+		dmi_sys = &optimistic_allowlist[0];
+
 	priv->conf = dmi_sys->driver_data;
 	priv->conf = &model_v0;
 
