@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LenovoLegionLinux
+Icon=/usr/share/icons/legion_logo.png
+Exec=legion_gui
+Comment=Control Lenovo Legion Laptops
+Categories=Application
+Terminal=false

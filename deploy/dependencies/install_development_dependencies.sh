@@ -7,4 +7,4 @@ ${DIR}/linux_kernel/install_checkpath.sh
 # Linter
 sudo apt-get install pylint
 # Tools for running GUI tests headless
-sudo apt-get -qq install xvfb libxcb-xinerama0 pyqt5-dev-tools
+sudo apt-get -qq install xvfb libxcb-xinerama0 pyqt5-dev-tools python3-venv

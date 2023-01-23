@@ -62,3 +62,7 @@ jobs:
         if: always()
         run: ./tests/test_python_gui.sh
         shell: bash
+      - name: Install python package
+        if: always()
+        run: ./deploy/build_python.sh
+        shell: bash
