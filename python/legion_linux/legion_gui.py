@@ -1,10 +1,32 @@
 #!/usr/bin/python3
 import sys
+import os.path
+from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox
-from legion import LegionModelFacade, FanCurve, FanCurveEntry
+    QCheckBox, QSystemTrayIcon, QMenu, QAction
+from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature
+
+
+def sync_checkbox_from_feature(checkbox: QCheckBox, feature: FileFeature):
+    if feature.exists():
+        hw_value = feature.get()
+        checkbox.setChecked(hw_value)
+        checkbox.setDisabled(False)
+    else:
+        checkbox.setDisabled(True)
+
+
+def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
+    if feature.exists():
+        gui_value = checkbox.isChecked()
+        feature.set(gui_value)
+        hw_value = feature.get()
+        checkbox.setChecked(hw_value)
+        checkbox.setDisabled(False)
+    else:
+        checkbox.setDisabled(True)
 
 
 class LegionController:
@@ -13,16 +35,24 @@ class LegionController:
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
         self.view_fancurve = None
+        self.view_otheroptions = None
 
     def init(self, read_from_hw=True):
         if read_from_hw:
             self.model.read_fancurve_from_hw()
-            newlocked = self.model.fancurve_io.get_lockfancontroller()
-            self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
-        self.view_fancurve.set_fancurve(self.model.fan_curve)
+            # fan controller
+            sync_checkbox_from_feature(
+                self.view_fancurve.lockfancontroller_check, self.model.lockfancontroller)
+            sync_checkbox_from_feature(
+                self.view_otheroptions.batteryconservation_check, self.model.battery_conservation)
+            sync_checkbox_from_feature(
+                self.view_otheroptions.fnlock_check, self.model.fn_lock)
+            sync_checkbox_from_feature(
+                self.view_otheroptions.touchpad_check, self.model.touchpad)
+            sync_checkbox_from_feature(
+                self.view_fancurve.maximumfanspeed_check, self.model.maximum_fanspeed)
         self.view_fancurve.set_fancurve(self.model.fan_curve)
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
-
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -45,11 +75,24 @@ class LegionController:
         self.model.fan_curve = self.view_fancurve.get_fancurve()
         self.model.save_fancurve_to_preset(name)
 
+    def on_maximumfanspeed(self):
+        sync_checkbox(self.view_fancurve.lockfancontroller_check,
+                      self.model.lockfancontroller)
+
     def on_lockfancontroller(self):
-        locked = self.view_fancurve.lockfancontroller_check.isChecked()
-        self.model.fancurve_io.set_lockfancontroller(locked)
-        newlocked = self.model.fancurve_io.get_lockfancontroller()
-        self.view_fancurve.lockfancontroller_check.setChecked(newlocked)
+        sync_checkbox(self.view_fancurve.lockfancontroller_check,
+                      self.model.lockfancontroller)
+
+    def on_batteryconservation_check(self):
+        sync_checkbox(self.view_otheroptions.batteryconservation_check,
+                      self.model.battery_conservation)
+
+    def on_fnlock_check(self):
+        sync_checkbox(self.view_otheroptions.fnlock_check, self.model.fn_lock)
+
+    def on_touchpad_check(self):
+        sync_checkbox(self.view_otheroptions.touchpad_check,
+                      self.model.touchpad)
 
 
 class FanCurveEntryView():
@@ -160,6 +203,10 @@ class FanCurveTab(QWidget):
             "Lock fan controller, lock temperature sensors, and lock current fan speed")
         self.lockfancontroller_check.clicked.connect(
             self.controller.on_lockfancontroller)
+        self.maximumfanspeed_check = QCheckBox(
+            "Maximum fan speed")
+        self.maximumfanspeed_check.clicked.connect(
+            self.controller.on_maximumfanspeed)
         self.layout.addWidget(self.point_id_label, 0, 0)
         self.layout.addWidget(self.fan_speed1_label, 1, 0)
         self.layout.addWidget(self.fan_speed2_label, 2, 0)
@@ -173,6 +220,7 @@ class FanCurveTab(QWidget):
         self.layout.addWidget(self.decel_label, 10, 0)
         self.layout.addWidget(self.minfancurve_check, 11, 0)
         self.layout.addWidget(self.lockfancontroller_check, 12, 0)
+        self.layout.addWidget(self.maximumfanspeed_check, 13, 0)
         for i in range(1, 11):
             self.create_fancurve_entry_view(self.layout, i)
         self.fancurve_group.setLayout(self.layout)
@@ -215,8 +263,43 @@ class FanCurveTab(QWidget):
         self.setLayout(self.main_layout)
 
 # pylint: disable=too-few-public-methods
+class OtherOptionsTab(QWidget):
+    def __init__(self, controller: LegionController):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+        self.controller.view_otheroptions = self
+
+    def init_ui(self):
+        self.options_group = QGroupBox("Options")
+        self.options_layout = QVBoxLayout()
+        self.options_group.setLayout(self.options_layout)
+
+        self.batteryconservation_check = QCheckBox(
+            "Battery Conservation (keep battery at about 50 percent and do not charge on AC to extend battery life)")
+        self.batteryconservation_check.clicked.connect(
+            self.controller.on_batteryconservation_check)
+        self.options_layout.addWidget(self.batteryconservation_check, 0)
+
+        self.fnlock_check = QCheckBox(
+            "Fn Lock (Use special function of F1-F12 keys without pressing Fn; same as Fn + Esc)")
+        self.fnlock_check.clicked.connect(
+            self.controller.on_fnlock_check)
+        self.options_layout.addWidget(self.fnlock_check, 1)
+
+        self.touchpad_check = QCheckBox(
+            "Touchpad Enabled (Lock or unlock touchpad; same as Fn + F10)")
+        self.touchpad_check.clicked.connect(
+            self.controller.on_touchpad_check)
+        self.options_layout.addWidget(self.touchpad_check, 2)
+
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.options_group, 0)
+        self.main_layout.addStretch()
+        self.setLayout(self.main_layout)
 
 
+# pylint: disable=too-few-public-methods
 class AboutTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -230,15 +313,15 @@ class AboutTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
-
-
 class MainWindow(QTabWidget):
     def __init__(self, controller):
         super().__init__()
         self.fan_curve_tab = FanCurveTab(controller)
+        self.other_options_tab = OtherOptionsTab(controller)
         self.about_tab = AboutTab()
         self.close_timer = QTimer()
         self.addTab(self.fan_curve_tab, "Fan Curve")
+        self.addTab(self.other_options_tab, "Other Options")
         self.addTab(self.about_tab, "About")
 
     def close_after(self, milliseconds: int):
@@ -246,17 +329,47 @@ class MainWindow(QTabWidget):
         self.close_timer.start(milliseconds)
 
 
-if __name__ == '__main__':
+def main():
     app = QApplication(sys.argv)
-    AUTOMATIC_CLOSE = '--automaticclose' in sys.argv
-    DO_NOT_EXPECT_HWMON = '--donotexpecthwmon' in sys.argv
+    automatic_close = '--automaticclose' in sys.argv
+    do_not_excpect_hwmon = '--donotexpecthwmon' in sys.argv
 
-    contr = LegionController(expect_hwmon=not DO_NOT_EXPECT_HWMON)
+    icon = QtGui.QIcon(os.path.join(
+        os.path.realpath(__file__), 'legion_logo.png'))
+
+    contr = LegionController(expect_hwmon=not do_not_excpect_hwmon)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
-    contr.init(read_from_hw=not DO_NOT_EXPECT_HWMON)
+    main_window.setWindowIcon(icon)
+    contr.init(read_from_hw=not do_not_excpect_hwmon)
     contr.model.fancurve_repo.create_preset_folder()
-    if AUTOMATIC_CLOSE:
+    if automatic_close:
         main_window.close_after(3000)
     main_window.show()
+
+    tray = QSystemTrayIcon()
+    tray.setIcon(icon)
+    tray.setVisible(True)
+
+    def bring_to_foreground():
+        main_window.setWindowState(main_window.windowState(
+        ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+        main_window.activateWindow()
+
+    menu = QMenu()
+    # open
+    open_action = QAction("Show")
+    open_action.triggered.connect(bring_to_foreground)
+    menu.addAction(open_action)
+    # quit
+    quit_action = QAction("Quit")
+    quit_action.triggered.connect(app.quit)
+    menu.addAction(quit_action)
+    tray.setContextMenu(menu)
+    tray.show()
+
     sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()

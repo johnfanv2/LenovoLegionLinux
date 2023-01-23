@@ -48,6 +48,70 @@ class FanCurve:
         with open(filename, 'r', encoding=DEFAULT_ENCODING) as filepointer:
             return cls.from_yaml(filepointer.read())
 
+class FileFeature:
+    pattern:str
+    filename:str
+
+    def __init__(self, pattern):
+        self.pattern = pattern
+        self.filename = FileFeature._find_by_file_pattern(pattern)
+
+    @staticmethod
+    def _read_file(file_path):
+        with open(file_path, "r", encoding=DEFAULT_ENCODING) as filepointer:
+            return int(filepointer.read())
+
+    @staticmethod
+    def _write_file(file_path, value):
+        with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
+            filepointer.write(str(value))
+
+    @staticmethod
+    def _find_by_file_pattern(pattern):
+        matches = glob.glob(pattern)
+        if matches:
+            return matches[0]
+        return None
+
+    def exists(self):
+        return self.filename is not None
+
+    def set(self, value):
+        outvalue = 1 if value else 0
+        return self._write_file(self.filename, outvalue)
+
+    def get(self):
+        invalue = self._read_file(self.filename)
+        return invalue != 0
+
+class LockFanController(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/lockfancontroller")
+
+class BatteryConservation(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode")
+
+class FnLockFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/fn_lock")
+
+class TouchpadFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/touchpad")
+
+class MaximumFanSpeedFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_mode_")
+
+    def set(self, value):
+        outvalue = 0 if value else 2
+        return self._write_file(self.filename, outvalue)
+
+    def get(self):
+        invalue = self._read_file(self.filename)
+        return invalue == 0
+
 
 class FanCurveIO:
     hwmon_dir_pattern = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*'
@@ -63,8 +127,6 @@ class FanCurveIO:
     pwm1_decel = "pwm1_auto_point{}_decel"
     minifancurve = "minifancurve"
 
-    sysfs_dir = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
-    lockfancontroller = "lockfancontroller"
     encoding = DEFAULT_ENCODING
 
     def __init__(self, expect_hwmon=True):
@@ -204,16 +266,6 @@ class FanCurveIO:
         invalue = self._read_file(file_path)
         return invalue != 0
 
-    def set_lockfancontroller(self, value):
-        file_path = os.path.join(self.sysfs_dir, self.lockfancontroller)
-        outvalue = 1 if value else 0
-        return self._write_file(file_path, outvalue)
-
-    def get_lockfancontroller(self):
-        file_path = os.path.join(self.sysfs_dir, self.lockfancontroller)
-        invalue = self._read_file(file_path)
-        return invalue != 0
-
     def write_fan_curve(self, fan_curve: FanCurve):
         """Writes a fan curve object to the file system"""
         self.set_minifancuve(fan_curve.enable_minifancurve)
@@ -300,12 +352,18 @@ class LegionModelFacade:
         self.fan_curve = FanCurve(name='unknown',
             entries=[FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
             enable_minifancurve=False)
+        self.lockfancontroller = LockFanController()
+        self.battery_conservation = BatteryConservation()
+        self.maximum_fanspeed = MaximumFanSpeedFeature()
+        self.fn_lock = FnLockFeature()
+        self.touchpad = TouchpadFeature()
+
 
     def set_lockfancontroller(self, value):
-        self.fancurve_io.set_lockfancontroller(value)
+        self.lockfancontroller.set(value)
 
     def get_lockfancontroller(self):
-        return self.fancurve_io.get_lockfancontroller()
+        return self.lockfancontroller.get()
 
     def get_preset_folder(self):
         return self.fancurve_repo.preset_dir
