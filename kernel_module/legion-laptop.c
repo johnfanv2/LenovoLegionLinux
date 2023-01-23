@@ -192,7 +192,8 @@ struct ec_register_offsets {
 
 	// altnerive regsisters
 	// TODO: decide on one version
-	u16 ALT_FAN_RPM;
+	u16 FAN1_TARGET_RPM;
+	u16 FAN2_TARGET_RPM;
 	u16 ALT_CPU_TEMP;
 	u16 ALT_GPU_TEMP;
 	u16 ALT_POWERMODE;
@@ -205,6 +206,7 @@ struct ec_register_offsets {
 
 	u16 MINIFANCURVE_ON_COOL;
 	u16 LOCKFANCONTROLLER;
+	u16 MAXIMUMFANSPEED;
 };
 
 enum ECRAM_ACCESS { ECRAM_ACCESS_PORTIO, ECRAM_ACCESS_MEMORYIO };
@@ -384,13 +386,18 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.ALT_GPU_TEMP = 0xc539,
 	.ALT_POWERMODE = 0xc420,
 
-	.ALT_FAN_RPM = 0xc600,
+	.FAN1_TARGET_RPM = 0xc600,
+	.FAN2_TARGET_RPM = 0xc601,
 	.ALT_FAN1_RPM = 0xC406,
 	.ALT_FAN2_RPM = 0xC4FE,
 
 	.ALT_CPU_TEMP2 = 0xC5E6,
 	.ALT_GPU_TEMP2 = 0xC5E7,
-	.ALT_IC_TEMP2 = 0xC5E8
+	.ALT_IC_TEMP2 = 0xC5E8,
+
+	//enabled: 0x40
+	//disabled: 0x00
+	.MAXIMUMFANSPEED = 0xBD
 };
 
 static const struct model_config model_v0 = {
@@ -557,6 +564,22 @@ void ecram_portio_exit(struct ecram_portio *ec_portio)
 {
 	release_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE);
 }
+
+// ssize_t ecram_portio_read_low(struct ecram_portio *ec_portio, u8 offset, u8 *value){
+// 	mutex_lock(&ec_portio->io_port_mutex);
+// 	outb(0x66, 0x80);
+// 	outb(offset, ECRAM_PORTIO_DATA_PORT);
+// 	*value = inb(ECRAM_PORTIO_DATA_PORT);
+// 	mutex_unlock(&ec_portio->io_port_mutex);
+// }
+
+// ssize_t ecram_portio_write_low(struct ecram_portio *ec_portio, u8 offset, u8 value){
+// 	mutex_lock(&ec_portio->io_port_mutex);
+// 	outb(0x66, ECRAM_PORTIO_ADDR_PORT);
+// 	outb(offset, ECRAM_PORTIO_DATA_PORT);
+// 	outb(value, ECRAM_PORTIO_DATA_PORT);
+// 	mutex_unlock(&ec_portio->io_port_mutex);
+// }
 
 /* Read a byte from the EC RAM.
  *
@@ -821,10 +844,10 @@ u16 read_ec_version(struct ecram *ecram, const struct model_config *model)
 /* ============================  */
 
 struct sensor_values {
-	u16 fan1_rpm; // rpm1
-	u16 fan2_rpm; // rpm2
-	// TODO: remove this later, lets just see what is more accurate
-	u16 fan_rpm; // rpm1
+	u16 fan1_rpm; // current speed in rpm of fan 1
+	u16 fan2_rpm; // current speed in rpm of fan2
+	u16 fan1_target_rpm; // target speed in rpm of fan 1
+	u16 fan2_target_rpm; // target speed in rpm of fan 2
 	u8 cpu_temp_celsius; // cpu temperature in celcius
 	u8 gpu_temp_celsius; // gpu temperature in celcius
 	u8 ic_temp_celsius; // ic temperature in celcius
@@ -836,16 +859,18 @@ enum SENSOR_ATTR {
 	SENSOR_IC_TEMP_ID = 3,
 	SENSOR_FAN1_RPM_ID = 4,
 	SENSOR_FAN2_RPM_ID = 5,
-	// TODO: remove this later, lets just see what is more accurate
-	SENSOR_FAN_RPM_ID = 6
+	SENSOR_FAN1_TARGET_RPM_ID = 6,
+	SENSOR_FAN2_TARGET_RPM_ID = 7
 };
 
 static int read_sensor_values(struct ecram *ecram,
 			      const struct model_config *model,
 			      struct sensor_values *values)
 {
-	values->fan_rpm =
-		100 * ecram_read(ecram, model->registers->ALT_FAN_RPM);
+	values->fan1_target_rpm =
+		100 * ecram_read(ecram, model->registers->FAN1_TARGET_RPM);
+	values->fan2_target_rpm =
+		100 * ecram_read(ecram, model->registers->FAN2_TARGET_RPM);
 	// TODO: what source toc choose?
 	// values->fan1_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN1_RPM);
 	// values->fan2_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN2_RPM);
@@ -908,8 +933,17 @@ void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 #define lockfancontroller_ON 8
 #define lockfancontroller_OFF 0
 
-int read_lockfancontroller(struct ecram *ecram,
-			   const struct model_config *model, bool *state)
+ssize_t write_lockfancontroller(struct ecram *ecram,
+			   const struct model_config *model, bool state)
+{
+	u8 val = state ? lockfancontroller_ON : lockfancontroller_OFF;
+
+	ecram_write(ecram, model->registers->LOCKFANCONTROLLER, val);
+	return 0;
+}
+
+int read_lockfancontroller(struct ecram *ecram, const struct model_config *model,
+		      bool *state)
 {
 	int value = ecram_read(ecram, model->registers->LOCKFANCONTROLLER);
 
@@ -921,17 +955,40 @@ int read_lockfancontroller(struct ecram *ecram,
 		*state = false;
 		break;
 	default:
+		pr_info("Unexpected value in lockfanspeed register:%d\n", value);
 		return -1;
 	}
 	return 0;
 }
 
-ssize_t write_lockfancontroller(struct ecram *ecram,
-				const struct model_config *model, bool state)
-{
-	u8 val = state ? lockfancontroller_ON : lockfancontroller_OFF;
+#define MAXIMUMFANSPEED_ON 0x40
+#define MAXIMUMFANSPEED_OFF 0x00
 
-	ecram_write(ecram, model->registers->LOCKFANCONTROLLER, val);
+int read_maximumfanspeed(struct ecram *ecram, const struct model_config *model,
+		      bool *state)
+{
+	int value = ecram_read(ecram, model->registers->MAXIMUMFANSPEED);
+
+	switch (value) {
+	case MAXIMUMFANSPEED_ON:
+		*state = true;
+		break;
+	case MAXIMUMFANSPEED_OFF:
+		*state = false;
+		break;
+	default:
+		pr_info("Unexpected value in maximumfanspeed register:%d\n", value);
+		return -1;
+	}
+	return 0;
+}
+
+ssize_t write_maximumfanspeed(struct ecram *ecram,
+			   const struct model_config *model, bool state)
+{
+	u8 val = state ? MAXIMUMFANSPEED_ON : MAXIMUMFANSPEED_OFF;
+
+	ecram_write(ecram, model->registers->MAXIMUMFANSPEED, val);
 	return 0;
 }
 
@@ -951,6 +1008,7 @@ int read_minifancurve(struct ecram *ecram, const struct model_config *model,
 		*state = false;
 		break;
 	default:
+		pr_info("Unexpected value in MINIFANCURVE register:%d\n", value);
 		return -1;
 	}
 	return 0;
@@ -1432,6 +1490,7 @@ static int legion_shared_init(struct legion_private *priv)
 		ret = -EINVAL;
 	}
 
+	priv->loaded = true;
 	mutex_unlock(&legion_shared_mutex);
 
 	return ret;
@@ -1473,6 +1532,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	struct legion_private *priv = s->private;
 	bool is_minifancurve;
 	bool is_lockfancontroller;
+	bool is_maximumfanspeed;
 	int err;
 
 	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
@@ -1490,6 +1550,11 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 				     &is_lockfancontroller);
 	seq_printf(s, "lock fan controller: %s\n",
 		   err ? "error" : (is_lockfancontroller ? "true" : "false"));
+	err = read_maximumfanspeed(&priv->ecram, priv->conf, &is_maximumfanspeed);
+	seq_printf(s, "enable maximumfanspeed: %s\n",
+		   err ? "error" : (is_maximumfanspeed ? "true" : "false"));
+	seq_printf(s, "enable maximumfanspeed status: %d\n", err);
+
 	seq_printf(s, "fan curve current point id: %ld\n",
 		   priv->fancurve.current_point_i);
 	seq_printf(s, "fan curve points size: %ld\n", priv->fancurve.size);
@@ -1668,14 +1733,18 @@ struct legion_wmi_private {
 
 static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 {
-	struct legion_wmi_private *wpriv = dev_get_drvdata(&wdev->dev);
+	struct legion_wmi_private *wpriv;	
 	struct legion_private *priv;
 
 	mutex_lock(&legion_shared_mutex);
 	priv = legion_shared;
-	if (!priv)
+	if ((!priv) && (priv->loaded)){
+		pr_info("Received WMI event while not initialized!\n");
 		goto unlock;
+	}
+		
 
+	wpriv = dev_get_drvdata(&wdev->dev);
 	switch (wpriv->event) {
 	case LEGION_EVENT_A:
 		pr_info("Fan event: legion type: %d;  acpi type: %d (%d=integer)",
@@ -1916,8 +1985,11 @@ static ssize_t sensor_label_show(struct device *dev,
 	case SENSOR_FAN2_RPM_ID:
 		label = "Fan 2\n";
 		break;
-	case SENSOR_FAN_RPM_ID:
-		label = "Fan\n";
+	case SENSOR_FAN1_TARGET_RPM_ID:
+		label = "Fan 1 Target\n";
+		break;
+	case SENSOR_FAN2_TARGET_RPM_ID:
+		label = "Fan 2 Target\n";
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -1953,8 +2025,11 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 	case SENSOR_FAN2_RPM_ID:
 		outval = values.fan2_rpm;
 		break;
-	case SENSOR_FAN_RPM_ID:
-		outval = values.fan_rpm;
+	case SENSOR_FAN1_TARGET_RPM_ID:
+		outval = values.fan1_target_rpm;
+		break;
+	case SENSOR_FAN2_TARGET_RPM_ID:
+		outval = values.fan2_target_rpm;
 		break;
 	default:
 		pr_info("Error reading sensor value with id %d\n", sensor_id);
@@ -1974,8 +2049,8 @@ static SENSOR_DEVICE_ATTR_RO(fan1_input, sensor, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan1_label, sensor_label, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_input, sensor, SENSOR_FAN2_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_label, sensor_label, SENSOR_FAN2_RPM_ID);
-static SENSOR_DEVICE_ATTR_RO(fan3_input, sensor, SENSOR_FAN_RPM_ID);
-static SENSOR_DEVICE_ATTR_RO(fan3_label, sensor_label, SENSOR_FAN_RPM_ID);
+static SENSOR_DEVICE_ATTR_RO(fan1_target, sensor, SENSOR_FAN1_TARGET_RPM_ID);
+static SENSOR_DEVICE_ATTR_RO(fan2_target, sensor, SENSOR_FAN2_TARGET_RPM_ID);
 
 static struct attribute *sensor_hwmon_attributes[] = {
 	&sensor_dev_attr_temp1_input.dev_attr.attr,
@@ -1988,8 +2063,8 @@ static struct attribute *sensor_hwmon_attributes[] = {
 	&sensor_dev_attr_fan1_label.dev_attr.attr,
 	&sensor_dev_attr_fan2_input.dev_attr.attr,
 	&sensor_dev_attr_fan2_label.dev_attr.attr,
-	&sensor_dev_attr_fan3_input.dev_attr.attr,
-	&sensor_dev_attr_fan3_label.dev_attr.attr,
+	&sensor_dev_attr_fan1_target.dev_attr.attr,
+	&sensor_dev_attr_fan2_target.dev_attr.attr,
 	NULL
 };
 
@@ -2388,7 +2463,7 @@ static ssize_t minifancurve_show(struct device *dev,
 	err = read_minifancurve(&priv->ecram, priv->conf, &value);
 	if (err) {
 		err = -1;
-		pr_info("Writing minifancurve not succesful\n");
+		pr_info("Reading minifancurve not succesful\n");
 		goto error_unlock;
 	}
 	mutex_unlock(&priv->fancurve_mutex);
@@ -2432,6 +2507,66 @@ error:
 }
 
 static SENSOR_DEVICE_ATTR_RW(minifancurve, minifancurve, 0);
+
+
+static ssize_t pwm1_mode_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	bool value;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = read_maximumfanspeed(&priv->ecram, priv->conf, &value);
+	if (err) {
+		err = -1;
+		pr_info("Reading pwm1_mode/maximumfanspeed not succesful\n");
+		goto error_unlock;
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+	return sprintf(buf, "%d\n", value ? 0 : 2);
+
+error_unlock:
+	mutex_unlock(&priv->fancurve_mutex);
+	return -1;
+}
+
+static ssize_t pwm1_mode_store(struct device *dev,
+				  struct device_attribute *devattr,
+				  const char *buf, size_t count)
+{
+	int value;
+	int is_maximumfanspeed;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtoint(buf, 0, &value);
+	if (err) {
+		err = -1;
+		pr_info("Parse for hwmon store is not succesful: error:%d\n",
+			err);
+		goto error;
+	}
+	is_maximumfanspeed = value == 0;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = write_maximumfanspeed(&priv->ecram, priv->conf, is_maximumfanspeed);
+	if (err) {
+		err = -1;
+		pr_info("Writing pwm1_mode/maximumfanspeed not succesful\n");
+		goto error_unlock;
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+	return count;
+
+error_unlock:
+	mutex_unlock(&priv->fancurve_mutex);
+error:
+	return err;
+}
+
+static SENSOR_DEVICE_ATTR_RW(pwm1_mode, pwm1_mode, 0);
+
 
 static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr,
@@ -2536,7 +2671,9 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_auto_point10_decel.dev_attr.attr,
 	//
 	&sensor_dev_attr_auto_points_size.dev_attr.attr,
-	&sensor_dev_attr_minifancurve.dev_attr.attr, NULL
+	&sensor_dev_attr_minifancurve.dev_attr.attr,
+	&sensor_dev_attr_pwm1_mode.dev_attr.attr, 
+	NULL
 };
 
 static const struct attribute_group legion_hwmon_sensor_group = {
@@ -2726,13 +2863,19 @@ int legion_remove(struct platform_device *pdev)
 	struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 	// TODO: remove this
 	pr_info("Unloading legion\n");
+	mutex_lock(&legion_shared_mutex);
+	priv->loaded = false;
+	mutex_unlock(&legion_shared_mutex);
+
+	// first unregister wmi, so toggling powermode does not 
+	// generate events anymore that even might be delayed
+	legion_wmi_exit();
+	legion_platform_profile_exit(priv);
 
 	// toggle power mode to load default setting from embedded controller
 	// again
 	toggle_powermode(&priv->ecram, priv->conf);
 
-	legion_wmi_exit();
-	legion_platform_profile_exit(priv);
 	legion_hwmon_exit(priv);
 	legion_sysfs_exit(priv);
 	legion_debugfs_exit(priv);
