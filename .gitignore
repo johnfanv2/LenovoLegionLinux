@@ -1,6 +1,8 @@
 # Python
 __pycache__/
 
+legion_linux.egg-info/
+
 # Prerequisites
 *.d
 
