@@ -487,6 +487,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_v0
 	},
+	{
+		// modelyear: 2022
+		.ident = "KFCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "KFCN"),
+		},
+		.driver_data = (void *)&model_v0
+	},
 	{}
 };
 
@@ -1562,7 +1571,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   priv->fancurve.current_point_i);
 	seq_printf(s, "fan curve points size: %ld\n", priv->fancurve.size);
 
-	seq_puts(s, "Current fan curve in UEFI\n");
+	seq_puts(s, "Current fan curve in hardware (embedded controller):\n");
 	fancurve_print_seqfile(&priv->fancurve, s);
 	seq_puts(s, "=====================\n");
 
