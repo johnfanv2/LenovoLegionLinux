@@ -580,6 +580,15 @@ The difference in usable performance (FPS) is minimal. Use performance mode to g
 First check that the fan curve is set properly and this is not a misconfiguration. Then check if the temperatures used for fan control (see "new temperatures" above) have low values on idle. If just one fan is on full speed but the other one is controlled according to fan curve, then you
 should reset the BIOS and EC controller. 
 
+### What is "advanced thermal optimization" in the BIOS/UEFI?
+You can change the fan curve and minimal fan speed that are programmed into the hardware
+- off: turn off fan if cold enough
+- level 1: minimal fan speed level 1
+- level 2: minimal fan speed level 2
+- level 3: minimal fan speed level 3
+
+also see: https://forums.lenovo.com/t5/Gaming-Laptops/Legion-7-Bios-What-is-advanced-thermal-optimization/m-p/5079357?clickid=xtRyKHRPaxyNR1ay4ywCuSBLUkA1nmX5DzV4UU0&irgwc=1&PID=121977&acid=ww%3Aaffiliate%3Abv0as6&cid=us%3Aaffiliate%3Acxsaam
+
 ## :question: Open Questions
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
 - Can I use quiet mode for gaming?
