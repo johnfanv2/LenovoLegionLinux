@@ -83,6 +83,12 @@ MODULE_PARM_DESC(
 	force,
 	"Force loading this module even if model or BIOS does not match.");
 
+static bool ec_readonly;
+module_param(ec_readonly, bool, 0440);
+MODULE_PARM_DESC(
+	ec_readonly,
+	"Only read from embedded controller but do not write or change settings.");
+
 //TODO: remove this, kernel modules do not have versions
 #define MODULEVERSION "0.1"
 #define LEGIONFEATURES \
@@ -220,6 +226,7 @@ enum CONTROL_METHOD {
 
 struct model_config {
 	const struct ec_register_offsets *registers;
+	bool check_embedded_controller_id;
 	u16 embedded_controller_id;
 	// how should the EC be acesses?
 	enum CONTROL_METHOD access_method;
@@ -402,9 +409,20 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 
 static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8227,
 	.access_method = CONTROL_METHOD_ECRAM,
 	.ecram_access_method = ECRAM_ACCESS_PORTIO,
+	.memoryio_physical_start = 0xFE00D400,
+	.memoryio_size = 0x300
+};
+
+static const struct model_config model_hacn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = false,
+	.embedded_controller_id = 0x8227,
+	.access_method = CONTROL_METHOD_ECRAM,
+	.ecram_access_method = ECRAM_ACCESS_MEMORYIO,
 	.memoryio_physical_start = 0xFE00D400,
 	.memoryio_size = 0x300
 };
@@ -495,6 +513,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "KFCN"),
 		},
 		.driver_data = (void *)&model_v0
+	},
+	{
+		// modelyear: 2021
+		.ident = "HACN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "HACN"),
+		},
+		.driver_data = (void *)&model_hacn
 	},
 	{}
 };
@@ -811,6 +838,12 @@ static u8 ecram_read(struct ecram *ecram, u16 ecram_offset)
 static void ecram_write(struct ecram *ecram, u16 ecram_offset, u8 value)
 {
 	int err;
+
+	if (ec_readonly) {
+		pr_info("Skipping writing EC RAM at 0x%x because readonly.\n",
+			ecram_offset);
+		return;
+	}
 
 	switch (ecram->access_method) {
 	case ECRAM_ACCESS_MEMORYIO:
@@ -1552,6 +1585,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	// TODO: remove this
 	seq_printf(s, "legion_laptop version: %s\n", MODULEVERSION);
 	seq_printf(s, "legion_laptop features: %s\n", LEGIONFEATURES);
+	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
 	err = read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
@@ -2794,9 +2828,10 @@ int legion_add(struct platform_device *pdev)
 	// if forced and no module found, use config for first model
 	if (dmi_sys == NULL)
 		dmi_sys = &optimistic_allowlist[0];
+	dev_info(&pdev->dev, "Using configuration for system: %s\n",
+		 dmi_sys->ident);
 
 	priv->conf = dmi_sys->driver_data;
-	priv->conf = &model_v0;
 
 	err = ecram_init(&priv->ecram, priv->conf->ecram_access_method,
 			 priv->conf->memoryio_physical_start,
@@ -2808,11 +2843,17 @@ int legion_add(struct platform_device *pdev)
 	}
 
 	ec_read_id = read_ec_id(&priv->ecram, priv->conf);
-	if (!(ec_read_id == priv->conf->embedded_controller_id)) {
+	dev_info(&pdev->dev, "Read embedded controller ID 0x%x\n", ec_read_id);
+	if (priv->conf->check_embedded_controller_id &&
+	    !(ec_read_id == priv->conf->embedded_controller_id)) {
 		err = -ENOMEM;
 		dev_info(&pdev->dev, "Expected EC chip id 0x%x but read 0x%x\n",
 			 priv->conf->embedded_controller_id, ec_read_id);
 		goto err_ecram_id;
+	}
+	if (!priv->conf->check_embedded_controller_id) {
+		dev_info(&pdev->dev,
+			 "Skipped checking embedded controller id\n");
 	}
 
 	dev_info(&pdev->dev, "Creating debugfs inteface\n");

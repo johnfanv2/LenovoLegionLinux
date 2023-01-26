@@ -38,3 +38,8 @@ forcereloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko force=1
 	dmesg
+
+forcereloadmodulereadonly:
+	rmmod legion-laptop.ko || true
+	insmod legion-laptop.ko force=1 ec_readonly=1
+	dmesg
