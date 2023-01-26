@@ -236,6 +236,7 @@ struct model_config {
 
 	// if EC is accessed by memory mapped, what is its address
 	phys_addr_t memoryio_physical_start;
+	phys_addr_t memoryio_physical_ec_start;
 	size_t memoryio_size;
 };
 
@@ -414,6 +415,7 @@ static const struct model_config model_v0 = {
 	.access_method = CONTROL_METHOD_ECRAM,
 	.ecram_access_method = ECRAM_ACCESS_PORTIO,
 	.memoryio_physical_start = 0xFE00D400,
+	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300
 };
 
@@ -424,6 +426,7 @@ static const struct model_config model_hacn = {
 	.access_method = CONTROL_METHOD_ECRAM,
 	.ecram_access_method = ECRAM_ACCESS_MEMORYIO,
 	.memoryio_physical_start = 0xFE00D400,
+	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300
 };
 
@@ -680,14 +683,14 @@ ssize_t ecram_portio_write(struct ecram_portio *ec_portio, u16 offset, u8 value)
 /* EC RAM Access with memory mapped IO */
 /* =================================== */
 
-#define ECRAM_OFFSET 0xC400
-
 struct ecram_memoryio {
 	// TODO: start of remapped memory in EC RAM is assumed to be 0
 	// u16 ecram_start;
 
 	// physical address of remapped IO, depends on model and firmware
 	phys_addr_t physical_start;
+	// start adress of region in ec memory
+	phys_addr_t physical_ec_start;
 	// virtual address of remapped IO
 	u8 *virtual_start;
 	// size of remapped access
@@ -701,16 +704,18 @@ struct ecram_memoryio {
  * strong exception safety
  */
 ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
-			    phys_addr_t physical_start, size_t size)
+			    phys_addr_t physical_start, phys_addr_t physical_ec_start, size_t size)
 {
 	void *virtual_start = ioremap(physical_start, size);
 
 	if (!IS_ERR_OR_NULL(virtual_start)) {
 		ec_memoryio->virtual_start = virtual_start;
 		ec_memoryio->physical_start = physical_start;
+		ec_memoryio->physical_ec_start = physical_ec_start;
 		ec_memoryio->size = size;
-		pr_info("Succeffuly mapped embedded controller: 0x%llx to virtual 0x%p\n",
+		pr_info("Succeffuly mapped embedded controller: 0x%llx (in RAM)/0x%llx (in EC) to virtual 0x%p\n",
 			ec_memoryio->physical_start,
+			ec_memoryio->physical_ec_start,
 			ec_memoryio->virtual_start);
 	} else {
 		pr_info("Error mapping embedded controller memory at 0x%llx\n",
@@ -723,8 +728,9 @@ ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
 void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
 {
 	if (ec_memoryio->virtual_start != NULL) {
-		pr_info("Unmapping embedded controller memory at 0x%llx at virtual 0x%p\n",
+		pr_info("Unmapping embedded controller memory at 0x%llx (in RAM)/0x%llx (in EC) at virtual 0x%p\n",
 			ec_memoryio->physical_start,
+			ec_memoryio->physical_ec_start,
 			ec_memoryio->virtual_start);
 		iounmap(ec_memoryio->virtual_start);
 		ec_memoryio->virtual_start = NULL;
@@ -739,12 +745,12 @@ void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
 ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 			    u16 ec_offset, u8 *value)
 {
-	if (ec_offset < ECRAM_OFFSET) {
+	if (ec_offset < ec_memoryio->physical_ec_start) {
 		pr_info("Unexpected read at offset %d into EC RAM\n",
 			ec_offset);
 		return -1;
 	}
-	*value = *(ec_memoryio->virtual_start + (ec_offset - ECRAM_OFFSET));
+	*value = *(ec_memoryio->virtual_start + (ec_offset - ec_memoryio->physical_ec_start));
 	return 0;
 }
 
@@ -756,12 +762,12 @@ ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
 			     u16 ec_offset, u8 value)
 {
-	if (ec_offset < ECRAM_OFFSET) {
+	if (ec_offset <  ec_memoryio->physical_ec_start) {
 		pr_info("Unexpected write at offset %d into EC RAM\n",
 			ec_offset);
 		return -1;
 	}
-	*(ec_memoryio->virtual_start + (ec_offset - ECRAM_OFFSET)) = value;
+	*(ec_memoryio->virtual_start + (ec_offset -  ec_memoryio->physical_ec_start)) = value;
 	return 0;
 }
 
@@ -776,12 +782,12 @@ struct ecram {
 };
 
 ssize_t ecram_init(struct ecram *ecram, enum ECRAM_ACCESS access_method,
-		   phys_addr_t memoryio_physical_start, size_t region_size)
+		   phys_addr_t memoryio_physical_start, phys_addr_t memoryio_ec_physical_start, size_t region_size)
 {
 	ssize_t err;
 
 	err = ecram_memoryio_init(&ecram->memoryio, memoryio_physical_start,
-				  region_size);
+				memoryio_ec_physical_start, region_size);
 	if (err) {
 		pr_info("Failed ecram_memoryio_init\n");
 		goto err_ecram_memoryio_init;
@@ -1562,7 +1568,7 @@ static int debugfs_ecmemory_show(struct seq_file *s, void *unused)
 	size_t offset;
 
 	for (offset = 0; offset < priv->conf->memoryio_size; ++offset) {
-		char value = ecram_read(&priv->ecram, offset);
+		char value = ecram_read(&priv->ecram, priv->conf->memoryio_physical_ec_start + offset);
 
 		seq_write(s, &value, 1);
 	}
@@ -2835,6 +2841,7 @@ int legion_add(struct platform_device *pdev)
 
 	err = ecram_init(&priv->ecram, priv->conf->ecram_access_method,
 			 priv->conf->memoryio_physical_start,
+			 priv->conf->memoryio_physical_ec_start,
 			 priv->conf->memoryio_size);
 	if (err) {
 		dev_info(&pdev->dev,
