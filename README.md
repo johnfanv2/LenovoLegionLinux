@@ -65,7 +65,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
-- Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve, power profile
+- Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve (no minifancurve), power profile
 
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
@@ -448,7 +448,7 @@ echo balanced > /sys/firmware/acpi/platform_profile
 ```
 
 ### Enable or disable the mini fan curve
-If the laptop stays cool for a longer time, it will enable the "mini fan curve", a special fan curve with only a few points. It will usually spin the fans. You can enable or disable that. If you want to use your configured fan curve in any case, disable it.
+If the laptop stays cool for a longer time, it will enable the "mini fan curve", a special fan curve with only a few points. It will usually spin the fans. You can enable or disable that. If you want to use your configured fan curve in any case, disable it. The mini fan curve is not available on all models (you will see error for mini fan curve when running `cat /sys/kernel/debug/legion/fancurve`).
 
 With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the box `Minifancurve if cold` and pressing `Apply to HW`.
 
