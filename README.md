@@ -323,7 +323,7 @@ Set a custom fan curve with the provided script. See `Creating and Setting your 
 - Create a GitHub Issue and report if the test work or fail. 
     - Please include exact laptop model
     - If errors occurred, include output of commands.
-- You also might to want to start this repository
+- You also might to want to star this repository
 
 ## :computer: Normal Usage
 **you have to install the kernel module permanently (see above), otherwise you must reload it manually after each restart**
