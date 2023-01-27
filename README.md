@@ -92,37 +92,31 @@ Please do the following:
 ### Requirements
 You will need to install the following to download and build it. If there is an error of any package, find the alternative name in your distribution and install them.
 
-**Ubuntu/Debian**
+**Ubuntu/Debian/Pop!_OS/Mint/elementary OS/Zorin**
 ```bash
 sudo apt-get update
-sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors dmidecode python3-pyqt5
+sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt5 python3-yaml python3-venv python3-pip
 ```
 
-**RHEL/CentOS**
+**RHEL/CentOS/RockyLinux/Fedora/AlmaLinux**
 ```bash
-sudo yum update
-sudo yum install kernel-headers kernel-devel lm-sensors dmidecode python3-pyqt5
-sudo yum groupinstall "Development Tools"
-sudo yum group install "C Development Tools and Libraries"
-```
-
-**Fedora**
-```bash
-sudo dnf install kernel-headers kernel-devel lm-sensors dmidecode python3-pyqt5
+sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors PyQt5 python3-yaml python3-pip
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
 ```
+Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum update`. Installing "C Development Tools and Libraries" might not be needed depending of your distribution.
+
 
 **openSUSE**
 ```bash
-sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel lm-sensors dmidecode python3-pyqt5
+sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode python3-qt5 python3-pip python3-PyYAML
 ```
 *Note:* Check for the correct Header package.
 
 
-**Arch/Manjaro**
+**Arch/Manjaro/EndeavourOS**
 ```bash
-sudo pacman -S linux-headers base-devel lm-sensors git dmidecode python-pyqt5
+sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml
 ```
 *Note:* Check for the correct Header package.
 
