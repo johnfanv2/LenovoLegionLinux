@@ -1,0 +1,36 @@
+FROM archlinux:latest
+RUN pacman -Syu --noconfirm
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install sudo (used in scripts that are tested)
+RUN pacman -Sy --noconfirm sudo 
+
+# Set timezone (used by pylint) and locale
+ENV LANG=en_US.UTF-8  
+ENV LANGUAGE=en_US:en  
+ENV LC_ALL=en_US.UTF-8
+ENV TZ=US/Central
+RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
+    pacman -Sy --noconfirm tzdata && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+
+RUN mkdir /opt/LinuxLegionLaptop
+WORKDIR /opt/LinuxLegionLaptop
+
+COPY ./deploy/dependencies/install_dependencies_arch.sh ./deploy/dependencies/install_dependencies_arch.sh
+RUN deploy/dependencies/install_dependencies_arch.sh
+
+COPY ./deploy/dependencies ./deploy/dependencies
+RUN deploy/dependencies/install_development_dependencies_arch.sh
+
+COPY . /opt/LinuxLegionLaptop
+
+# RUN mkdir `/lib/modules/$(shell uname -r)/build`
+# RUN deploy/build.sh 
+
+RUN deploy/build_python.sh || true
+
+RUN tests/test_python_cli.sh && \
+    tests/test_python_gui.sh

@@ -1,0 +1,18 @@
+version: "3.9"
+services:
+  legion-arch:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.arch
+  legion-fedora:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.fedora
+  legion-suse:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.suse
+  legion-ubuntu:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.ubuntu

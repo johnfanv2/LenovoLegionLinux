@@ -1,0 +1,32 @@
+FROM opensuse/tumbleweed
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install sudo (used in scripts that are tested)
+RUN zypper --non-interactive install sudo
+
+# Set timezone (used by pylint) and locale
+ENV LANG=en_US.UTF-8  
+ENV LANGUAGE=en_US:en  
+ENV LC_ALL=en_US.UTF-8    
+# RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
+#     zypper --non-interactive install locales tzdata && \
+#     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+#     locale-gen
+
+RUN mkdir /opt/LinuxLegionLaptop
+WORKDIR /opt/LinuxLegionLaptop
+
+COPY ./deploy/dependencies/install_dependencies_suse.sh ./deploy/dependencies/install_dependencies_suse.sh
+RUN deploy/dependencies/install_dependencies_suse.sh
+
+COPY ./deploy/dependencies ./deploy/dependencies
+RUN deploy/dependencies/install_development_dependencies_suse.sh
+
+COPY . /opt/LinuxLegionLaptop
+
+# RUN deploy/build.sh 
+
+RUN deploy/build_python.sh || true
+
+RUN tests/test_python_cli.sh
+# RUN tests/test_python_gui.sh

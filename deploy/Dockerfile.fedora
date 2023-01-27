@@ -1,0 +1,42 @@
+FROM fedora:37
+
+# does not work
+# FROM redhat/ubi9
+
+# ROM rockylinux:8
+
+# does not work (kernel version mismatch->package mismatch)
+# FROM rockylinux:8
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install sudo (used in scripts that are tested)
+RUN dnf -y install sudo
+
+# Set timezone (used by pylint) and locale
+ENV LANG=en_US.UTF-8  
+ENV LANGUAGE=en_US:en  
+ENV LC_ALL=en_US.UTF-8
+ENV TZ=US/Central
+RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
+    dnf -y install tzdata glibc-langpack-en
+RUN localedef --verbose --force -i en_US -f UTF-8 en_US.UTF-8 || true
+
+RUN mkdir /opt/LinuxLegionLaptop
+WORKDIR /opt/LinuxLegionLaptop
+
+COPY ./deploy/dependencies/install_dependencies_fedora.sh ./deploy/dependencies/install_dependencies_fedora.sh
+RUN deploy/dependencies/install_dependencies_fedora.sh
+
+COPY ./deploy/dependencies ./deploy/dependencies
+RUN deploy/dependencies/install_development_dependencies_fedora.sh
+
+COPY . /opt/LinuxLegionLaptop
+
+# RUN mkdir `/lib/modules/$(shell uname -r)/build`
+# RUN deploy/build.sh 
+
+RUN deploy/build_python.sh || true
+
+RUN tests/test_python_cli.sh && \
+    tests/test_python_gui.sh
