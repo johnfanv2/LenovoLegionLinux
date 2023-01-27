@@ -74,3 +74,43 @@ jobs:
     - name: Install Dependencies
       run: ./deploy/build_containers.sh
       shell: bash
+  release-kernel-patch:
+    needs: [build, run-kernel-module-test, run-test]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Build kernel patch
+      run: ./deploy/build_kernelpatch.sh
+      shell: bash
+    - name: Create tag
+      id: create_tag
+      run: |
+        tag=$(basename "${{ github.ref }}")
+        echo "tag=$tag" >> $GITHUB_OUTPUT
+    - name: Create Draft Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.create_tag.outputs.tag }}
+        release_name: ${{ steps.create_tag.outputs.tag }}
+        draft: true
+        prerelease: false
+    - name: Upload Release
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v0.1.patch
+        asset_name: 0001-Add-legion-laptop-v0.1.patch
+        asset_content_type: text/plain
+    - name: Publish Release
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        release_id: ${{ steps.create_release.outputs.id }}
