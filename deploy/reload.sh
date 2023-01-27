@@ -9,7 +9,7 @@ cd kernel_module
 # sudo dmesg
 
 #!/bin/bash
-for i in {1..200}
+for i in {1..20}
 do
    sudo make reloadmodule || true
    echo "Reloaded $i times"
