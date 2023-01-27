@@ -75,7 +75,7 @@ jobs:
       run: ./deploy/build_containers.sh
       shell: bash
   release-kernel-patch:
-    needs: [build, run-kernel-module-test, run-test]
+    needs: [build, run-kernel-module-test, run-tests]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
