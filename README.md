@@ -452,6 +452,14 @@ You can lock the current fan speed. If it is locked, the fan speed will stays co
 
 With the GUI, the fan controller is locked by checking the box `Lock fan controller` and pressing `Apply to HW`.
 
+### Set Speed to Maximum Fan Speed
+The fan can be set to maximum fan speed regardless of temperature. This is sometimes called extreme cooling mode or dust cleaning mode. Do not enable this for long periods of time, because it might degrade your fans faster.
+
+With the GUI, the current fan speed is set to the maximum possible value by checking `Set speed to maximum fan speed` and pressing `Apply to HW`.
+
+This is currently not available in many models. 
+
+
 ### Set Battery Conservation Mode to Prolong Battery Life when AC is plugged in
 You can enable battery conservation mode. When conservation mode is enabled, the constant charging of the battery is disabled when the AC (charger) is plugged in. It will try to keep your battery state of charge at around 50%. This is said to prolong the battery life. 
 
