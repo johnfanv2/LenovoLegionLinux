@@ -285,7 +285,10 @@ class FanCurveIO:
 
     def write_fan_curve(self, fan_curve: FanCurve):
         """Writes a fan curve object to the file system"""
-        self.set_minifancuve(fan_curve.enable_minifancurve)
+        try:
+            self.set_minifancuve(fan_curve.enable_minifancurve)
+        except:
+            pass
         for index, entry in enumerate(fan_curve.entries):
             point_id = index + 1
             self.set_fan_1_speed(point_id, entry.fan1_speed)
@@ -319,7 +322,10 @@ class FanCurveIO:
                                   acceleration=acceleration, deceleration=deceleration)
             entries.append(entry)
         fancurve = FanCurve(name='unknown', entries=entries)
-        fancurve.enable_minifancurve = self.get_minifancuve()
+        try:
+            fancurve.enable_minifancurve = self.get_minifancuve()
+        except:
+            pass
         return fancurve
 
 class FanCurveRepository:
