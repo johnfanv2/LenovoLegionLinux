@@ -134,6 +134,9 @@ class FanCurveIO:
         if (not self.hwmon_path) and expect_hwmon:
             raise Exception("hwmon dir not found")
 
+    def exists(self):
+        return self.hwmon_path is not None
+
     def _find_hwmon_dir(self):
         matches = glob.glob(self.hwmon_dir_pattern)
         if matches:
@@ -152,9 +155,20 @@ class FanCurveIO:
             return int(filepointer.read())
 
     @staticmethod
+    def _read_file_or(file_path, default):
+        if os.path.exists(file_path):
+            return FanCurveIO._read_file(file_path)
+        return default
+
+    @staticmethod
     def _write_file(file_path, value):
         with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
             filepointer.write(str(value))
+
+    @staticmethod
+    def _write_file_or(file_path, value):
+        if os.path.exists(file_path):
+            FanCurveIO._write_file(file_path, value)
 
     def set_fan_1_speed(self, point_id, value):
         point_id = self._validate_point_id(point_id)
@@ -256,14 +270,17 @@ class FanCurveIO:
         file_path = self.hwmon_path + self.pwm1_decel.format(point_id)
         return self._read_file(file_path)
 
+    def has_minifancurve(self):
+        return self.exists() and os.path.exists(self.hwmon_path + self.minifancurve)
+
     def set_minifancuve(self, value):
         file_path = self.hwmon_path + self.minifancurve
         outvalue = 1 if value else 0
-        return self._write_file(file_path, outvalue)
+        return self._write_file_or(file_path, outvalue)
 
     def get_minifancuve(self):
         file_path = self.hwmon_path + self.minifancurve
-        invalue = self._read_file(file_path)
+        invalue = self._read_file_or(file_path, False)
         return invalue != 0
 
     def write_fan_curve(self, fan_curve: FanCurve):
@@ -358,6 +375,9 @@ class LegionModelFacade:
         self.fn_lock = FnLockFeature()
         self.touchpad = TouchpadFeature()
 
+    @staticmethod
+    def is_root_user():
+        return os.geteuid() == 0
 
     def set_lockfancontroller(self, value):
         self.lockfancontroller.set(value)

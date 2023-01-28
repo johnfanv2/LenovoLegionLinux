@@ -5,7 +5,7 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QAction
+    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox
 from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature
 
 
@@ -36,39 +36,46 @@ class LegionController:
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
         self.view_fancurve = None
         self.view_otheroptions = None
+        self.main_window = None
 
     def init(self, read_from_hw=True):
         if read_from_hw:
             self.model.read_fancurve_from_hw()
             # fan controller
-            sync_checkbox_from_feature(
-                self.view_fancurve.lockfancontroller_check, self.model.lockfancontroller)
-            sync_checkbox_from_feature(
-                self.view_otheroptions.batteryconservation_check, self.model.battery_conservation)
-            sync_checkbox_from_feature(
-                self.view_otheroptions.fnlock_check, self.model.fn_lock)
-            sync_checkbox_from_feature(
-                self.view_otheroptions.touchpad_check, self.model.touchpad)
-            sync_checkbox_from_feature(
-                self.view_fancurve.maximumfanspeed_check, self.model.maximum_fanspeed)
-        self.view_fancurve.set_fancurve(self.model.fan_curve)
+        sync_checkbox_from_feature(
+            self.view_fancurve.lockfancontroller_check, self.model.lockfancontroller)
+        sync_checkbox_from_feature(
+            self.view_otheroptions.batteryconservation_check, self.model.battery_conservation)
+        sync_checkbox_from_feature(
+            self.view_otheroptions.fnlock_check, self.model.fn_lock)
+        sync_checkbox_from_feature(
+            self.view_otheroptions.touchpad_check, self.model.touchpad)
+        sync_checkbox_from_feature(
+            self.view_fancurve.maximumfanspeed_check, self.model.maximum_fanspeed)
+        self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
+        self.main_window.show_root_dialog = not self.model.is_root_user()
+
+    def update_fancurve_gui(self):
+        self.view_fancurve.set_fancurve(self.model.fan_curve,
+                                        self.model.fancurve_io.has_minifancurve(),
+                                        self.model.fancurve_io.exists())
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
-        self.view_fancurve.set_fancurve(self.model.fan_curve)
+        self.update_fancurve_gui()
 
     def on_write_fan_curve_to_hw(self):
         self.model.fan_curve = self.view_fancurve.get_fancurve()
         self.model.write_fancurve_to_hw()
         self.model.read_fancurve_from_hw()
-        self.view_fancurve.set_fancurve(self.model.fan_curve)
+        self.update_fancurve_gui()
 
     def on_load_from_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
         self.model.fan_curve = self.view_fancurve.get_fancurve()
         self.model.load_fancurve_from_preset(name)
-        self.view_fancurve.set_fancurve(self.model.fan_curve)
+        self.update_fancurve_gui()
 
     def on_save_to_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
@@ -134,6 +141,18 @@ class FanCurveEntryView():
         self.accel_edit.setText(str(entry.acceleration))
         self.decel_edit.setText(str(entry.deceleration))
 
+    def set_disabled(self, value: bool):
+        self.fan_speed1_edit.setDisabled(value)
+        self.fan_speed2_edit.setDisabled(value)
+        self.cpu_lower_temp_edit.setDisabled(value)
+        self.cpu_upper_temp_edit.setDisabled(value)
+        self.gpu_lower_temp_edit.setDisabled(value)
+        self.gpu_upper_temp_edit.setDisabled(value)
+        self.ic_lower_temp_edit.setDisabled(value)
+        self.ic_upper_temp_edit.setDisabled(value)
+        self.accel_edit.setDisabled(value)
+        self.decel_edit.setDisabled(value)
+
     def get(self) -> FanCurveEntry:
         fan1_speed = int(self.fan_speed1_edit.text())
         fan2_speed = int(self.fan_speed2_edit.text())
@@ -162,7 +181,14 @@ class FanCurveTab(QWidget):
 
         self.controller.view_fancurve = self
 
-    def set_fancurve(self, fancurve: FanCurve):
+    def set_fancurve(self, fancurve: FanCurve, has_minifancurve: bool, enabled: bool):
+        self.minfancurve_check.setDisabled(not has_minifancurve)
+        for i, entry in enumerate(fancurve.entries):
+            self.entry_edits[i].set(entry)
+            self.entry_edits[i].set_disabled(not enabled)
+        self.load_button.setDisabled(not enabled)
+        self.write_button.setDisabled(not enabled)
+
         for i, entry in enumerate(fancurve.entries):
             self.entry_edits[i].set(entry)
         self.minfancurve_check.setChecked(fancurve.enable_minifancurve)
@@ -204,7 +230,7 @@ class FanCurveTab(QWidget):
         self.lockfancontroller_check.clicked.connect(
             self.controller.on_lockfancontroller)
         self.maximumfanspeed_check = QCheckBox(
-            "Maximum fan speed")
+            "Set speed to maximum fan speed")
         self.maximumfanspeed_check.clicked.connect(
             self.controller.on_maximumfanspeed)
         self.layout.addWidget(self.point_id_label, 0, 0)
@@ -231,7 +257,7 @@ class FanCurveTab(QWidget):
         self.load_button = QPushButton("Read from HW")
         self.write_button = QPushButton("Apply to HW")
         self.note_label = QLabel(
-            "Fan curve is reset to default if you toggle power mode (Fn + Q)")
+            "Fan curve is reset to default if you toggle power mode (Fn + Q).")
         self.load_button.clicked.connect(
             self.controller.on_read_fan_curve_from_hw)
         self.write_button.clicked.connect(
@@ -255,10 +281,16 @@ class FanCurveTab(QWidget):
         self.button2_layout.addWidget(self.save_to_preset_button, 1, 0)
         self.button2_layout.addWidget(self.load_from_preset_button, 1, 1)
 
-        self.main_layout = QGridLayout()
-        self.main_layout.addWidget(self.button1_group, 1, 0)
-        self.main_layout.addWidget(self.button2_group, 2, 0)
-        self.main_layout.addWidget(self.fancurve_group, 0, 0)
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.fancurve_group, 0)
+        self.main_layout.addWidget(self.button1_group, 1)
+        self.main_layout.addWidget(self.button2_group, 2)
+
+        self.note_label2 = QLabel(
+            "Greyed out Features are not available. If most features are greyed out, "
+            "the driver is not loaded properly or hwmon directoy not found.")
+        self.note_label2.setStyleSheet("color: red;")
+        self.main_layout.addWidget(self.note_label2, 3)
 
         self.setLayout(self.main_layout)
 
@@ -313,9 +345,13 @@ class AboutTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
+
+
 class MainWindow(QTabWidget):
     def __init__(self, controller):
         super().__init__()
+        self.controller = controller
+        self.controller.main_window = self
         self.fan_curve_tab = FanCurveTab(controller)
         self.other_options_tab = OtherOptionsTab(controller)
         self.about_tab = AboutTab()
@@ -323,6 +359,14 @@ class MainWindow(QTabWidget):
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.other_options_tab, "Other Options")
         self.addTab(self.about_tab, "About")
+        self.show_root_dialog = False
+        self.onstart_timer = QtCore.QTimer()
+        self.onstart_timer.singleShot(0, self.on_start)
+
+    def on_start(self):
+        if self.show_root_dialog:
+            QMessageBox.critical(
+                self, "Error", "Program must be run as root user!")
 
     def close_after(self, milliseconds: int):
         self.close_timer.timeout.connect(self.close)
@@ -332,7 +376,7 @@ class MainWindow(QTabWidget):
 def main():
     app = QApplication(sys.argv)
     automatic_close = '--automaticclose' in sys.argv
-    do_not_excpect_hwmon = '--donotexpecthwmon' in sys.argv
+    do_not_excpect_hwmon = True
 
     icon = QtGui.QIcon(os.path.join(
         os.path.realpath(__file__), 'legion_logo.png'))
