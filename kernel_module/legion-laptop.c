@@ -213,6 +213,8 @@ struct ec_register_offsets {
 	u16 MINIFANCURVE_ON_COOL;
 	u16 LOCKFANCONTROLLER;
 	u16 MAXIMUMFANSPEED;
+
+	u16 WHITE_KEYBOARD_BACKLIGHT;
 };
 
 enum ECRAM_ACCESS { ECRAM_ACCESS_PORTIO, ECRAM_ACCESS_MEMORYIO };
@@ -238,6 +240,9 @@ struct model_config {
 	phys_addr_t memoryio_physical_start;
 	phys_addr_t memoryio_physical_ec_start;
 	size_t memoryio_size;
+
+	// TODO: maybe use bitfield
+	bool has_minifancurve;
 };
 
 /* =================================== */
@@ -405,7 +410,9 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 
 	//enabled: 0x40
 	//disabled: 0x00
-	.MAXIMUMFANSPEED = 0xBD
+	.MAXIMUMFANSPEED = 0xBD,
+
+	.WHITE_KEYBOARD_BACKLIGHT = (0x3B+0xC400)
 };
 
 static const struct model_config model_v0 = {
@@ -416,7 +423,20 @@ static const struct model_config model_v0 = {
 	.ecram_access_method = ECRAM_ACCESS_PORTIO,
 	.memoryio_physical_start = 0xFE00D400,
 	.memoryio_physical_ec_start = 0xC400,
-	.memoryio_size = 0x300
+	.memoryio_size = 0x300,
+	.has_minifancurve = true
+};
+
+static const struct model_config model_kfcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.access_method = CONTROL_METHOD_ECRAM,
+	.ecram_access_method = ECRAM_ACCESS_PORTIO,
+	.memoryio_physical_start = 0xFE00D400,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false
 };
 
 static const struct model_config model_hacn = {
@@ -427,7 +447,8 @@ static const struct model_config model_hacn = {
 	.ecram_access_method = ECRAM_ACCESS_MEMORYIO,
 	.memoryio_physical_start = 0xFE00D400,
 	.memoryio_physical_ec_start = 0xC400,
-	.memoryio_size = 0x300
+	.memoryio_size = 0x300,
+	.has_minifancurve = false
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -515,7 +536,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "KFCN"),
 		},
-		.driver_data = (void *)&model_v0
+		.driver_data = (void *)&model_kfcn
 	},
 	{
 		// modelyear: 2021
@@ -1073,6 +1094,41 @@ ssize_t write_minifancurve(struct ecram *ecram,
 	return 0;
 }
 
+
+#define KEYBOARD_BACKLIGHT_OFF 18
+#define KEYBOARD_BACKLIGHT_ON1 21
+#define KEYBOARD_BACKLIGHT_ON2 23
+
+int read_keyboard_backlight(struct ecram *ecram, const struct model_config *model,
+		      int *state)
+{
+	int value = ecram_read(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT);
+
+	// switch (value) {
+	// case MINIFANCUVE_ON_COOL_ON:
+	// 	*state = true;
+	// 	break;
+	// case MINIFANCUVE_ON_COOL_OFF:
+	// 	*state = false;
+	// 	break;
+	// default:
+	// 	pr_info("Unexpected value in MINIFANCURVE register:%d\n",
+	// 		value);
+	// 	return -1;
+	// }
+	*state = value;
+	return 0;
+}
+
+ssize_t write_keyboard_backlight(struct ecram *ecram,
+			   const struct model_config *model, int state)
+{
+	u8 val = state > 0 ? KEYBOARD_BACKLIGHT_ON1 : KEYBOARD_BACKLIGHT_OFF;
+
+	ecram_write(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT, val);
+	return 0;
+}
+
 /* ============================= */
 /* Data model for fan curve      */
 /* ============================  */
@@ -1513,9 +1569,6 @@ struct legion_private {
 	struct device *hwmon_dev;
 	struct platform_profile_handler platform_profile_handler;
 
-	// EC enables mini fancurve if long enough on low temp
-	bool has_minifancurve_on_cool;
-
 	// TODO: remove?
 	bool loaded;
 };
@@ -1594,6 +1647,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
+	seq_printf(s, "minifancurve feature enabled: %d\n", priv->conf->has_minifancurve);
 	err = read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
 	seq_printf(s, "minifancurve on cool: %s\n",
 		   err ? "error" : (is_minifancurve ? "true" : "false"));
@@ -1735,8 +1789,41 @@ static ssize_t lockfancontroller_store(struct device *dev,
 
 static DEVICE_ATTR_RW(lockfancontroller);
 
+
+static ssize_t keyboard_backlight_show(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	int state;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	read_keyboard_backlight(&priv->ecram, priv->conf, &state);
+	return sysfs_emit(buf, "%d\n", state);
+}
+
+static ssize_t keyboard_backlight_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int state;
+	int err;
+
+	err = kstrtouint(buf, 0, &state);
+	if (err)
+		return err;
+
+	err = write_keyboard_backlight(&priv->ecram, priv->conf, state);
+	if (err)
+		return -EINVAL;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(keyboard_backlight);
+
 static struct attribute *legion_sysfs_attributes[] = {
-	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr, NULL
+	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr, 
+	&dev_attr_keyboard_backlight.attr, NULL
 };
 
 static const struct attribute_group legion_attribute_group = {
@@ -2725,14 +2812,28 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
 };
 
+static umode_t legion_is_visible(struct kobject *kobj,
+				  struct attribute *attr,
+				  int idx)
+{
+	bool supported = true;
+	struct device *dev = kobj_to_dev(kobj);
+	struct legion_private *priv = dev_get_drvdata(dev);
+	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
+		supported = priv->conf->has_minifancurve;
+
+	return supported ? attr->mode : 0;
+}
+
+
 static const struct attribute_group legion_hwmon_sensor_group = {
 	.attrs = sensor_hwmon_attributes,
-	.is_visible = NULL // use modes from attributes
+	.is_visible = NULL 
 };
 
 static const struct attribute_group legion_hwmon_fancurve_group = {
 	.attrs = fancurve_hwmon_attributes,
-	.is_visible = NULL // use modes from attributes
+	.is_visible = legion_is_visible,
 };
 
 static const struct attribute_group *legion_hwmon_groups[] = {
@@ -2748,7 +2849,7 @@ ssize_t legion_hwmon_init(struct legion_private *priv)
 	// TODO: Use devm_hwmon_device_register_with_groups ?
 	// some laptop drivers use this, some
 	struct device *hwmon_dev = hwmon_device_register_with_groups(
-		&priv->platform_device->dev, "legion_hwmon", NULL,
+		&priv->platform_device->dev, "legion_hwmon", priv,
 		legion_hwmon_groups);
 	if (IS_ERR_OR_NULL(hwmon_dev)) {
 		pr_err("hwmon_device_register failed!\n");
