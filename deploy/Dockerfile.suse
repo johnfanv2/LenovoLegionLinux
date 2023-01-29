@@ -1,4 +1,4 @@
-FROM opensuse/tumbleweed
+FROM opensuse/tumbleweed:latest
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install sudo (used in scripts that are tested)

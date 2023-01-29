@@ -60,7 +60,7 @@ It allows to control a few features like fan curve and power mode.
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed.
 - Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors, fan curve
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
-- Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW): sensors, fan curve, power profile
+- Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
@@ -95,12 +95,12 @@ You will need to install the following to download and build it. If there is an 
 **Ubuntu/Debian/Pop!_OS/Mint/elementary OS/Zorin**
 ```bash
 sudo apt-get update
-sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt5 python3-yaml python3-venv python3-pip
+sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt5 python3-yaml python3-venv python3-pip python3-argcomplete
 ```
 
 **RHEL/CentOS/RockyLinux/Fedora/AlmaLinux**
 ```bash
-sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors PyQt5 python3-yaml python3-pip
+sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors PyQt5 python3-yaml python3-pip python3-argcomplete
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
 ```
@@ -109,14 +109,14 @@ Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum upd
 
 **openSUSE**
 ```bash
-sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode python3-qt5 python3-pip python3-PyYAML
+sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode python3-qt5 python3-pip python3-PyYAML python3-argcomplete
 ```
 *Note:* Check for the correct Header package.
 
 
 **Arch/Manjaro/EndeavourOS**
 ```bash
-sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml
+sudo pacman -S --noconfirm linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete
 ```
 *Note:* Check for the correct Header package.
 

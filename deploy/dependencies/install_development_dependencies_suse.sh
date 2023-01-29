@@ -2,6 +2,8 @@
 set -ex
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+# refresh, otherwise sometimes we get "digest failure" because mirror/version changed from last time
+sudo zypper refresh 
 
 # Linter
 # Tools for running GUI tests headless
