@@ -8,6 +8,7 @@
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 
 ---
+**This project is not affiliated with Lenovo in any way**
 
 LenovoLegionLinux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
@@ -62,6 +63,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
+- Lenovo Legion 5 15ARH05 (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
@@ -72,12 +74,11 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 
 ## :warning: Disclaimer
 
-- **The tool comes with no warranty. Use at your own risk.**
-- **currently comes without a UI; command line and script only.**
+- **the tool comes with no warranty. Use at your own risk.**
 - **this project is not affiliated with Lenovo in any way.**
 - this is a small hobby project; please be patient and read through this readme carefully before you ask for support
 - if your Lenovo Legion laptop is not supported and you are ready to perform some tests please notify me
-- this is a Linux only tool and will probably also not run in WSL; for Windows use one of the available Windows tools
+- this is a Linux only tool and will probably not run in WSL; for Windows use one of the available Windows tools
     - [LenovoLegionToolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit)
     - [LegionFanControl](https://www.legionfancontrol.com/) 
 
@@ -591,6 +592,13 @@ You can change the fan curve and minimal fan speed that are programmed into the 
 - level 3: minimal fan speed level 3
 
 also see: https://forums.lenovo.com/t5/Gaming-Laptops/Legion-7-Bios-What-is-advanced-thermal-optimization/m-p/5079357?clickid=xtRyKHRPaxyNR1ay4ywCuSBLUkA1nmX5DzV4UU0&irgwc=1&PID=121977&acid=ww%3Aaffiliate%3Abv0as6&cid=us%3Aaffiliate%3Acxsaam
+
+### I do not use GNOME (or Ubuntu). How do I get a nice applet for changing the power mode?
+The power mode can be changed with Fn+Q. Additionally, this driver makes it available to default tools like power-profiles-daemon. A graphical
+ GNOME applet uses power-profiles-daemon to change the power mode by software. It is not provided by this tool, but is a standard tool already integrated into GNOME. For KDE there is the graphical tool powerdevil, which also uses power-profiles-daemon internally. If you just want to change it by software and do not need a GUI, you could use the commandline (see README).
+
+Maybe power-profiles-daemon or this applet need to be installed first. To test that it works in principal, you try changing with the CLI, see "Powermode -> Modify with CLI" in the README. If this works, than the rest is just a matter of the (KDE/GNOME/...) applet.
+
 
 ## :question: Open Questions
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
