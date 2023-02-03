@@ -14,3 +14,4 @@ sudo cp legion_gui.desktop /usr/share/applications/
 sudo mkdir -p /usr/share/icons/
 sudo cp legion_logo.png /usr/share/icons/legion_logo.png
 
+sudo cp legion_gui.policy /usr/share/polkit-1/actions/
