@@ -68,6 +68,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve (no minifancurve), power profile
+- Lenovo Legion 5 Pro 16ITH6 (BIOS H1CN52WW (there was an error in CPU temp with H1CN51WW)): sensors, fan curve, power profiles
 
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
@@ -117,7 +118,7 @@ sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-de
 
 **Arch/Manjaro/EndeavourOS**
 ```bash
-sudo pacman -S --noconfirm linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete
+sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete
 ```
 *Note:* Check for the correct Header package.
 
@@ -559,6 +560,11 @@ Maybe there was a problem during the BIOS update. Downgrade to a older version a
 
 ### How to do a BIOS upgrade or reset to fix a problem?
 The easiest way is to downgrade to a older version and then upgrade to the current version again. Also test it with the old version.
+You can also just try reset the embedded controller with:
+- shutdown laptop, unplug everything (charger, USB, ...)
+- press AND HOLD power button for 60 seconds; keep holding even if the it turns on
+- after 60 seconds release power button
+- press power button shortly to turn laptop on
 
 
 ### What does quiet, balanced, or performance mode do?
