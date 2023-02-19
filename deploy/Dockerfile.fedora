@@ -40,3 +40,4 @@ RUN deploy/build_python.sh || true
 
 RUN tests/test_python_cli.sh && \
     tests/test_python_gui.sh
+RUN tests/test_run_gui_root.sh
