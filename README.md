@@ -145,7 +145,7 @@ After successfully building and testing (see below), run from the folder `Lenovo
 make
 sudo make install
 ```
-**You must recompile and reinstall it again with above commands after each kernel update, as usual for external kernel modules,**
+**You must recompile and reinstall it again with above commands after each kernel update, as usual for external kernel modules.**
 I want to get it merged into the mainline Linux kernel, so this is not needed anymore. So please star this repository :)
 
 
