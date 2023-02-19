@@ -558,7 +558,7 @@ See above.
 ### After a BIOS update something, e.g. with the fans, does not work anymore?
 Maybe there was a problem during the BIOS update. Downgrade to a older version again. Then test it with the old version. Then do the BIOS upgrade again and check with the version.
 
-### How to do a BIOS upgrade or reset to fix a problem?
+### How to do a BIOS upgrade or reset the embedded controller to fix a problem?
 The easiest way is to downgrade to a older version and then upgrade to the current version again. Also test it with the old version.
 You can also just try reset the embedded controller with:
 - shutdown laptop, unplug everything (charger, USB, ...)
@@ -604,6 +604,10 @@ The power mode can be changed with Fn+Q. Additionally, this driver makes it avai
  GNOME applet uses power-profiles-daemon to change the power mode by software. It is not provided by this tool, but is a standard tool already integrated into GNOME. For KDE there is the graphical tool powerdevil, which also uses power-profiles-daemon internally. If you just want to change it by software and do not need a GUI, you could use the commandline (see README).
 
 Maybe power-profiles-daemon or this applet need to be installed first. To test that it works in principal, you try changing with the CLI, see "Powermode -> Modify with CLI" in the README. If this works, than the rest is just a matter of the (KDE/GNOME/...) applet.
+
+
+### It almost works, but (some) temperature sensor/chaning point in fan control/ (some) fan speed is not working. What should I do?
+First, try to reset the embedded controller (see above) or do a BIOS update (even downgrade/upgrade possible) to reset everything.
 
 
 ## :question: Open Questions
