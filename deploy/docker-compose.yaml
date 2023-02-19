@@ -4,6 +4,12 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.arch
+  legion-manjaro:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.arch
+      args:
+        - "BASE_IMAGE=manjarolinux/base"
   legion-fedora:
     build:
       context: ..

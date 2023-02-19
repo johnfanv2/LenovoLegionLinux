@@ -1,4 +1,5 @@
-FROM archlinux:latest
+ARG BASE_IMAGE=archlinux:latest
+FROM $BASE_IMAGE
 RUN pacman -Syu --noconfirm
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -34,3 +35,4 @@ RUN deploy/build_python.sh || true
 
 RUN tests/test_python_cli.sh && \
     tests/test_python_gui.sh
+RUN tests/test_run_gui_root.sh
