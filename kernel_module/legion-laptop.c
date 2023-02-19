@@ -547,6 +547,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_hacn
 	},
+	{
+		// modelyear: 2021
+		.ident = "G9CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "G9CN"),
+		},
+		.driver_data = (void *)&model_v0
+	},
 	{}
 };
 
