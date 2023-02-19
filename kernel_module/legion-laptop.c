@@ -412,7 +412,7 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	//disabled: 0x00
 	.MAXIMUMFANSPEED = 0xBD,
 
-	.WHITE_KEYBOARD_BACKLIGHT = (0x3B+0xC400)
+	.WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
 };
 
 static const struct model_config model_v0 = {
@@ -561,6 +561,48 @@ static const struct dmi_system_id explicit_allowlist[] = {
 	},
 	{}
 };
+
+/* ================================= */
+/* ACPI access                       */
+/* ================================= */
+
+// function from ideapad-laptop.c
+static int eval_int(acpi_handle handle, const char *name, unsigned long *res)
+{
+	unsigned long long result;
+	acpi_status status;
+
+	status = acpi_evaluate_integer(handle, (char *)name, NULL, &result);
+	if (ACPI_FAILURE(status))
+		return -EIO;
+
+	*res = result;
+
+	return 0;
+}
+
+// function from ideapad-laptop.c
+static int exec_simple_method(acpi_handle handle, const char *name,
+			      unsigned long arg)
+{
+	acpi_status status =
+		acpi_execute_simple_method(handle, (char *)name, arg);
+
+	return ACPI_FAILURE(status) ? -EIO : 0;
+}
+
+// function from ideapad-laptop.c
+static int exec_sbmc(acpi_handle handle, unsigned long arg)
+{
+	// \_SB.PCI0.LPC0.EC0.VPC0.SBMC
+	return exec_simple_method(handle, "SBMC", arg);
+}
+
+static int eval_qcho(acpi_handle handle, unsigned long *res)
+{
+	// \_SB.PCI0.LPC0.EC0.QCHO
+	return eval_int(handle, "QCHO", res);
+}
 
 /* ================================= */
 /* EC RAM Access with port-mapped IO */
@@ -725,7 +767,8 @@ struct ecram_memoryio {
  * strong exception safety
  */
 ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
-			    phys_addr_t physical_start, phys_addr_t physical_ec_start, size_t size)
+			    phys_addr_t physical_start,
+			    phys_addr_t physical_ec_start, size_t size)
 {
 	void *virtual_start = ioremap(physical_start, size);
 
@@ -771,7 +814,8 @@ ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 			ec_offset);
 		return -1;
 	}
-	*value = *(ec_memoryio->virtual_start + (ec_offset - ec_memoryio->physical_ec_start));
+	*value = *(ec_memoryio->virtual_start +
+		   (ec_offset - ec_memoryio->physical_ec_start));
 	return 0;
 }
 
@@ -783,12 +827,13 @@ ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
 			     u16 ec_offset, u8 value)
 {
-	if (ec_offset <  ec_memoryio->physical_ec_start) {
+	if (ec_offset < ec_memoryio->physical_ec_start) {
 		pr_info("Unexpected write at offset %d into EC RAM\n",
 			ec_offset);
 		return -1;
 	}
-	*(ec_memoryio->virtual_start + (ec_offset -  ec_memoryio->physical_ec_start)) = value;
+	*(ec_memoryio->virtual_start +
+	  (ec_offset - ec_memoryio->physical_ec_start)) = value;
 	return 0;
 }
 
@@ -803,12 +848,13 @@ struct ecram {
 };
 
 ssize_t ecram_init(struct ecram *ecram, enum ECRAM_ACCESS access_method,
-		   phys_addr_t memoryio_physical_start, phys_addr_t memoryio_ec_physical_start, size_t region_size)
+		   phys_addr_t memoryio_physical_start,
+		   phys_addr_t memoryio_ec_physical_start, size_t region_size)
 {
 	ssize_t err;
 
 	err = ecram_memoryio_init(&ecram->memoryio, memoryio_physical_start,
-				memoryio_ec_physical_start, region_size);
+				  memoryio_ec_physical_start, region_size);
 	if (err) {
 		pr_info("Failed ecram_memoryio_init\n");
 		goto err_ecram_memoryio_init;
@@ -1094,39 +1140,64 @@ ssize_t write_minifancurve(struct ecram *ecram,
 	return 0;
 }
 
-
 #define KEYBOARD_BACKLIGHT_OFF 18
 #define KEYBOARD_BACKLIGHT_ON1 21
 #define KEYBOARD_BACKLIGHT_ON2 23
 
-int read_keyboard_backlight(struct ecram *ecram, const struct model_config *model,
-		      int *state)
+int read_keyboard_backlight(struct ecram *ecram,
+			    const struct model_config *model, int *state)
 {
-	int value = ecram_read(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT);
+	int value =
+		ecram_read(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT);
 
-	// switch (value) {
-	// case MINIFANCUVE_ON_COOL_ON:
-	// 	*state = true;
-	// 	break;
-	// case MINIFANCUVE_ON_COOL_OFF:
-	// 	*state = false;
-	// 	break;
-	// default:
-	// 	pr_info("Unexpected value in MINIFANCURVE register:%d\n",
-	// 		value);
-	// 	return -1;
-	// }
+	//switch (value) {
+	//case MINIFANCUVE_ON_COOL_ON:
+	//	*state = true;
+	//	break;
+	//case MINIFANCUVE_ON_COOL_OFF:
+	//	*state = false;
+	//	break;
+	//default:
+	//	pr_info("Unexpected value in MINIFANCURVE register:%d\n",
+	//		value);
+	//	return -1;
+	//}
 	*state = value;
 	return 0;
 }
 
-ssize_t write_keyboard_backlight(struct ecram *ecram,
-			   const struct model_config *model, int state)
+int write_keyboard_backlight(struct ecram *ecram,
+			     const struct model_config *model, int state)
 {
 	u8 val = state > 0 ? KEYBOARD_BACKLIGHT_ON1 : KEYBOARD_BACKLIGHT_OFF;
 
 	ecram_write(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT, val);
 	return 0;
+}
+
+#define FCT_RAPID_CHARGE_ON 0x07
+#define FCT_RAPID_CHARGE_OFF 0x08
+#define RAPID_CHARGE_ON 0x0
+#define RAPID_CHARGE_OFF 0x1
+
+int read_rapidcharge(acpi_handle acpihandle, int *state)
+{
+	unsigned long result;
+	int err;
+
+	err = eval_qcho(acpihandle, &result);
+	if (err)
+		return err;
+
+	*state = result;
+	return 0;
+}
+
+int write_rapidcharge(acpi_handle acpihandle, bool state)
+{
+	unsigned long fct_nr = state > 0 ? FCT_RAPID_CHARGE_ON :
+					   FCT_RAPID_CHARGE_OFF;
+	return exec_sbmc(acpihandle, fct_nr);
 }
 
 /* ============================= */
@@ -1621,7 +1692,9 @@ static int debugfs_ecmemory_show(struct seq_file *s, void *unused)
 	size_t offset;
 
 	for (offset = 0; offset < priv->conf->memoryio_size; ++offset) {
-		char value = ecram_read(&priv->ecram, priv->conf->memoryio_physical_ec_start + offset);
+		char value = ecram_read(&priv->ecram,
+					priv->conf->memoryio_physical_ec_start +
+						offset);
 
 		seq_write(s, &value, 1);
 	}
@@ -1647,7 +1720,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
-	seq_printf(s, "minifancurve feature enabled: %d\n", priv->conf->has_minifancurve);
+	seq_printf(s, "minifancurve feature enabled: %d\n",
+		   priv->conf->has_minifancurve);
 	err = read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
 	seq_printf(s, "minifancurve on cool: %s\n",
 		   err ? "error" : (is_minifancurve ? "true" : "false"));
@@ -1789,9 +1863,8 @@ static ssize_t lockfancontroller_store(struct device *dev,
 
 static DEVICE_ATTR_RW(lockfancontroller);
 
-
-static ssize_t keyboard_backlight_show(struct device *dev, struct device_attribute *attr,
-			      char *buf)
+static ssize_t keyboard_backlight_show(struct device *dev,
+				       struct device_attribute *attr, char *buf)
 {
 	int state;
 	struct legion_private *priv = dev_get_drvdata(dev);
@@ -1801,8 +1874,8 @@ static ssize_t keyboard_backlight_show(struct device *dev, struct device_attribu
 }
 
 static ssize_t keyboard_backlight_store(struct device *dev,
-			       struct device_attribute *attr, const char *buf,
-			       size_t count)
+					struct device_attribute *attr,
+					const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int state;
@@ -1822,7 +1895,7 @@ static ssize_t keyboard_backlight_store(struct device *dev,
 static DEVICE_ATTR_RW(keyboard_backlight);
 
 static struct attribute *legion_sysfs_attributes[] = {
-	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr, 
+	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr,
 	&dev_attr_keyboard_backlight.attr, NULL
 };
 
@@ -2812,23 +2885,22 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
 };
 
-static umode_t legion_is_visible(struct kobject *kobj,
-				  struct attribute *attr,
-				  int idx)
+static umode_t legion_is_visible(struct kobject *kobj, struct attribute *attr,
+				 int idx)
 {
 	bool supported = true;
 	struct device *dev = kobj_to_dev(kobj);
 	struct legion_private *priv = dev_get_drvdata(dev);
+
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;
 
 	return supported ? attr->mode : 0;
 }
 
-
 static const struct attribute_group legion_hwmon_sensor_group = {
 	.attrs = sensor_hwmon_attributes,
-	.is_visible = NULL 
+	.is_visible = NULL
 };
 
 static const struct attribute_group legion_hwmon_fancurve_group = {
