@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import sys
 import os.path
+import time
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
@@ -22,6 +23,7 @@ def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
     if feature.exists():
         gui_value = checkbox.isChecked()
         feature.set(gui_value)
+        time.sleep(0.100)
         hw_value = feature.get()
         checkbox.setChecked(hw_value)
         checkbox.setDisabled(False)
@@ -100,6 +102,9 @@ class LegionController:
     def on_touchpad_check(self):
         sync_checkbox(self.view_otheroptions.touchpad_check,
                       self.model.touchpad)
+        
+    def on_always_on_usb(self):
+        sync_checkbox(self.view_otheroptions.on_always_on_usb_check, self.model.always_on_usb_charging)
 
 
 class FanCurveEntryView():
@@ -324,6 +329,12 @@ class OtherOptionsTab(QWidget):
         self.touchpad_check.clicked.connect(
             self.controller.on_touchpad_check)
         self.options_layout.addWidget(self.touchpad_check, 2)
+
+        self.on_always_on_usb_check = QCheckBox(
+            "AlwaysOnUsbCharging")
+        self.on_always_on_usb_check.clicked.connect(
+            self.controller.on_always_on_usb)
+        self.options_layout.addWidget(self.on_always_on_usb_check, 3)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)
