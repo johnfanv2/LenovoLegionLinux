@@ -1,6 +1,6 @@
 <img height="50" align="left" src="assets/headerlogo.png" alt="HeaderLogo">
 
-# LenovoLegionLinux
+# Lenovo Legion Linux
 
 [![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml)
 [![Join Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
@@ -10,7 +10,7 @@
 ---
 **This project is not affiliated with Lenovo in any way**
 
-LenovoLegionLinux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
+Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
 It allows to control a few features like fan curve and power mode.
@@ -62,6 +62,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors, fan curve
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
+- Legion 5 Pro 16ACH6H (AMD 5800H + Nvidia RTX 3070): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ARH05 (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
@@ -572,18 +573,18 @@ You can also just try reset the embedded controller with:
 
 
 ### What does quiet, balanced, or performance mode do?
-You can switch the mode by pressing Fn + Q and it will change the mode in the firmware and the color of the LED, even without any driver support (= without LenovoLegionLinux).
+You can switch the mode by pressing Fn + Q and it will change the mode in the firmware and the color of the LED, even without any driver support (= without Lenovo Legion Linux).
 
-Changing mode without LenovoLegionLinux is purely implemented in hardware:
+Changing mode without Lenovo Legion Linux is purely implemented in hardware:
 - color of LED changes
 - fan curve in embedded controller changes
 - other purely hardware configs might also change, but I have not observed one
 - as far as I know, power saving or performance of CPU does not change, as this is controlled by kernel or tools like cpupower
-- without LenovoLegionLinux the kernel or other system tools will not know that you have changed the mode
+- without Lenovo Legion Linux the kernel or other system tools will not know that you have changed the mode
 
-Changing mode with LenovoLegionLinux:
+Changing mode with Lenovo Legion Linux:
 - it changes all of the above 
-- additionally the driver in LenovoLegionLinux makes this information available to the kernel and other services like the Power Profiles daemon; these can, if configured, change the performance of the CPU or GPU
+- additionally the driver in Lenovo Legion Linux makes this information available to the kernel and other services like the Power Profiles daemon; these can, if configured, change the performance of the CPU or GPU
 
 In Windows it is similar: Changing the power mode is reported to the system or tools like Vantage which change the power plan.
 
