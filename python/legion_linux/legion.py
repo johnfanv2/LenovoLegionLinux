@@ -57,9 +57,13 @@ class FileFeature:
         self.filename = FileFeature._find_by_file_pattern(pattern)
 
     @staticmethod
-    def _read_file(file_path):
+    def _read_file_str(file_path) -> str:
         with open(file_path, "r", encoding=DEFAULT_ENCODING) as filepointer:
-            return int(filepointer.read())
+            return str(filepointer.read()).strip()
+
+    @staticmethod
+    def _read_file_int(file_path) -> int:
+        return int(FileFeature._read_file_str(file_path))
 
     @staticmethod
     def _write_file(file_path, value):
@@ -81,7 +85,7 @@ class FileFeature:
         return self._write_file(self.filename, outvalue)
 
     def get(self):
-        invalue = self._read_file(self.filename)
+        invalue = self._read_file_int(self.filename)
         return invalue != 0
 
 class LockFanController(FileFeature):
@@ -100,6 +104,20 @@ class TouchpadFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/touchpad")
 
+class CameraPowerFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/camera_power")
+
+class AlwaysOnUSBChargingFeature(FileFeature):
+    '''Always on USB Charging of external devices on while laptop is off'''
+    def __init__(self):
+        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/usb_charging")
+
+class RapidChargingFeature(FileFeature):
+    '''Rapid charging of laptop battery'''
+    def __init__(self):
+        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/rapid_charging")
+
 class MaximumFanSpeedFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_mode_")
@@ -109,8 +127,34 @@ class MaximumFanSpeedFeature(FileFeature):
         return self._write_file(self.filename, outvalue)
 
     def get(self):
-        invalue = self._read_file(self.filename)
+        invalue = self._read_file_int(self.filename)
         return invalue == 0
+
+class PlatformProfileFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/firmware/acpi/platform_profile")
+
+    def set(self, value):
+        outvalue = 0 if value else 2
+        return self._write_file(self.filename, outvalue)
+
+    def set(self, value:str):
+        self._write_file(value)
+
+    def get(self):
+        value = self._read_file_str(self.filename)
+        return value
+
+class IsOnPowerSupplyFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/power_supply/ADP0/online")
+
+    def set(self, value):
+        outvalue = 0 if value else 2
+        return self._write_file(self.filename, outvalue)
+
+    def set(self, value:str):
+        raise NotImplementedError()
 
 
 class FanCurveIO:
@@ -341,6 +385,10 @@ class FanCurveRepository:
 
         self.preset_dir = os.path.join(os.getenv("HOME"), CONFIG_FOLDER)
 
+    def get_preset_name(self, profile:str, is_on_powersupply:bool):
+        s = "ac" if is_on_powersupply else "battery"
+        preset_name = f"{profile}-{s}"
+        return preset_name
 
     def create_preset_folder(self):
         print(f"Create path {self.preset_dir}")
@@ -367,7 +415,6 @@ class FanCurveRepository:
         fancurve.save_to_file(self._name_to_filename(name))
 
 
-
 class LegionModelFacade:
     def __init__(self, expect_hwmon=True):
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
@@ -380,6 +427,11 @@ class LegionModelFacade:
         self.maximum_fanspeed = MaximumFanSpeedFeature()
         self.fn_lock = FnLockFeature()
         self.touchpad = TouchpadFeature()
+        self.platform_profile = PlatformProfileFeature()
+        self.on_power_supply = IsOnPowerSupplyFeature()
+        self.camera_power = CameraPowerFeature()
+        self.always_on_usb_charging = AlwaysOnUSBChargingFeature()
+        self.rapid_charging = RapidChargingFeature()
 
     @staticmethod
     def is_root_user():
@@ -424,3 +476,15 @@ class LegionModelFacade:
     def fancurve_write_hw_to_file(self, filename:str):
         self.read_fancurve_from_hw()
         self.fan_curve.save_to_file(filename)
+
+    def fancurve_write_preset_for_current_profile(self):
+        is_on_powersupply = self.on_power_supply.get()
+        profile = self.platform_profile.get()
+        preset_name = self.fancurve_repo.get_preset_name(profile, is_on_powersupply)
+        print(f"Loading preset={preset_name} for profile={profile} and is_powersupply={is_on_powersupply}")
+        if preset_name in self.fancurve_repo.fancurve_presets.keys():
+            fancurve = self.fancurve_repo.load_by_name_or_default(preset_name)
+            self.fancurve_io.write_fan_curve(fancurve)
+            print(fancurve)
+
+
