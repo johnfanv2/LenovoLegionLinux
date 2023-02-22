@@ -75,6 +75,10 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
 
+Currently fan control is not working. Other features, probably work:
+- Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
+- Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
+
 ## :warning: Disclaimer
 
 - **the tool comes with no warranty. Use at your own risk.**
