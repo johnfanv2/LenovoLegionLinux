@@ -58,7 +58,7 @@ It allows to control a few features like fan curve and power mode.
 
 
 ## :pushpin: Confirmed Compatible Models
-Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed.
+Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If your model is not in the list or it does not work, please raise a issue.
 - Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors, fan curve
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
@@ -72,10 +72,9 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 Pro 16ITH6 (BIOS H1CN52WW (there was an error in CPU temp with H1CN51WW)): sensors, fan curve, power profiles
 - Lenovo Legion 5 15ACH6A (BIOS G9CN30WW), all AMD variant: sensors, fan curve (with mini fan curve), power profile
 
-
 *Note:* Features that are not confirmed probably also work. They were just not tested.
 
-Currently fan control is not working. Other features, probably work:
+Currently fan control is not working for the following models. Other features, probably work:
 - Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
 
