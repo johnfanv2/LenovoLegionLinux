@@ -340,6 +340,7 @@ class FanCurveIO:
             self.set_lower_cpu_temperature(point_id, entry.cpu_lower_temp)
             self.set_upper_cpu_temperature(point_id, entry.cpu_upper_temp)
             self.set_lower_gpu_temperature(point_id, entry.gpu_lower_temp)
+            self.set_upper_gpu_temperature(point_id, entry.gpu_upper_temp)
             self.set_lower_ic_temperature(point_id, entry.ic_lower_temp)
             self.set_upper_ic_temperature(point_id, entry.ic_upper_temp)
             self.set_acceleration(point_id, entry.acceleration)
