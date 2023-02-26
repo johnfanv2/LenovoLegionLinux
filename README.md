@@ -59,7 +59,7 @@ It allows to control a few features like fan curve and power mode.
 
 ## :pushpin: Confirmed Compatible Models
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If your model is not in the list or it does not work, please raise a issue.
-- Lenovo Legion 5 15IMH05 (BIOS EFCN54WW): sensors, fan curve, power profile
+- Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
 - Legion 5 Pro 16ACH6H (AMD 5800H + Nvidia RTX 3070): sensors, fan curve, power profile
@@ -508,7 +508,12 @@ Thank you for your work on Windows tools that were the basis of the Linux suppor
 * David Woodhouse, for his work on the ideapad Linux driver [ideapad-laptop](https://github.com/torvalds/linux/blob/0ec5a38bf8499f403f81cb81a0e3a60887d1993c/drivers/platform/x86/ideapad-laptop.c), which was a heavy inspiration for this Linux driver
 
 ### Contributors to Lenovo Legion Laptop Support
-:( Nothing here yet. Please tell me if it works on your laptop.
+Thank you for your contribution for the Linux support:
+[normaneye](https://github.com/normaneye), fixing GPU temperature bug in GUI
+[Petingoso](https://github.com/Petingoso), fix script to run withou sudo
+[XenHat](https://github.com/XenHat), fix README
+
+Also please tell me if it works or does not work on your laptop.
 
 
 ## :interrobang: Frequency Asked Questions
