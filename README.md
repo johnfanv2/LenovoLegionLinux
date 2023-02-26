@@ -509,9 +509,9 @@ Thank you for your work on Windows tools that were the basis of the Linux suppor
 
 ### Contributors to Lenovo Legion Laptop Support
 Thank you for your contribution for the Linux support:
-[normaneye](https://github.com/normaneye), fixing GPU temperature bug in GUI
-[Petingoso](https://github.com/Petingoso), fix script to run withou sudo
-[XenHat](https://github.com/XenHat), fix README
+* [normaneye](https://github.com/normaneye), fixing GPU temperature bug in GUI
+* [Petingoso](https://github.com/Petingoso), fix script to run withou sudo
+* [XenHat](https://github.com/XenHat), fix README
 
 Also please tell me if it works or does not work on your laptop.
 
