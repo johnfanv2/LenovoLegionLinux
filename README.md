@@ -631,3 +631,16 @@ Please recompile/reinstall, see Permanent Install Instructions.
 ## :question: Open Questions
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
 - Can I use quiet mode for gaming?
+
+## :information_desk_person: Overview for Developers
+The software consists of two parts:
+- kernel module in folder `kernel_module`
+    - accesses embedded controller by writing to its memory
+    - creates new "files" `/sys/kernel/debug/legion/fancurve`, `/sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/powermode` , 
+        `/sys/class/hwmon/X/temp1_input`, `/sys/class/hwmon/X/pwmY_auto_pointZ_pwm`, ... that allow to 
+        read the temperatue sensors, control the fan curve, change power mode etc.
+- python package in `python`
+    - `legion.py`: model the fan curve and other objects in Python; encapsulate reading and writing to the "files" provided by the above kernel module and         other modules like ideapad_laptop; all access to anything goes through this Python module.
+    - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings
+    - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings
+
