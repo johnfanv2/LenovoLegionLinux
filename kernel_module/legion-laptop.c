@@ -451,6 +451,21 @@ static const struct model_config model_hacn = {
 	.has_minifancurve = false
 };
 
+
+static const struct model_config model_k9cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = false,
+	.embedded_controller_id = 0x8227,
+	.access_method = CONTROL_METHOD_ECRAM,
+	.ecram_access_method = ECRAM_ACCESS_MEMORYIO,
+	.memoryio_physical_start = 0xFE0B0400,
+	.memoryio_physical_ec_start = 0xC400, // or replace 0xC400 by 0x0400  ?
+	.memoryio_size = 0x300,
+	.has_minifancurve = false
+};
+
+
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -555,6 +570,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "G9CN"),
 		},
 		.driver_data = (void *)&model_v0
+	},
+	{
+		// modelyear: 2022
+		.ident = "K9CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "K9CN"),
+		},
+		.driver_data = (void *)&model_k9cn
 	},
 	{}
 };
