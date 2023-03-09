@@ -1,0 +1,24 @@
+post_install() {
+	depmod -a $(uname -r)
+	rmmod legion-laptop.ko #unload old module
+	insmod /usr/lib/modules/$(uname -r)/kernel/drivers/platform/x86/legion-laptop.ko force=1 #force load module
+	echo Installation Finished
+	#Verify if module loaded
+	if [[ $(dmesg | grep "legion_laptop loaded for this device") ]]; then 
+		echo "legion_laptop module loaded"
+	else
+		echo "Module dosent load reboot the machine or verify if your legion is compatible"
+		echo "More info: https://github.com/johnfanv2/LenovoLegionLinux"
+	fi
+}
+
+post_upgrade() {
+ post_install $1
+}
+
+post_remove() {
+	rmmod legion-laptop.ko #unload old module
+	depmod -a $(uname -r) #remove from list of modules
+	echo Uninstall finished.
+	echo Reboot the system.
+}
