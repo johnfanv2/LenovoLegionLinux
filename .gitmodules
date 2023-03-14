@@ -1,0 +1,3 @@
+[submodule "deploy/lenovolegionlinux-git"]
+	path = deploy/lenovolegionlinux-git
+	url = https://aur.archlinux.org/lenovolegionlinux-git.git
