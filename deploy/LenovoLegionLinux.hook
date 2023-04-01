@@ -1,0 +1,13 @@
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = linux 
+Target = linux-headers
+Target = linux-zen
+Target = linux-zen-headers
+
+[Action]
+Description = Rebuild LenovoLegionLinux Kernel Module
+When = PostTransaction
+Exec = /etc/pacman.d/hooks/LenovoLegionLinux.sh
