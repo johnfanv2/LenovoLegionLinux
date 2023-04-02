@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# pylint: disable=c-extension-no-member
 import sys
 import os.path
 import time
@@ -102,9 +103,10 @@ class LegionController:
     def on_touchpad_check(self):
         sync_checkbox(self.view_otheroptions.touchpad_check,
                       self.model.touchpad)
-        
+
     def on_always_on_usb(self):
-        sync_checkbox(self.view_otheroptions.on_always_on_usb_check, self.model.always_on_usb_charging)
+        sync_checkbox(self.view_otheroptions.on_always_on_usb_check,
+                      self.model.always_on_usb_charging)
 
 
 class FanCurveEntryView():
@@ -300,6 +302,8 @@ class FanCurveTab(QWidget):
         self.setLayout(self.main_layout)
 
 # pylint: disable=too-few-public-methods
+
+
 class OtherOptionsTab(QWidget):
     def __init__(self, controller: LegionController):
         super().__init__()

@@ -87,7 +87,7 @@ jobs:
     - name: Create tag
       id: create_tag
       run: |
-        tag=$(basename "${{ github.ref }}")
+        tag=$(basename "${{ github.ref }}")$(date '+%Y-%m-%d-%H-%M-%S')
         echo "tag=$tag" >> $GITHUB_OUTPUT
     - name: Create Draft Release
       id: create_release
