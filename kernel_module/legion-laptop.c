@@ -170,7 +170,9 @@ struct ec_register_offsets {
 	u16 EXT_LOCKFANCONTROLLER;
 	u16 EXT_MAXIMUMFANSPEED;
 	u16 EXT_WHITE_KEYBOARD_BACKLIGHT;
-	u16 EXT_IC_TEMP;
+	u16 EXT_IC_TEMP_INPUT;
+	u16 EXT_CPU_TEMP_INPUT;
+	u16 EXT_GPU_TEMP_INPUT;
 };
 
 struct model_config {
@@ -216,9 +218,9 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.EXT_FAN2_RPM_MSB = 0xC5E3,
 	.EXT_MINIFANCURVE_ON_COOL = 0xC536,
 	.EXT_LOCKFANCONTROLLER = 0xc4AB,
-	.EXT_CPU_TEMP = 0xc538,
-	.EXT_GPU_TEMP = 0xc539,
-	.EXT_IC_TEMP = 0xC5E8,
+	.EXT_CPU_TEMP_INPUT = 0xc538,
+	.EXT_GPU_TEMP_INPUT = 0xc539,
+	.EXT_IC_TEMP_INPUT = 0xC5E8,
 	.EXT_POWERMODE = 0xc420,
 	.EXT_FAN1_TARGET_RPM = 0xc600,
 	.EXT_FAN2_TARGET_RPM = 0xc601,
@@ -649,11 +651,11 @@ static int read_sensor_values(struct ecram *ecram,
 		 << 8);
 
 	values->cpu_temp_celsius =
-		ecram_read(ecram, model->registers->EXT_CPU_TEMP);
+		ecram_read(ecram, model->registers->EXT_CPU_TEMP_INPUT);
 	values->gpu_temp_celsius =
-		ecram_read(ecram, model->registers->EXT_GPU_TEMP);
+		ecram_read(ecram, model->registers->EXT_GPU_TEMP_INPUT);
 	values->ic_temp_celsius =
-		ecram_read(ecram, model->registers->EXT_IC_TEMP);
+		ecram_read(ecram, model->registers->EXT_IC_TEMP_INPUT);
 
 	values->cpu_temp_celsius = ecram_read(ecram, 0xC5E6);
 	values->gpu_temp_celsius = ecram_read(ecram, 0xC5E7);
