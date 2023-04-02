@@ -89,8 +89,6 @@ MODULE_PARM_DESC(
 	ec_readonly,
 	"Only read from embedded controller but do not write or change settings.");
 
-//TODO: remove this, kernel modules do not have versions
-#define MODULEVERSION "0.1"
 #define LEGIONFEATURES \
 	"fancurve powermode platformprofile platformprofilenotify minifancurve"
 
@@ -127,117 +125,60 @@ MODULE_PARM_DESC(
  */
 // TODO: same order as in initialization
 struct ec_register_offsets {
-	u16 ECINDAR0;
-	u16 ECINDAR1;
-	u16 ECINDAR2;
-	u16 ECINDAR3;
-	u16 ECINDDR;
-	u16 GPDRA;
-	u16 GPCRA0;
-	u16 GPCRA1;
-	u16 GPCRA2;
-	u16 GPCRA3;
-	u16 GPCRA4;
-	u16 GPCRA5;
-	u16 GPCRA6;
-	u16 GPCRA7;
-	u16 GPOTA;
-	u16 GPDMRA;
-	u16 DCR0;
-	u16 DCR1;
-	u16 DCR2;
-	u16 DCR3;
-	u16 DCR4;
-	u16 DCR5;
-	u16 DCR6;
-	u16 DCR7;
-	u16 CTR2;
+	// Super I/O Configuration Registers
+	// 7.15 General Control (GCTRL)
+	// General Control (GCTRL)
+	// (see EC Interface Registers  and 6.2 Plug and Play Configuration (PNPCFG)) in datasheet
+	// note: these are in two places saved
+	// in EC Interface Registers  and in super io configuraion registers
+	// Chip ID
 	u16 ECHIPID1;
 	u16 ECHIPID2;
+	// Chip Version
 	u16 ECHIPVER;
 	u16 ECDEBUG;
-	u16 EADDR;
-	u16 EDAT;
-	u16 ECNT;
-	u16 ESTS;
-	u16 FW_VER;
-	u16 FAN_CUR_POINT;
-	u16 FAN_POINTS_SIZE;
-	u16 FAN1_BASE;
-	u16 FAN2_BASE;
-	u16 FAN_ACC_BASE;
-	u16 FAN_DEC_BASE;
-	u16 CPU_TEMP;
-	u16 CPU_TEMP_HYST;
-	u16 GPU_TEMP;
-	u16 GPU_TEMP_HYST;
-	u16 VRM_TEMP;
-	u16 VRM_TEMP_HYST;
-	u16 CPU_TEMP_EN;
-	u16 GPU_TEMP_EN;
-	u16 VRM_TEMP_EN;
-	u16 FAN1_ACC_TIMER;
-	u16 FAN2_ACC_TIMER;
-	u16 FAN1_CUR_ACC;
-	u16 FAN1_CUR_DEC;
-	u16 FAN2_CUR_ACC;
-	u16 FAN2_CUR_DEC;
-	u16 FAN1_RPM_LSB;
-	u16 FAN1_RPM_MSB;
-	u16 FAN2_RPM_LSB;
-	u16 FAN2_RPM_MSB;
 
-	u16 F1TLRR;
-	u16 F1TMRR;
-	u16 F2TLRR;
-	u16 F2TMRR;
-	u16 CTR1;
-	u16 CTR3;
-	u16 FAN1CNF;
-	u16 FAN2CNF;
-
-	// altnerive regsisters
-	// TODO: decide on one version
-	u16 FAN1_TARGET_RPM;
-	u16 FAN2_TARGET_RPM;
-	u16 ALT_CPU_TEMP;
-	u16 ALT_GPU_TEMP;
-	u16 ALT_POWERMODE;
-
-	u16 ALT_FAN1_RPM;
-	u16 ALT_FAN2_RPM;
-	u16 ALT_CPU_TEMP2;
-	u16 ALT_GPU_TEMP2;
-	u16 ALT_IC_TEMP2;
-
-	u16 MINIFANCURVE_ON_COOL;
-	u16 LOCKFANCONTROLLER;
-	u16 MAXIMUMFANSPEED;
-
-	u16 WHITE_KEYBOARD_BACKLIGHT;
-};
-
-enum ECRAM_ACCESS { ECRAM_ACCESS_PORTIO, ECRAM_ACCESS_MEMORYIO };
-
-enum CONTROL_METHOD {
-	// control EC by readin/writing to EC memory
-	CONTROL_METHOD_ECRAM,
-	// control EC only by ACPI calls
-	CONTROL_METHOD_ACPI
+	// Lenovo Custom OEM extension
+	// Firmware of ITE can be extended by
+	// custom program using its own "variables"
+	// These are the offsets to these "variables"
+	u16 EXT_FAN_CUR_POINT;
+	u16 EXT_FAN_POINTS_SIZE;
+	u16 EXT_FAN1_BASE;
+	u16 EXT_FAN2_BASE;
+	u16 EXT_FAN_ACC_BASE;
+	u16 EXT_FAN_DEC_BASE;
+	u16 EXT_CPU_TEMP;
+	u16 EXT_CPU_TEMP_HYST;
+	u16 EXT_GPU_TEMP;
+	u16 EXT_GPU_TEMP_HYST;
+	u16 EXT_VRM_TEMP;
+	u16 EXT_VRM_TEMP_HYST;
+	u16 EXT_FAN1_RPM_LSB;
+	u16 EXT_FAN1_RPM_MSB;
+	u16 EXT_FAN2_RPM_LSB;
+	u16 EXT_FAN2_RPM_MSB;
+	u16 EXT_FAN1_TARGET_RPM;
+	u16 EXT_FAN2_TARGET_RPM;
+	u16 EXT_POWERMODE;
+	u16 EXT_MINIFANCURVE_ON_COOL;
+	// values
+	// 0x04: enable mini fan curve if very long on cool level
+	//      - this might be due to potential temp failure
+	//      - or just because really so cool
+	// 0xA0: disable it
+	u16 EXT_LOCKFANCONTROLLER;
+	u16 EXT_MAXIMUMFANSPEED;
+	u16 EXT_WHITE_KEYBOARD_BACKLIGHT;
+	u16 EXT_IC_TEMP;
 };
 
 struct model_config {
 	const struct ec_register_offsets *registers;
 	bool check_embedded_controller_id;
 	u16 embedded_controller_id;
-	// how should the EC be acesses?
-	enum CONTROL_METHOD access_method;
 
-	// if EC is accessed by RAM, how sould it be access
-	enum ECRAM_ACCESS ecram_access_method;
-
-	// if EC is accessed by memory mapped, what is its address
-	phys_addr_t memoryio_physical_start;
+	// first addr in EC we access/scan
 	phys_addr_t memoryio_physical_ec_start;
 	size_t memoryio_size;
 
@@ -253,175 +194,42 @@ struct model_config {
 // - all default names and register addresses are supported by datasheet
 // - register addresses for custom firmware by SmokelesssCPU
 static const struct ec_register_offsets ec_register_offsets_v0 = {
-	// 6.3 Shared Memory Flash Interface Bridge (SMFI)
-	// "The SMFI provides an HLPC interface between the host bus a
-	// and the M bus. The flash is mapped into the
-	// host memory address space for host accesses. The flash is also
-	// mapped into the EC memory address space for EC accesses"
-	.ECINDAR0 = 0x103B,
-	.ECINDAR1 = 0x103C,
-	.ECINDAR2 = 0x103D,
-	.ECINDAR3 = 0x103E,
-	.ECINDDR = 0x103F,
-
-	// 7.5 General Purpose I/O Port (GPIO)
-	// I/O pins controlled by registers.
-	.GPDRA = 0x1601,
-	// port data, i.e. data to output to pins
-	// or data read from pins
-	.GPCRA0 = 0x1610,
-	// control register for each pin,
-	// set as input, output, ...
-	.GPCRA1 = 0x1611,
-	.GPCRA2 = 0x1612,
-	.GPCRA3 = 0x1613,
-	.GPCRA4 = 0x1614,
-	.GPCRA5 = 0x1615,
-	.GPCRA6 = 0x1616,
-	.GPCRA7 = 0x1617,
-	.GPOTA = 0x1671,
-	.GPDMRA = 0x1661,
-
-	// Super I/O Configuration Registers
-	// 7.15 General Control (GCTRL)
-	// General Control (GCTRL)
-	// (see EC Interface Registers  and 6.2 Plug and Play Configuration (PNPCFG)) in datasheet
-	// note: these are in two places saved
-	// in EC Interface Registers  and in super io configuraion registers
-	// Chip ID
-	.ECHIPID1 = 0x2000, // 0x20
-	.ECHIPID2 = 0x2001, // 0x21
-	// Chip Version
-	.ECHIPVER = 0x2002, // 0x22
-	.ECDEBUG = 0x2003, //0x23 SIOCTRL (super io control)
-
-	// External GPIO Controller (EGPC)
-	// 7.16 External GPIO Controller (EGPC)
-	// Communication with an external GPIO chip
-	// (IT8301)
-	// Address
-	.EADDR = 0x2100,
-	// Data
-	.EDAT = 0x2101,
-	// Control
-	.ECNT = 0x2102,
-	// Status
-	.ESTS = 0x2103,
-
-	// FAN/PWM control by ITE
-	// 7.11 PWM
-	// - lower powered ITEs just come with PWM
-	//   control
-	// - higher powered ITEs, e.g. ITE8511, come
-	//   from ITE with a fan control software
-	//   in ROM with 3 (or 4) fan curve points
-	//   called SmartAuto Fan Control
-	// - in Lenovo Legion Laptop the SmartAuto
-	//   is not used, but the fan is controlled
-	//   by a custom program flashed on the ITE
-	//   chip
-
-	// duty cycle of each PWM output
-	.DCR0 = 0x1802,
-	.DCR1 = 0x1803,
-	.DCR2 = 0x1804,
-	.DCR3 = 0x1805,
-	.DCR4 = 0x1806,
-	.DCR5 = 0x1807,
-	.DCR6 = 0x1808,
-	.DCR7 = 0x1809,
-	// FAN1 tachometer (least, most signficant byte)
-	.F1TLRR = 0x181E,
-	.F1TMRR = 0x181F,
-	// FAN1 tachometer (least, most signficant byte)
-	.F2TLRR = 0x1820,
-	.F2TLRR = 0x1821,
-	// cycle time, i.e. clock prescaler for PWM signal
-	.CTR1 = 0x1842,
-	.CTR2 = 0x1842,
-	.CTR3 = 0x1842,
-
-	// bits 7-6 (higest bit)
-	//  00: SmartAuto mode 0 (temperature controlled)
-	//  01: SmartAuto mode 1 (temperaute replaced by a register value)
-	//  10: manual mode
-	// bits: 4-2
-	//  PWM output channel used for ouput (0-7 by 3 bits)
-	.FAN1CNF = 0x1810,
-	// spin up time (duty cycle = 100% for this time when fan stopped)
-	//  00: 0
-	//  01: 250ms
-	//  10: 500ms
-	//  11: 1000ms
-	.FAN2CNF = 0x1811,
-
-	// Lenovo Custom OEM extension
-	// Firmware of ITE can be extended by
-	// custom program using its own "variables"
-	// These are the offsets to these "variables"
-	.FW_VER = 0xC2C7,
-	.FAN_CUR_POINT = 0xC534,
-	.FAN_POINTS_SIZE = 0xC535,
-	.FAN1_BASE = 0xC540,
-	.FAN2_BASE = 0xC550,
-	.FAN_ACC_BASE = 0xC560,
-	.FAN_DEC_BASE = 0xC570,
-	.CPU_TEMP = 0xC580,
-	.CPU_TEMP_HYST = 0xC590,
-	.GPU_TEMP = 0xC5A0,
-	.GPU_TEMP_HYST = 0xC5B0,
-	.VRM_TEMP = 0xC5C0,
-	.VRM_TEMP_HYST = 0xC5D0,
-	.CPU_TEMP_EN = 0xC631,
-	.GPU_TEMP_EN = 0xC632,
-	.VRM_TEMP_EN = 0xC633,
-	.FAN1_ACC_TIMER = 0xC3DA,
-	.FAN2_ACC_TIMER = 0xC3DB,
-	.FAN1_CUR_ACC = 0xC3DC,
-	.FAN1_CUR_DEC = 0xC3DD,
-	.FAN2_CUR_ACC = 0xC3DE,
-	.FAN2_CUR_DEC = 0xC3DF,
-	.FAN1_RPM_LSB = 0xC5E0,
-	.FAN1_RPM_MSB = 0xC5E1,
-	.FAN2_RPM_LSB = 0xC5E2,
-	.FAN2_RPM_MSB = 0xC5E3,
-
-	// values
-	// 0x04: enable mini fan curve if very long on cool level
-	//      - this might be due to potential temp failure
-	//      - or just because really so cool
-	// 0xA0: disable it
-	.MINIFANCURVE_ON_COOL = 0xC536,
-
-	.LOCKFANCONTROLLER = 0xc4AB,
-
-	.ALT_CPU_TEMP = 0xc538,
-	.ALT_GPU_TEMP = 0xc539,
-	.ALT_POWERMODE = 0xc420,
-
-	.FAN1_TARGET_RPM = 0xc600,
-	.FAN2_TARGET_RPM = 0xc601,
-	.ALT_FAN1_RPM = 0xC406,
-	.ALT_FAN2_RPM = 0xC4FE,
-
-	.ALT_CPU_TEMP2 = 0xC5E6,
-	.ALT_GPU_TEMP2 = 0xC5E7,
-	.ALT_IC_TEMP2 = 0xC5E8,
-
-	//enabled: 0x40
-	//disabled: 0x00
-	.MAXIMUMFANSPEED = 0xBD,
-
-	.WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN_CUR_POINT = 0xC534,
+	.EXT_FAN_POINTS_SIZE = 0xC535,
+	.EXT_FAN1_BASE = 0xC540,
+	.EXT_FAN2_BASE = 0xC550,
+	.EXT_FAN_ACC_BASE = 0xC560,
+	.EXT_FAN_DEC_BASE = 0xC570,
+	.EXT_CPU_TEMP = 0xC580,
+	.EXT_CPU_TEMP_HYST = 0xC590,
+	.EXT_GPU_TEMP = 0xC5A0,
+	.EXT_GPU_TEMP_HYST = 0xC5B0,
+	.EXT_VRM_TEMP = 0xC5C0,
+	.EXT_VRM_TEMP_HYST = 0xC5D0,
+	.EXT_FAN1_RPM_LSB = 0xC5E0,
+	.EXT_FAN1_RPM_MSB = 0xC5E1,
+	.EXT_FAN2_RPM_LSB = 0xC5E2,
+	.EXT_FAN2_RPM_MSB = 0xC5E3,
+	.EXT_MINIFANCURVE_ON_COOL = 0xC536,
+	.EXT_LOCKFANCONTROLLER = 0xc4AB,
+	.EXT_CPU_TEMP = 0xc538,
+	.EXT_GPU_TEMP = 0xc539,
+	.EXT_IC_TEMP = 0xC5E8,
+	.EXT_POWERMODE = 0xc420,
+	.EXT_FAN1_TARGET_RPM = 0xc600,
+	.EXT_FAN2_TARGET_RPM = 0xc601,
+	.EXT_MAXIMUMFANSPEED = 0xBD,
+	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
 };
 
 static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8227,
-	.access_method = CONTROL_METHOD_ECRAM,
-	.ecram_access_method = ECRAM_ACCESS_PORTIO,
-	.memoryio_physical_start = 0xFE00D400,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
 	.has_minifancurve = true
@@ -431,9 +239,6 @@ static const struct model_config model_kfcn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8227,
-	.access_method = CONTROL_METHOD_ECRAM,
-	.ecram_access_method = ECRAM_ACCESS_PORTIO,
-	.memoryio_physical_start = 0xFE00D400,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
 	.has_minifancurve = false
@@ -443,9 +248,6 @@ static const struct model_config model_hacn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = false,
 	.embedded_controller_id = 0x8227,
-	.access_method = CONTROL_METHOD_ECRAM,
-	.ecram_access_method = ECRAM_ACCESS_MEMORYIO,
-	.memoryio_physical_start = 0xFE00D400,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
 	.has_minifancurve = false
@@ -583,18 +385,6 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 	{}
 };
 
-static const struct dmi_system_id explicit_allowlist[] = {
-	{
-		.ident = "GKCN58WW",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-			DMI_MATCH(DMI_BIOS_VERSION, "GKCN58WW"),
-		},
-		.driver_data = (void *)&model_v0
-	},
-	{}
-};
-
 /* ================================= */
 /* ACPI access                       */
 /* ================================= */
@@ -700,21 +490,6 @@ void ecram_portio_exit(struct ecram_portio *ec_portio)
 	release_region(ECRAM_PORTIO_START_PORT, ECRAM_PORTIO_PORTS_SIZE);
 }
 
-//ssize_t ecram_portio_read_low(struct ecram_portio *ec_portio, u8 offset, u8 *value){
-//	mutex_lock(&ec_portio->io_port_mutex);
-//	outb(0x66, 0x80);
-//	outb(offset, ECRAM_PORTIO_DATA_PORT);
-//	*value = inb(ECRAM_PORTIO_DATA_PORT);
-//	mutex_unlock(&ec_portio->io_port_mutex);
-//}
-//ssize_t ecram_portio_write_low(struct ecram_portio *ec_portio, u8 offset, u8 value){
-//	mutex_lock(&ec_portio->io_port_mutex);
-//	outb(0x66, ECRAM_PORTIO_ADDR_PORT);
-//	outb(offset, ECRAM_PORTIO_DATA_PORT);
-//	outb(value, ECRAM_PORTIO_DATA_PORT);
-//	mutex_unlock(&ec_portio->io_port_mutex);
-//}
-
 /* Read a byte from the EC RAM.
  *
  * Return status because of commong signature for alle
@@ -776,136 +551,27 @@ ssize_t ecram_portio_write(struct ecram_portio *ec_portio, u16 offset, u8 value)
 }
 
 /* =================================== */
-/* EC RAM Access with memory mapped IO */
-/* =================================== */
-
-struct ecram_memoryio {
-	// TODO: start of remapped memory in EC RAM is assumed to be 0
-	// u16 ecram_start;
-
-	// physical address of remapped IO, depends on model and firmware
-	phys_addr_t physical_start;
-	// start adress of region in ec memory
-	phys_addr_t physical_ec_start;
-	// virtual address of remapped IO
-	u8 *virtual_start;
-	// size of remapped access
-	size_t size;
-};
-
-/**
- * physical_start : corresponds to EC RAM 0 inside EC
- * size: size of remapped region
- *
- * strong exception safety
- */
-ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
-			    phys_addr_t physical_start,
-			    phys_addr_t physical_ec_start, size_t size)
-{
-	void *virtual_start = ioremap(physical_start, size);
-
-	if (!IS_ERR_OR_NULL(virtual_start)) {
-		ec_memoryio->virtual_start = virtual_start;
-		ec_memoryio->physical_start = physical_start;
-		ec_memoryio->physical_ec_start = physical_ec_start;
-		ec_memoryio->size = size;
-		pr_info("Succeffuly mapped embedded controller: 0x%llx (in RAM)/0x%llx (in EC) to virtual 0x%p\n",
-			ec_memoryio->physical_start,
-			ec_memoryio->physical_ec_start,
-			ec_memoryio->virtual_start);
-	} else {
-		pr_info("Error mapping embedded controller memory at 0x%llx\n",
-			physical_start);
-		return -ENOMEM;
-	}
-	return 0;
-}
-
-void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
-{
-	if (ec_memoryio->virtual_start != NULL) {
-		pr_info("Unmapping embedded controller memory at 0x%llx (in RAM)/0x%llx (in EC) at virtual 0x%p\n",
-			ec_memoryio->physical_start,
-			ec_memoryio->physical_ec_start,
-			ec_memoryio->virtual_start);
-		iounmap(ec_memoryio->virtual_start);
-		ec_memoryio->virtual_start = NULL;
-	}
-}
-
-/* Read a byte from the EC RAM.
- *
- * Return status because of commong signature for alle
- * methods to access EC RAM.
- */
-ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
-			    u16 ec_offset, u8 *value)
-{
-	if (ec_offset < ec_memoryio->physical_ec_start) {
-		pr_info("Unexpected read at offset %d into EC RAM\n",
-			ec_offset);
-		return -1;
-	}
-	*value = *(ec_memoryio->virtual_start +
-		   (ec_offset - ec_memoryio->physical_ec_start));
-	return 0;
-}
-
-/* Write a byte to the EC RAM.
- *
- * Return status because of commong signature for alle
- * methods to access EC RAM.
- */
-ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
-			     u16 ec_offset, u8 value)
-{
-	if (ec_offset < ec_memoryio->physical_ec_start) {
-		pr_info("Unexpected write at offset %d into EC RAM\n",
-			ec_offset);
-		return -1;
-	}
-	*(ec_memoryio->virtual_start +
-	  (ec_offset - ec_memoryio->physical_ec_start)) = value;
-	return 0;
-}
-
-/* =================================== */
 /* EC RAM Access                       */
 /* =================================== */
 
 struct ecram {
-	struct ecram_memoryio memoryio;
 	struct ecram_portio portio;
-	enum ECRAM_ACCESS access_method;
 };
 
-ssize_t ecram_init(struct ecram *ecram, enum ECRAM_ACCESS access_method,
-		   phys_addr_t memoryio_physical_start,
-		   phys_addr_t memoryio_ec_physical_start, size_t region_size)
+ssize_t ecram_init(struct ecram *ecram, phys_addr_t memoryio_ec_physical_start,
+		   size_t region_size)
 {
 	ssize_t err;
 
-	err = ecram_memoryio_init(&ecram->memoryio, memoryio_physical_start,
-				  memoryio_ec_physical_start, region_size);
-	if (err) {
-		pr_info("Failed ecram_memoryio_init\n");
-		goto err_ecram_memoryio_init;
-	}
 	err = ecram_portio_init(&ecram->portio);
 	if (err) {
 		pr_info("Failed ecram_portio_init\n");
 		goto err_ecram_portio_init;
 	}
 
-	ecram->access_method = access_method;
-
 	return 0;
 
 err_ecram_portio_init:
-	ecram_memoryio_exit(&ecram->memoryio);
-err_ecram_memoryio_init:
-
 	return err;
 }
 
@@ -913,7 +579,6 @@ void ecram_exit(struct ecram *ecram)
 {
 	pr_info("Unloading legion ecram\n");
 	ecram_portio_exit(&ecram->portio);
-	ecram_memoryio_exit(&ecram->memoryio);
 	pr_info("Unloading legion ecram done\n");
 }
 
@@ -925,17 +590,7 @@ static u8 ecram_read(struct ecram *ecram, u16 ecram_offset)
 	u8 value;
 	int err;
 
-	switch (ecram->access_method) {
-	case ECRAM_ACCESS_MEMORYIO:
-		err = ecram_memoryio_read(&ecram->memoryio, ecram_offset,
-					  &value);
-		break;
-	case ECRAM_ACCESS_PORTIO:
-		err = ecram_portio_read(&ecram->portio, ecram_offset, &value);
-		break;
-	default:
-		break;
-	}
+	err = ecram_portio_read(&ecram->portio, ecram_offset, &value);
 	if (err)
 		pr_info("Error reading EC RAM at 0x%x\n", ecram_offset);
 	return value;
@@ -950,18 +605,7 @@ static void ecram_write(struct ecram *ecram, u16 ecram_offset, u8 value)
 			ecram_offset);
 		return;
 	}
-
-	switch (ecram->access_method) {
-	case ECRAM_ACCESS_MEMORYIO:
-		err = ecram_memoryio_write(&ecram->memoryio, ecram_offset,
-					   value);
-		break;
-	case ECRAM_ACCESS_PORTIO:
-		err = ecram_portio_write(&ecram->portio, ecram_offset, value);
-		break;
-	default:
-		break;
-	}
+	err = ecram_portio_write(&ecram->portio, ecram_offset, value);
 	if (err)
 		pr_info("Error writing EC RAM at 0x%x\n", ecram_offset);
 }
@@ -1015,26 +659,25 @@ static int read_sensor_values(struct ecram *ecram,
 			      struct sensor_values *values)
 {
 	values->fan1_target_rpm =
-		100 * ecram_read(ecram, model->registers->FAN1_TARGET_RPM);
+		100 * ecram_read(ecram, model->registers->EXT_FAN1_TARGET_RPM);
 	values->fan2_target_rpm =
-		100 * ecram_read(ecram, model->registers->FAN2_TARGET_RPM);
-	// TODO: what source toc choose?
-	// values->fan1_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN1_RPM);
-	// values->fan2_rpm = 100*ecram_read(ecram, model->registers->ALT_FAN2_RPM);
+		100 * ecram_read(ecram, model->registers->EXT_FAN2_TARGET_RPM);
 
 	values->fan1_rpm =
-		ecram_read(ecram, model->registers->FAN1_RPM_LSB) +
-		(((int)ecram_read(ecram, model->registers->FAN1_RPM_MSB)) << 8);
+		ecram_read(ecram, model->registers->EXT_FAN1_RPM_LSB) +
+		(((int)ecram_read(ecram, model->registers->EXT_FAN1_RPM_MSB))
+		 << 8);
 	values->fan2_rpm =
-		ecram_read(ecram, model->registers->FAN2_RPM_LSB) +
-		(((int)ecram_read(ecram, model->registers->FAN2_RPM_MSB)) << 8);
+		ecram_read(ecram, model->registers->EXT_FAN2_RPM_LSB) +
+		(((int)ecram_read(ecram, model->registers->EXT_FAN2_RPM_MSB))
+		 << 8);
 
 	values->cpu_temp_celsius =
-		ecram_read(ecram, model->registers->ALT_CPU_TEMP);
+		ecram_read(ecram, model->registers->EXT_CPU_TEMP);
 	values->gpu_temp_celsius =
-		ecram_read(ecram, model->registers->ALT_GPU_TEMP);
+		ecram_read(ecram, model->registers->EXT_GPU_TEMP);
 	values->ic_temp_celsius =
-		ecram_read(ecram, model->registers->ALT_IC_TEMP2);
+		ecram_read(ecram, model->registers->EXT_IC_TEMP);
 
 	values->cpu_temp_celsius = ecram_read(ecram, 0xC5E6);
 	values->gpu_temp_celsius = ecram_read(ecram, 0xC5E7);
@@ -1049,7 +692,7 @@ static int read_sensor_values(struct ecram *ecram,
 
 int read_powermode(struct ecram *ecram, const struct model_config *model)
 {
-	return ecram_read(ecram, model->registers->ALT_POWERMODE);
+	return ecram_read(ecram, model->registers->EXT_POWERMODE);
 }
 
 ssize_t write_powermode(struct ecram *ecram, const struct model_config *model,
@@ -1059,7 +702,7 @@ ssize_t write_powermode(struct ecram *ecram, const struct model_config *model,
 		pr_info("Unexpected power mode value ignored: %d\n", value);
 		return -ENOMEM;
 	}
-	ecram_write(ecram, model->registers->ALT_POWERMODE, value);
+	ecram_write(ecram, model->registers->EXT_POWERMODE, value);
 	return 0;
 }
 
@@ -1085,14 +728,14 @@ ssize_t write_lockfancontroller(struct ecram *ecram,
 {
 	u8 val = state ? lockfancontroller_ON : lockfancontroller_OFF;
 
-	ecram_write(ecram, model->registers->LOCKFANCONTROLLER, val);
+	ecram_write(ecram, model->registers->EXT_LOCKFANCONTROLLER, val);
 	return 0;
 }
 
 int read_lockfancontroller(struct ecram *ecram,
 			   const struct model_config *model, bool *state)
 {
-	int value = ecram_read(ecram, model->registers->LOCKFANCONTROLLER);
+	int value = ecram_read(ecram, model->registers->EXT_LOCKFANCONTROLLER);
 
 	switch (value) {
 	case lockfancontroller_ON:
@@ -1115,7 +758,7 @@ int read_lockfancontroller(struct ecram *ecram,
 int read_maximumfanspeed(struct ecram *ecram, const struct model_config *model,
 			 bool *state)
 {
-	int value = ecram_read(ecram, model->registers->MAXIMUMFANSPEED);
+	int value = ecram_read(ecram, model->registers->EXT_MAXIMUMFANSPEED);
 
 	switch (value) {
 	case MAXIMUMFANSPEED_ON:
@@ -1137,7 +780,7 @@ ssize_t write_maximumfanspeed(struct ecram *ecram,
 {
 	u8 val = state ? MAXIMUMFANSPEED_ON : MAXIMUMFANSPEED_OFF;
 
-	ecram_write(ecram, model->registers->MAXIMUMFANSPEED, val);
+	ecram_write(ecram, model->registers->EXT_MAXIMUMFANSPEED, val);
 	return 0;
 }
 
@@ -1147,7 +790,8 @@ ssize_t write_maximumfanspeed(struct ecram *ecram,
 int read_minifancurve(struct ecram *ecram, const struct model_config *model,
 		      bool *state)
 {
-	int value = ecram_read(ecram, model->registers->MINIFANCURVE_ON_COOL);
+	int value =
+		ecram_read(ecram, model->registers->EXT_MINIFANCURVE_ON_COOL);
 
 	switch (value) {
 	case MINIFANCUVE_ON_COOL_ON:
@@ -1169,7 +813,7 @@ ssize_t write_minifancurve(struct ecram *ecram,
 {
 	u8 val = state ? MINIFANCUVE_ON_COOL_ON : MINIFANCUVE_ON_COOL_OFF;
 
-	ecram_write(ecram, model->registers->MINIFANCURVE_ON_COOL, val);
+	ecram_write(ecram, model->registers->EXT_MINIFANCURVE_ON_COOL, val);
 	return 0;
 }
 
@@ -1180,8 +824,8 @@ ssize_t write_minifancurve(struct ecram *ecram,
 int read_keyboard_backlight(struct ecram *ecram,
 			    const struct model_config *model, int *state)
 {
-	int value =
-		ecram_read(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT);
+	int value = ecram_read(ecram,
+			       model->registers->EXT_WHITE_KEYBOARD_BACKLIGHT);
 
 	//switch (value) {
 	//case MINIFANCUVE_ON_COOL_ON:
@@ -1204,7 +848,7 @@ int write_keyboard_backlight(struct ecram *ecram,
 {
 	u8 val = state > 0 ? KEYBOARD_BACKLIGHT_ON1 : KEYBOARD_BACKLIGHT_OFF;
 
-	ecram_write(ecram, model->registers->WHITE_KEYBOARD_BACKLIGHT, val);
+	ecram_write(ecram, model->registers->EXT_WHITE_KEYBOARD_BACKLIGHT, val);
 	return 0;
 }
 
@@ -1425,38 +1069,6 @@ bool fancurve_set_ic_temp_min(struct fancurve *fancurve, int point_id,
 	return valid;
 }
 
-//TODO: remove this if meaning of hyst in fan curve is clear!
-//
-//bool fancurve_set_cpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
-//{
-//	int max_temp = fancurve->points[point_id].cpu_max_temp_celsius;
-//	bool valid = hyst_value < max_temp;
-//	if(valid){
-//		fancurve->points[point_id].cpu_min_temp_celsius = max_temp - hyst_value;
-//	}
-//	return valid;
-//}
-
-//bool fancurve_set_gpu_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
-//{
-//	int max_temp = fancurve->points[point_id].gpu_max_temp_celsius;
-//	bool valid = hyst_value < max_temp;
-//	if(valid){
-//		fancurve->points[point_id].gpu_min_temp_celsius = max_temp - hyst_value;
-//	}
-//	return valid;
-//}
-
-//bool fancurve_set_ic_deltahyst(struct fancurve* fancurve, int point_id, int hyst_value)
-//{
-//	int max_temp = fancurve->points[point_id].ic_max_temp_celsius;
-//	bool valid = hyst_value < max_temp;
-//	if(valid){
-//		fancurve->points[point_id].ic_min_temp_celsius = max_temp - hyst_value;
-//	}
-//	return valid;
-//}
-
 bool fancurve_set_size(struct fancurve *fancurve, int size, bool init_values)
 {
 	bool valid = size >= 1 && size <= MAXFANCURVESIZE;
@@ -1466,7 +1078,6 @@ bool fancurve_set_size(struct fancurve *fancurve, int size, bool init_values)
 	if (init_values && size < fancurve->size) {
 		// fancurve size is decreased, but last etnry alwasy needs 127 temperatures
 		// Note: size >=1
-		// TODO: remove this comment
 		fancurve->points[size - 1].cpu_max_temp_celsius = 127;
 		fancurve->points[size - 1].ic_max_temp_celsius = 127;
 		fancurve->points[size - 1].gpu_max_temp_celsius = 127;
@@ -1500,35 +1111,36 @@ static int read_fancurve(struct ecram *ecram, const struct model_config *model,
 		struct fancurve_point *point = &fancurve->points[i];
 
 		point->rpm1_raw =
-			ecram_read(ecram, model->registers->FAN1_BASE + i);
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE + i);
 		point->rpm2_raw =
-			ecram_read(ecram, model->registers->FAN2_BASE + i);
+			ecram_read(ecram, model->registers->EXT_FAN2_BASE + i);
 
-		point->accel =
-			ecram_read(ecram, model->registers->FAN_ACC_BASE + i);
-		point->decel =
-			ecram_read(ecram, model->registers->FAN_DEC_BASE + i);
+		point->accel = ecram_read(
+			ecram, model->registers->EXT_FAN_ACC_BASE + i);
+		point->decel = ecram_read(
+			ecram, model->registers->EXT_FAN_DEC_BASE + i);
 		point->cpu_max_temp_celsius =
-			ecram_read(ecram, model->registers->CPU_TEMP + i);
-		point->cpu_min_temp_celsius =
-			ecram_read(ecram, model->registers->CPU_TEMP_HYST + i);
+			ecram_read(ecram, model->registers->EXT_CPU_TEMP + i);
+		point->cpu_min_temp_celsius = ecram_read(
+			ecram, model->registers->EXT_CPU_TEMP_HYST + i);
 		point->gpu_max_temp_celsius =
-			ecram_read(ecram, model->registers->GPU_TEMP + i);
-		point->gpu_min_temp_celsius =
-			ecram_read(ecram, model->registers->GPU_TEMP_HYST + i);
+			ecram_read(ecram, model->registers->EXT_GPU_TEMP + i);
+		point->gpu_min_temp_celsius = ecram_read(
+			ecram, model->registers->EXT_GPU_TEMP_HYST + i);
 		point->ic_max_temp_celsius =
-			ecram_read(ecram, model->registers->VRM_TEMP + i);
-		point->ic_min_temp_celsius =
-			ecram_read(ecram, model->registers->VRM_TEMP_HYST + i);
+			ecram_read(ecram, model->registers->EXT_VRM_TEMP + i);
+		point->ic_min_temp_celsius = ecram_read(
+			ecram, model->registers->EXT_VRM_TEMP_HYST + i);
 	}
 
 	// Do not trust that hardware; It might suddendly report
 	// a larger size, so clamp it.
-	fancurve->size = ecram_read(ecram, model->registers->FAN_POINTS_SIZE);
+	fancurve->size =
+		ecram_read(ecram, model->registers->EXT_FAN_POINTS_SIZE);
 	fancurve->size =
 		min(fancurve->size, (typeof(fancurve->size))(MAXFANCURVESIZE));
 	fancurve->current_point_i =
-		ecram_read(ecram, model->registers->FAN_CUR_POINT);
+		ecram_read(ecram, model->registers->EXT_FAN_CUR_POINT);
 	fancurve->current_point_i =
 		min(fancurve->current_point_i, fancurve->size);
 	return 0;
@@ -1548,39 +1160,39 @@ static int write_fancurve(struct ecram *ecram, const struct model_config *model,
 			i < fancurve->size ? &fancurve->points[i] :
 					     &fancurve_point_zero;
 
-		ecram_write(ecram, model->registers->FAN1_BASE + i,
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE + i,
 			    point->rpm1_raw);
-		ecram_write(ecram, model->registers->FAN2_BASE + i,
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE + i,
 			    point->rpm2_raw);
 
-		ecram_write(ecram, model->registers->FAN_ACC_BASE + i,
+		ecram_write(ecram, model->registers->EXT_FAN_ACC_BASE + i,
 			    point->accel);
-		ecram_write(ecram, model->registers->FAN_DEC_BASE + i,
+		ecram_write(ecram, model->registers->EXT_FAN_DEC_BASE + i,
 			    point->decel);
 
-		ecram_write(ecram, model->registers->CPU_TEMP + i,
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
 			    point->cpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->CPU_TEMP_HYST + i,
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
 			    point->cpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->GPU_TEMP + i,
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
 			    point->gpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->GPU_TEMP_HYST + i,
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
 			    point->gpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->VRM_TEMP + i,
+		ecram_write(ecram, model->registers->EXT_VRM_TEMP + i,
 			    point->ic_max_temp_celsius);
-		ecram_write(ecram, model->registers->VRM_TEMP_HYST + i,
+		ecram_write(ecram, model->registers->EXT_VRM_TEMP_HYST + i,
 			    point->ic_min_temp_celsius);
 	}
 
 	if (write_size) {
-		ecram_write(ecram, model->registers->FAN_POINTS_SIZE,
+		ecram_write(ecram, model->registers->EXT_FAN_POINTS_SIZE,
 			    fancurve->size);
 	}
 
 	// Reset current fan level to 0, so algorithm in EC
 	// selects fan curve point again and resetting hysterisis
 	// effects
-	ecram_write(ecram, model->registers->FAN_CUR_POINT, 0);
+	ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
 
 	// Reset internal fan levels
 	ecram_write(ecram, 0xC634, 0); // CPU
@@ -1589,35 +1201,6 @@ static int write_fancurve(struct ecram *ecram, const struct model_config *model,
 
 	return 0;
 }
-
-//TODO: still needed?
-//static ssize_t fancurve_print(const struct fancurve* fancurve, char *buf)
-//{
-//	ssize_t output_char_count = 0;
-//	size_t i;
-//	for (i = 0; i < fancurve->size; ++i) {
-//		const struct fancurve_point * point = &fancurve->points[i];
-//		int res = sprintf(buf, "%d %d %d %d %d %d %d %d %d %d\n",
-//				  point->rpm1_raw*100, point->rpm2_raw*100,
-//				  point->accel, point->decel,
-//				  point->cpu_min_temp_celsius,
-//				  point->cpu_max_temp_celsius,
-//				  point->gpu_min_temp_celsius,
-//				  point->gpu_max_temp_celsius,
-//				  point->ic_min_temp_celsius,
-//				  point->ic_max_temp_celsius);
-//		if (res > 0) {
-//			output_char_count += res;
-//		} else {
-//			pr_debug(
-//				"Error writing to buffer for output of fanCurveStructure\n");
-//			return 0;
-//		}
-//		// go forward in buffer to append next print output
-//		buf += res;
-//	}
-//	return output_char_count;
-//}
 
 static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 				      struct seq_file *s)
@@ -1747,8 +1330,6 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
 	seq_printf(s, "EC Chip Version: %x\n",
 		   read_ec_version(&priv->ecram, priv->conf));
-	// TODO: remove this
-	seq_printf(s, "legion_laptop version: %s\n", MODULEVERSION);
 	seq_printf(s, "legion_laptop features: %s\n", LEGIONFEATURES);
 	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
@@ -1775,10 +1356,6 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_puts(s, "Current fan curve in hardware (embedded controller):\n");
 	fancurve_print_seqfile(&priv->fancurve, s);
 	seq_puts(s, "=====================\n");
-
-	// TODO: decide what to do with it, still needed?
-	// seq_puts(s, "Configured fan curve.\n");
-	// fancurve_print_seqfile(&priv->fancurve_configured, s);
 	return 0;
 }
 
@@ -1807,8 +1384,7 @@ static void legion_debugfs_init(struct legion_private *priv)
 static void legion_debugfs_exit(struct legion_private *priv)
 {
 	pr_info("Unloading legion dubugfs\n");
-	// TODO: remove this note
-	// Note: does nothing if null
+	// The following is does nothing if pointer is NULL
 	debugfs_remove_recursive(priv->debugfs_dir);
 	priv->debugfs_dir = NULL;
 	pr_info("Unloading legion dubugfs done\n");
@@ -2417,13 +1993,9 @@ static ssize_t autopoint_store(struct device *dev,
 	switch (fancurve_attr_id) {
 	case FANCURVE_ATTR_PWM1:
 		valid = fancurve_set_rpm1(&fancurve, point_id, value);
-		// TODO: remove
-		//valid = valid && fancurve_set_rpm2(&fancurve, point_id, value);
 		break;
 	case FANCURVE_ATTR_PWM2:
 		valid = fancurve_set_rpm2(&fancurve, point_id, value);
-		// TODO: remove
-		//valid = valid && fancurve_set_rpm2(&fancurve, point_id, value);
 		break;
 	case FANCURVE_ATTR_CPU_TEMP:
 		valid = fancurve_set_cpu_temp_max(&fancurve, point_id, value);
@@ -2990,8 +2562,12 @@ int legion_add(struct platform_device *pdev)
 	bool do_load_by_list = false;
 	bool do_load = false;
 	//struct legion_private *priv = dev_get_drvdata(&pdev->dev);
-	dev_info(&pdev->dev, "legion_laptop platform driver %s probing\n",
-		 MODULEVERSION);
+	dev_info(&pdev->dev, "legion_laptop platform driver probing\n");
+
+	dev_info(&pdev->dev, "Read identifying information: DMI_SYS_VENDOR: %s; DMI_PRODUCT_NAME: %s; DMI_BIOS_VERSION:%s\n",
+		dmi_get_system_info(DMI_SYS_VENDOR),
+		dmi_get_system_info(DMI_PRODUCT_NAME),
+		dmi_get_system_info(DMI_BIOS_VERSION));
 
 	// TODO: allocate?
 	priv = &_priv;
@@ -3045,9 +2621,7 @@ int legion_add(struct platform_device *pdev)
 
 	priv->conf = dmi_sys->driver_data;
 
-	err = ecram_init(&priv->ecram, priv->conf->ecram_access_method,
-			 priv->conf->memoryio_physical_start,
-			 priv->conf->memoryio_physical_ec_start,
+	err = ecram_init(&priv->ecram, priv->conf->memoryio_physical_ec_start,
 			 priv->conf->memoryio_size);
 	if (err) {
 		dev_info(&pdev->dev,
@@ -3124,8 +2698,7 @@ err_model_mismtach:
 int legion_remove(struct platform_device *pdev)
 {
 	struct legion_private *priv = dev_get_drvdata(&pdev->dev);
-	// TODO: remove this
-	pr_info("Unloading legion\n");
+
 	mutex_lock(&legion_shared_mutex);
 	priv->loaded = false;
 	mutex_unlock(&legion_shared_mutex);
@@ -3189,47 +2762,23 @@ static struct platform_driver legion_driver = {
 int __init legion_init(void)
 {
 	int err;
-	// TODO: remove version
-	pr_info("legion_laptop %s starts loading\n", MODULEVERSION);
 
-	// TODO: remove this, make a comment
-	if (!(MAXFANCURVESIZE <= 10)) {
-		pr_debug("Fan curve size too large\n");
-		err = -ENOMEM;
-		goto error_assert;
-	}
-
-	// TODO: remove this
-	pr_info("Read identifying information: DMI_SYS_VENDOR: %s; DMI_PRODUCT_NAME: %s; DMI_BIOS_VERSION:%s\n",
-		dmi_get_system_info(DMI_SYS_VENDOR),
-		dmi_get_system_info(DMI_PRODUCT_NAME),
-		dmi_get_system_info(DMI_BIOS_VERSION));
-
+	pr_info("legion_laptop starts loading\n");
 	err = platform_driver_register(&legion_driver);
 	if (err) {
 		pr_info("legion_laptop: platform_driver_register failed\n");
-		goto error_platform_driver;
+		return err;
 	}
 
-	// TODO: remove version
-	// pr_info("legion_laptop %s loading done\n", MODULEVERSION);
-
 	return 0;
-
-error_platform_driver:
-error_assert:
-	return err;
 }
 
 module_init(legion_init);
 
 void __exit legion_exit(void)
 {
-	// TODO: remove this
-	pr_info("legion_laptop %s starts unloading\n", MODULEVERSION);
 	platform_driver_unregister(&legion_driver);
-	// TODO: remove this
-	pr_info("legion_laptop %s unloaded\n", MODULEVERSION);
+	pr_info("legion_laptop exit\n");
 }
 
 module_exit(legion_exit);
