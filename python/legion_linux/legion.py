@@ -148,7 +148,7 @@ class PlatformProfileFeature(FileFeature):
         super().__init__("/sys/firmware/acpi/platform_profile")
     
     def set(self, value:str):
-        self._write_file(value)
+        self._write_file(self.filename, value)
 
     def get(self):
         value = self._read_file_str(self.filename)
