@@ -14,10 +14,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.fedora
-  legion-suse:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.suse
+  # legion-suse:
+  #   build:
+  #     context: ..
+  #     dockerfile: deploy/Dockerfile.suse
   legion-ubuntu:
     build:
       context: ..
