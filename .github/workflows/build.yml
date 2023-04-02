@@ -81,7 +81,19 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
+    - name: Check if tagged
+      id: check_if_tagged
+      run: |
+        otag=$(git tag --points-at HEAD)
+        if [ -z "$var" ]
+        then
+          hastag=0
+        else
+          hastag=1
+        fi
+        echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build kernel patch
+      if: steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
       shell: bash
     - name: Create tag
@@ -90,6 +102,7 @@ jobs:
         tag=$(basename "${{ github.ref }}")$(date '+%Y-%m-%d-%H-%M-%S')
         echo "tag=$tag" >> $GITHUB_OUTPUT
     - name: Create Draft Release
+      if: steps.check_if_tagged.outputs.hastag == 1
       id: create_release
       uses: actions/create-release@v1
       env:
@@ -100,6 +113,7 @@ jobs:
         draft: true
         prerelease: false
     - name: Upload Release
+      if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,6 +123,7 @@ jobs:
         asset_name: 0001-Add-legion-laptop-v0.1.patch
         asset_content_type: text/plain
     - name: Publish Release
+      if: steps.check_if_tagged.outputs.hastag == 1
       uses: eregon/publish-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
