@@ -627,6 +627,12 @@ First, try to reset the embedded controller (see above) or do a BIOS update (eve
 ### It does not work after a Linux (kernel) update?
 Please recompile/reinstall, see Permanent Install Instructions. 
 
+### My screen is dimmed after a time of inactivity even if I disabled that in Ubuntu. How to fix that?
+```bash
+gsettings set org.gnome.settings-daemon.plugins.power idle-brightness 100
+```
+see https://www.reddit.com/r/linuxquestions/comments/utle2w/ubuntu_2204_is_there_a_way_to_disable_screen/
+
 
 ## :question: Open Questions
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
