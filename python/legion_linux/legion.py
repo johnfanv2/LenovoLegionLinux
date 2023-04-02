@@ -146,7 +146,7 @@ class MaximumFanSpeedFeature(FileFeature):
 class PlatformProfileFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/firmware/acpi/platform_profile")
-    
+
     def set(self, value:str):
         self._write_file(self.filename, value)
 
