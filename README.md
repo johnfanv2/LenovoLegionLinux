@@ -72,6 +72,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve (no minifancurve), power profile
 - Lenovo Legion 5 Pro 16ITH6 (BIOS H1CN52WW (there was an error in CPU temp with H1CN51WW)): sensors, fan curve, power profiles
 - Lenovo Legion 5 15ACH6A (BIOS G9CN30WW), all AMD variant: sensors, fan curve (with mini fan curve), power profile
+- Lenovo Legion 7 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
 
