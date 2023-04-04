@@ -105,6 +105,7 @@ You will need to install the following to download and build it. If there is an 
 ```bash
 sudo apt-get update
 sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt5 python3-yaml python3-venv python3-pip python3-argcomplete
+sudo apt-get install dkms (For installation via DKMS)
 ```
 
 **RHEL/CentOS/RockyLinux/Fedora/AlmaLinux**
@@ -112,6 +113,7 @@ sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git l
 sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors PyQt5 python3-yaml python3-pip python3-argcomplete
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
+sudo dnf install dkms (For installation via DKMS)
 ```
 Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum update`. Installing "C Development Tools and Libraries" might not be needed depending of your distribution.
 
@@ -119,6 +121,7 @@ Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum upd
 **openSUSE**
 ```bash
 sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode python3-qt5 python3-pip python3-PyYAML python3-argcomplete
+sudo zypper install dkms (For installation via DKMS)
 ```
 *Note:* Check for the correct Header package.
 
@@ -126,6 +129,7 @@ sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-de
 **Arch/Manjaro/EndeavourOS**
 ```bash
 sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete
+sudo pacman -S dkms (For installation via DKMS)
 ```
 *Note:* Check for the correct Header package.
 
@@ -162,6 +166,20 @@ make
 sudo make uninstall
 ```
 
+### Installing via DKMS
+> DKMS is a utility that eliminates the need to manually rebuild and reinstall the driver after every kernel update. DKMS will do the reinstallation automatically.
+
+You must first install the package to with DKMS. See Requirements section. 
+```
+sudo cp ./kernel_module/* /usr/src/legion-laptop -r
+sudo dkms add -m legion-laptop -v 1.0.0
+sudo dkms build -m legion-laptop -v 1.0.0
+```
+### Uninstalling via DKMS
+```
+sudo dkms remove -m legion-laptop -v 1.0.0
+reboot
+```
 ## :octocat: Initial Usage Testing
 Please note:
 - Please test in the given order; try to fix a failed text before going to the next. 
@@ -171,7 +189,7 @@ Please note:
 ### Quick Test: Module is properly loaded
 ```bash
 # After you have run from folder LenovoLegionLinux/kernel_module
-sudo make reloadmodule
+sudo make reloadmodule (for non DKMS)
 
 # Check the kernel log
 sudo dmesg
