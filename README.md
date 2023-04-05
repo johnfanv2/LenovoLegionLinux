@@ -105,7 +105,7 @@ You will need to install the following to download and build it. If there is an 
 ```bash
 sudo apt-get update
 sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt5 python3-yaml python3-venv python3-pip python3-argcomplete
-sudo apt-get install dkms (For installation via DKMS)
+sudo apt-get install dkms openssl mokutil (For installation via DKMS)
 ```
 
 **RHEL/CentOS/RockyLinux/Fedora/AlmaLinux**
@@ -113,7 +113,7 @@ sudo apt-get install dkms (For installation via DKMS)
 sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors PyQt5 python3-yaml python3-pip python3-argcomplete
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
-sudo dnf install dkms (For installation via DKMS)
+sudo dnf install dkms openssl mokutil (For installation via DKMS)
 ```
 Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum update`. Installing "C Development Tools and Libraries" might not be needed depending of your distribution.
 
@@ -121,7 +121,7 @@ Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum upd
 **openSUSE**
 ```bash
 sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode python3-qt5 python3-pip python3-PyYAML python3-argcomplete
-sudo zypper install dkms (For installation via DKMS)
+sudo zypper install dkms openssl mokutil (For installation via DKMS)
 ```
 *Note:* Check for the correct Header package.
 
@@ -129,7 +129,7 @@ sudo zypper install dkms (For installation via DKMS)
 **Arch/Manjaro/EndeavourOS**
 ```bash
 sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete
-sudo pacman -S dkms (For installation via DKMS)
+sudo pacman -S dkms openssl mokutil (For installation via DKMS)
 ```
 *Note:* Check for the correct Header package.
 
@@ -175,6 +175,9 @@ sudo cp ./kernel_module/* /usr/src/legion-laptop -r
 sudo dkms add -m legion-laptop -v 1.0.0
 sudo dkms build -m legion-laptop -v 1.0.0
 ```
+#### Secure boot
+If you want the driver to work with secure boot, then follow the steps described here
+https://github.com/dell/dkms#secure-boot.
 ### Uninstalling via DKMS
 ```
 sudo dkms remove -m legion-laptop -v 1.0.0
