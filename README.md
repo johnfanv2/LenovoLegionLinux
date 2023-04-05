@@ -171,16 +171,28 @@ sudo make uninstall
 
 You must first install the package to with DKMS. See Requirements section. 
 ```
-sudo cp ./kernel_module/* /usr/src/legion-laptop -r
-sudo dkms add -m legion-laptop -v 1.0.0
-sudo dkms build -m legion-laptop -v 1.0.0
+sudo cp ./kernel_module/* /usr/src/LenovoLegionLinux-1.0.0 -r
+sudo dkms add -m LenovoLegionLinux -v 1.0.0
+sudo dkms build -m LenovoLegionLinux -v 1.0.0
 ```
+Or via makefile
+```
+cd kernel_module
+sudo make dkms # Don't forget to run as root
+```
+
+Or you can just use the script:
+```
+cd deploy
+sudo ./build-dkms.sh  # Don't forget to run as root
+```
+
 #### Secure boot
 If you want the driver to work with secure boot, then follow the steps described here
 https://github.com/dell/dkms#secure-boot.
 ### Uninstalling via DKMS
 ```
-sudo dkms remove -m legion-laptop -v 1.0.0
+sudo dkms remove -m LenovoLegionLinux -v 1.0.0
 reboot
 ```
 ## :octocat: Initial Usage Testing
