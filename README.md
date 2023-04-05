@@ -175,11 +175,16 @@ sudo cp ./kernel_module/* /usr/src/LenovoLegionLinux-1.0.0 -r
 sudo dkms add -m LenovoLegionLinux -v 1.0.0
 sudo dkms build -m LenovoLegionLinux -v 1.0.0
 ```
+Or via makefile
+```
+cd kernel_module
+sudo make dkms # Don't forget to run as root
+```
 
 Or you can just use the script:
 ```
 cd deploy
-sudo ./build-dkms.sh
+sudo ./build-dkms.sh  # Don't forget to run as root
 ```
 
 #### Secure boot

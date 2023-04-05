@@ -5,6 +5,7 @@ KSRC := /lib/modules/$(KERNELVERSION)/build
 #install dir for kernel drivers
 INSTALLDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
 MODDESTDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
+DKMSDIR := /usr/src/LenovoLegionLinux-1.0.0
 
 obj-m += legion-laptop.o
 
@@ -43,3 +44,17 @@ forcereloadmodulereadonly:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko force=1 ec_readonly=1
 	dmesg
+
+dkms:
+	@if [ -d $(DKMSDIR) ]; then\
+    	dkms remove -m LenovoLegionLinux -v 1.0.0;\
+    	rm -r /usr/src/LenovoLegionLinux-1.0.0;\
+	fi
+	mkdir $(DKMSDIR)
+	cp -r * $(DKMSDIR)
+	dkms add -m LenovoLegionLinux -v 1.0.0
+	dkms build LenovoLegionLinux --force -v 1.0.0
+	dkms install LenovoLegionLinux --force -v 1.0.0
+	echo "Loading module"
+	modprobe legion_laptop
+	dmesg | grep legion_laptop
