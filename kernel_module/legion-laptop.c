@@ -228,6 +228,40 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
 };
 
+
+static const struct ec_register_offsets ec_register_offsets_v1 = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN_CUR_POINT = 0xC534,
+	.EXT_FAN_POINTS_SIZE = 0xC535,
+	.EXT_FAN1_BASE = 0xC540,
+	.EXT_FAN2_BASE = 0xC550,
+	.EXT_FAN_ACC_BASE = 0xC560,
+	.EXT_FAN_DEC_BASE = 0xC570,
+	.EXT_CPU_TEMP = 0xC580,
+	.EXT_CPU_TEMP_HYST = 0xC590,
+	.EXT_GPU_TEMP = 0xC5A0,
+	.EXT_GPU_TEMP_HYST = 0xC5B0,
+	.EXT_VRM_TEMP = 0xC5C0,
+	.EXT_VRM_TEMP_HYST = 0xC5D0,
+	.EXT_FAN1_RPM_LSB = 0xC5E0,
+	.EXT_FAN1_RPM_MSB = 0xC5E1,
+	.EXT_FAN2_RPM_LSB = 0xC5E2,
+	.EXT_FAN2_RPM_MSB = 0xC5E3,
+	.EXT_MINIFANCURVE_ON_COOL = 0xC536,
+	.EXT_LOCKFANCONTROLLER = 0xc4AB,
+	.EXT_CPU_TEMP_INPUT = 0xc538,
+	.EXT_GPU_TEMP_INPUT = 0xc539,
+	.EXT_IC_TEMP_INPUT = 0xC5E8,
+	.EXT_POWERMODE = 0xc41D,
+	.EXT_FAN1_TARGET_RPM = 0xc600,
+	.EXT_FAN2_TARGET_RPM = 0xc601,
+	.EXT_MAXIMUMFANSPEED = 0xBD,
+	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
+};
+
 static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -264,6 +298,17 @@ static const struct model_config model_k9cn = {
 	.has_minifancurve = false
 };
 
+static const struct model_config model_eucn = {
+	.registers = &ec_register_offsets_v1,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true
+};
+
+
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -286,7 +331,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "EUCN"),
 		},
-		.driver_data = (void *)&model_v0
+		.driver_data = (void *)&model_eucn
 	},
 	{
 		// modelyear: 2020
