@@ -255,7 +255,6 @@ static const struct model_config model_hacn = {
 	.has_minifancurve = false
 };
 
-
 static const struct model_config model_k9cn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = false,
@@ -264,8 +263,6 @@ static const struct model_config model_k9cn = {
 	.memoryio_size = 0x300,
 	.has_minifancurve = false
 };
-
-
 
 static const struct dmi_system_id denylist[] = { {} };
 
@@ -689,9 +686,11 @@ static int read_sensor_values(struct ecram *ecram,
 /* Behaviour changing functions    */
 /* =============================== */
 
-int read_powermode(struct ecram *ecram, const struct model_config *model)
+ssize_t read_powermode(struct ecram *ecram, const struct model_config *model,
+		       int *powermode)
 {
-	return ecram_read(ecram, model->registers->EXT_POWERMODE);
+	*powermode = ecram_read(ecram, model->registers->EXT_POWERMODE);
+	return 0;
 }
 
 ssize_t write_powermode(struct ecram *ecram, const struct model_config *model,
@@ -711,8 +710,11 @@ ssize_t write_powermode(struct ecram *ecram, const struct model_config *model,
  */
 void toggle_powermode(struct ecram *ecram, const struct model_config *model)
 {
-	int old_powermode = read_powermode(ecram, model);
-	int next_powermode = old_powermode == 0 ? 1 : 0;
+	int old_powermode;
+	int next_powermode;
+
+	read_powermode(ecram, model, &old_powermode);
+	next_powermode = old_powermode == 0 ? 1 : 0;
 
 	write_powermode(ecram, model, next_powermode);
 	mdelay(1500);
@@ -1324,6 +1326,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	bool is_minifancurve;
 	bool is_lockfancontroller;
 	bool is_maximumfanspeed;
+	int powermode;
 	int err;
 
 	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
@@ -1332,6 +1335,9 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "legion_laptop features: %s\n", LEGIONFEATURES);
 	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
+
+	read_powermode(&priv->ecram, priv->conf, &powermode);
+	seq_printf(s, "powermode: %d\n", powermode);
 
 	seq_printf(s, "minifancurve feature enabled: %d\n",
 		   priv->conf->has_minifancurve);
@@ -1397,8 +1403,9 @@ static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 			      char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	int power_mode = read_powermode(&priv->ecram, priv->conf);
+	int power_mode;
 
+	read_powermode(&priv->ecram, priv->conf, &power_mode);
 	return sysfs_emit(buf, "%d\n", power_mode);
 }
 
@@ -1700,7 +1707,7 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 
 	priv = container_of(pprof, struct legion_private,
 			    platform_profile_handler);
-	powermode = read_powermode(&priv->ecram, priv->conf);
+	read_powermode(&priv->ecram, priv->conf, &powermode);
 
 	switch (powermode) {
 	case LEGION_POWERMODE_BALANCED:
@@ -2563,7 +2570,9 @@ int legion_add(struct platform_device *pdev)
 	//struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 	dev_info(&pdev->dev, "legion_laptop platform driver probing\n");
 
-	dev_info(&pdev->dev, "Read identifying information: DMI_SYS_VENDOR: %s; DMI_PRODUCT_NAME: %s; DMI_BIOS_VERSION:%s\n",
+	dev_info(
+		&pdev->dev,
+		"Read identifying information: DMI_SYS_VENDOR: %s; DMI_PRODUCT_NAME: %s; DMI_BIOS_VERSION:%s\n",
 		dmi_get_system_info(DMI_SYS_VENDOR),
 		dmi_get_system_info(DMI_PRODUCT_NAME),
 		dmi_get_system_info(DMI_BIOS_VERSION));
