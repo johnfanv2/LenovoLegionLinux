@@ -11,3 +11,4 @@ fi
 set -e
 # allow post-script install to fail (107) because it will try to update initramfs which is not possible inside container
 sudo zypper --non-interactive install python3-argcomplete 
+sudo zypper --non-interactive install dkms openssl mokutil
