@@ -65,7 +65,7 @@ Other Lenovo Legion models from 2020 to 2023 probably also work. The following w
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
 - Legion 5 Pro 16ACH6H (AMD 5800H + Nvidia RTX 3070): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
-- Lenovo Legion 5 15ARH05 (BIOS FSCN14WW), Gen 5: sensors, fan curve
+- Lenovo Legion 5 15ARH05H (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
