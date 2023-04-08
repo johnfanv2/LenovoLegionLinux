@@ -2943,7 +2943,7 @@ static SIMPLE_DEV_PM_OPS(legion_pm, NULL, legion_pm_resume);
 // same as ideapad
 static const struct acpi_device_id legion_device_ids[] = {
 	// todo: change to "VPC2004", and also ACPI paths
-	{ "PNP0C09", 0 }, 
+	{ "PNP0C09", 0 },
 	{ "", 0 },
 };
 MODULE_DEVICE_TABLE(acpi, legion_device_ids);
