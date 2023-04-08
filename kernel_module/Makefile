@@ -46,15 +46,18 @@ forcereloadmodulereadonly:
 	dmesg
 
 dkms:
-	@if [ -d $(DKMSDIR) ]; then\
-    	dkms remove -m LenovoLegionLinux -v 1.0.0;\
-    	rm -r /usr/src/LenovoLegionLinux-1.0.0;\
+	if [ -d $(DKMSDIR) ]; then\
+    	rm -r $(DKMSDIR)/*;\
+        cp -r * $(DKMSDIR)/;\
+	else \
+		mkdir $(DKMSDIR);\
+        cp -r * $(DKMSDIR);\
+		dkms add -m LenovoLegionLinux -v 1.0.0;\
 	fi
-	mkdir $(DKMSDIR)
-	cp -r * $(DKMSDIR)
-	dkms add -m LenovoLegionLinux -v 1.0.0
 	dkms build LenovoLegionLinux --force -v 1.0.0
 	dkms install LenovoLegionLinux --force -v 1.0.0
 	echo "Loading module"
 	modprobe legion_laptop
 	dmesg | grep legion_laptop
+
+
