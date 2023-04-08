@@ -55,6 +55,8 @@ class LegionController:
             self.view_otheroptions.touchpad_check, self.model.touchpad)
         sync_checkbox_from_feature(
             self.view_fancurve.maximumfanspeed_check, self.model.maximum_fanspeed)
+        sync_checkbox_from_feature(
+            self.view_otheroptions.rapid_charging_check, self.model.rapid_charging)
         self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = not self.model.is_root_user()
@@ -96,6 +98,9 @@ class LegionController:
     def on_batteryconservation_check(self):
         sync_checkbox(self.view_otheroptions.batteryconservation_check,
                       self.model.battery_conservation)
+        time.sleep(0.100)
+        sync_checkbox_from_feature(self.view_otheroptions.rapid_charging_check,
+                      self.model.rapid_charging)
 
     def on_fnlock_check(self):
         sync_checkbox(self.view_otheroptions.fnlock_check, self.model.fn_lock)
@@ -108,6 +113,12 @@ class LegionController:
         sync_checkbox(self.view_otheroptions.on_always_on_usb_check,
                       self.model.always_on_usb_charging)
 
+    def on_rapid_charging_check(self):
+        sync_checkbox(self.view_otheroptions.rapid_charging_check,
+                      self.model.rapid_charging)
+        time.sleep(0.100)
+        sync_checkbox_from_feature(self.view_otheroptions.batteryconservation_check,
+                      self.model.battery_conservation)
 
 class FanCurveEntryView():
     def __init__(self, point_id, layout):
@@ -339,6 +350,12 @@ class OtherOptionsTab(QWidget):
         self.on_always_on_usb_check.clicked.connect(
             self.controller.on_always_on_usb)
         self.options_layout.addWidget(self.on_always_on_usb_check, 3)
+
+        self.rapid_charging_check = QCheckBox(
+            "Rapid Charging")
+        self.rapid_charging_check.clicked.connect(
+            self.controller.on_rapid_charging_check)
+        self.options_layout.addWidget(self.rapid_charging_check, 4)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)

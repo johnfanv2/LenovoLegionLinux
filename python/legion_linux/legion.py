@@ -97,8 +97,29 @@ class LockFanController(FileFeature):
 
 
 class BatteryConservation(FileFeature):
-    def __init__(self):
+    def __init__(self, rapidcharging_feature):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode")
+        self.rapidcharging_feature = rapidcharging_feature
+
+    def set(self, value):
+        # disable rapid charging when enabling battery conservation
+        if value and (self.rapidcharging_feature is not None) and self.rapidcharging_feature.exists():
+            self.rapidcharging_feature.set(False)
+        return super().set(value)
+
+
+class RapidChargingFeature(FileFeature):
+    '''Rapid charging of laptop battery'''
+
+    def __init__(self, batterconservation_feature: BatteryConservation):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/rapidcharge")
+        self.batterconservation_feature = batterconservation_feature
+
+    def set(self, value):
+        # disable battery conservation when enabling rapid charging
+        if value and (self.batterconservation_feature is not None) and self.batterconservation_feature.exists():
+            self.batterconservation_feature.set(False)
+        return super().set(value)
 
 
 class FnLockFeature(FileFeature):
@@ -123,13 +144,6 @@ class AlwaysOnUSBChargingFeature(FileFeature):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/usb_charging")
 
 
-class RapidChargingFeature(FileFeature):
-    '''Rapid charging of laptop battery'''
-
-    def __init__(self):
-        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/rapid_charging")
-
-
 class MaximumFanSpeedFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_mode_")
@@ -147,7 +161,7 @@ class PlatformProfileFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/firmware/acpi/platform_profile")
 
-    def set(self, value:str):
+    def set(self, value: str):
         self._write_file(self.filename, value)
 
     def get(self):
@@ -435,7 +449,11 @@ class LegionModelFacade:
                                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
                                   enable_minifancurve=False)
         self.lockfancontroller = LockFanController()
-        self.battery_conservation = BatteryConservation()
+        self.rapid_charging = RapidChargingFeature(None)
+        self.battery_conservation = BatteryConservation(None)
+        # TOOD: fix this by resolving ciruclar depedency by facade or similar
+        self.rapid_charging.batterconservation_feature = self.battery_conservation
+        self.battery_conservation.rapidcharging_feature = self.rapid_charging
         self.maximum_fanspeed = MaximumFanSpeedFeature()
         self.fn_lock = FnLockFeature()
         self.touchpad = TouchpadFeature()
@@ -443,7 +461,6 @@ class LegionModelFacade:
         self.on_power_supply = IsOnPowerSupplyFeature()
         self.camera_power = CameraPowerFeature()
         self.always_on_usb_charging = AlwaysOnUSBChargingFeature()
-        self.rapid_charging = RapidChargingFeature()
 
     @staticmethod
     def is_root_user():

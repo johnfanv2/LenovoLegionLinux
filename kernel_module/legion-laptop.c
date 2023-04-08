@@ -98,6 +98,8 @@ MODULE_PARM_DESC(
 #define LEGION_DRVR_SHORTNAME "legion"
 #define LEGION_HWMON_NAME LEGION_DRVR_SHORTNAME "_hwmon"
 
+struct legion_private;
+
 /* =============================== */
 /* Embedded Controller Description */
 /* =============================== */
@@ -228,7 +230,6 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
 };
 
-
 static const struct ec_register_offsets ec_register_offsets_v1 = {
 	.ECHIPID1 = 0x2000,
 	.ECHIPID2 = 0x2001,
@@ -306,8 +307,6 @@ static const struct model_config model_eucn = {
 	.memoryio_size = 0x300,
 	.has_minifancurve = true
 };
-
-
 
 static const struct dmi_system_id denylist[] = { {} };
 
@@ -459,13 +458,24 @@ static int exec_simple_method(acpi_handle handle, const char *name,
 static int exec_sbmc(acpi_handle handle, unsigned long arg)
 {
 	// \_SB.PCI0.LPC0.EC0.VPC0.SBMC
-	return exec_simple_method(handle, "SBMC", arg);
+	return exec_simple_method(handle, "VPC0.SBMC", arg);
 }
 
-static int eval_qcho(acpi_handle handle, unsigned long *res)
+//static int eval_qcho(acpi_handle handle, unsigned long *res)
+//{
+//	// \_SB.PCI0.LPC0.EC0.QCHO
+//	return eval_int(handle, "QCHO", res);
+//}
+
+static int eval_gbmd(acpi_handle handle, unsigned long *res)
+{
+	return eval_int(handle, "VPC0.GBMD", res);
+}
+
+static int eval_spmo(acpi_handle handle, unsigned long *res)
 {
 	// \_SB.PCI0.LPC0.EC0.QCHO
-	return eval_int(handle, "QCHO", res);
+	return eval_int(handle, "VPC0.BTSM", res);
 }
 
 /* ================================= */
@@ -731,6 +741,19 @@ static int read_sensor_values(struct ecram *ecram,
 /* Behaviour changing functions    */
 /* =============================== */
 
+ssize_t acpi_read_powermode(struct acpi_device *adev,
+			    const struct model_config *model, int *powermode)
+{
+	unsigned long acpi_powermode;
+	int err;
+
+	// spmo method not alwasy available
+	// \_SB.PCI0.LPC0.EC0.SPMO
+	err = eval_spmo(adev->handle, &acpi_powermode);
+	*powermode = (int)acpi_powermode;
+	return err;
+}
+
 ssize_t read_powermode(struct ecram *ecram, const struct model_config *model,
 		       int *powermode)
 {
@@ -903,24 +926,38 @@ int write_keyboard_backlight(struct ecram *ecram,
 #define RAPID_CHARGE_ON 0x0
 #define RAPID_CHARGE_OFF 0x1
 
-int read_rapidcharge(acpi_handle acpihandle, int *state)
+int read_rapidcharge(struct acpi_device *adev, bool *state)
 {
 	unsigned long result;
 	int err;
 
-	err = eval_qcho(acpihandle, &result);
+	//also works? what is better?
+	/*
+	 * err = eval_qcho(adev->handle, &result);
+	 * if (err)
+	 *  return err;
+	 * state = result;
+	 * return 0;
+	 */
+
+	err = eval_gbmd(adev->handle, &result);
 	if (err)
 		return err;
 
-	*state = result;
+	*state = result & 0x04;
 	return 0;
 }
 
-int write_rapidcharge(acpi_handle acpihandle, bool state)
+int write_rapidcharge(struct acpi_device *adev, bool state)
 {
+	int err;
 	unsigned long fct_nr = state > 0 ? FCT_RAPID_CHARGE_ON :
 					   FCT_RAPID_CHARGE_OFF;
-	return exec_sbmc(acpihandle, fct_nr);
+
+	err = exec_sbmc(adev->handle, fct_nr);
+	pr_info("Set rapidcharge to %d by calling %lu: result: %d\n", state,
+		fct_nr, err);
+	return err;
 }
 
 /* ============================= */
@@ -1281,7 +1318,7 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 struct legion_private {
 	struct platform_device *platform_device;
 	// TODO: remove or keep? init?
-	// struct acpi_device *adev;
+	struct acpi_device *adev;
 
 	// Method to access ECRAM
 	struct ecram ecram;
@@ -1371,8 +1408,13 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	bool is_minifancurve;
 	bool is_lockfancontroller;
 	bool is_maximumfanspeed;
+	bool is_rapidcharge = false;
 	int powermode;
 	int err;
+	unsigned long cfg;
+	//int kb_backlight;
+
+	mutex_lock(&priv->fancurve_mutex);
 
 	seq_printf(s, "EC Chip ID: %x\n", read_ec_id(&priv->ecram, priv->conf));
 	seq_printf(s, "EC Chip Version: %x\n",
@@ -1381,8 +1423,20 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
 	read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
+	err = eval_int(priv->adev->handle, "VPC0._CFG", &cfg);
+	seq_printf(s, "ACPI CFG error: %d\n", err);
+	seq_printf(s, "ACPI CFG: %lu\n", cfg);
+
 	read_powermode(&priv->ecram, priv->conf, &powermode);
 	seq_printf(s, "powermode: %d\n", powermode);
+
+	err = acpi_read_powermode(priv->adev, priv->conf, &powermode);
+	seq_printf(s, "ACPI powermode error: %d\n", err);
+	seq_printf(s, "ACPI powermode: %d\n", powermode);
+
+	err = read_rapidcharge(priv->adev, &is_rapidcharge);
+	seq_printf(s, "ACPI rapidcharge error: %d\n", err);
+	seq_printf(s, "ACPI rapidcharge: %d\n", is_rapidcharge);
 
 	seq_printf(s, "minifancurve feature enabled: %d\n",
 		   priv->conf->has_minifancurve);
@@ -1406,6 +1460,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_puts(s, "Current fan curve in hardware (embedded controller):\n");
 	fancurve_print_seqfile(&priv->fancurve, s);
 	seq_puts(s, "=====================\n");
+	mutex_unlock(&priv->fancurve_mutex);
 	return 0;
 }
 
@@ -1450,7 +1505,9 @@ static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int power_mode;
 
+	mutex_lock(&priv->fancurve_mutex);
 	read_powermode(&priv->ecram, priv->conf, &power_mode);
+	mutex_unlock(&priv->fancurve_mutex);
 	return sysfs_emit(buf, "%d\n", power_mode);
 }
 
@@ -1466,7 +1523,9 @@ static ssize_t powermode_store(struct device *dev,
 	if (err)
 		return err;
 
+	mutex_lock(&priv->fancurve_mutex);
 	err = write_powermode(&priv->ecram, priv->conf, powermode);
+	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
 
@@ -1527,9 +1586,15 @@ static ssize_t keyboard_backlight_show(struct device *dev,
 				       struct device_attribute *attr, char *buf)
 {
 	int state;
+	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	read_keyboard_backlight(&priv->ecram, priv->conf, &state);
+	mutex_lock(&priv->fancurve_mutex);
+	err = read_keyboard_backlight(&priv->ecram, priv->conf, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
 	return sysfs_emit(buf, "%d\n", state);
 }
 
@@ -1545,7 +1610,9 @@ static ssize_t keyboard_backlight_store(struct device *dev,
 	if (err)
 		return err;
 
+	mutex_lock(&priv->fancurve_mutex);
 	err = write_keyboard_backlight(&priv->ecram, priv->conf, state);
+	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
 
@@ -1554,9 +1621,48 @@ static ssize_t keyboard_backlight_store(struct device *dev,
 
 static DEVICE_ATTR_RW(keyboard_backlight);
 
+static ssize_t rapidcharge_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	bool state = false;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = read_rapidcharge(priv->adev, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	return sysfs_emit(buf, "%d\n", state);
+}
+
+static ssize_t rapidcharge_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int state;
+	int err;
+
+	err = kstrtouint(buf, 0, &state);
+	if (err)
+		return err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = write_rapidcharge(priv->adev, state);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(rapidcharge);
+
 static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr,
-	&dev_attr_keyboard_backlight.attr, NULL
+	&dev_attr_keyboard_backlight.attr, &dev_attr_rapidcharge.attr, NULL
 };
 
 static const struct attribute_group legion_attribute_group = {
@@ -2598,6 +2704,39 @@ void legion_hwmon_exit(struct legion_private *priv)
 	pr_info("Unloading legion hwon done\n");
 }
 
+/* ACPI*/
+
+int acpi_init(struct legion_private *priv, struct acpi_device *adev)
+{
+	int err;
+	unsigned long cfg;
+	struct device *dev = &priv->platform_device->dev;
+
+	priv->adev = adev;
+	if (!priv->adev) {
+		dev_info(dev, "Could not get ACPI handle\n");
+		goto err_acpi_init;
+	}
+
+	err = eval_int(priv->adev->handle, "_STA", &cfg);
+	if (err) {
+		dev_info(dev, "Could not evaluate ACPI _STA\n");
+		goto err_acpi_init;
+	}
+
+	err = eval_int(priv->adev->handle, "VPC0._CFG", &cfg);
+	if (err) {
+		dev_info(dev, "Could not evaluate ACPI _CFG\n");
+		goto err_acpi_init;
+	}
+	dev_info(dev, "ACPI CFG: %lu\n", cfg);
+
+	return 0;
+
+err_acpi_init:
+	return err;
+}
+
 /* =============================  */
 /* Platform driver                */
 /* ============================   */
@@ -2674,6 +2813,12 @@ int legion_add(struct platform_device *pdev)
 
 	priv->conf = dmi_sys->driver_data;
 
+	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
+	if (err) {
+		dev_info(&pdev->dev, "Could not init ACPI access\n");
+		goto err_acpi_init;
+	}
+
 	err = ecram_init(&priv->ecram, priv->conf->memoryio_physical_ec_start,
 			 priv->conf->memoryio_size);
 	if (err) {
@@ -2741,6 +2886,7 @@ err_sysfs_init:
 err_ecram_id:
 	ecram_exit(&priv->ecram);
 err_ecram_init:
+err_acpi_init:
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:
@@ -2796,7 +2942,8 @@ static SIMPLE_DEV_PM_OPS(legion_pm, NULL, legion_pm_resume);
 
 // same as ideapad
 static const struct acpi_device_id legion_device_ids[] = {
-	{ "PNP0C09", 0 }, // todo: change to "VPC2004"
+	// todo: change to "VPC2004", and also ACPI paths
+	{ "PNP0C09", 0 }, 
 	{ "", 0 },
 };
 MODULE_DEVICE_TABLE(acpi, legion_device_ids);
