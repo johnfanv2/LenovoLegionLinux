@@ -487,6 +487,7 @@ static int exec_ints(acpi_handle handle, const char *method_name,
 	// seto to NULL call kfree on NULL if next function call fails
 	union acpi_object *out = NULL;
 	int error = 0;
+	size_t i;
 
 	status = acpi_evaluate_object(handle, (acpi_string)method_name, params,
 				      &out_buffer);
@@ -512,7 +513,7 @@ static int exec_ints(acpi_handle handle, const char *method_name,
 		goto err;
 	}
 
-	for (size_t i = 0; i < ressize; ++i)
+	for (i = 0; i < ressize; ++i)
 		res[i] = out->buffer.pointer[i];
 	error = 0;
 
