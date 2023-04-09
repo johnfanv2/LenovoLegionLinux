@@ -199,6 +199,11 @@ https://github.com/dell/dkms#secure-boot.
 sudo dkms remove -m LenovoLegionLinux -v 1.0.0
 reboot
 ```
+
+### Permanently Patching the Kernel
+This is only useful for advanced users that build there own kernel. A automatically generated patch is provided on the 
+release page whenver a stable milestone has been reached: [Releases]( https://github.com/johnfanv2/LenovoLegionLinux/releases) 
+
 ## :octocat: Initial Usage Testing
 Please note:
 - Please test in the given order; try to fix a failed text before going to the next. 
