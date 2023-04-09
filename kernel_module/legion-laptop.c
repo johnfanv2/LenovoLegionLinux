@@ -63,6 +63,7 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/dmi.h>
+#include <linux/leds.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/kernel.h>
@@ -476,6 +477,48 @@ static int eval_spmo(acpi_handle handle, unsigned long *res)
 {
 	// \_SB.PCI0.LPC0.EC0.QCHO
 	return eval_int(handle, "VPC0.BTSM", res);
+}
+
+static int exec_ints(acpi_handle handle, const char *method_name,
+		     struct acpi_object_list *params, u8 *res, size_t ressize)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+	// seto to NULL call kfree on NULL if next function call fails
+	union acpi_object *out = NULL;
+	int error = 0;
+
+	status = acpi_evaluate_object(handle, (acpi_string)method_name, params,
+				      &out_buffer);
+
+	if (ACPI_FAILURE(status)) {
+		pr_info("ACPI evaluation error for: %s\n", method_name);
+		error = -EFAULT;
+		goto err;
+	}
+
+	out = out_buffer.pointer;
+	if (!out) {
+		pr_info("Unexpected ACPI result for %s", method_name);
+		error = -AE_ERROR;
+		goto err;
+	}
+
+	if (out->type != ACPI_TYPE_BUFFER || out->buffer.length < ressize) {
+		pr_info("Unexpected ACPI result for %s: expected type %d but got %d; expected length %lu but got %u;\n",
+			method_name, ACPI_TYPE_BUFFER, out->type, ressize,
+			out->buffer.length);
+		error = -AE_ERROR;
+		goto err;
+	}
+
+	for (size_t i = 0; i < ressize; ++i)
+		res[i] = out->buffer.pointer[i];
+	error = 0;
+
+err:
+	kfree(out);
+	return error;
 }
 
 /* ================================= */
@@ -1338,6 +1381,12 @@ struct legion_private {
 	struct dentry *debugfs_dir;
 	struct device *hwmon_dev;
 	struct platform_profile_handler platform_profile_handler;
+
+	struct {
+		bool initialized;
+		struct led_classdev led;
+		unsigned int last_brightness;
+	} kbd_bl;
 
 	// TODO: remove?
 	bool loaded;
@@ -2738,6 +2787,147 @@ err_acpi_init:
 }
 
 /* =============================  */
+/* White Keyboard Backlight       */
+/* ============================   */
+// In style of ideapad-driver and with code modified from ideapad-driver.
+
+static int legion_kbd_bl_brightness_get(struct legion_private *priv)
+{
+	int err;
+	struct acpi_object_list params;
+	union acpi_object in_params[3];
+	const char *method_name = "\\_SB.GZFD.WMBA";
+	u8 result[2];
+	u8 value;
+
+	params.count = 3;
+	params.pointer = &in_params[0];
+	in_params[0].type = ACPI_TYPE_INTEGER;
+	in_params[0].integer.value = 0;
+	in_params[1].type = ACPI_TYPE_INTEGER;
+	in_params[1].integer.value = 1;
+	in_params[2].type = ACPI_TYPE_INTEGER;
+	in_params[2].integer.value = 0;
+	err = exec_ints(priv->adev->handle, method_name, &params, result,
+			ARRAY_SIZE(result));
+	if (err) {
+		pr_info("Error ACPI call for reading keyboard brightness\n");
+		return -EFAULT;
+	}
+	value = result[1];
+	if (!(value >= 1 && value <= 3)) {
+		pr_info("Error ACPI call for reading keyboard brightness: expected a value between 1 and 3, but got %d\n",
+			value);
+		return -EFAULT;
+	}
+	return value - 1;
+}
+
+static int legion_kbd_bl_brightness_set(struct legion_private *priv,
+					unsigned int brightness)
+{
+	struct acpi_object_list params;
+	union acpi_object in_params[3];
+	u8 in_buffer_param[8];
+	const char *method_name = "\\_SB.GZFD.WMBA";
+	unsigned long long result;
+	acpi_status status;
+
+	params.count = 3;
+	params.pointer = &in_params[0];
+	in_params[0].type = ACPI_TYPE_INTEGER;
+	in_params[0].integer.value = 0;
+	in_params[1].type = ACPI_TYPE_INTEGER;
+	in_params[1].integer.value = 0x2;
+	in_params[2].type = ACPI_TYPE_BUFFER;
+	in_params[2].buffer.length = 3;
+	in_params[2].buffer.pointer = &in_buffer_param[0];
+	in_buffer_param[0] = 0;
+	in_buffer_param[1] = 0x01;
+	in_buffer_param[2] = clamp(brightness + 1u, 1u, 3u);
+
+	status = acpi_evaluate_integer(
+		priv->adev->handle, (acpi_string)method_name, &params, &result);
+	if (ACPI_FAILURE(status)) {
+		pr_info("Error for ACPI call to set keyboard brightness\n");
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static enum led_brightness
+legion_kbd_bl_led_cdev_brightness_get(struct led_classdev *led_cdev)
+{
+	struct legion_private *priv =
+		container_of(led_cdev, struct legion_private, kbd_bl.led);
+
+	return legion_kbd_bl_brightness_get(priv);
+}
+
+static int legion_kbd_bl_led_cdev_brightness_set(struct led_classdev *led_cdev,
+						 enum led_brightness brightness)
+{
+	struct legion_private *priv =
+		container_of(led_cdev, struct legion_private, kbd_bl.led);
+
+	return legion_kbd_bl_brightness_set(priv, brightness);
+}
+
+static int legion_kbd_bl_init(struct legion_private *priv)
+{
+	int brightness, err;
+
+	// if (!priv->features.kbd_bl)
+	//   return -ENODEV;
+
+	if (WARN_ON(priv->kbd_bl.initialized)) {
+		pr_info("Keyboard backlight already initialized\n");
+		return -EEXIST;
+	}
+
+	brightness = legion_kbd_bl_brightness_get(priv);
+	if (brightness < 0) {
+		pr_info("Error reading keyboard brighntess\n");
+		return brightness;
+	}
+
+	priv->kbd_bl.last_brightness = brightness;
+
+	priv->kbd_bl.led.name = "platform::" LED_FUNCTION_KBD_BACKLIGHT;
+	priv->kbd_bl.led.max_brightness = 2;
+	priv->kbd_bl.led.brightness_get = legion_kbd_bl_led_cdev_brightness_get;
+	priv->kbd_bl.led.brightness_set_blocking =
+		legion_kbd_bl_led_cdev_brightness_set;
+	priv->kbd_bl.led.flags = LED_BRIGHT_HW_CHANGED;
+
+	err = led_classdev_register(&priv->platform_device->dev,
+				    &priv->kbd_bl.led);
+	if (err)
+		return err;
+
+	priv->kbd_bl.initialized = true;
+
+	return 0;
+}
+
+/**
+ * Deinit keyboard backlight.
+ *
+ * Can be called if init was not successful.
+ *
+ */
+static void legion_kbd_bl_exit(struct legion_private *priv)
+{
+	if (!priv->kbd_bl.initialized)
+		return;
+
+	priv->kbd_bl.initialized = false;
+
+	led_classdev_unregister(&priv->kbd_bl.led);
+}
+
+/* =============================  */
 /* Platform driver                */
 /* ============================   */
 
@@ -2870,10 +3060,19 @@ int legion_add(struct platform_device *pdev)
 		goto err_wmi;
 	}
 
+	pr_info("Init keyboard backlight LED driver\n");
+	err = legion_kbd_bl_init(priv);
+	if (err) {
+		dev_info(
+			&pdev->dev,
+			"Init keyboard backlight LED driver failed. Skipping ...\n");
+	}
+
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
 	// TODO: remove eventually
+	legion_kbd_bl_exit(priv);
 	legion_wmi_exit();
 err_wmi:
 	legion_platform_profile_exit(priv);
@@ -2902,6 +3101,7 @@ int legion_remove(struct platform_device *pdev)
 	priv->loaded = false;
 	mutex_unlock(&legion_shared_mutex);
 
+	legion_kbd_bl_exit(priv);
 	// first unregister wmi, so toggling powermode does not
 	// generate events anymore that even might be delayed
 	legion_wmi_exit();
