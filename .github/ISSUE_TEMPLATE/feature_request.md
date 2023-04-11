@@ -16,5 +16,21 @@ A clear and concise description of what you want to happen.
 **Describe alternatives you've considered**
 A clear and concise description of any alternative solutions or features you've considered.
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+**Model and Debug Info**
+
+Model name: ???
+
+Output of `s` and `sudo dmidecode -t system`. Please remove Serial Number and UUID for privacy:
+```text
+???
+```
+
+Output of `udo dmidecode -t bios`:
+```text
+???
+```
+
+Output of `sudo cat /sys/kernel/debug/legion/fancurve`:
+```text
+???
+```
