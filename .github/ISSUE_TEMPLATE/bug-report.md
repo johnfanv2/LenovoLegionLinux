@@ -7,12 +7,24 @@ assignees: ''
 
 ---
 
-**Model**
-Model name: ???
-BIOS version: ???
+**Problem Descripition**
+???
 
-**Additional context**
-Please insert output of `sudo cat /sys/kernel/debug/legion/fancurve`
+**Model and Debug Info**
+
+Model name: ???
+
+Output of `s` and `sudo dmidecode -t system`. Please remove Serial Number and UUID for privacy:
+```text
+???
+```
+
+Output of `udo dmidecode -t bios`:
+```text
+???
+```
+
+Output of `sudo cat /sys/kernel/debug/legion/fancurve`:
 ```text
 ???
 ```
