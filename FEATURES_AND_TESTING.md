@@ -241,6 +241,57 @@ echo '\_SB.GZFD.WMB2 0 0x2 1' > /proc/acpi/call
 cat /proc/acpi/call; printf '\n'
 ```
 
+## ACPI
+SPMO: power mode (0,1,2)
+ADPT: AC Adapter
+CPP1, CPP2: power limit cpu at 0xFE00D6B0 (EC?)
+- can by set by WMI
+- if not set yet (i.e.) defualt values like 0x58 (constant) for CPP1; or value calculated in CPP4 (0x37,0x48,...) for  CPP2 depending on GTYP, DBFS
+
+long term:
+-defaullt: 0x46 for CCP2
+-changes stapm (also in quiet mode, immediately confirmed with ryzendadj)
+
+
+set short term: SMUF = 0x07
+- changes: | PPT LIMIT SLOW      |    89.000 | slow-limit   
+set long term: SMUF = 0x05
+call ALIB
+
+also set with FNQR, FNQS
+- use value from CPP2, CPP1 if not 0
+
+WMB3
+
+### GPU
+DTG1, CTG1 at 0xFE00D6C0
+CTG2: calculated as constant from GTYP
+
+short:
+- report: DTG1/8 in first; use DTG1=0x78 if DTG1=0
+- set: DTG1 = 8 * Arg2 and notify
+
+long:
+- report: CTG1/8 in first and CTG2/8 in 0x0C offset; use CTG1=CTG2 if CTG1=0
+- set: CTG1 = 8 * Arg2 and notify
+
+## Powerstate Inspection with AMD
+```bash
+sudo apt install libpci-dev
+git clone https://github.com/FlyGoat/RyzenAdj.git
+cd RyzenAdj
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
+```
+
+## NVIDIA GPU Stress test
+```
+git clone https://github.com/wilicc/gpu-burn
+cd gpu-burn
+docker build -t gpu_burn .
+docker run --rm --gpus all gpu_burn
+```
 
 ### Script for Windows
 ```powershell
@@ -988,6 +1039,7 @@ Class Name: LENOVO_CPU_METHOD
 Class GUID: {14afd777-106f-4c9b-b334-d388dc7809be}
 Description: Get CPU OC Status
 Implemented: True
+ACPI dissassembly: returns constant 0
 
 Name: CPU_Set_OC_Status
 WmiMethodId: 2
@@ -995,6 +1047,7 @@ Class Name: LENOVO_CPU_METHOD
 Class GUID: {14afd777-106f-4c9b-b334-d388dc7809be}
 Description: Set CPU OC Status
 Implemented: True
+ACPI dissassembly: no handler
 
 Name: CPU_Get_ShortTerm_PowerLimit
 WmiMethodId: 3
@@ -1002,6 +1055,11 @@ Class Name: LENOVO_CPU_METHOD
 Class GUID: {14afd777-106f-4c9b-b334-d388dc7809be}
 Description: Get CPU ShortTerm_PowerLimit
 Implemented: True
+buffer:
+- 0: SSTPL (also set to CPP1)
+- 4: STP1 (also set to 1)
+- 8: MIP1 (also set to 0x0A)
+- 0x0C: MAP1 (also set to 0x58)
 
 Name: CPU_Set_ShortTerm_PowerLimit
 WmiMethodId: 4
@@ -1009,6 +1067,7 @@ Class Name: LENOVO_CPU_METHOD
 Class GUID: {14afd777-106f-4c9b-b334-d388dc7809be}
 Description: Set CPU ShortTerm_PowerLimit
 Implemented: True
+ACPI dissassembly: CPP1=arg2, SMUF = 0x07, SMUD = Arg2*0x03E8
 
 Name: CPU_Get_LongTerm_PowerLimit
 WmiMethodId: 5
@@ -1016,6 +1075,10 @@ Class Name: LENOVO_CPU_METHOD
 Class GUID: {14afd777-106f-4c9b-b334-d388dc7809be}
 Description: Get CPU LongTerm PowerLimit
 Implemented: True
+- 0: LTPL (also set to CPP2)
+- 4: STP2 (also set to 1)
+- 8: MIP2 (also set to 0x0A)
+- 0x0C: MAP2 (also set to CPP4)
 
 Name: CPU_Set_LongTerm_PowerLimit
 WmiMethodId: 6
@@ -1023,6 +1086,7 @@ Class Name: LENOVO_CPU_METHOD
 Class GUID: {14afd777-106f-4c9b-b334-d388dc7809be}
 Description: Set CPU LongTerm_PowerLimit
 Implemented: True
+ACPI dissassembly: CPP2=arg2, SMUF = 0x05, SMUD = Arg2*0x03E8
 
 
 ########################################
@@ -1039,6 +1103,7 @@ Class Name: LENOVO_GPU_METHOD
 Class GUID: {da7547f1-824d-405f-be79-d9903e29ced7}
 Description: Get GPU OC Status
 Implemented: True
+ACPI: implemented
 
 Name: GPU_Set_OC_Status
 WmiMethodId: 2
@@ -1046,6 +1111,7 @@ Class Name: LENOVO_GPU_METHOD
 Class GUID: {da7547f1-824d-405f-be79-d9903e29ced7}
 Description: Set GPU OC Status
 Implemented: True
+ACPI: implemented
 
 Name: GPU_Get_PPAB_PowerLimit
 WmiMethodId: 3
@@ -1053,6 +1119,7 @@ Class Name: LENOVO_GPU_METHOD
 Class GUID: {da7547f1-824d-405f-be79-d9903e29ced7}
 Description: Get GPU PPAB PowerLimit
 Implemented: True
+ACPI: implemented
 
 Name: GPU_Set_PPAB_PowerLimit
 WmiMethodId: 4
@@ -1060,6 +1127,7 @@ Class Name: LENOVO_GPU_METHOD
 Class GUID: {da7547f1-824d-405f-be79-d9903e29ced7}
 Description: Set GPU PPAB PowerLimit
 Implemented: True
+ACPI: implemented
 
 Name: GPU_Get_cTGP_PowerLimit
 WmiMethodId: 5
@@ -1067,6 +1135,7 @@ Class Name: LENOVO_GPU_METHOD
 Class GUID: {da7547f1-824d-405f-be79-d9903e29ced7}
 Description: Get GPU cTGP PowerLimit
 Implemented: True
+ACPI: implemented
 
 Name: GPU_Set_cTGP_PowerLimit
 WmiMethodId: 6
@@ -1074,6 +1143,7 @@ Class Name: LENOVO_GPU_METHOD
 Class GUID: {da7547f1-824d-405f-be79-d9903e29ced7}
 Description: Set GPU cTGP PowerLimint
 Implemented: True
+ACPI: implemented
 
 
 ########################################
