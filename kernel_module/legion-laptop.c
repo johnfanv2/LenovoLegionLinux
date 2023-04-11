@@ -520,18 +520,18 @@ err:
 	return error;
 }
 
-static int exec_ints(acpi_handle handle, const char *method_name,
-		     struct acpi_object_list *params, u8 *res, size_t ressize)
-{
-	acpi_status status;
-	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+// static int exec_ints(acpi_handle handle, const char *method_name,
+// 		     struct acpi_object_list *params, u8 *res, size_t ressize)
+// {
+// 	acpi_status status;
+// 	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
 
-	status = acpi_evaluate_object(handle, (acpi_string)method_name, params,
-				      &out_buffer);
+// 	status = acpi_evaluate_object(handle, (acpi_string)method_name, params,
+// 				      &out_buffer);
 
-	return acpi_process_buffer_to_ints(method_name, 0, status, &out_buffer,
-					   res, ressize);
-}
+// 	return acpi_process_buffer_to_ints(method_name, 0, status, &out_buffer,
+// 					   res, ressize);
+// }
 
 static int wmi_exec_ints(const char *guid, u8 instance, u32 method_id,
 			 const struct acpi_buffer *params, u8 *res,
@@ -872,7 +872,7 @@ ssize_t read_powermode(struct ecram *ecram, const struct model_config *model,
 ssize_t write_powermode(struct ecram *ecram, const struct model_config *model,
 			u8 value)
 {
-	if (!(value >= 0 && value <= 2)) {
+	if (!((value >= 0 && value <= 2) || value == 255)) {
 		pr_info("Unexpected power mode value ignored: %d\n", value);
 		return -ENOMEM;
 	}
@@ -1578,47 +1578,6 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* sysfs interface                */
 /* ============================   */
 
-static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
-			      char *buf)
-{
-	struct legion_private *priv = dev_get_drvdata(dev);
-	int power_mode;
-
-	mutex_lock(&priv->fancurve_mutex);
-	read_powermode(&priv->ecram, priv->conf, &power_mode);
-	mutex_unlock(&priv->fancurve_mutex);
-	return sysfs_emit(buf, "%d\n", power_mode);
-}
-
-static ssize_t powermode_store(struct device *dev,
-			       struct device_attribute *attr, const char *buf,
-			       size_t count)
-{
-	struct legion_private *priv = dev_get_drvdata(dev);
-	int powermode;
-	int err;
-
-	err = kstrtouint(buf, 0, &powermode);
-	if (err)
-		return err;
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = write_powermode(&priv->ecram, priv->conf, powermode);
-	mutex_unlock(&priv->fancurve_mutex);
-	if (err)
-		return -EINVAL;
-
-	// TODO: better?
-	// we have to wait a bit before change is done in hardware and
-	// readback done after notifying returns correct value, otherwise
-	// the notified reader will read old value
-	msleep(500);
-	platform_profile_notify();
-
-	return count;
-}
-
-static DEVICE_ATTR_RW(powermode);
 
 static ssize_t lockfancontroller_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
@@ -1702,6 +1661,13 @@ static DEVICE_ATTR_RW(rapidcharge);
 
 #define LEGION_WMI_GAMEZONE_GUID "887B54E3-DDDC-4B2C-8B88-68A26A8835D0"
 
+// GPU over clock
+#define WMI_METHOD_ID_ISSUPPORTGPUOC 4
+
+#define WMI_METHOD_ID_GETVERSION 11
+
+#define WMI_METHOD_ID_ISSUPPORTCPUOC 14
+
 // set iGPU state
 #define WMI_METHOD_ID_IGPUMODESTATUSGET 41
 #define WMI_METHOD_ID_IGPUMODESTATUSSET 42
@@ -1733,6 +1699,11 @@ enum IGPUState {
 #define WMI_METHOD_ID_GETGSYNCSTATUS 41
 #define WMI_METHOD_ID_SETGSYNCSTATUS 42
 
+//SmartFanMode = powermode
+#define WMI_METHOD_ID_ISSUPPORTSMARTFAN 49
+#define WMI_METHOD_ID_GETSMARTFANMODE 45
+#define WMI_METHOD_ID_SETSMARTFANMODE 44
+
 // power charge mode
 #define WMI_METHOD_ID_GETPOWERCHARGEMODE 47
 
@@ -1741,6 +1712,8 @@ enum IGPUState {
 #define WMI_METHOD_ID_ISSUPPORTOD 49
 #define WMI_METHOD_ID_GETODSTATUS 50
 #define WMI_METHOD_ID_SETODSTATUS 51
+
+#define WMI_METHOD_ID_GETTHERMALMODE 55
 
 // get max frequency of core 0
 #define WMI_METHOD_ID_GETCPUMAXFREQUENCY 60
@@ -1756,6 +1729,16 @@ static int wmi_exec_noarg_int(const char *guid, u8 instance, u32 method_id,
 	params.length = 0;
 	params.pointer = NULL;
 	return wmi_exec_int(guid, instance, method_id, &params, res);
+}
+
+static int wmi_exec_noarg_ints(const char *guid, u8 instance, u32 method_id,
+			      u8 *res, size_t ressize)
+{
+	struct acpi_buffer params;
+
+	params.length = 0;
+	params.pointer = NULL;
+	return wmi_exec_ints(guid, instance, method_id, &params, res, ressize);
 }
 
 static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
@@ -1776,7 +1759,7 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 static int show_simple_wmi_attribute(struct device *dev,
 				     struct device_attribute *attr, char *buf,
 				     const char *guid, u8 instance,
-				     u32 method_id, bool invert)
+				     u32 method_id, bool invert, unsigned long scale)
 {
 	unsigned long state = 0;
 	int err;
@@ -1788,22 +1771,59 @@ static int show_simple_wmi_attribute(struct device *dev,
 	if (err)
 		return -EINVAL;
 
+	state = state * scale;
+
 	if (invert)
 		state = !state;
 
 	return sysfs_emit(buf, "%lu\n", state);
 }
 
+static int show_simple_wmi_attribute_from_buffer(struct device *dev,
+				     struct device_attribute *attr, char *buf,
+				     const char *guid, u8 instance,
+				     u32 method_id, size_t ressize, size_t i, int scale)
+{
+	u8 res[16];
+	int err;
+	int out;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (ressize > ARRAY_SIZE(res)){
+		pr_info("Buffer to small for WMI result\n");
+		return -EINVAL;
+	}
+	if (i >= ressize){
+		pr_info("Index not within buffer size\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_noarg_ints(guid, instance, method_id, res, ressize);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	out = scale * res[i];
+	return sysfs_emit(buf, "%d\n", out);
+}
+
+
 static int store_simple_wmi_attribute(struct device *dev,
 				      struct device_attribute *attr,
 				      const char *buf, size_t count,
 				      const char *guid, u8 instance,
-				      u32 method_id, bool invert)
+				      u32 method_id, bool invert, int scale)
 {
 	u8 in_param;
 	int state;
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (scale == 0 ){
+		pr_info("Scale cannot be 0\n");
+		return -EINVAL;
+	}
 
 	err = kstrtouint(buf, 0, &state);
 	if (err)
@@ -1811,7 +1831,7 @@ static int store_simple_wmi_attribute(struct device *dev,
 	if (invert)
 		state = !state;
 
-	in_param = state;
+	in_param = state / scale;
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_exec_arg(guid, instance, method_id, &in_param,
@@ -1821,12 +1841,42 @@ static int store_simple_wmi_attribute(struct device *dev,
 	return count;
 }
 
+static ssize_t issupportgpuoc_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_ISSUPPORTGPUOC, false, 1);
+}
+
+static DEVICE_ATTR_RO(issupportgpuoc);
+
+static ssize_t aslcodeversion_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETVERSION, false, 1);
+}
+
+static DEVICE_ATTR_RO(aslcodeversion);
+
+static ssize_t issupportcpuoc_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_ISSUPPORTCPUOC, false, 1);
+}
+
+static DEVICE_ATTR_RO(issupportcpuoc);
+
 static ssize_t winkey_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
-					 WMI_METHOD_ID_GETWINKEYSTATUS, true);
+					 WMI_METHOD_ID_GETWINKEYSTATUS, true, 1);
 }
 
 static ssize_t winkey_store(struct device *dev, struct device_attribute *attr,
@@ -1834,7 +1884,7 @@ static ssize_t winkey_store(struct device *dev, struct device_attribute *attr,
 {
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  LEGION_WMI_GAMEZONE_GUID, 0,
-					  WMI_METHOD_ID_SETWINKEYSTATUS, true);
+					  WMI_METHOD_ID_SETWINKEYSTATUS, true, 1);
 }
 
 static DEVICE_ATTR_RW(winkey);
@@ -1844,7 +1894,7 @@ static ssize_t touchpad_show(struct device *dev, struct device_attribute *attr,
 {
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
-					 WMI_METHOD_ID_GETTPSTATUS, true);
+					 WMI_METHOD_ID_GETTPSTATUS, true, 1);
 }
 
 static ssize_t touchpad_store(struct device *dev, struct device_attribute *attr,
@@ -1852,7 +1902,7 @@ static ssize_t touchpad_store(struct device *dev, struct device_attribute *attr,
 {
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  LEGION_WMI_GAMEZONE_GUID, 0,
-					  WMI_METHOD_ID_SETTPSTATUS, true);
+					  WMI_METHOD_ID_SETTPSTATUS, true, 1);
 }
 
 static DEVICE_ATTR_RW(touchpad);
@@ -1862,7 +1912,7 @@ static ssize_t gsync_show(struct device *dev, struct device_attribute *attr,
 {
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
-					 WMI_METHOD_ID_GETGSYNCSTATUS, true);
+					 WMI_METHOD_ID_GETGSYNCSTATUS, true, 1);
 }
 
 static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
@@ -1870,7 +1920,7 @@ static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
 {
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  LEGION_WMI_GAMEZONE_GUID, 0,
-					  WMI_METHOD_ID_SETGSYNCSTATUS, false);
+					  WMI_METHOD_ID_SETGSYNCSTATUS, false, 1);
 }
 
 static DEVICE_ATTR_RW(gsync);
@@ -1881,7 +1931,7 @@ static ssize_t powerchargemode_show(struct device *dev,
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
 					 WMI_METHOD_ID_GETPOWERCHARGEMODE,
-					 false);
+					 false, 1);
 }
 static DEVICE_ATTR_RO(powerchargemode);
 
@@ -1890,7 +1940,7 @@ static ssize_t overdrive_show(struct device *dev, struct device_attribute *attr,
 {
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
-					 WMI_METHOD_ID_GETODSTATUS, false);
+					 WMI_METHOD_ID_GETODSTATUS, false, 1);
 }
 
 static ssize_t overdrive_store(struct device *dev,
@@ -1899,10 +1949,21 @@ static ssize_t overdrive_store(struct device *dev,
 {
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  LEGION_WMI_GAMEZONE_GUID, 0,
-					  WMI_METHOD_ID_SETODSTATUS, false);
+					  WMI_METHOD_ID_SETODSTATUS, false, 1);
 }
 
 static DEVICE_ATTR_RW(overdrive);
+
+static ssize_t thermalmode_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETTHERMALMODE,
+					 false, 1);
+}
+static DEVICE_ATTR_RO(thermalmode);
+
 
 // TOOD: probably remove again because provided by other means; only useful for overclocking
 static ssize_t cpumaxfrequency_show(struct device *dev,
@@ -1911,7 +1972,7 @@ static ssize_t cpumaxfrequency_show(struct device *dev,
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
 					 WMI_METHOD_ID_GETCPUMAXFREQUENCY,
-					 false);
+					 false, 1);
 }
 static DEVICE_ATTR_RO(cpumaxfrequency);
 
@@ -1920,14 +1981,281 @@ static ssize_t isacfitforoc_show(struct device *dev,
 {
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
-					 WMI_METHOD_ID_ISACFITFOROC, false);
+					 WMI_METHOD_ID_ISACFITFOROC, false, 1);
 }
 static DEVICE_ATTR_RO(isacfitforoc);
+
+
+ssize_t wmi_read_powermode(struct legion_private* priv,
+		       int *powermode)
+{
+	int err;
+	unsigned long res;
+
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0, 
+		WMI_METHOD_ID_GETSMARTFANMODE, &res);
+
+	if(!err)
+		*powermode = res;
+	return err;
+}
+
+ssize_t wmi_write_powermode(struct legion_private* priv, u8 value)
+{
+	if (!((value >= 0 && value <= 2) || value == 255)) {
+		pr_info("Unexpected power mode value ignored: %d\n", value);
+		return -ENOMEM;
+	}
+	return wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0, WMI_METHOD_ID_SETSMARTFANMODE, 
+		&value, sizeof(value));
+}
+
+#define WMI_GUID_LENOVO_CPU_METHOD "14afd777-106f-4c9b-b334-d388dc7809be"
+
+// ppt limit slow
+#define WMI_METHOD_ID_CPU_GET_SHORTTERM_POWERLIMIT 3
+#define WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT 4
+// ppt stapm
+#define WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT 5
+#define WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT 6
+
+static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute_from_buffer(dev, attr, buf,
+					 WMI_GUID_LENOVO_CPU_METHOD, 0,
+					 WMI_METHOD_ID_CPU_GET_SHORTTERM_POWERLIMIT, 
+					 16, 0, 1);
+}
+
+static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_CPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT, 
+					  false, 1);
+}
+
+
+
+static DEVICE_ATTR_RW(cpu_shortterm_powerlimit);
+
+static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute_from_buffer(dev, attr, buf,
+					 WMI_GUID_LENOVO_CPU_METHOD, 0,
+					 WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT, 
+					 16, 0, 1);
+}
+
+static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_CPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT, 
+					  false, 1);
+}
+
+static DEVICE_ATTR_RW(cpu_longterm_powerlimit);
+
+
+
+#define WMI_GUID_LENOVO_GPU_METHOD "da7547f1-824d-405f-be79-d9903e29ced7"
+
+#define WMI_METHOD_ID_GPU_GET_OC_STATUS 1
+#define WMI_METHOD_ID_GPU_SET_OC_STATUS 2
+// dynamic boost
+#define WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT 3
+#define WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT 4
+// configurable TGP
+#define WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT 5
+#define WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT 6
+
+static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute_from_buffer(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT, 
+					 16, 0, 1);
+}
+
+static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT, false, 1);
+}
+
+
+
+static DEVICE_ATTR_RW(gpu_ppab_powerlimit);
+
+static ssize_t gpu_ctgp_powerlimit_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute_from_buffer(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 
+					 16, 0, 1);
+}
+
+static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT, false, 1);
+}
+
+static DEVICE_ATTR_RW(gpu_ctgp_powerlimit);
+
+
+static ssize_t gpu_ctgp2_powerlimit_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute_from_buffer(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 
+					 16, 0x0C, 1);
+}
+
+static DEVICE_ATTR_RO(gpu_ctgp2_powerlimit);
+
+
+#define WMI_GUID_LENOVO_FAN_METHOD "92549549-4bde-4f06-ac04-ce8bf898dbaa"
+
+// set to maximal speed = dust cleaning; only works in custom power mode
+#define WMI_METHOD_ID_FAN_GET_FULLSPEED 1
+#define WMI_METHOD_ID_FAN_SET_FULLSPEED 2
+
+#define WMI_METHOD_ID_FAN_GETCURRENTFANSPEED 7
+#define WMI_METHOD_ID_FAN_GETCURRENTSENSORTEMPERATURE 8
+
+
+static ssize_t fan_fullspeed_show(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 WMI_GUID_LENOVO_FAN_METHOD, 0,
+					 WMI_METHOD_ID_FAN_GET_FULLSPEED, false, 1);
+}
+
+static ssize_t fan_fullspeed_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_FAN_METHOD, 0,
+					  WMI_METHOD_ID_FAN_SET_FULLSPEED, false, 1);
+}
+
+static DEVICE_ATTR_RW(fan_fullspeed);
+
+
+// fan_id: 0 or 1
+ssize_t wmi_read_fanspeed(struct legion_private* priv,
+			   int fan_id,
+		       int *fanspeed_rpm)
+{
+	int err;
+	unsigned long res;
+	struct acpi_buffer params;
+
+	params.length = 1;
+	params.pointer = &fan_id;
+
+	err = wmi_exec_int(WMI_GUID_LENOVO_FAN_METHOD, 0, 
+		WMI_METHOD_ID_FAN_GETCURRENTFANSPEED, &params, &res);
+
+	if(!err)
+		*fanspeed_rpm = res;
+	return err;
+}
+
+//sensor_id: cpu = 0, gpu = 1
+ssize_t wmi_read_temperature(struct legion_private* priv, int sensor_id, int* temperature)
+{
+	int err;
+	unsigned long res;
+	struct acpi_buffer params;
+
+	if(sensor_id == 0){
+		sensor_id = 0x03; 
+	}
+	else if(sensor_id == 0){
+		sensor_id = 0x04; 
+	}
+
+	params.length = 1;
+	params.pointer = &sensor_id;
+
+	err = wmi_exec_int(WMI_GUID_LENOVO_FAN_METHOD, 0, 
+		WMI_METHOD_ID_FAN_GETCURRENTSENSORTEMPERATURE, &params, &res);
+
+	if(!err)
+		*temperature = res;
+	return err;
+}
+
+
+static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int power_mode;
+
+	mutex_lock(&priv->fancurve_mutex);
+	read_powermode(&priv->ecram, priv->conf, &power_mode);
+	//wmi_read_powermode(priv, &power_mode);
+	mutex_unlock(&priv->fancurve_mutex);
+	return sysfs_emit(buf, "%d\n", power_mode);
+}
+
+static ssize_t powermode_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int powermode;
+	int err;
+
+	err = kstrtouint(buf, 0, &powermode);
+	if (err)
+		return err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = write_powermode(&priv->ecram, priv->conf, powermode);
+	//err = wmi_write_powermode(priv, powermode);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	// TODO: better?
+	// we have to wait a bit before change is done in hardware and
+	// readback done after notifying returns correct value, otherwise
+	// the notified reader will read old value
+	msleep(500);
+	platform_profile_notify();
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(powermode);
 
 static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_powermode.attr,
 	&dev_attr_lockfancontroller.attr,
 	&dev_attr_rapidcharge.attr,
+	&dev_attr_issupportgpuoc.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
@@ -1935,6 +2263,16 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_overdrive.attr,
 	&dev_attr_cpumaxfrequency.attr,
 	&dev_attr_isacfitforoc.attr,
+	&dev_attr_cpu_shortterm_powerlimit.attr,
+	&dev_attr_cpu_longterm_powerlimit.attr,
+	&dev_attr_gpu_ppab_powerlimit.attr,
+	&dev_attr_gpu_ctgp_powerlimit.attr,
+	&dev_attr_gpu_ctgp2_powerlimit.attr,
+	&dev_attr_fan_fullspeed.attr,
+	&dev_attr_thermalmode.attr,
+	&dev_attr_issupportcpuoc.attr,
+	&dev_attr_issupportgpuoc.attr,
+	&dev_attr_aslcodeversion.attr,
 	NULL
 };
 
