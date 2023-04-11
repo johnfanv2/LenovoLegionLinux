@@ -14,12 +14,12 @@ assignees: ''
 
 Model name: ???
 
-Output of `s` and `sudo dmidecode -t system`. Please remove Serial Number and UUID for privacy:
+Output of `sudo dmidecode -t system`. Please remove Serial Number and UUID for privacy:
 ```text
 ???
 ```
 
-Output of `udo dmidecode -t bios`:
+Output of `sudo dmidecode -t bios`:
 ```text
 ???
 ```
