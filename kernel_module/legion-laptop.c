@@ -57,6 +57,7 @@
  *                      and commincation method with EC via ports
  *      - 0x1F9F1: additional reverse engineering for complete fan curve
  */
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/acpi.h>
 #include <asm/io.h>
@@ -479,35 +480,32 @@ static int eval_spmo(acpi_handle handle, unsigned long *res)
 	return eval_int(handle, "VPC0.BTSM", res);
 }
 
-static int exec_ints(acpi_handle handle, const char *method_name,
-		     struct acpi_object_list *params, u8 *res, size_t ressize)
+static int acpi_process_buffer_to_ints(const char *id_name, int id_nr,
+				       acpi_status status,
+				       struct acpi_buffer *out_buffer, u8 *res,
+				       size_t ressize)
 {
-	acpi_status status;
-	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
 	// seto to NULL call kfree on NULL if next function call fails
 	union acpi_object *out = NULL;
-	int error = 0;
 	size_t i;
-
-	status = acpi_evaluate_object(handle, (acpi_string)method_name, params,
-				      &out_buffer);
+	int error = 0;
 
 	if (ACPI_FAILURE(status)) {
-		pr_info("ACPI evaluation error for: %s\n", method_name);
+		pr_info("ACPI evaluation error for: %s:%d\n", id_name, id_nr);
 		error = -EFAULT;
 		goto err;
 	}
 
-	out = out_buffer.pointer;
+	out = out_buffer->pointer;
 	if (!out) {
-		pr_info("Unexpected ACPI result for %s", method_name);
+		pr_info("Unexpected ACPI result for %s:%d\n", id_name, id_nr);
 		error = -AE_ERROR;
 		goto err;
 	}
 
 	if (out->type != ACPI_TYPE_BUFFER || out->buffer.length < ressize) {
-		pr_info("Unexpected ACPI result for %s: expected type %d but got %d; expected length %lu but got %u;\n",
-			method_name, ACPI_TYPE_BUFFER, out->type, ressize,
+		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d; expected length %lu but got %u;\n",
+			id_name, id_nr, ACPI_TYPE_BUFFER, out->type, ressize,
 			out->buffer.length);
 		error = -AE_ERROR;
 		goto err;
@@ -515,6 +513,72 @@ static int exec_ints(acpi_handle handle, const char *method_name,
 
 	for (i = 0; i < ressize; ++i)
 		res[i] = out->buffer.pointer[i];
+	error = 0;
+
+err:
+	kfree(out);
+	return error;
+}
+
+static int exec_ints(acpi_handle handle, const char *method_name,
+		     struct acpi_object_list *params, u8 *res, size_t ressize)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+
+	status = acpi_evaluate_object(handle, (acpi_string)method_name, params,
+				      &out_buffer);
+
+	return acpi_process_buffer_to_ints(method_name, 0, status, &out_buffer,
+					   res, ressize);
+}
+
+static int wmi_exec_ints(const char *guid, u8 instance, u32 method_id,
+			 const struct acpi_buffer *params, u8 *res,
+			 size_t ressize)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+
+	status = wmi_evaluate_method(guid, instance, method_id, params,
+				     &out_buffer);
+	return acpi_process_buffer_to_ints(guid, method_id, status, &out_buffer,
+					   res, ressize);
+}
+
+static int wmi_exec_int(const char *guid, u8 instance, u32 method_id,
+			const struct acpi_buffer *params, unsigned long *res)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+	// seto to NULL call kfree on NULL if next function call fails
+	union acpi_object *out = NULL;
+	int error = 0;
+
+	status = wmi_evaluate_method(guid, instance, method_id, params,
+				     &out_buffer);
+
+	if (ACPI_FAILURE(status)) {
+		pr_info("WMI evaluation error for: %s:%d\n", guid, method_id);
+		error = -EFAULT;
+		goto err;
+	}
+
+	out = out_buffer.pointer;
+	if (!out) {
+		pr_info("Unexpected ACPI result for %s:%d", guid, method_id);
+		error = -AE_ERROR;
+		goto err;
+	}
+
+	if (out->type != ACPI_TYPE_INTEGER) {
+		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d\n",
+			guid, method_id, ACPI_TYPE_INTEGER, out->type);
+		error = -AE_ERROR;
+		goto err;
+	}
+
+	*res = out->integer.value;
 	error = 0;
 
 err:
@@ -927,41 +991,6 @@ ssize_t write_minifancurve(struct ecram *ecram,
 	u8 val = state ? MINIFANCUVE_ON_COOL_ON : MINIFANCUVE_ON_COOL_OFF;
 
 	ecram_write(ecram, model->registers->EXT_MINIFANCURVE_ON_COOL, val);
-	return 0;
-}
-
-#define KEYBOARD_BACKLIGHT_OFF 18
-#define KEYBOARD_BACKLIGHT_ON1 21
-#define KEYBOARD_BACKLIGHT_ON2 23
-
-int read_keyboard_backlight(struct ecram *ecram,
-			    const struct model_config *model, int *state)
-{
-	int value = ecram_read(ecram,
-			       model->registers->EXT_WHITE_KEYBOARD_BACKLIGHT);
-
-	//switch (value) {
-	//case MINIFANCUVE_ON_COOL_ON:
-	//	*state = true;
-	//	break;
-	//case MINIFANCUVE_ON_COOL_OFF:
-	//	*state = false;
-	//	break;
-	//default:
-	//	pr_info("Unexpected value in MINIFANCURVE register:%d\n",
-	//		value);
-	//	return -1;
-	//}
-	*state = value;
-	return 0;
-}
-
-int write_keyboard_backlight(struct ecram *ecram,
-			     const struct model_config *model, int state)
-{
-	u8 val = state > 0 ? KEYBOARD_BACKLIGHT_ON1 : KEYBOARD_BACKLIGHT_OFF;
-
-	ecram_write(ecram, model->registers->EXT_WHITE_KEYBOARD_BACKLIGHT, val);
 	return 0;
 }
 
@@ -1632,45 +1661,6 @@ static ssize_t lockfancontroller_store(struct device *dev,
 
 static DEVICE_ATTR_RW(lockfancontroller);
 
-static ssize_t keyboard_backlight_show(struct device *dev,
-				       struct device_attribute *attr, char *buf)
-{
-	int state;
-	int err;
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = read_keyboard_backlight(&priv->ecram, priv->conf, &state);
-	mutex_unlock(&priv->fancurve_mutex);
-	if (err)
-		return -EINVAL;
-
-	return sysfs_emit(buf, "%d\n", state);
-}
-
-static ssize_t keyboard_backlight_store(struct device *dev,
-					struct device_attribute *attr,
-					const char *buf, size_t count)
-{
-	struct legion_private *priv = dev_get_drvdata(dev);
-	int state;
-	int err;
-
-	err = kstrtouint(buf, 0, &state);
-	if (err)
-		return err;
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = write_keyboard_backlight(&priv->ecram, priv->conf, state);
-	mutex_unlock(&priv->fancurve_mutex);
-	if (err)
-		return -EINVAL;
-
-	return count;
-}
-
-static DEVICE_ATTR_RW(keyboard_backlight);
-
 static ssize_t rapidcharge_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -1710,9 +1700,242 @@ static ssize_t rapidcharge_store(struct device *dev,
 
 static DEVICE_ATTR_RW(rapidcharge);
 
+#define LEGION_WMI_GAMEZONE_GUID "887B54E3-DDDC-4B2C-8B88-68A26A8835D0"
+
+// set iGPU state
+#define WMI_METHOD_ID_IGPUMODESTATUSGET 41
+#define WMI_METHOD_ID_IGPUMODESTATUSSET 42
+enum IGPUState {
+	IGPUState_default = 0,
+	IGPUState_iGPUOnly = 1,
+	IGPUState_auto = 2
+};
+// set full speed
+// ???
+// maybe only in custom mode?
+
+// disable win key
+// 0 = win key enabled
+// 1 = win key disabled
+#define WMI_METHOD_ID_ISSUPPORTDISABLEWINKEY 21
+#define WMI_METHOD_ID_GETWINKEYSTATUS 23
+#define WMI_METHOD_ID_SETWINKEYSTATUS 22
+
+// disable touchpad
+// 0 = touchpad enabled
+// 1 = touchpad disabled
+#define WMI_METHOD_ID_ISSUPPORTDISABLETP 24
+#define WMI_METHOD_ID_GETTPSTATUS 26
+#define WMI_METHOD_ID_SETTPSTATUS 25
+
+// GSync
+#define WMI_METHOD_ID_ISSUPPORTGSYNC 40
+#define WMI_METHOD_ID_GETGSYNCSTATUS 41
+#define WMI_METHOD_ID_SETGSYNCSTATUS 42
+
+// power charge mode
+#define WMI_METHOD_ID_GETPOWERCHARGEMODE 47
+
+// overdrive of display to reduce latency
+// 0=off, 1=on
+#define WMI_METHOD_ID_ISSUPPORTOD 49
+#define WMI_METHOD_ID_GETODSTATUS 50
+#define WMI_METHOD_ID_SETODSTATUS 51
+
+// get max frequency of core 0
+#define WMI_METHOD_ID_GETCPUMAXFREQUENCY 60
+
+// check if AC adapter has enough power to overclock
+#define WMI_METHOD_ID_ISACFITFOROC 62
+
+static int wmi_exec_noarg_int(const char *guid, u8 instance, u32 method_id,
+			      unsigned long *res)
+{
+	struct acpi_buffer params;
+
+	params.length = 0;
+	params.pointer = NULL;
+	return wmi_exec_int(guid, instance, method_id, &params, res);
+}
+
+static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
+			size_t arg_size)
+{
+	struct acpi_buffer params;
+	acpi_status status;
+
+	params.length = arg_size;
+	params.pointer = arg;
+	status = wmi_evaluate_method(guid, instance, method_id, &params, NULL);
+
+	if (ACPI_FAILURE(status))
+		return -EIO;
+	return 0;
+}
+
+static int show_simple_wmi_attribute(struct device *dev,
+				     struct device_attribute *attr, char *buf,
+				     const char *guid, u8 instance,
+				     u32 method_id, bool invert)
+{
+	unsigned long state = 0;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	if (invert)
+		state = !state;
+
+	return sysfs_emit(buf, "%lu\n", state);
+}
+
+static int store_simple_wmi_attribute(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count,
+				      const char *guid, u8 instance,
+				      u32 method_id, bool invert)
+{
+	u8 in_param;
+	int state;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtouint(buf, 0, &state);
+	if (err)
+		return err;
+	if (invert)
+		state = !state;
+
+	in_param = state;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_arg(guid, instance, method_id, &in_param,
+			   sizeof(in_param));
+	mutex_unlock(&priv->fancurve_mutex);
+
+	return count;
+}
+
+static ssize_t winkey_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETWINKEYSTATUS, true);
+}
+
+static ssize_t winkey_store(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  LEGION_WMI_GAMEZONE_GUID, 0,
+					  WMI_METHOD_ID_SETWINKEYSTATUS, true);
+}
+
+static DEVICE_ATTR_RW(winkey);
+
+static ssize_t touchpad_show(struct device *dev, struct device_attribute *attr,
+			     char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETTPSTATUS, true);
+}
+
+static ssize_t touchpad_store(struct device *dev, struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  LEGION_WMI_GAMEZONE_GUID, 0,
+					  WMI_METHOD_ID_SETTPSTATUS, true);
+}
+
+static DEVICE_ATTR_RW(touchpad);
+
+static ssize_t gsync_show(struct device *dev, struct device_attribute *attr,
+			  char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETGSYNCSTATUS, true);
+}
+
+static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  LEGION_WMI_GAMEZONE_GUID, 0,
+					  WMI_METHOD_ID_SETGSYNCSTATUS, false);
+}
+
+static DEVICE_ATTR_RW(gsync);
+
+static ssize_t powerchargemode_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETPOWERCHARGEMODE,
+					 false);
+}
+static DEVICE_ATTR_RO(powerchargemode);
+
+static ssize_t overdrive_show(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETODSTATUS, false);
+}
+
+static ssize_t overdrive_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  LEGION_WMI_GAMEZONE_GUID, 0,
+					  WMI_METHOD_ID_SETODSTATUS, false);
+}
+
+static DEVICE_ATTR_RW(overdrive);
+
+// TOOD: probably remove again because provided by other means; only useful for overclocking
+static ssize_t cpumaxfrequency_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETCPUMAXFREQUENCY,
+					 false);
+}
+static DEVICE_ATTR_RO(cpumaxfrequency);
+
+static ssize_t isacfitforoc_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_ISACFITFOROC, false);
+}
+static DEVICE_ATTR_RO(isacfitforoc);
+
 static struct attribute *legion_sysfs_attributes[] = {
-	&dev_attr_powermode.attr, &dev_attr_lockfancontroller.attr,
-	&dev_attr_keyboard_backlight.attr, &dev_attr_rapidcharge.attr, NULL
+	&dev_attr_powermode.attr,
+	&dev_attr_lockfancontroller.attr,
+	&dev_attr_rapidcharge.attr,
+	&dev_attr_winkey.attr,
+	&dev_attr_touchpad.attr,
+	&dev_attr_gsync.attr,
+	&dev_attr_powerchargemode.attr,
+	&dev_attr_overdrive.attr,
+	&dev_attr_cpumaxfrequency.attr,
+	&dev_attr_isacfitforoc.attr,
+	NULL
 };
 
 static const struct attribute_group legion_attribute_group = {
@@ -1830,9 +2053,6 @@ static const struct legion_wmi_private legion_wmi_context_e = {
 static const struct legion_wmi_private legion_wmi_context_f = {
 	.event = LEGION_EVENT_F
 };
-
-// check if really a method
-#define LEGION_WMI_GAMEZONE_GUID "887B54E3-DDDC-4B2C-8B88-68A26A8835D0"
 
 #define LEGION_WMI_GUID_FAN_EVENT "D320289E-8FEA-41E0-86F9-611D83151B5F"
 #define LEGION_WMI_GUID_FAN2_EVENT "bc72a435-e8c1-4275-b3e2-d8b8074aba59"
@@ -2792,29 +3012,89 @@ err_acpi_init:
 /* ============================   */
 // In style of ideapad-driver and with code modified from ideapad-driver.
 
+//static int legion_kbd_bl_brightness_get(struct legion_private *priv)
+//{
+//	int err;
+//	struct acpi_object_list params;
+//	union acpi_object in_params[3];
+//	const char *method_name = "\\_SB.GZFD.WMBA";
+//	u8 result[2];
+//	u8 value;
+//	params.count = 3;
+//	params.pointer = &in_params[0];
+//	in_params[0].type = ACPI_TYPE_INTEGER;
+//	in_params[0].integer.value = 0;
+//	in_params[1].type = ACPI_TYPE_INTEGER;
+//	in_params[1].integer.value = 1;
+//	in_params[2].type = ACPI_TYPE_INTEGER;
+//	in_params[2].integer.value = 0;
+//	err = exec_ints(priv->adev->handle, method_name, &params, result,
+//			ARRAY_SIZE(result));
+//	if (err) {
+//		pr_info("Error ACPI call for reading keyboard brightness\n");
+//		return -EFAULT;
+//	}
+//	value = result[1];
+//	if (!(value >= 1 && value <= 3)) {
+//		pr_info("Error ACPI call for reading keyboard brightness: expected a value between 1 and 3, but got %d\n",
+//			value);
+//		return -EFAULT;
+//	}
+//	return value - 1;
+//}
+//static int legion_kbd_bl_brightness_set(struct legion_private *priv,
+//					unsigned int brightness)
+//{
+//	struct acpi_object_list params;
+//	union acpi_object in_params[3];
+//	u8 in_buffer_param[8];
+//	const char *method_name = "\\_SB.GZFD.WMBA";
+//	unsigned long long result;
+//	acpi_status status;
+//	params.count = 3;
+//	params.pointer = &in_params[0];
+//	in_params[0].type = ACPI_TYPE_INTEGER;
+//	in_params[0].integer.value = 0;
+//	in_params[1].type = ACPI_TYPE_INTEGER;
+//	in_params[1].integer.value = 0x2;
+//	in_params[2].type = ACPI_TYPE_BUFFER;
+//	in_params[2].buffer.length = 3;
+//	in_params[2].buffer.pointer = &in_buffer_param[0];
+//	in_buffer_param[0] = 0;
+//	in_buffer_param[1] = 0x01;
+//	in_buffer_param[2] = clamp(brightness + 1u, 1u, 3u);
+//	status = acpi_evaluate_integer(
+//		priv->adev->handle, (acpi_string)method_name, &params, &result);
+//	if (ACPI_FAILURE(status)) {
+//		pr_info("Error for ACPI call to set keyboard brightness\n");
+//		return -EIO;
+//	}
+//	return 0;
+//}
+
+#define LEGION_WMI_KBBACKLIGHT_GUID "8C5B9127-ECD4-4657-980F-851019F99CA5"
+#define WMI_METHOD_ID_KBBACKLIGHTGET 0x1
+#define WMI_METHOD_ID_KBBACKLIGHTSET 0x2
+
 static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 {
-	int err;
-	struct acpi_object_list params;
-	union acpi_object in_params[3];
-	const char *method_name = "\\_SB.GZFD.WMBA";
+	struct acpi_buffer params;
+	u8 in;
 	u8 result[2];
 	u8 value;
+	int err;
 
-	params.count = 3;
-	params.pointer = &in_params[0];
-	in_params[0].type = ACPI_TYPE_INTEGER;
-	in_params[0].integer.value = 0;
-	in_params[1].type = ACPI_TYPE_INTEGER;
-	in_params[1].integer.value = 1;
-	in_params[2].type = ACPI_TYPE_INTEGER;
-	in_params[2].integer.value = 0;
-	err = exec_ints(priv->adev->handle, method_name, &params, result,
-			ARRAY_SIZE(result));
+	params.length = 1;
+	params.pointer = &in;
+	in = 0;
+	err = wmi_exec_ints(LEGION_WMI_KBBACKLIGHT_GUID, 0,
+			    WMI_METHOD_ID_KBBACKLIGHTGET, &params, result,
+			    ARRAY_SIZE(result));
 	if (err) {
-		pr_info("Error ACPI call for reading keyboard brightness\n");
-		return -EFAULT;
+		pr_info("Error for WMI method call to get keyboard brightness\n");
+		return -EIO;
 	}
+
 	value = result[1];
 	if (!(value >= 1 && value <= 3)) {
 		pr_info("Error ACPI call for reading keyboard brightness: expected a value between 1 and 3, but got %d\n",
@@ -2822,35 +3102,28 @@ static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 		return -EFAULT;
 	}
 	return value - 1;
+
+	return 0;
 }
 
 static int legion_kbd_bl_brightness_set(struct legion_private *priv,
 					unsigned int brightness)
 {
-	struct acpi_object_list params;
-	union acpi_object in_params[3];
+	struct acpi_buffer buffer;
 	u8 in_buffer_param[8];
-	const char *method_name = "\\_SB.GZFD.WMBA";
-	unsigned long long result;
-	acpi_status status;
+	unsigned long result;
+	int err;
 
-	params.count = 3;
-	params.pointer = &in_params[0];
-	in_params[0].type = ACPI_TYPE_INTEGER;
-	in_params[0].integer.value = 0;
-	in_params[1].type = ACPI_TYPE_INTEGER;
-	in_params[1].integer.value = 0x2;
-	in_params[2].type = ACPI_TYPE_BUFFER;
-	in_params[2].buffer.length = 3;
-	in_params[2].buffer.pointer = &in_buffer_param[0];
+	buffer.length = 3;
+	buffer.pointer = &in_buffer_param[0];
 	in_buffer_param[0] = 0;
 	in_buffer_param[1] = 0x01;
 	in_buffer_param[2] = clamp(brightness + 1u, 1u, 3u);
 
-	status = acpi_evaluate_integer(
-		priv->adev->handle, (acpi_string)method_name, &params, &result);
-	if (ACPI_FAILURE(status)) {
-		pr_info("Error for ACPI call to set keyboard brightness\n");
+	err = wmi_exec_int(LEGION_WMI_KBBACKLIGHT_GUID, 0,
+			   WMI_METHOD_ID_KBBACKLIGHTSET, &buffer, &result);
+	if (err) {
+		pr_info("Error for WMI method call to set keyboard brightness\n");
 		return -EIO;
 	}
 
