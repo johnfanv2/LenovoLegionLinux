@@ -89,10 +89,133 @@ acpi_listen
 
 
 ### Rapid Charge
+```bash
+# Enable
+echo '\_SB.PCI0.LPC0.EC0.VPC0.SBMC 0x07' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+
+# Distable
+echo '\_SB.PCI0.LPC0.EC0.VPC0.SBMC 0x08' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+
+```
+
+### Keyboard backlight (white)
+#### WMI
+```text
+WMI
+GUID: 8C5B9127-ECD4-4657-980F-851019F99CA5
+Object ID: BA
+
+Getting state
+Method ID: 0x1
+
+Setting state
+Method ID: 0x2
+```
+
+#### Test of WMI via acpi_call
+```bash
+# Get current state
+echo '\_SB.GZFD.WMBA 0 0x1 0' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+{0x00, 0x01}
+
+# Set current state
+echo '\_SB.GZFD.WMBA 0 0x2 {0, 0x01, 0x03}' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+0x0
+```
+
+### GSync
+```text
+WMI
+GUID: 887B54E3-DDDC-4B2C-8B88-68A26A8835D0
+Object ID: AA
+
+Getting state
+Method ID: 0x29
+Args: None
+Returns: integer
+- 0: enabled
+- 1: not enabled
+
+Setting state
+Method ID: 0x2A
+Args: Buffer of u8
+Returns: integer
+- 0: enabled
+- 1: not enabled
+```
+
+### Other to reverse enginner yet
+```c
+#define WMI_METHOD_ID_GSYNCSTATUSGET 0x29 
+#define WMI_METHOD_ID_GSYNCSTATUSSET 0x2A
+
+#define WMI_METHOD_ID_IGPUMODESTATUSGET 0x0
+#define WMI_METHOD_ID_IGPUMODESTATUSSET 0x0
+enum IGPUState{
+	IGPUState_default=0,
+	IGPUState_iGPUOnly=1,
+	IGPUState_auto=2
+};
+
+// overdrive
+// ODStatusGet, ODStatusSet
+// IsSupportOD
+#define WMI_METHOD_ID_ODSTATUSGET 0x0
+#define WMI_METHOD_ID_ODSTATUSSET 0x0
+// 0=off, 1=on
+enum ODState{
+	ODState_off=0,
+	ODState_on=1,
+};
+
+// touchpad lock
+// TPStatusGet, TPStatusSet
+// IsSupportDisableTP
+#define WMI_METHOD_ID_TPSTATUSGET 0x0
+#define WMI_METHOD_ID_TPSTATUSSET 0x0
+// 0=off, 1=on
+
+//
+// WinKeyStatusGet, WinKeyStatusSet
+// IsSupportDisableWinKey
+#define WMI_METHOD_ID_WINKEYSTATUSGET 0x0
+#define WMI_METHOD_ID_WINKEYSTATUSSET 0x0
+
+//
+// LENOVO_FAN_METHOD
+// Fan_Set_FullSpeed
+```
 
 
-	if (cmd == "enable_rapid_charge") {
-		callACPI("\\_SB.PCI0.LPC0.EC0.VPC0.SBMC 0x07");
-	}
-	else if (cmd == "disable_rapid_charge") {
-		callACPI("\\_SB.PCI0.LPC0.EC0.VPC0.SBMC 0x08");
+
+
+### Keyboard backlight (white)
+#### WMI
+```text
+WMI
+GUID: 8C5B9127-ECD4-4657-980F-851019F99CA5
+Object ID: BA
+
+Getting state
+Method ID: 0x1
+
+Setting state
+Method ID: 0x2
+```
+
+#### Test of WMI via acpi_call
+```bash
+# Get current state
+echo '\_SB.GZFD.WMBA 0 0x1 0' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+{0x00, 0x01}
+
+# Set current state
+echo '\_SB.GZFD.WMBA 0 0x2 {0, 0x01, 0x03}' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+0x0
+```
