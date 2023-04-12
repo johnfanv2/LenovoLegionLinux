@@ -152,6 +152,19 @@ sudo make reloadmodule
 ```
 **For further insturctions, problems, and tests see `Initial Usage Testing` below. Do them first before a permanent installation.**
 
+Expected result:
+- `make` finishes without displaying `Error`
+
+Unexpected result:
+- `make` aborts with an error
+- an error of kind `/lib/modules/XXXXXXXX/build: No such file or directory` like the following below. This means that the linux-headers are not installed properly for the current kernel. Please check your currrent kernel with `uname -r` and install linux-headers for it. Then there will be a directory `/lib/modules/XXXXXXXX/` where XXXXXX is the current kernel version, e.g. `5.19.0-28-generic` or `6.2.9-arch1-1`. If you have just updated your packages a restart might help or see https://bbs.archlinux.org/viewtopic.php?id=135931, https://forum.manjaro.org/t/missing-build-directory-in-5-15-16-1-manjaro-headers/101793.
+```text
+make[1]: *** /lib/modules/6.2.9-arch1-1/build: No such file or directory.  Stop.
+make[1]: Leaving directory '/home/user/LenovoLegionLinux/kernel_module'
+make: *** [Makefile:13: all] Error 2
+```
+      
+
 
 ### Permanent Install Instruction
 After successfully building and testing (see below), run from the folder `LenovoLegionLinux/kernel_module`
