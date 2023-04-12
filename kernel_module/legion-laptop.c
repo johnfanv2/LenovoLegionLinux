@@ -2255,7 +2255,6 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_powermode.attr,
 	&dev_attr_lockfancontroller.attr,
 	&dev_attr_rapidcharge.attr,
-	&dev_attr_issupportgpuoc.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
