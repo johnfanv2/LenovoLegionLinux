@@ -148,6 +148,24 @@ Returns: integer
 - 1: not enabled
 ```
 
+### Change to Hyrbrid Mode
+
+### Flip to Start
+
+### Always on USB Charing
+3 modes
+
+### Check if methods are supported before providing them in sysfs
+
+### CPU boost 
+```
+cpupower frequency-info
+# disable boost
+sudo sh -c "echo '0' > /sys/devices/system/cpu/cpufreq/boost"
+# enable boost
+sudo sh -c "echo '1' > /sys/devices/system/cpu/cpufreq/boost"
+```
+
 ### Other to reverse enginner yet
 ```c
 #define WMI_METHOD_ID_GSYNCSTATUSGET 0x29 
