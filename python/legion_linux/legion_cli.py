@@ -13,18 +13,18 @@ class CLIFeatureCommand:
         status_parser = parser_subcommands.add_parser(
             f"{self.name}-status", help=f'Get current value for {self.name}')
         status_parser.set_defaults(
-            func=lambda l, *args, **kwargs: self.command_status(**kwargs))
+            func=lambda l, *args, **kwargs: self.command_status_cli(**kwargs))
 
         if writeable:
             enable_parser = parser_subcommands.add_parser(
                 f"{self.name}-enable", help=f'Enable {self.name}')
             enable_parser.set_defaults(
-                func=lambda l, *args, **kwargs: self.command_enable(**kwargs))
+                func=lambda l, *args, **kwargs: self.command_enable_cli(**kwargs))
 
             disable_parser = parser_subcommands.add_parser(
                 f"{self.name}-disable", help=f'Disable {self.name}')
             disable_parser.set_defaults(
-                func=lambda l, *args, **kwargs: self.command_disable(**kwargs))
+                func=lambda l, *args, **kwargs: self.command_disable_cli(**kwargs))
 
         if cmd_group is not None:
             cmd_group.append(self)
@@ -32,6 +32,35 @@ class CLIFeatureCommand:
     def set_model(self, model: LegionModelFacade):
         self.model = model
 
+    def check_if_exist(self):
+        if self.exists():
+            return True
+        else:
+            print("Command not available because feature not available or kernel module not loaded.")
+            return False
+
+    def command_status_cli(self, **_) -> int:
+        if self.check_if_exist():
+            self.command_status()
+        else:
+            return -10
+
+    def command_enable_cli(self, **_) -> int:
+        if self.check_if_exist():
+            self.command_enable()
+        else:
+            return -10
+
+    def command_disable_cli(self, **_) -> int:
+        if self.check_if_exist():
+            self.command_disable()
+        else:
+            return -10
+        
+
+    def exists(self) -> bool:
+        return False
+    
     # pylint: disable=no-self-use
     def command_status(self, **_) -> int:
         return 0
@@ -49,6 +78,9 @@ class MiniFancurveFeatureCommand(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("minifancurve", parser_subcommands, cmd_group)
         self.model = model
+
+    def exists(self) -> bool:
+        return self.model.fancurve_io.exists()
 
     def command_status(self, **_) -> int:
         print(self.model.fancurve_io.get_minifancuve())
@@ -68,6 +100,9 @@ class LockFanControllerFeatureCommand(CLIFeatureCommand):
         super().__init__("lockfancontroller", parser_subcommands, cmd_group)
         self.model = model
 
+    def exists(self) -> bool:
+        return self.model.lockfancontroller.exists()
+
     def command_status(self, **_) -> int:
         print(self.model.lockfancontroller.get())
         return 0
@@ -85,6 +120,9 @@ class MaximumFanSpeedFeatureCommand(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("maximumfanspeed", parser_subcommands, cmd_group)
         self.model = model
+
+    def exists(self) -> bool:
+        return self.model.maximum_fanspeed.exists()
 
     def command_status(self, **_) -> int:
         print(self.model.maximum_fanspeed.get())
@@ -104,6 +142,9 @@ class BatteryConservationFeatureCommand(CLIFeatureCommand):
         super().__init__("batteryconservation", parser_subcommands, cmd_group)
         self.model = model
 
+    def exists(self) -> bool:
+        return self.model.battery_conservation.exists()
+
     def command_status(self, **_) -> int:
         print(self.model.battery_conservation.get())
         return 0
@@ -121,6 +162,9 @@ class FnLockFeatureCommand(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("fnlock", parser_subcommands, cmd_group)
         self.model = model
+
+    def exists(self) -> bool:
+        return self.model.fn_lock.exists()
 
     def command_status(self, **_) -> int:
         print(self.model.fn_lock.get())
@@ -140,6 +184,9 @@ class TouchpadFeatureCommand(CLIFeatureCommand):
         super().__init__("touchpad", parser_subcommands, cmd_group)
         self.model = model
 
+    def exists(self) -> bool:
+        return self.model.touchpad.exists()
+
     def command_status(self, **_) -> int:
         print(self.model.touchpad.get())
         return 0
@@ -158,6 +205,9 @@ class CameraPowerFeatureCommand(CLIFeatureCommand):
         super().__init__("camera-power", parser_subcommands, cmd_group, False)
         self.model = model
 
+    def exists(self) -> bool:
+        return self.model.camera_power.exists()
+
     def command_status(self, **_) -> int:
         print(self.model.camera_power.get())
         return 0
@@ -168,6 +218,9 @@ class OnPowerSupplyFeatureCommand(CLIFeatureCommand):
         super().__init__("on-power-supply", parser_subcommands, cmd_group, False)
         self.model = model
 
+    def exists(self) -> bool:
+        return self.model.on_power_supply.exists()
+
     def command_status(self, **_) -> int:
         print(self.model.on_power_supply.get())
         return 0
@@ -177,6 +230,9 @@ class AlwaysOnUsbCharging(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("always-on-usb-charging", parser_subcommands, cmd_group)
         self.model = model
+
+    def exists(self) -> bool:
+        return self.model.always_on_usb_charging.exists()
 
     def command_status(self, **_) -> int:
         print(self.model.always_on_usb_charging.get())
@@ -195,6 +251,9 @@ class RapidCharging(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("rapid-charging", parser_subcommands, cmd_group)
         self.model = model
+
+    def exists(self) -> bool:
+        return self.model.rapid_charging.exists()
 
     def command_status(self, **_) -> int:
         print(self.model.rapid_charging.get())
