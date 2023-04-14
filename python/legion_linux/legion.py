@@ -146,15 +146,15 @@ class AlwaysOnUSBChargingFeature(FileFeature):
 
 class MaximumFanSpeedFeature(FileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_mode_")
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed")
 
     def set(self, value):
-        outvalue = 0 if value else 2
+        outvalue = 1 if value else 0
         return self._write_file(self.filename, outvalue)
 
     def get(self):
         invalue = self._read_file_int(self.filename)
-        return invalue == 0
+        return invalue == 1
 
 
 class PlatformProfileFeature(FileFeature):
