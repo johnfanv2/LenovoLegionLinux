@@ -1,3 +1,17 @@
+## Inspecting WMI entries
+```bash
+# Install required tools
+sudo apt install fwts
+
+# Create folder for all the new files
+mkdir fwts_re
+cd fwts_re
+sudo fwts wmi - > fwts_wmi.log
+```
+Then upload files.
+
+
+
 ## Disassembling ACPI tables
 
 ```bash
@@ -19,6 +33,33 @@ iasl -e SSDT* -d DSDT
 ```
 
 Then upload files.
+
+
+## Gaterhing WMI info in Windows
+Open powershell as admin in Windows and run the following script. It will list all available lenovo WMI methods. Copy output to a file and upload.
+```powershell
+$wmi_classes = Get-WmiObject -Namespace 'ROOT/WMI' -List -Class "*LENOVO*"
+foreach ($wmi_class in $wmi_classes){
+  Write-Host "########################################"
+  Write-Host "########################################"
+  Write-Host "########################################"
+  Write-Host "Name:" $wmi_class.Name
+  Write-Host "Class Name:" $wmi_class.Name 
+  Write-Host "Class GUID:" $wmi_class.Qualifiers["guid"].Value
+  Write-Host "Description:" $wmi_class.Methods.Count
+  Write-Host "Methods:"
+  foreach ($method in $wmi_class.Methods){
+    Write-Host "Name:" $method.Name
+    Write-Host "WmiMethodId:" $method.Qualifiers["WmiMethodId"].Value
+    Write-Host "Class Name:" $wmi_class.Name 
+    Write-Host "Class GUID:" $wmi_class.Qualifiers["guid"].Value
+    Write-Host "Description:" $method.Qualifiers["Description"].Value
+    Write-Host "Implemented:" $method.Qualifiers["Implemented"].Value
+    Write-Host ""
+  }
+  Write-Host ""
+}
+```
 
 ## Find Mapped Memory Address of Embedded Controller
 
