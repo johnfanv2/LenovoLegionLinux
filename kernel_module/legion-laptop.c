@@ -1799,15 +1799,15 @@ static ssize_t legion_kbd_bl2_brightness_get(struct legion_private *priv)
 	return state;
 }
 
-// static int legion_kbd_bl2_brightness_set(struct legion_private *priv,
-// 					 unsigned int brightness)
-// {
-// 	u8 in_param = brightness;
+//static int legion_kbd_bl2_brightness_set(struct legion_private *priv,
+//					 unsigned int brightness)
+//{
+//	u8 in_param = brightness;
 
-// 	return wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
-// 			    WMI_METHOD_ID_SETKEYBOARDLIGHT, &in_param,
-// 			    sizeof(in_param));
-// }
+//	return wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
+//			    WMI_METHOD_ID_SETKEYBOARDLIGHT, &in_param,
+//			    sizeof(in_param));
+//}
 
 static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 {
