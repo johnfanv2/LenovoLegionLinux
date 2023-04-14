@@ -180,10 +180,10 @@ struct ec_register_offsets {
 };
 
 enum access_method {
-	ACCESS_METHOD_NO_ACCESS=0,
-	ACCESS_METHOD_EC=1,
-	ACCESS_METHOD_ACPI=2,
-	ACCESS_METHOD_WMI=3,
+	ACCESS_METHOD_NO_ACCESS = 0,
+	ACCESS_METHOD_EC = 1,
+	ACCESS_METHOD_ACPI = 2,
+	ACCESS_METHOD_WMI = 3,
 };
 
 struct model_config {
@@ -453,6 +453,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "K9CN"),
 		},
 		.driver_data = (void *)&model_k9cn
+	},
+	{
+		// e.g. IdeaPad Gaming 3 15ARH05
+		.ident = "FCCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "FCCN"),
+		},
+		.driver_data = (void *)&model_fccn
 	},
 	{}
 };
@@ -1790,15 +1799,15 @@ static ssize_t legion_kbd_bl2_brightness_get(struct legion_private *priv)
 	return state;
 }
 
-static int legion_kbd_bl2_brightness_set(struct legion_private *priv,
-					 unsigned int brightness)
-{
-	u8 in_param = brightness;
+// static int legion_kbd_bl2_brightness_set(struct legion_private *priv,
+// 					 unsigned int brightness)
+// {
+// 	u8 in_param = brightness;
 
-	return wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
-			    WMI_METHOD_ID_SETKEYBOARDLIGHT, &in_param,
-			    sizeof(in_param));
-}
+// 	return wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
+// 			    WMI_METHOD_ID_SETKEYBOARDLIGHT, &in_param,
+// 			    sizeof(in_param));
+// }
 
 static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 {
@@ -1900,7 +1909,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "ACPI CFG error: %d\n", err);
 	seq_printf(s, "ACPI CFG: %lu\n", cfg);
 
-	seq_printf(s, "powermode access method: %d\n", priv->conf->access_method_powermode);
+	seq_printf(s, "powermode access method: %d\n",
+		   priv->conf->access_method_powermode);
 	err = read_powermode(priv, &powermode);
 	seq_printf(s, "powermode error: %d\n", err);
 	seq_printf(s, "powermode: %d\n", powermode);
@@ -1913,15 +1923,17 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	err = wmi_read_powermode(&powermode);
 	seq_printf(s, "WMI powermode error: %d\n", err);
 	seq_printf(s, "WMI powermode: %d\n", powermode);
-	seq_printf(s, "has custom powermode: %d\n", priv->conf->has_custom_powermode);
-	
+	seq_printf(s, "has custom powermode: %d\n",
+		   priv->conf->has_custom_powermode);
 
 	err = acpi_read_rapidcharge(priv->adev, &is_rapidcharge);
 	seq_printf(s, "ACPI rapidcharge error: %d\n", err);
 	seq_printf(s, "ACPI rapidcharge: %d\n", is_rapidcharge);
 
-	seq_printf(s, "WMI backlight on/off: %ld\n", legion_kbd_bl2_brightness_get(priv));
-	seq_printf(s, "WMI backlight: %d\n", legion_kbd_bl_brightness_get(priv));
+	seq_printf(s, "WMI backlight on/off: %ld\n",
+		   legion_kbd_bl2_brightness_get(priv));
+	seq_printf(s, "WMI backlight: %d\n",
+		   legion_kbd_bl_brightness_get(priv));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
 		   priv->conf->has_minifancurve);
@@ -2751,7 +2763,8 @@ static int legion_platform_profile_init(struct legion_private *priv)
 		priv->platform_profile_handler.choices);
 	set_bit(PLATFORM_PROFILE_PERFORMANCE,
 		priv->platform_profile_handler.choices);
-	if (priv->conf->has_custom_powermode) {
+	if (priv->conf->has_custom_powermode &&
+	    priv->conf->access_method_powermode == ACCESS_METHOD_WMI) {
 		set_bit(PLATFORM_PROFILE_BALANCED_PERFORMANCE,
 			priv->platform_profile_handler.choices);
 	}

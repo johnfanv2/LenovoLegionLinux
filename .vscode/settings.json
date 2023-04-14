@@ -53,6 +53,7 @@
         "streambuf": "c",
         "typeinfo": "c",
         "debugfs.h": "c",
-        "kernel.h": "c"
+        "kernel.h": "c",
+        "leds.h": "c"
     }
 }
