@@ -351,7 +351,7 @@ static const struct model_config model_fccn = {
 static const struct model_config model_h3cn = {
 	//0xFE0B0800
 	.registers = &ec_register_offsets_v1,
-	.check_embedded_controller_id = true,
+	.check_embedded_controller_id = false,
 	.embedded_controller_id = 0x8227,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
