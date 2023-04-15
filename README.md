@@ -470,7 +470,7 @@ Note:
 - You might want to create different scripts for different usages. Just copy it and adapt the values.
 
 ### Change power mode from software
-For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power daemon (`systemctl reload power-profiles-daemon.service` in Ubuntu) after reloading the kernel module (see above).
+For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power daemon (`systemctl restart power-profiles-daemon.service` in Ubuntu) after reloading the kernel module (see above).
 
 #### Modify/Control with GUI
 In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
@@ -495,8 +495,12 @@ powerprofilesctl list
 # * power-saver:
 #     Driver:     platform_profile
 
-# Set a profile, e.g. balanced
+# Set a profile, e.g. power-saver=quiet
+powerprofilesctl set power-saver
+# or balanced
 powerprofilesctl set balanced
+# or performance
+powerprofilesctl set performance
 ```
 
 Alternatively, you can also directly access it on a lower level:
@@ -504,9 +508,28 @@ Alternatively, you can also directly access it on a lower level:
 # Access current profile
 cat /sys/firmware/acpi/platform_profile
 
-# Change current profile (AS ROOT): available modes quiet, balanced, performance
+# Change current profile (AS ROOT): available modes quiet, balanced, performance, balanced-performance
+# quiet = power-saver
+echo quiet > /sys/firmware/acpi/platform_profile
+# or balanced
 echo balanced > /sys/firmware/acpi/platform_profile
+# or performance
+echo performance > /sys/firmware/acpi/platform_profile
+# or custom-mode = balanced-performance (not available on all models); the LED should turn pink/purple
+echo balanced-performance > /sys/firmware/acpi/platform_profile
 ```
+
+#### Custom Power Mode
+If you model support the custom power mode, then you can:
+- enter custom power mode
+- LED should turn pink/purple
+- customnize CPU/GPU boost and TGP settings
+
+You change to it with:
+```bash
+echo balanced-performance > /sys/firmware/acpi/platform_profile
+```
+Unfortunately, the `power-profile-deamon` or `powerprofilesctl` currently do not support this mode.
 
 ### Enable or disable the mini fan curve
 If the laptop stays cool for a longer time, it will enable the "mini fan curve", a special fan curve with only a few points. It will usually spin the fans. You can enable or disable that. If you want to use your configured fan curve in any case, disable it. The mini fan curve is not available on all models (you will see error for mini fan curve when running `cat /sys/kernel/debug/legion/fancurve`).
