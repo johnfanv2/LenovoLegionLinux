@@ -35,32 +35,29 @@ class CLIFeatureCommand:
     def check_if_exist(self):
         if self.exists():
             return True
-        else:
-            print("Command not available because feature not available or kernel module not loaded.")
-            return False
+        print(
+            "Command not available because feature not available or kernel module not loaded.")
+        return False
 
     def command_status_cli(self, **_) -> int:
         if self.check_if_exist():
-            self.command_status()
-        else:
-            return -10
+            return self.command_status()
+        return -10
 
     def command_enable_cli(self, **_) -> int:
         if self.check_if_exist():
-            self.command_enable()
-        else:
-            return -10
+            return self.command_enable()
+        return -10
 
     def command_disable_cli(self, **_) -> int:
         if self.check_if_exist():
-            self.command_disable()
-        else:
-            return -10
-        
+            return self.command_disable()
+        return -10
 
+    # pylint: disable=no-self-use
     def exists(self) -> bool:
         return False
-    
+
     # pylint: disable=no-self-use
     def command_status(self, **_) -> int:
         return 0

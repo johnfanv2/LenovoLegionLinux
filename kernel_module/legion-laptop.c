@@ -285,7 +285,7 @@ static const struct model_config model_v0 = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=true
+	.acpi_check_dev = true
 };
 
 static const struct model_config model_kfcn = {
@@ -297,7 +297,7 @@ static const struct model_config model_kfcn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=true
+	.acpi_check_dev = true
 };
 
 static const struct model_config model_hacn = {
@@ -309,7 +309,7 @@ static const struct model_config model_hacn = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=true
+	.acpi_check_dev = true
 };
 
 static const struct model_config model_k9cn = {
@@ -321,7 +321,7 @@ static const struct model_config model_k9cn = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=true
+	.acpi_check_dev = true
 };
 
 static const struct model_config model_eucn = {
@@ -333,7 +333,7 @@ static const struct model_config model_eucn = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=true
+	.acpi_check_dev = true
 };
 
 static const struct model_config model_fccn = {
@@ -345,9 +345,8 @@ static const struct model_config model_fccn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=true
+	.acpi_check_dev = true
 };
-
 
 static const struct model_config model_h3cn = {
 	//0xFE0B0800
@@ -359,7 +358,7 @@ static const struct model_config model_h3cn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = false,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.acpi_check_dev=false
+	.acpi_check_dev = false
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -3602,7 +3601,7 @@ int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 		goto err_acpi_init;
 	}
 
-	if(priv->conf->acpi_check_dev){
+	if (priv->conf->acpi_check_dev) {
 		err = eval_int(priv->adev->handle, "_STA", &cfg);
 		if (err) {
 			dev_info(dev, "Could not evaluate ACPI _STA\n");
