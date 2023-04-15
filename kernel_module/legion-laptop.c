@@ -1707,7 +1707,9 @@ ssize_t wmi_read_powermode(int *powermode)
 
 ssize_t wmi_write_powermode(u8 value)
 {
-	if (!((value >= 0 && value <= 2) || value == 255)) {
+	if (!((value >= LEGION_WMI_POWERMODE_QUIET &&
+	       value <= LEGION_WMI_POWERMODE_PERFORMANCE) ||
+	      value == LEGION_WMI_POWERMODE_CUSTOM)) {
 		pr_info("Unexpected power mode value ignored: %d\n", value);
 		return -ENOMEM;
 	}
