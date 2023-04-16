@@ -184,6 +184,7 @@ enum access_method {
 	ACCESS_METHOD_EC = 1,
 	ACCESS_METHOD_ACPI = 2,
 	ACCESS_METHOD_WMI = 3,
+	ACCESS_METHOD_WMI2 = 4,
 };
 
 struct model_config {
@@ -199,6 +200,11 @@ struct model_config {
 	bool has_minifancurve;
 	bool has_custom_powermode;
 	enum access_method access_method_powermode;
+
+	enum access_method access_method_keyboard;
+	enum access_method access_method_temperature;
+	enum access_method access_method_fanspeed;
+	bool three_state_keyboard;
 
 	bool acpi_check_dev;
 };
@@ -285,6 +291,9 @@ static const struct model_config model_v0 = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -297,6 +306,9 @@ static const struct model_config model_kfcn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -309,6 +321,9 @@ static const struct model_config model_hacn = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -321,6 +336,9 @@ static const struct model_config model_k9cn = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -333,6 +351,9 @@ static const struct model_config model_eucn = {
 	.has_minifancurve = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -345,6 +366,9 @@ static const struct model_config model_fccn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
 	.acpi_check_dev = true
 };
 
@@ -358,6 +382,10 @@ static const struct model_config model_h3cn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = false,
 	.access_method_powermode = ACCESS_METHOD_WMI,
+	// not implemented (properly) in WMI, RGB conrolled by USB
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
 	.acpi_check_dev = false
 };
 
@@ -696,13 +724,28 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 #define LEGION_WMI_GAMEZONE_GUID "887B54E3-DDDC-4B2C-8B88-68A26A8835D0"
 // GPU over clock
 #define WMI_METHOD_ID_ISSUPPORTGPUOC 4
+
+//Fan speed
+// only completely implemented only for some models here
+// often implemted also in other class and other method
+// below
+#define WMI_METHOD_ID_GETFAN1SPEED 8
+#define WMI_METHOD_ID_GETFAN2SPEED 9
+
 // Version of ACPI
 #define WMI_METHOD_ID_GETVERSION 11
 // Does it support CPU overclock?
 #define WMI_METHOD_ID_ISSUPPORTCPUOC 14
+// Temperatures
+// only completely implemented  only for some models here
+// often implemted also in other class and other method
+// below
+#define WMI_METHOD_ID_GETCPUTEMP 18
+#define WMI_METHOD_ID_GETGPUTEMP 19
+
 // two state keyboard light
-#define WMI_METHOD_ID_GETKEYBOARDLIGHT 38
-#define WMI_METHOD_ID_SETKEYBOARDLIGHT 37
+#define WMI_METHOD_ID_GETKEYBOARDLIGHT 37
+#define WMI_METHOD_ID_SETKEYBOARDLIGHT 36
 // disable win key
 // 0 = win key enabled; 1 = win key disabled
 #define WMI_METHOD_ID_ISSUPPORTDISABLEWINKEY 21
@@ -1359,6 +1402,102 @@ static int ec_read_sensor_values(struct ecram *ecram,
 	return 0;
 }
 
+ssize_t ec_read_temperature(struct ecram *ecram,
+			    const struct model_config *model, int sensor_id,
+			    int *temperature)
+{
+	int err = 0;
+	unsigned long res;
+
+	if (sensor_id == 0) {
+		res = ecram_read(ecram, 0xC5E6);
+	} else if (sensor_id == 1) {
+		res = ecram_read(ecram, 0xC5E7);
+	} else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+	if (!err)
+		*temperature = res;
+	return err;
+}
+
+ssize_t ec_read_fanspeed(struct ecram *ecram, const struct model_config *model,
+			 int fan_id, int *fanspeed_rpm)
+{
+	int err = 0;
+	unsigned long res;
+
+	if (fan_id == 0) {
+		res = ecram_read(ecram, model->registers->EXT_FAN1_RPM_LSB) +
+		      (((int)ecram_read(ecram,
+					model->registers->EXT_FAN1_RPM_MSB))
+		       << 8);
+	} else if (fan_id == 1) {
+		res = ecram_read(ecram, model->registers->EXT_FAN2_RPM_LSB) +
+		      (((int)ecram_read(ecram,
+					model->registers->EXT_FAN2_RPM_MSB))
+		       << 8);
+	} else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+	if (!err)
+		*fanspeed_rpm = res;
+	return err;
+}
+
+// '\_SB.PCI0.LPC0.EC0.FANS
+#define ACPI_PATH_FAN_SPEED1 "FANS"
+// '\_SB.PCI0.LPC0.EC0.FA2S
+#define ACPI_PATH_FAN_SPEED2 "FA2S"
+
+ssize_t acpi_read_fanspeed(struct legion_private *priv, int fan_id, int *value)
+{
+	int err;
+	unsigned long acpi_value;
+	const char *acpi_path;
+
+	if (fan_id == 0) {
+		acpi_path = ACPI_PATH_FAN_SPEED1;
+	} else if (fan_id == 1) {
+		acpi_path = ACPI_PATH_FAN_SPEED2;
+	} else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+	err = eval_int(priv->adev->handle, acpi_path, &acpi_value);
+	if (!err)
+		*value = (int)acpi_value * 100;
+	return err;
+}
+
+// '\_SB.PCI0.LPC0.EC0.CPUT
+#define ACPI_PATH_CPU_TEMP "CPUT"
+// '\_SB.PCI0.LPC0.EC0.GPUT
+#define ACPI_PATH_GPU_TEMP "GPUT"
+
+ssize_t acpi_read_temperature(struct legion_private *priv, int fan_id,
+			      int *value)
+{
+	int err;
+	unsigned long acpi_value;
+	const char *acpi_path;
+
+	if (fan_id == 0) {
+		acpi_path = ACPI_PATH_CPU_TEMP;
+	} else if (fan_id == 1) {
+		acpi_path = ACPI_PATH_GPU_TEMP;
+	} else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+	err = eval_int(priv->adev->handle, acpi_path, &acpi_value);
+	if (!err)
+		*value = (int)acpi_value;
+	return err;
+}
+
 // fan_id: 0 or 1
 ssize_t wmi_read_fanspeed(int fan_id, int *fanspeed_rpm)
 {
@@ -1386,8 +1525,12 @@ ssize_t wmi_read_temperature(int sensor_id, int *temperature)
 
 	if (sensor_id == 0)
 		sensor_id = 0x03;
-	else if (sensor_id == 0)
+	else if (sensor_id == 1)
 		sensor_id = 0x04;
+	else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
 
 	params.length = 1;
 	params.pointer = &sensor_id;
@@ -1399,6 +1542,90 @@ ssize_t wmi_read_temperature(int sensor_id, int *temperature)
 	if (!err)
 		*temperature = res;
 	return err;
+}
+
+// fan_id: 0 or 1
+ssize_t wmi_read_fanspeed_gz(int fan_id, int *fanspeed_rpm)
+{
+	int err;
+	u32 method_id;
+	unsigned long res;
+
+	if (fan_id == 0)
+		method_id = WMI_METHOD_ID_GETFAN1SPEED;
+	else if (fan_id == 1)
+		method_id = WMI_METHOD_ID_GETFAN2SPEED;
+	else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0, method_id, &res);
+
+	if (!err)
+		*fanspeed_rpm = res;
+	return err;
+}
+
+//sensor_id: cpu = 0, gpu = 1
+ssize_t wmi_read_temperature_gz(int sensor_id, int *temperature)
+{
+	int err;
+	u32 method_id;
+	unsigned long res;
+
+	if (sensor_id == 0)
+		method_id = WMI_METHOD_ID_GETCPUTEMP;
+	else if (sensor_id == 1)
+		method_id = WMI_METHOD_ID_GETGPUTEMP;
+	else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0, method_id, &res);
+
+	if (!err)
+		*temperature = res;
+	return err;
+}
+
+ssize_t read_fanspeed(struct legion_private *priv, int fan_id, int *speed_rpm)
+{
+	// TODO: use enums or function pointers?
+	switch (priv->conf->access_method_fanspeed) {
+	case ACCESS_METHOD_EC:
+		return ec_read_fanspeed(&priv->ecram, priv->conf, fan_id,
+					speed_rpm);
+	case ACCESS_METHOD_ACPI:
+		return acpi_read_fanspeed(priv, fan_id, speed_rpm);
+	case ACCESS_METHOD_WMI:
+		return wmi_read_fanspeed_gz(fan_id, speed_rpm);
+	case ACCESS_METHOD_WMI2:
+		return wmi_read_fanspeed(fan_id, speed_rpm);
+	default:
+		pr_info("No access method for powermode\n");
+		return -EINVAL;
+	}
+}
+
+ssize_t read_temperature(struct legion_private *priv, int sensor_id,
+			 int *temperature)
+{
+	// TODO: use enums or function pointers?
+	switch (priv->conf->access_method_temperature) {
+	case ACCESS_METHOD_EC:
+		return ec_read_temperature(&priv->ecram, priv->conf, sensor_id,
+					   temperature);
+	case ACCESS_METHOD_ACPI:
+		return acpi_read_temperature(priv, sensor_id, temperature);
+	case ACCESS_METHOD_WMI:
+		return wmi_read_temperature_gz(sensor_id, temperature);
+	case ACCESS_METHOD_WMI2:
+		return wmi_read_temperature(sensor_id, temperature);
+	default:
+		pr_info("No access method for powermode\n");
+		return -EINVAL;
+	}
 }
 
 /* ============================= */
@@ -1916,6 +2143,15 @@ static int debugfs_ecmemory_show(struct seq_file *s, void *unused)
 
 DEFINE_SHOW_ATTRIBUTE(debugfs_ecmemory);
 
+//TODO: make (almost) all methods static
+
+static void seq_file_print_with_error(struct seq_file *s, const char *name,
+				      ssize_t err, int value)
+{
+	seq_printf(s, "%s error: %ld\n", name, err);
+	seq_printf(s, "%s: %d\n", name, value);
+}
+
 static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
@@ -1924,6 +2160,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	bool is_maximumfanspeed;
 	bool is_rapidcharge = false;
 	int powermode;
+	int temperature;
+	int fanspeed;
 	int err;
 	unsigned long cfg;
 	//int kb_backlight;
@@ -1941,20 +2179,62 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "ACPI CFG error: %d\n", err);
 	seq_printf(s, "ACPI CFG: %lu\n", cfg);
 
+	seq_printf(s, "temperature access method: %d\n",
+		   priv->conf->access_method_temperature);
+	err = read_temperature(priv, 0, &temperature);
+	seq_file_print_with_error(s, "CPU temperature", err, temperature);
+	err = ec_read_temperature(&priv->ecram, priv->conf, 0, &temperature);
+	seq_file_print_with_error(s, "CPU temperature EC", err, temperature);
+	err = acpi_read_temperature(priv, 0, &temperature);
+	seq_file_print_with_error(s, "CPU temperature ACPI", err, temperature);
+	err = wmi_read_temperature_gz(0, &temperature);
+	seq_file_print_with_error(s, "CPU temperature WMI", err, temperature);
+	err = wmi_read_temperature(0, &temperature);
+	seq_file_print_with_error(s, "CPU temperature WMI2", err, temperature);
+	err = read_temperature(priv, 1, &temperature);
+	seq_file_print_with_error(s, "GPU temperature", err, temperature);
+	err = ec_read_temperature(&priv->ecram, priv->conf, 1, &temperature);
+	seq_file_print_with_error(s, "GPU temperature EC", err, temperature);
+	err = acpi_read_temperature(priv, 1, &temperature);
+	seq_file_print_with_error(s, "GPU temperature ACPI", err, temperature);
+	err = wmi_read_temperature_gz(1, &temperature);
+	seq_file_print_with_error(s, "GPU temperature WMI", err, temperature);
+	err = wmi_read_temperature(1, &temperature);
+	seq_file_print_with_error(s, "GPU temperature WMI2", err, temperature);
+
+	seq_printf(s, "fan speed access method: %d\n",
+		   priv->conf->access_method_fanspeed);
+	err = read_fanspeed(priv, 0, &fanspeed);
+	seq_file_print_with_error(s, "1 fanspeed", err, fanspeed);
+	err = ec_read_fanspeed(&priv->ecram, priv->conf, 0, &fanspeed);
+	seq_file_print_with_error(s, "1 fanspeed EC", err, fanspeed);
+	err = acpi_read_fanspeed(priv, 0, &fanspeed);
+	seq_file_print_with_error(s, "1 fanspeed ACPI", err, fanspeed);
+	err = wmi_read_fanspeed_gz(0, &fanspeed);
+	seq_file_print_with_error(s, "1 fanspeed WMI", err, fanspeed);
+	err = wmi_read_fanspeed(0, &fanspeed);
+	seq_file_print_with_error(s, "1 fanspeed WMI2", err, fanspeed);
+	err = read_fanspeed(priv, 1, &fanspeed);
+	seq_file_print_with_error(s, "2 fanspeed", err, fanspeed);
+	err = ec_read_fanspeed(&priv->ecram, priv->conf, 1, &fanspeed);
+	seq_file_print_with_error(s, "2 fanspeed EC", err, fanspeed);
+	err = acpi_read_fanspeed(priv, 1, &fanspeed);
+	seq_file_print_with_error(s, "2 fanspeed ACPI", err, fanspeed);
+	err = wmi_read_fanspeed_gz(1, &fanspeed);
+	seq_file_print_with_error(s, "2 fanspeed WMI", err, fanspeed);
+	err = wmi_read_fanspeed(1, &fanspeed);
+	seq_file_print_with_error(s, "2 fanspeed WMI2", err, fanspeed);
+
 	seq_printf(s, "powermode access method: %d\n",
 		   priv->conf->access_method_powermode);
 	err = read_powermode(priv, &powermode);
-	seq_printf(s, "powermode error: %d\n", err);
-	seq_printf(s, "powermode: %d\n", powermode);
+	seq_file_print_with_error(s, "powermode", err, powermode);
 	err = ec_read_powermode(priv, &powermode);
-	seq_printf(s, "EC powermode error: %d\n", err);
-	seq_printf(s, "EC powermode: %d\n", powermode);
+	seq_file_print_with_error(s, "powermode EC", err, powermode);
 	err = acpi_read_powermode(priv, &powermode);
-	seq_printf(s, "ACPI powermode error: %d\n", err);
-	seq_printf(s, "ACPI powermode: %d\n", powermode);
+	seq_file_print_with_error(s, "powermode ACPI", err, powermode);
 	err = wmi_read_powermode(&powermode);
-	seq_printf(s, "WMI powermode error: %d\n", err);
-	seq_printf(s, "WMI powermode: %d\n", powermode);
+	seq_file_print_with_error(s, "powermode WMI", err, powermode);
 	seq_printf(s, "has custom powermode: %d\n",
 		   priv->conf->has_custom_powermode);
 
@@ -1962,9 +2242,9 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "ACPI rapidcharge error: %d\n", err);
 	seq_printf(s, "ACPI rapidcharge: %d\n", is_rapidcharge);
 
-	seq_printf(s, "WMI backlight on/off: %ld\n",
+	seq_printf(s, "WMI backlight 2 state: %ld\n",
 		   legion_kbd_bl2_brightness_get(priv));
-	seq_printf(s, "WMI backlight: %d\n",
+	seq_printf(s, "WMI backlight 3 state: %d\n",
 		   legion_kbd_bl_brightness_get(priv));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
@@ -2867,35 +3147,44 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 	int sensor_id = (to_sensor_dev_attr(devattr))->index;
 	struct sensor_values values;
 	int outval;
-
-	ec_read_sensor_values(&priv->ecram, priv->conf, &values);
+	int err = -EIO;
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		outval = 1000 * values.cpu_temp_celsius;
+		err = read_temperature(priv, 0, &outval);
+		outval *= 1000;
 		break;
 	case SENSOR_GPU_TEMP_ID:
-		outval = 1000 * values.gpu_temp_celsius;
+		err = read_temperature(priv, 1, &outval);
+		outval *= 1000;
 		break;
 	case SENSOR_IC_TEMP_ID:
+		ec_read_sensor_values(&priv->ecram, priv->conf, &values);
 		outval = 1000 * values.ic_temp_celsius;
+		err = 0;
 		break;
 	case SENSOR_FAN1_RPM_ID:
-		outval = values.fan1_rpm;
+		err = read_fanspeed(priv, 0, &outval);
 		break;
 	case SENSOR_FAN2_RPM_ID:
-		outval = values.fan2_rpm;
+		err = read_fanspeed(priv, 1, &outval);
 		break;
 	case SENSOR_FAN1_TARGET_RPM_ID:
+		ec_read_sensor_values(&priv->ecram, priv->conf, &values);
 		outval = values.fan1_target_rpm;
+		err = 0;
 		break;
 	case SENSOR_FAN2_TARGET_RPM_ID:
+		ec_read_sensor_values(&priv->ecram, priv->conf, &values);
 		outval = values.fan2_target_rpm;
+		err = 0;
 		break;
 	default:
 		pr_info("Error reading sensor value with id %d\n", sensor_id);
 		return -EOPNOTSUPP;
 	}
+	if (err)
+		return err;
 
 	return sprintf(buf, "%d\n", outval);
 }
@@ -3651,8 +3940,10 @@ static int legion_kbd_bl_init(struct legion_private *priv)
 {
 	int brightness, err;
 
-	// if (!priv->features.kbd_bl)
-	//   return -ENODEV;
+	if (priv->conf->access_method_keyboard == ACCESS_METHOD_NO_ACCESS) {
+		pr_info("Keyboard backlight handling disabled by this driver\n");
+		return -ENODEV;
+	}
 
 	if (WARN_ON(priv->kbd_bl.initialized)) {
 		pr_info("Keyboard backlight already initialized\n");
