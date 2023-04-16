@@ -368,7 +368,7 @@ static const struct model_config model_fccn = {
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
-	.access_method_temperature = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_ACPI,
 	.acpi_check_dev = true
 };
 
