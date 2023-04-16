@@ -2,7 +2,9 @@
 # pylint: disable=c-extension-no-member
 import sys
 import os.path
+import traceback
 import time
+
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
@@ -11,25 +13,45 @@ from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
 from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature
 
 
+def mark_error(checkbox: QCheckBox):
+    checkbox.setStyleSheet(
+        "QCheckBox::indicator {background-color : red;} "
+        "QCheckBox:disabled{background-color : red;} "
+        "QCheckBox {background-color : red;}")
+
+def log_error(ex:Exception):
+    print("Error occured", ex)
+    print(traceback.format_exc())
+
 def sync_checkbox_from_feature(checkbox: QCheckBox, feature: FileFeature):
-    if feature.exists():
-        hw_value = feature.get()
-        checkbox.setChecked(hw_value)
-        checkbox.setDisabled(False)
-    else:
-        checkbox.setDisabled(True)
+    try:
+        if feature.exists():
+            hw_value = feature.get()
+            checkbox.setChecked(hw_value)
+            checkbox.setDisabled(False)
+        else:
+            checkbox.setDisabled(True)
+    # pylint: disable=broad-except
+    except Exception as ex:
+        mark_error(checkbox)
+        log_error(ex)
 
 
 def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
-    if feature.exists():
-        gui_value = checkbox.isChecked()
-        feature.set(gui_value)
-        time.sleep(0.100)
-        hw_value = feature.get()
-        checkbox.setChecked(hw_value)
-        checkbox.setDisabled(False)
-    else:
-        checkbox.setDisabled(True)
+    try:
+        if feature.exists():
+            gui_value = checkbox.isChecked()
+            feature.set(gui_value)
+            time.sleep(0.100)
+            hw_value = feature.get()
+            checkbox.setChecked(hw_value)
+            checkbox.setDisabled(False)
+        else:
+            checkbox.setDisabled(True)
+    # pylint: disable=broad-except
+    except Exception as ex:
+        mark_error(checkbox)
+        log_error(ex)
 
 
 class LegionController:
@@ -100,7 +122,7 @@ class LegionController:
                       self.model.battery_conservation)
         time.sleep(0.100)
         sync_checkbox_from_feature(self.view_otheroptions.rapid_charging_check,
-                      self.model.rapid_charging)
+                                   self.model.rapid_charging)
 
     def on_fnlock_check(self):
         sync_checkbox(self.view_otheroptions.fnlock_check, self.model.fn_lock)
@@ -118,7 +140,8 @@ class LegionController:
                       self.model.rapid_charging)
         time.sleep(0.100)
         sync_checkbox_from_feature(self.view_otheroptions.batteryconservation_check,
-                      self.model.battery_conservation)
+                                   self.model.battery_conservation)
+
 
 class FanCurveEntryView():
     def __init__(self, point_id, layout):
@@ -305,8 +328,9 @@ class FanCurveTab(QWidget):
         self.main_layout.addWidget(self.button2_group, 2)
 
         self.note_label2 = QLabel(
-            "Greyed out Features are not available. If most features are greyed out, "
-            "the driver is not loaded properly or hwmon directoy not found.")
+            "Greyed out features are not available. If most features are greyed out, "
+            "the driver is not loaded properly or hwmon directoy not found.\nIf features are marked "
+            "red, an unepxected error accessing the hardware and you should notify the maintainer.")
         self.note_label2.setStyleSheet("color: red;")
         self.main_layout.addWidget(self.note_label2, 3)
 
