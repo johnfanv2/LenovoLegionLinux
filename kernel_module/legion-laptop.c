@@ -1845,8 +1845,8 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 	// therefore, fan curve might not be effective immediatley but
 	// only after temp change
 	// Reset fan update counters (try to avoid any race conditions)
-	// ecram_write(ecram, 0xC5FE, 0);
-	// ecram_write(ecram, 0xC5FF, 0);
+	ecram_write(ecram, 0xC5FE, 0);
+	ecram_write(ecram, 0xC5FF, 0);
 	for (i = 0; i < FANCURVESIZE_IDEAPDAD; ++i) {
 		const struct fancurve_point *point = &fancurve->points[i];
 
@@ -1859,29 +1859,29 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm1_raw, valr1);
 		pr_info("Writing fan2: %d; reading fan2: %d\n", point->rpm2_raw, valr2);
 
-		// write to memory and repeat 8 bytes later again
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
-			    point->cpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP + 8 + i,
-			    point->cpu_max_temp_celsius);
+		// // write to memory and repeat 8 bytes later again
+		// ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
+		// 	    point->cpu_max_temp_celsius);
+		// ecram_write(ecram, model->registers->EXT_CPU_TEMP + 8 + i,
+		// 	    point->cpu_max_temp_celsius);
 
-		// write to memory and repeat 8 bytes later again
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
-			    point->cpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + 8 + i,
-			    point->cpu_min_temp_celsius);
+		// // write to memory and repeat 8 bytes later again
+		// ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
+		// 	    point->cpu_min_temp_celsius);
+		// ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + 8 + i,
+		// 	    point->cpu_min_temp_celsius);
 
-		// write to memory and repeat 8 bytes later again
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
-			    point->gpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP + 8 + i,
-			    point->gpu_max_temp_celsius);
+		// // write to memory and repeat 8 bytes later again
+		// ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
+		// 	    point->gpu_max_temp_celsius);
+		// ecram_write(ecram, model->registers->EXT_GPU_TEMP + 8 + i,
+		// 	    point->gpu_max_temp_celsius);
 
-		// write to memory and repeat 8 bytes later again
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
-			    point->gpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + 8 + i,
-			    point->gpu_min_temp_celsius);
+		// // write to memory and repeat 8 bytes later again
+		// ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
+		// 	    point->gpu_min_temp_celsius);
+		// ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + 8 + i,
+		// 	    point->gpu_min_temp_celsius);
 	}
 
 	// add this later: maybe other addresses needed
