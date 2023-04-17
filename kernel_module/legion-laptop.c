@@ -425,7 +425,7 @@ static const struct model_config model_h3cn = {
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	// not implemented (properly) in WMI, RGB conrolled by USB
 	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
-	// accessing fan speed is not implemented in ACPI 
+	// accessing fan speed is not implemented in ACPI
 	// a variable in the operation region (or not found)
 	// and not per WMI (methods returns constant 0)
 	.access_method_fanspeed = ACCESS_METHOD_NO_ACCESS,
@@ -986,6 +986,8 @@ ssize_t ecram_portio_write(struct ecram_portio *ec_portio, u16 offset, u8 value)
 	outb(value, ECRAM_PORTIO_DATA_PORT);
 
 	mutex_unlock(&ec_portio->io_port_mutex);
+	// TODO: remove this
+	pr_info("Writing %d to addr %x\n", value, offset);
 	return 0;
 }
 
@@ -1740,8 +1742,8 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 {
 	size_t i;
 	// Reset fan update counters (try to avoid any race conditions)
-	ecram_write(ecram, 0xC5FE, 0);
-	ecram_write(ecram, 0xC5FF, 0);
+	// ecram_write(ecram, 0xC5FE, 0);
+	// ecram_write(ecram, 0xC5FF, 0);
 	for (i = 0; i < MAXFANCURVESIZE; ++i) {
 		// Entries for points larger than fancurve size should be cleared
 		// to 0
@@ -1778,15 +1780,15 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 			    fancurve->size);
 	}
 
-	// Reset current fan level to 0, so algorithm in EC
-	// selects fan curve point again and resetting hysterisis
-	// effects
-	ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
+	// // Reset current fan level to 0, so algorithm in EC
+	// // selects fan curve point again and resetting hysterisis
+	// // effects
+	// ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
 
-	// Reset internal fan levels
-	ecram_write(ecram, 0xC634, 0); // CPU
-	ecram_write(ecram, 0xC635, 0); // GPU
-	ecram_write(ecram, 0xC636, 0); // SENSOR
+	// // Reset internal fan levels
+	// ecram_write(ecram, 0xC634, 0); // CPU
+	// ecram_write(ecram, 0xC635, 0); // GPU
+	// ecram_write(ecram, 0xC636, 0); // SENSOR
 
 	return 0;
 }
@@ -1836,6 +1838,8 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 				     const struct fancurve *fancurve)
 {
 	size_t i;
+	int valr1;
+	int valr2;
 
 	// add this later: maybe other addresses needed
 	// therefore, fan curve might not be effective immediatley but
@@ -1848,8 +1852,12 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 
 		ecram_write(ecram, model->registers->EXT_FAN1_BASE + i,
 			    point->rpm1_raw);
+		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE + i);
 		ecram_write(ecram, model->registers->EXT_FAN2_BASE + i,
 			    point->rpm2_raw);
+		valr2 = ecram_read(ecram, model->registers->EXT_FAN1_BASE + i);
+		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm1_raw, valr1);
+		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm2_raw, valr2);
 
 		// write to memory and repeat 8 bytes later again
 		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
