@@ -256,7 +256,7 @@ class FanCurveTab(QWidget):
         self.layout = QGridLayout()
         self.point_id_label = QLabel("Point ID")
         self.fan_speed1_label = QLabel("Fan 1 Speed [rpm]")
-        self.fan_speed2_label = QLabel("Fan 1 Speed [rpm]")
+        self.fan_speed2_label = QLabel("Fan 2 Speed [rpm]")
         self.cpu_lower_temp_label = QLabel("CPU Lower Temp. [°C.]")
         self.cpu_upper_temp_label = QLabel("CPU Upper Temp. [°C.]")
         self.gpu_lower_temp_label = QLabel("GPU Lower Temp. [°C.]")
