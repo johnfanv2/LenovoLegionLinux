@@ -19,6 +19,9 @@ A clear and concise description of any alternative solutions or features you've 
 **Model and Debug Info**
 
 Model name: ???
+CPU model: ??? (e.g. AMD Ryzen 7 5800H)
+GPU model: ??? (e.g NVIDIA RTX 3700)
+Keyboard backlight: ??? (RGB, single color with off/on, single color with off/medium/bright)
 
 Output of `sudo dmidecode -t system`. Please remove Serial Number and UUID for privacy:
 ```text
