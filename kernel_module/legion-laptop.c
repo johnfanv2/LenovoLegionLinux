@@ -185,6 +185,7 @@ enum access_method {
 	ACCESS_METHOD_ACPI = 2,
 	ACCESS_METHOD_WMI = 3,
 	ACCESS_METHOD_WMI2 = 4,
+	ACCESS_METHOD_EC2 = 5, // ideapad fancurve method
 };
 
 struct model_config {
@@ -204,6 +205,7 @@ struct model_config {
 	enum access_method access_method_keyboard;
 	enum access_method access_method_temperature;
 	enum access_method access_method_fanspeed;
+	enum access_method access_method_fancurve;
 	bool three_state_keyboard;
 
 	bool acpi_check_dev;
@@ -282,6 +284,39 @@ static const struct ec_register_offsets ec_register_offsets_v1 = {
 	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
 };
 
+static const struct ec_register_offsets ec_register_offsets_ideapad_v0 = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN_CUR_POINT = 0xC5a0, // not found yet
+	.EXT_FAN_POINTS_SIZE = 0xC5a0, // constant 0
+	.EXT_FAN1_BASE = 0xC5a0,
+	.EXT_FAN2_BASE = 0xC5a8,
+	.EXT_FAN_ACC_BASE = 0xC5a0, // not found yet
+	.EXT_FAN_DEC_BASE = 0xC5a0, // not found yet
+	.EXT_CPU_TEMP = 0xC550, // and repeated after 8 bytes
+	.EXT_CPU_TEMP_HYST = 0xC590, // and repeated after 8 bytes
+	.EXT_GPU_TEMP = 0xC5C0, // and repeated after 8 bytes
+	.EXT_GPU_TEMP_HYST = 0xC5D0, // and repeated after 8 bytes
+	.EXT_VRM_TEMP = 0xC5a0, // does not exists or not found
+	.EXT_VRM_TEMP_HYST = 0xC5a0, // does not exists ot not found yet
+	.EXT_FAN1_RPM_LSB = 0xC5a0, // not found yet
+	.EXT_FAN1_RPM_MSB = 0xC5a0, // not found yet
+	.EXT_FAN2_RPM_LSB = 0xC5a0, // not found yet
+	.EXT_FAN2_RPM_MSB = 0xC5a0, // not found yet
+	.EXT_MINIFANCURVE_ON_COOL = 0xC5a0, // does not exists or not found
+	.EXT_LOCKFANCONTROLLER = 0xC5a0, // does not exists or not found
+	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
+	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
+	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
+	.EXT_POWERMODE = 0xC5a0, // not found yet
+	.EXT_FAN1_TARGET_RPM = 0xC5a0, // not found yet
+	.EXT_FAN2_TARGET_RPM = 0xC5a0, // not found yet
+	.EXT_MAXIMUMFANSPEED = 0xC5a0, // not found yet
+	.EXT_WHITE_KEYBOARD_BACKLIGHT = 0xC5a0 // not found yet
+};
+
 static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -294,6 +329,7 @@ static const struct model_config model_v0 = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -309,6 +345,7 @@ static const struct model_config model_kfcn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -324,6 +361,7 @@ static const struct model_config model_hacn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -339,6 +377,7 @@ static const struct model_config model_k9cn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
@@ -354,11 +393,12 @@ static const struct model_config model_eucn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
 	.acpi_check_dev = true
 };
 
 static const struct model_config model_fccn = {
-	.registers = &ec_register_offsets_v1,
+	.registers = &ec_register_offsets_ideapad_v0,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8227,
 	.memoryio_physical_ec_start = 0xC400,
@@ -369,6 +409,7 @@ static const struct model_config model_fccn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_ACPI,
+	.access_method_fancurve = ACCESS_METHOD_EC2,
 	.acpi_check_dev = true
 };
 
@@ -386,6 +427,7 @@ static const struct model_config model_h3cn = {
 	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_WMI,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
 	.acpi_check_dev = false
 };
 
@@ -1603,7 +1645,8 @@ ssize_t read_fanspeed(struct legion_private *priv, int fan_id, int *speed_rpm)
 	case ACCESS_METHOD_WMI2:
 		return wmi_read_fanspeed(fan_id, speed_rpm);
 	default:
-		pr_info("No access method for powermode\n");
+		pr_info("No access method for fanspeed: %d\n",
+			priv->conf->access_method_fanspeed);
 		return -EINVAL;
 	}
 }
@@ -1623,7 +1666,8 @@ ssize_t read_temperature(struct legion_private *priv, int sensor_id,
 	case ACCESS_METHOD_WMI2:
 		return wmi_read_temperature(sensor_id, temperature);
 	default:
-		pr_info("No access method for powermode\n");
+		pr_info("No access method for temperature: %d\n",
+			priv->conf->access_method_temperature);
 		return -EINVAL;
 	}
 }
@@ -1641,9 +1685,9 @@ ssize_t read_temperature(struct legion_private *priv, int sensor_id,
  * It reads all points from EC memory, even if stored fancurve is smaller, so
  * it can contain 0 entries.
  */
-static int ec_read_fancurve(struct ecram *ecram,
-			    const struct model_config *model,
-			    struct fancurve *fancurve)
+static int ec_read_fancurve_legion(struct ecram *ecram,
+				   const struct model_config *model,
+				   struct fancurve *fancurve)
 {
 	size_t i = 0;
 
@@ -1686,9 +1730,10 @@ static int ec_read_fancurve(struct ecram *ecram,
 	return 0;
 }
 
-static int ec_write_fancurve(struct ecram *ecram,
-			     const struct model_config *model,
-			     const struct fancurve *fancurve, bool write_size)
+static int ec_write_fancurve_legion(struct ecram *ecram,
+				    const struct model_config *model,
+				    const struct fancurve *fancurve,
+				    bool write_size)
 {
 	size_t i;
 	// Reset fan update counters (try to avoid any race conditions)
@@ -1741,6 +1786,142 @@ static int ec_write_fancurve(struct ecram *ecram,
 	ecram_write(ecram, 0xC636, 0); // SENSOR
 
 	return 0;
+}
+
+#define FANCURVESIZE_IDEAPDAD 8
+
+static int ec_read_fancurve_ideapad(struct ecram *ecram,
+				    const struct model_config *model,
+				    struct fancurve *fancurve)
+{
+	size_t i = 0;
+
+	for (i = 0; i < FANCURVESIZE_IDEAPDAD; ++i) {
+		struct fancurve_point *point = &fancurve->points[i];
+
+		point->rpm1_raw =
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE + i);
+		point->rpm2_raw =
+			ecram_read(ecram, model->registers->EXT_FAN2_BASE + i);
+
+		point->accel = 0;
+		point->decel = 0;
+		point->cpu_max_temp_celsius =
+			ecram_read(ecram, model->registers->EXT_CPU_TEMP + i);
+		point->cpu_min_temp_celsius = ecram_read(
+			ecram, model->registers->EXT_CPU_TEMP_HYST + i);
+		point->gpu_max_temp_celsius =
+			ecram_read(ecram, model->registers->EXT_GPU_TEMP + i);
+		point->gpu_min_temp_celsius = ecram_read(
+			ecram, model->registers->EXT_GPU_TEMP_HYST + i);
+		point->ic_max_temp_celsius = 0;
+		point->ic_min_temp_celsius = 0;
+	}
+
+	// Do not trust that hardware; It might suddendly report
+	// a larger size, so clamp it.
+	fancurve->size = FANCURVESIZE_IDEAPDAD;
+	fancurve->current_point_i =
+		ecram_read(ecram, model->registers->EXT_FAN_CUR_POINT);
+	fancurve->current_point_i =
+		min(fancurve->current_point_i, fancurve->size);
+	return 0;
+}
+
+static int ec_write_fancurve_ideapad(struct ecram *ecram,
+				     const struct model_config *model,
+				     const struct fancurve *fancurve)
+{
+	size_t i;
+
+	// add this later: maybe other addresses needed
+	// therefore, fan curve might not be effective immediatley but
+	// only after temp change
+	// Reset fan update counters (try to avoid any race conditions)
+	// ecram_write(ecram, 0xC5FE, 0);
+	// ecram_write(ecram, 0xC5FF, 0);
+	for (i = 0; i < FANCURVESIZE_IDEAPDAD; ++i) {
+		const struct fancurve_point *point = &fancurve->points[i];
+
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE + i,
+			    point->rpm1_raw);
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE + i,
+			    point->rpm2_raw);
+
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
+			    point->cpu_max_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP + 8 + i,
+			    point->cpu_max_temp_celsius);
+
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
+			    point->cpu_min_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + 8 + i,
+			    point->cpu_min_temp_celsius);
+
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
+			    point->gpu_max_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP + 8 + i,
+			    point->gpu_max_temp_celsius);
+
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
+			    point->gpu_min_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + 8 + i,
+			    point->gpu_min_temp_celsius);
+	}
+
+	// add this later: maybe other addresses needed
+	// therefore, fan curve might not be effective immediatley but
+	// only after temp change
+	// // Reset current fan level to 0, so algorithm in EC
+	// // selects fan curve point again and resetting hysterisis
+	// // effects
+	// ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
+
+	// // Reset internal fan levels
+	// ecram_write(ecram, 0xC634, 0); // CPU
+	// ecram_write(ecram, 0xC635, 0); // GPU
+	// ecram_write(ecram, 0xC636, 0); // SENSOR
+
+	return 0;
+}
+
+static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
+{
+	// TODO: use enums or function pointers?
+	switch (priv->conf->access_method_fancurve) {
+	case ACCESS_METHOD_EC:
+		return ec_read_fancurve_legion(&priv->ecram, priv->conf,
+					       fancurve);
+	case ACCESS_METHOD_EC2:
+		return ec_read_fancurve_ideapad(&priv->ecram, priv->conf,
+						fancurve);
+	default:
+		pr_info("No access method for fancurve:%d\n",
+			priv->conf->access_method_fancurve);
+		return -EINVAL;
+	}
+}
+
+static int write_fancurve(struct legion_private *priv,
+			  const struct fancurve *fancurve, bool write_size)
+{
+	// TODO: use enums or function pointers?
+	switch (priv->conf->access_method_fancurve) {
+	case ACCESS_METHOD_EC:
+		return ec_write_fancurve_legion(&priv->ecram, priv->conf,
+						fancurve, write_size);
+	case ACCESS_METHOD_EC2:
+		return ec_write_fancurve_ideapad(&priv->ecram, priv->conf,
+						 fancurve);
+	default:
+		pr_info("No access method for fancurve:%d\n",
+			priv->conf->access_method_fancurve);
+		return -EINVAL;
+	}
 }
 
 #define MINIFANCUVE_ON_COOL_ON 0x04
@@ -1959,7 +2140,8 @@ ssize_t read_powermode(struct legion_private *priv, int *powermode)
 	case ACCESS_METHOD_WMI:
 		return wmi_read_powermode(powermode);
 	default:
-		pr_info("No access method for powermode\n");
+		pr_info("No access method for powermode:%d\n",
+			priv->conf->access_method_powermode);
 		return -EINVAL;
 	}
 }
@@ -1976,7 +2158,8 @@ ssize_t write_powermode(struct legion_private *priv,
 	case ACCESS_METHOD_WMI:
 		return wmi_write_powermode(value);
 	default:
-		pr_info("No valid access method for powermode configured\n");
+		pr_info("No access method for powermode:%d\n",
+			priv->conf->access_method_powermode);
 		return -EINVAL;
 	}
 }
@@ -2173,7 +2356,6 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   read_ec_version(&priv->ecram, priv->conf));
 	seq_printf(s, "legion_laptop features: %s\n", LEGIONFEATURES);
 	seq_printf(s, "legion_laptop ec_readonly: %d\n", ec_readonly);
-	ec_read_fancurve(&priv->ecram, priv->conf, &priv->fancurve);
 
 	err = eval_int(priv->adev->handle, "VPC0._CFG", &cfg);
 	seq_printf(s, "ACPI CFG error: %d\n", err);
@@ -2265,6 +2447,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   err ? "error" : (is_maximumfanspeed ? "true" : "false"));
 	seq_printf(s, "EC fanfullspeed status: %d\n", err);
 
+	read_fancurve(priv, &priv->fancurve);
 	seq_printf(s, "EC fan curve current point id: %ld\n",
 		   priv->fancurve.current_point_i);
 	seq_printf(s, "EC fan curve points size: %ld\n", priv->fancurve.size);
@@ -3229,7 +3412,7 @@ static ssize_t autopoint_show(struct device *dev,
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = ec_read_fancurve(&priv->ecram, priv->conf, &fancurve);
+	err = read_fancurve(priv, &fancurve);
 	mutex_unlock(&priv->fancurve_mutex);
 
 	if (err) {
@@ -3312,7 +3495,7 @@ static ssize_t autopoint_store(struct device *dev,
 	}
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = ec_read_fancurve(&priv->ecram, priv->conf, &fancurve);
+	err = read_fancurve(priv, &fancurve);
 
 	if (err) {
 		pr_info("Reading fancurve failed\n");
@@ -3368,7 +3551,7 @@ static ssize_t autopoint_store(struct device *dev,
 		goto error_mutex;
 	}
 
-	err = ec_write_fancurve(&priv->ecram, priv->conf, &fancurve, false);
+	err = write_fancurve(priv, &fancurve, false);
 	if (err) {
 		pr_info("Writing fancurve failed for accessing hwmon at point_id: %d\n",
 			point_id);
