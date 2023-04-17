@@ -1742,8 +1742,8 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 {
 	size_t i;
 	// Reset fan update counters (try to avoid any race conditions)
-	// ecram_write(ecram, 0xC5FE, 0);
-	// ecram_write(ecram, 0xC5FF, 0);
+	ecram_write(ecram, 0xC5FE, 0);
+	ecram_write(ecram, 0xC5FF, 0);
 	for (i = 0; i < MAXFANCURVESIZE; ++i) {
 		// Entries for points larger than fancurve size should be cleared
 		// to 0
@@ -1780,15 +1780,15 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 			    fancurve->size);
 	}
 
-	// // Reset current fan level to 0, so algorithm in EC
-	// // selects fan curve point again and resetting hysterisis
-	// // effects
-	// ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
+	// Reset current fan level to 0, so algorithm in EC
+	// selects fan curve point again and resetting hysterisis
+	// effects
+	ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
 
-	// // Reset internal fan levels
-	// ecram_write(ecram, 0xC634, 0); // CPU
-	// ecram_write(ecram, 0xC635, 0); // GPU
-	// ecram_write(ecram, 0xC636, 0); // SENSOR
+	// Reset internal fan levels
+	ecram_write(ecram, 0xC634, 0); // CPU
+	ecram_write(ecram, 0xC635, 0); // GPU
+	ecram_write(ecram, 0xC636, 0); // SENSOR
 
 	return 0;
 }
@@ -1855,9 +1855,9 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE + i);
 		ecram_write(ecram, model->registers->EXT_FAN2_BASE + i,
 			    point->rpm2_raw);
-		valr2 = ecram_read(ecram, model->registers->EXT_FAN1_BASE + i);
+		valr2 = ecram_read(ecram, model->registers->EXT_FAN2_BASE + i);
 		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm1_raw, valr1);
-		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm2_raw, valr2);
+		pr_info("Writing fan2: %d; reading fan2: %d\n", point->rpm2_raw, valr2);
 
 		// write to memory and repeat 8 bytes later again
 		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
