@@ -3706,6 +3706,7 @@ static ssize_t autopoint_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int fancurve_attr_id = to_sensor_dev_attr_2(devattr)->nr;
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
+	bool write_fancurve_size = false;
 
 	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
 		pr_info("Reading fancurve failed due to wrong point id: %d\n",
@@ -3763,6 +3764,7 @@ static ssize_t autopoint_store(struct device *dev,
 		break;
 	case FANCURVE_SIZE:
 		valid = fancurve_set_size(&fancurve, value, true);
+		write_fancurve_size = true;
 		break;
 	default:
 		pr_info("Writing fancurve failed due to wrong attribute id: %d\n",
@@ -3778,7 +3780,7 @@ static ssize_t autopoint_store(struct device *dev,
 		goto error_mutex;
 	}
 
-	err = write_fancurve(priv, &fancurve, false);
+	err = write_fancurve(priv, &fancurve, write_fancurve_size);
 	if (err) {
 		pr_info("Writing fancurve failed for accessing hwmon at point_id: %d\n",
 			point_id);
