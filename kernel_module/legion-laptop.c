@@ -826,6 +826,7 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 #define WMI_METHOD_ID_ISSUPPORTIGPUMODE 63
 #define WMI_METHOD_ID_GETIGPUMODESTATUS 64
 #define WMI_METHOD_ID_SETIGPUMODESTATUS 65
+#define WMI_METHOD_ID_NOTIFYDGPUSTATUS 66
 enum IGPUState {
 	IGPUState_default = 0,
 	IGPUState_iGPUOnly = 1,
@@ -833,12 +834,27 @@ enum IGPUState {
 };
 
 #define WMI_GUID_LENOVO_CPU_METHOD "14afd777-106f-4c9b-b334-d388dc7809be"
+#define WMI_METHOD_ID_CPU_GET_SUPPORT_OC_STATUS 15
+#define WMI_METHOD_ID_CPU_GET_OC_STATUS 1
+#define WMI_METHOD_ID_CPU_SET_OC_STATUS 2
+
 // ppt limit slow
 #define WMI_METHOD_ID_CPU_GET_SHORTTERM_POWERLIMIT 3
 #define WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT 4
 // ppt stapm
 #define WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT 5
 #define WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT 6
+// default power limit
+#define WMI_METHOD_ID_CPU_GET_DEFAULT_POWERLIMIT 7
+// peak power limit
+#define WMI_METHOD_ID_CPU_GET_PEAK_POWERLIMIT 8
+#define WMI_METHOD_ID_CPU_SET_PEAK_POWERLIMIT 9
+// apu sppt powerlimit
+#define WMI_METHOD_ID_CPU_GET_APU_SPPT_POWERLIMIT 12
+#define WMI_METHOD_ID_CPU_SET_APU_SPPT_POWERLIMIT 13
+// cross loading powerlimit
+#define WMI_METHOD_ID_CPU_GET_CROSS_LOADING_POWERLIMIT 16
+#define WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT 17
 
 #define WMI_GUID_LENOVO_GPU_METHOD "da7547f1-824d-405f-be79-d9903e29ced7"
 // overclock GPU possible
@@ -850,16 +866,32 @@ enum IGPUState {
 // configurable TGP (power)
 #define WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT 5
 #define WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT 6
+// ppab/ctgp powerlimit
+#define WMI_METHOD_ID_GPU_GET_DEFAULT_PPAB_CTGP_POWERLIMIT 7
+// temperature limit
+#define WMI_METHOD_ID_GPU_GET_TEMPERATURE_LIMIT 8
+#define WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT 9
+// boost clock
+#define WMI_METHOD_ID_GPU_GET_BOOST_CLOCK 10
 
 #define WMI_GUID_LENOVO_FAN_METHOD "92549549-4bde-4f06-ac04-ce8bf898dbaa"
 // set fan to maximal speed; dust cleaning mode
 // only works in custom power mode
 #define WMI_METHOD_ID_FAN_GET_FULLSPEED 1
 #define WMI_METHOD_ID_FAN_SET_FULLSPEED 2
+// max speed of fan
+#define WMI_METHOD_ID_FAN_GET_MAXSPEED 3
+#define WMI_METHOD_ID_FAN_SET_MAXSPEED 4
+// fan table in custom mode
+#define WMI_METHOD_ID_FAN_GET_TABLE 5
+#define WMI_METHOD_ID_FAN_SET_TABLE 6
 // get speed of fans
 #define WMI_METHOD_ID_FAN_GETCURRENTFANSPEED 7
 // get temperatures of CPU and GPU used for controlling cooling
 #define WMI_METHOD_ID_FAN_GETCURRENTSENSORTEMPERATURE 8
+
+// do not implement following
+// #define WMI_METHOD_ID_Fan_SetCurrentFanSpeed 9
 
 #define LEGION_WMI_KBBACKLIGHT_GUID "8C5B9127-ECD4-4657-980F-851019F99CA5"
 // access the keyboard backlight with 3 states
@@ -1856,32 +1888,31 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 		ecram_write(ecram, model->registers->EXT_FAN2_BASE + i,
 			    point->rpm2_raw);
 		valr2 = ecram_read(ecram, model->registers->EXT_FAN2_BASE + i);
-		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm1_raw, valr1);
-		pr_info("Writing fan2: %d; reading fan2: %d\n", point->rpm2_raw, valr2);
+		pr_info("Writing fan1: %d; reading fan1: %d\n", point->rpm1_raw,
+			valr1);
+		pr_info("Writing fan2: %d; reading fan2: %d\n", point->rpm2_raw,
+			valr2);
 
-		// // write to memory and repeat 8 bytes later again
-		// ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
-		// 	    point->cpu_max_temp_celsius);
-		// ecram_write(ecram, model->registers->EXT_CPU_TEMP + 8 + i,
-		// 	    point->cpu_max_temp_celsius);
-
-		// // write to memory and repeat 8 bytes later again
-		// ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
-		// 	    point->cpu_min_temp_celsius);
-		// ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + 8 + i,
-		// 	    point->cpu_min_temp_celsius);
-
-		// // write to memory and repeat 8 bytes later again
-		// ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
-		// 	    point->gpu_max_temp_celsius);
-		// ecram_write(ecram, model->registers->EXT_GPU_TEMP + 8 + i,
-		// 	    point->gpu_max_temp_celsius);
-
-		// // write to memory and repeat 8 bytes later again
-		// ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
-		// 	    point->gpu_min_temp_celsius);
-		// ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + 8 + i,
-		// 	    point->gpu_min_temp_celsius);
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
+			    point->cpu_max_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP + 8 + i,
+			    point->cpu_max_temp_celsius);
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
+			    point->cpu_min_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + 8 + i,
+			    point->cpu_min_temp_celsius);
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
+			    point->gpu_max_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP + 8 + i,
+			    point->gpu_max_temp_celsius);
+		// write to memory and repeat 8 bytes later again
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
+			    point->gpu_min_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + 8 + i,
+			    point->gpu_min_temp_celsius);
 	}
 
 	// add this later: maybe other addresses needed
@@ -2840,6 +2871,25 @@ static ssize_t igpumode_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR_RW(igpumode);
 
+static ssize_t cpu_oc_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	return show_simple_wmi_attribute_from_buffer(
+		dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
+		WMI_METHOD_ID_CPU_GET_OC_STATUS, 16, 0, 1);
+}
+
+static ssize_t cpu_oc_store(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_CPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_OC_STATUS,
+					  false, 1);
+}
+
+static DEVICE_ATTR_RW(cpu_oc);
+
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
@@ -2879,6 +2929,99 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(cpu_longterm_powerlimit);
+
+static ssize_t cpu_default_powerlimit_show(struct device *dev,
+					   struct device_attribute *attr,
+					   char *buf)
+{
+	return show_simple_wmi_attribute(
+		dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
+		WMI_METHOD_ID_CPU_GET_DEFAULT_POWERLIMIT, false, 1);
+}
+
+static DEVICE_ATTR_RO(cpu_default_powerlimit);
+
+static ssize_t cpu_peak_powerlimit_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_CPU_GET_PEAK_POWERLIMIT,
+					 false, 1);
+}
+
+static ssize_t cpu_peak_powerlimit_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_PEAK_POWERLIMIT,
+					  false, 1);
+}
+
+static DEVICE_ATTR_RW(cpu_peak_powerlimit);
+
+static ssize_t cpu_apu_sppt_powerlimit_show(struct device *dev,
+					    struct device_attribute *attr,
+					    char *buf)
+{
+	return show_simple_wmi_attribute(
+		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_CPU_GET_APU_SPPT_POWERLIMIT, false, 1);
+}
+
+static ssize_t cpu_apu_sppt_powerlimit_store(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(
+		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_CPU_SET_APU_SPPT_POWERLIMIT, false, 1);
+}
+
+static DEVICE_ATTR_RW(cpu_apu_sppt_powerlimit);
+
+static ssize_t cpu_cross_loading_powerlimit_show(struct device *dev,
+						 struct device_attribute *attr,
+						 char *buf)
+{
+	return show_simple_wmi_attribute(
+		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_CPU_GET_CROSS_LOADING_POWERLIMIT, false, 1);
+}
+
+static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
+						  struct device_attribute *attr,
+						  const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(
+		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT, false, 1);
+}
+
+static DEVICE_ATTR_RW(cpu_cross_loading_powerlimit);
+
+static ssize_t gpu_oc_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
+					 1);
+}
+
+static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_GPU_SET_OC_STATUS,
+					  false, 1);
+}
+
+static DEVICE_ATTR_RW(gpu_oc);
 
 static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
@@ -2933,6 +3076,48 @@ static ssize_t gpu_ctgp2_powerlimit_show(struct device *dev,
 
 static DEVICE_ATTR_RO(gpu_ctgp2_powerlimit);
 
+// TOOD: probably remove again because provided by other means; only useful for overclocking
+static ssize_t
+gpu_default_ppab_ctrgp_powerlimit_show(struct device *dev,
+				       struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(
+		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_GPU_GET_DEFAULT_PPAB_CTGP_POWERLIMIT, false, 1);
+}
+static DEVICE_ATTR_RO(gpu_default_ppab_ctrgp_powerlimit);
+
+static ssize_t gpu_temperature_limit_show(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	return show_simple_wmi_attribute(
+		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_GPU_GET_TEMPERATURE_LIMIT, false, 1);
+}
+
+static ssize_t gpu_temperature_limit_store(struct device *dev,
+					   struct device_attribute *attr,
+					   const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(
+		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+}
+
+static DEVICE_ATTR_RW(gpu_temperature_limit);
+
+// TOOD: probably remove again because provided by other means; only useful for overclocking
+static ssize_t gpu_boost_clock_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_GPU_GET_BOOST_CLOCK,
+					 false, 1);
+}
+static DEVICE_ATTR_RO(gpu_boost_clock);
+
 static ssize_t fan_fullspeed_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -2953,6 +3138,27 @@ static ssize_t fan_fullspeed_store(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(fan_fullspeed);
+
+static ssize_t fan_maxspeed_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 WMI_GUID_LENOVO_FAN_METHOD, 0,
+					 WMI_METHOD_ID_FAN_GET_MAXSPEED, false,
+					 1);
+}
+
+static ssize_t fan_maxspeed_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_FAN_METHOD, 0,
+					  WMI_METHOD_ID_FAN_SET_MAXSPEED, false,
+					  1);
+}
+
+static DEVICE_ATTR_RW(fan_maxspeed);
 
 static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 			      char *buf)
@@ -3007,12 +3213,22 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_overdrive.attr,
 	&dev_attr_cpumaxfrequency.attr,
 	&dev_attr_isacfitforoc.attr,
+	&dev_attr_cpu_oc.attr,
 	&dev_attr_cpu_shortterm_powerlimit.attr,
 	&dev_attr_cpu_longterm_powerlimit.attr,
+	&dev_attr_cpu_apu_sppt_powerlimit.attr,
+	&dev_attr_cpu_default_powerlimit.attr,
+	&dev_attr_cpu_peak_powerlimit.attr,
+	&dev_attr_cpu_cross_loading_powerlimit.attr,
+	&dev_attr_gpu_oc.attr,
 	&dev_attr_gpu_ppab_powerlimit.attr,
 	&dev_attr_gpu_ctgp_powerlimit.attr,
 	&dev_attr_gpu_ctgp2_powerlimit.attr,
+	&dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr,
+	&dev_attr_gpu_temperature_limit.attr,
+	&dev_attr_gpu_boost_clock.attr,
 	&dev_attr_fan_fullspeed.attr,
+	&dev_attr_fan_maxspeed.attr,
 	&dev_attr_thermalmode.attr,
 	&dev_attr_issupportcpuoc.attr,
 	&dev_attr_issupportgpuoc.attr,
