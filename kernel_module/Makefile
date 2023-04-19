@@ -24,6 +24,7 @@ install: all
 	@install -p -D -m 644 *.ko $(INSTALLDIR)
 	@depmod -a $(KVER)
 	@echo "Installion finished."
+	bash -c "./issue-warning.sh"
 
 uninstall:
 	@rm -f $(INSTALLDIR)/legion-laptop.ko
@@ -34,11 +35,13 @@ reloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko
 	dmesg
+	bash -c "./issue-warning.sh"
 
 forcereloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko force=1
 	dmesg
+	bash -c "./issue-warning.sh"
 
 forcereloadmodulereadonly:
 	rmmod legion-laptop.ko || true
@@ -59,5 +62,6 @@ dkms:
 	echo "Loading module"
 	modprobe legion_laptop
 	dmesg | grep legion_laptop
+	bash -c "./issue-warning.sh"
 
 
