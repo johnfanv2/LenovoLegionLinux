@@ -32,7 +32,7 @@ uninstall:
 	@echo "Uninstall finished."
 
 install_forcereload:
-	make all
+	make install
 	make forcereloadmodule
 	bash -c "./issue-warning.sh"
 
