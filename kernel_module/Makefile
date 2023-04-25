@@ -31,6 +31,11 @@ uninstall:
 	@depmod -a
 	@echo "Uninstall finished."
 
+install_forcereload:
+	make all
+	make forcereloadmodule
+	bash -c "./issue-warning.sh"
+
 reloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko
@@ -63,5 +68,3 @@ dkms:
 	modprobe legion_laptop
 	dmesg | grep legion_laptop
 	bash -c "./issue-warning.sh"
-
-
