@@ -233,8 +233,8 @@ Please note:
 
 ### Quick Test: Module is properly loaded
 ```bash
-# After you have run from folder LenovoLegionLinux/kernel_module
-sudo make reloadmodule (for non DKMS)
+# After you have run from folder LenovoLegionLinux/kernel_module (for non DKMS)
+sudo make reloadmodule 
 
 # Check the kernel log
 sudo dmesg
