@@ -434,6 +434,27 @@ static const struct model_config model_h3cn = {
 	.acpi_check_dev = false
 };
 
+static const struct model_config model_e9cn = {
+	//0xFE0B0800
+	.registers = &ec_register_offsets_v1,
+	.check_embedded_controller_id = false,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400, //0xFC7E0800
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = false,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	// not implemented (properly) in WMI, RGB conrolled by USB
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	// accessing fan speed is not implemented in ACPI
+	// a variable in the operation region (or not found)
+	// and not per WMI (methods returns constant 0)
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
+	.acpi_check_dev = false
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -565,6 +586,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "H3CN"),
 		},
 		.driver_data = (void *)&model_h3cn
+	},
+	{
+		// 2020, seems very different in ACPI dissassembly
+		.ident = "E9CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "E9CN"),
+		},
+		.driver_data = (void *)&model_e9cn
 	},
 	{}
 };
