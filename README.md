@@ -481,6 +481,9 @@ Note:
 For this to work, you must install the kernel module permanently (see above). Alternatively, you can restart the the power daemon (`systemctl restart power-profiles-daemon.service` in Ubuntu) after reloading the kernel module (see above).
 
 #### Modify/Control with GUI
+With the GUI, the current power mode can be changed by selecting the mode in the box labeled with `Power mode/platform profile`.
+
+#### Modify/Control with Widget
 In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
 <p align="center">
     <img height="450" style="float: center;" src="assets/powermode.png" alt="psensor">
@@ -533,7 +536,7 @@ If you model support the custom power mode, then you can:
 - LED should turn pink/purple
 - customnize CPU/GPU boost and TGP settings
 
-You change to it with:
+You can change to it with in the GUI: Open the GUI and select "Custom Mode" for power profile. Alternativley, you can change to it with in the command line with:
 ```bash
 echo balanced-performance > /sys/firmware/acpi/platform_profile
 ```
@@ -574,6 +577,9 @@ You can enable or disable the touch pad. You can do it by pressing Fn+F10 (or si
 
 With the GUI, the touch pad is enabled/disabled by checking/unchecking the box `Touch Pad Enabled` (changes should apply immediately).
 
+### Keyboard Backlight
+- 4 Zone RGB backlight: please use https://github.com/4JX/L5P-Keyboard-RGB
+- off/on white backlight or off/medium/bright white backlight: supported by this software but can be controlled by all programs for LED control in linux
 
 ## Known Bugs
 Some bugs cannot be fixed due to the firmware in the hardware:
