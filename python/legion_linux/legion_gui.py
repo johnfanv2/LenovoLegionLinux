@@ -4,6 +4,7 @@ import sys
 import os.path
 import traceback
 import time
+from typing import List
 
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
@@ -19,9 +20,11 @@ def mark_error(checkbox: QCheckBox):
         "QCheckBox:disabled{background-color : red;} "
         "QCheckBox {background-color : red;}")
 
-def log_error(ex:Exception):
+
+def log_error(ex: Exception):
     print("Error occured", ex)
     print(traceback.format_exc())
+
 
 def sync_checkbox_from_feature(checkbox: QCheckBox, feature: FileFeature):
     try:
@@ -54,8 +57,40 @@ def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
         log_error(ex)
 
 
+class BoolFeatureController:
+    checkbox: QCheckBox
+    feature: FileFeature
+    dependent_controllers: List
+
+    def __init__(self, checkbox: QCheckBox, feature: FileFeature):
+        self.checkbox = checkbox
+        self.feature = feature
+        self.checkbox.clicked.connect(self.sync_feature_to_view)
+        self.dependent_controllers = []
+
+    def sync_feature_to_view(self):
+        sync_checkbox(
+            self.checkbox, self.feature)
+        if self.dependent_controllers:
+            time.sleep(0.100)
+            for c in self.dependent_controllers:
+                c.sync_view_to_feature()
+
+    def sync_view_to_feature(self):
+        sync_checkbox_from_feature(self.checkbox, self.feature)
+
+
 class LegionController:
     model: LegionModelFacade
+    # fan
+    lockfancontroller_controller: BoolFeatureController
+    maximumfanspeed_controller: BoolFeatureController
+    # other
+    fnlock_controller: BoolFeatureController
+    touchpad_controller: BoolFeatureController
+    batteryconservation_controller: BoolFeatureController
+    always_on_usb_controller: BoolFeatureController
+    rapid_charging_controller: BoolFeatureController
 
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
@@ -64,21 +99,46 @@ class LegionController:
         self.main_window = None
 
     def init(self, read_from_hw=True):
+        # fan
+        self.lockfancontroller_controller = BoolFeatureController(
+            self.view_fancurve.lockfancontroller_check,
+            self.model.lockfancontroller)
+        self.maximumfanspeed_controller = BoolFeatureController(
+            self.view_fancurve.maximumfanspeed_check,
+            self.model.maximum_fanspeed)
+        # other
+        self.fnlock_controller = BoolFeatureController(
+            self.view_otheroptions.fnlock_check,
+            self.model.fn_lock)
+        self.touchpad_controller = BoolFeatureController(
+            self.view_otheroptions.touchpad_check,
+            self.model.touchpad)
+        self.batteryconservation_controller = BoolFeatureController(
+            self.view_otheroptions.batteryconservation_check,
+            self.model.battery_conservation)
+        self.rapid_charging_controller = BoolFeatureController(
+            self.view_otheroptions.rapid_charging_check,
+            self.model.rapid_charging)
+        self.batteryconservation_controller.dependent_controllers.append(
+            self.rapid_charging_controller)
+        self.rapid_charging_controller.dependent_controllers.append(
+            self.batteryconservation_controller)
+        self.always_on_usb_controller = BoolFeatureController(
+            self.view_otheroptions.always_on_usb_check,
+            self.model.always_on_usb_charging)
+
         if read_from_hw:
             self.model.read_fancurve_from_hw()
             # fan controller
-        sync_checkbox_from_feature(
-            self.view_fancurve.lockfancontroller_check, self.model.lockfancontroller)
-        sync_checkbox_from_feature(
-            self.view_otheroptions.batteryconservation_check, self.model.battery_conservation)
-        sync_checkbox_from_feature(
-            self.view_otheroptions.fnlock_check, self.model.fn_lock)
-        sync_checkbox_from_feature(
-            self.view_otheroptions.touchpad_check, self.model.touchpad)
-        sync_checkbox_from_feature(
-            self.view_fancurve.maximumfanspeed_check, self.model.maximum_fanspeed)
-        sync_checkbox_from_feature(
-            self.view_otheroptions.rapid_charging_check, self.model.rapid_charging)
+        # fan
+        self.lockfancontroller_controller.sync_view_to_feature()
+        self.maximumfanspeed_controller.sync_view_to_feature()
+        # other
+        self.fnlock_controller.sync_view_to_feature()
+        self.touchpad_controller.sync_view_to_feature()
+        self.batteryconservation_controller.sync_view_to_feature()
+        self.rapid_charging_controller.sync_feature_to_view()
+        self.always_on_usb_controller.sync_feature_to_view()
         self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = not self.model.is_root_user()
@@ -108,39 +168,6 @@ class LegionController:
         name = self.view_fancurve.preset_combobox.currentText()
         self.model.fan_curve = self.view_fancurve.get_fancurve()
         self.model.save_fancurve_to_preset(name)
-
-    def on_maximumfanspeed(self):
-        sync_checkbox(self.view_fancurve.lockfancontroller_check,
-                      self.model.lockfancontroller)
-
-    def on_lockfancontroller(self):
-        sync_checkbox(self.view_fancurve.lockfancontroller_check,
-                      self.model.lockfancontroller)
-
-    def on_batteryconservation_check(self):
-        sync_checkbox(self.view_otheroptions.batteryconservation_check,
-                      self.model.battery_conservation)
-        time.sleep(0.100)
-        sync_checkbox_from_feature(self.view_otheroptions.rapid_charging_check,
-                                   self.model.rapid_charging)
-
-    def on_fnlock_check(self):
-        sync_checkbox(self.view_otheroptions.fnlock_check, self.model.fn_lock)
-
-    def on_touchpad_check(self):
-        sync_checkbox(self.view_otheroptions.touchpad_check,
-                      self.model.touchpad)
-
-    def on_always_on_usb(self):
-        sync_checkbox(self.view_otheroptions.on_always_on_usb_check,
-                      self.model.always_on_usb_charging)
-
-    def on_rapid_charging_check(self):
-        sync_checkbox(self.view_otheroptions.rapid_charging_check,
-                      self.model.rapid_charging)
-        time.sleep(0.100)
-        sync_checkbox_from_feature(self.view_otheroptions.batteryconservation_check,
-                                   self.model.battery_conservation)
 
 
 class FanCurveEntryView():
@@ -268,12 +295,8 @@ class FanCurveTab(QWidget):
         self.minfancurve_check = QCheckBox("Minifancurve if too cold")
         self.lockfancontroller_check = QCheckBox(
             "Lock fan controller, lock temperature sensors, and lock current fan speed")
-        self.lockfancontroller_check.clicked.connect(
-            self.controller.on_lockfancontroller)
         self.maximumfanspeed_check = QCheckBox(
             "Set speed to maximum fan speed")
-        self.maximumfanspeed_check.clicked.connect(
-            self.controller.on_maximumfanspeed)
         self.layout.addWidget(self.point_id_label, 0, 0)
         self.layout.addWidget(self.fan_speed1_label, 1, 0)
         self.layout.addWidget(self.fan_speed2_label, 2, 0)
@@ -351,35 +374,25 @@ class OtherOptionsTab(QWidget):
         self.options_layout = QVBoxLayout()
         self.options_group.setLayout(self.options_layout)
 
-        self.batteryconservation_check = QCheckBox(
-            "Battery Conservation (keep battery at about 50 percent and do not charge on AC to extend battery life)")
-        self.batteryconservation_check.clicked.connect(
-            self.controller.on_batteryconservation_check)
-        self.options_layout.addWidget(self.batteryconservation_check, 0)
-
         self.fnlock_check = QCheckBox(
             "Fn Lock (Use special function of F1-F12 keys without pressing Fn; same as Fn + Esc)")
-        self.fnlock_check.clicked.connect(
-            self.controller.on_fnlock_check)
-        self.options_layout.addWidget(self.fnlock_check, 1)
+        self.options_layout.addWidget(self.fnlock_check, 0)
 
         self.touchpad_check = QCheckBox(
             "Touchpad Enabled (Lock or unlock touchpad; same as Fn + F10)")
-        self.touchpad_check.clicked.connect(
-            self.controller.on_touchpad_check)
-        self.options_layout.addWidget(self.touchpad_check, 2)
+        self.options_layout.addWidget(self.touchpad_check, 1)
 
-        self.on_always_on_usb_check = QCheckBox(
-            "AlwaysOnUsbCharging")
-        self.on_always_on_usb_check.clicked.connect(
-            self.controller.on_always_on_usb)
-        self.options_layout.addWidget(self.on_always_on_usb_check, 3)
+        self.batteryconservation_check = QCheckBox(
+            "Battery Conservation (keep battery at about 50 percent and do not charge on AC to extend battery life)")
+        self.options_layout.addWidget(self.batteryconservation_check, 2)
 
         self.rapid_charging_check = QCheckBox(
             "Rapid Charging")
-        self.rapid_charging_check.clicked.connect(
-            self.controller.on_rapid_charging_check)
-        self.options_layout.addWidget(self.rapid_charging_check, 4)
+        self.options_layout.addWidget(self.rapid_charging_check, 3)
+
+        self.always_on_usb_check = QCheckBox(
+            "AlwaysOnUsbCharging")
+        self.options_layout.addWidget(self.always_on_usb_check, 4)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)
@@ -433,6 +446,7 @@ class MainWindow(QTabWidget):
         ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
         self.activateWindow()
 
+
 class LegionTray:
     def __init__(self, icon, app, main_window):
         self.tray = QSystemTrayIcon()
@@ -445,7 +459,7 @@ class LegionTray:
         self.title.setEnabled(False)
         self.menu.addAction(self.title)
         # ---
-        self.menu.addSeparator() 
+        self.menu.addSeparator()
         # open
         self.open_action = QAction("Show")
         self.open_action.triggered.connect(main_window.bring_to_foreground)
@@ -459,7 +473,6 @@ class LegionTray:
     def show(self):
         self.tray.show()
 
-    
 
 def main():
     app = QApplication(sys.argv)
