@@ -177,6 +177,50 @@ class IsOnPowerSupplyFeature(FileFeature):
         raise NotImplementedError()
 
 
+class IsOnPowerSupplyFeature(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/power_supply/ADP0/online")
+
+    def set(self, value: str):
+        raise NotImplementedError()
+
+
+class BatteryIsCharging(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/power_supply/BAT0/status")
+
+    def set(self, _: str):
+        raise NotImplementedError()
+
+    def get(self):
+        value = self._read_file_str(self.filename)
+        return value == "Charging"
+
+
+class BatteryIsCharging(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/power_supply/BAT0/status")
+
+    def set(self, _: str):
+        raise NotImplementedError()
+
+    def get(self):
+        value = self._read_file_str(self.filename)
+        return value == "Charging"
+
+
+class BatteryCurrentCapacityPercentage(FileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/power_supply/BAT0/capacity")
+
+    def set(self, _: str):
+        raise NotImplementedError()
+
+    def get(self):
+        value = self._read_file_str(self.filename)
+        return float(value)
+
+
 class FanCurveIO:
     hwmon_dir_pattern = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*'
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
@@ -440,6 +484,26 @@ class FanCurveRepository:
         fancurve.save_to_file(self._name_to_filename(name))
 
 
+class CustomConservationController:
+    def __init__(self, battery_conservation: BatteryConservation,
+                 battery_capacity_perc: BatteryCurrentCapacityPercentage):
+        self.battery_conservation = battery_conservation
+        self.battery_capacity_perc = battery_capacity_perc
+        self.lower_limit = 60
+        self.upper_limit = 80
+
+    def run(self):
+        battery_cap = self.battery_capacity_perc.get()
+        if battery_cap > self.upper_limit:
+            print(
+                f"Enabling conservation mode because battery {battery_cap} is greater than upper limit {self.upper_limit}")
+            self.battery_conservation.set(True)
+        if battery_cap < self.lower_limit:
+            print(
+                f"Disabling conservation mode because battery {battery_cap} is lower than lower limit {self.lower_limit}")
+            self.battery_conservation.set(False)
+
+
 class LegionModelFacade:
     def __init__(self, expect_hwmon=True):
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
@@ -461,6 +525,9 @@ class LegionModelFacade:
         self.on_power_supply = IsOnPowerSupplyFeature()
         self.camera_power = CameraPowerFeature()
         self.always_on_usb_charging = AlwaysOnUSBChargingFeature()
+        self.battery_capacity_perc = BatteryCurrentCapacityPercentage()
+        self.battery_custom_conservation_controller = CustomConservationController(
+            self.battery_conservation, self.battery_capacity_perc)
 
     @staticmethod
     def is_root_user():
@@ -517,3 +584,6 @@ class LegionModelFacade:
             fancurve = self.fancurve_repo.load_by_name_or_default(preset_name)
             self.fancurve_io.write_fan_curve(fancurve)
             print(fancurve)
+
+    def conservation_apply_mode_for_current_battery_capacity(self):
+        self.battery_custom_conservation_controller.run()
