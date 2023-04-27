@@ -467,7 +467,7 @@ class OtherOptionsTab(QWidget):
         self.options_layout.addWidget(self.always_on_usb_check, 4)
 
         self.power_mode_label = QLabel(
-            'Select the power mode/platform profile:')
+            'Power mode/platform profile:')
         self.power_mode_combo = QComboBox()
         self.power_mode_layout = QHBoxLayout()
         self.power_mode_layout.addWidget(self.power_mode_label)
