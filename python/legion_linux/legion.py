@@ -157,9 +157,36 @@ class MaximumFanSpeedFeature(FileFeature):
         return invalue == 1
 
 
+class NamedValue:
+    value: str
+    name: str
+
+    def __init__(self, value, name):
+        self.value = value
+        self.name = name
+
+
 class PlatformProfileFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/firmware/acpi/platform_profile")
+        self.choices = FileFeature(
+            "/sys/firmware/acpi/platform_profile_choices")
+
+    def get_values(self) -> List[NamedValue]:
+        try:
+            available_choices_str = self.choices._read_file_str(
+                self.choices.filename)
+        except Exception as e:
+            print(e)
+            available_choices_str = ""
+        available_choices = available_choices_str.split(" ")
+        all_profiles = [
+            NamedValue("quiet", "Quiet Mode"),
+            NamedValue("balanced", "Balanced Mode"),
+            NamedValue("performance", "Performance Mode"),
+            NamedValue("balanced-performance", "Custom Mode")
+        ]
+        return [p for p in all_profiles if p.value in available_choices]
 
     def set(self, value: str):
         self._write_file(self.filename, value)
@@ -175,26 +202,6 @@ class IsOnPowerSupplyFeature(FileFeature):
 
     def set(self, value: str):
         raise NotImplementedError()
-
-
-class IsOnPowerSupplyFeature(FileFeature):
-    def __init__(self):
-        super().__init__("/sys/class/power_supply/ADP0/online")
-
-    def set(self, value: str):
-        raise NotImplementedError()
-
-
-class BatteryIsCharging(FileFeature):
-    def __init__(self):
-        super().__init__("/sys/class/power_supply/BAT0/status")
-
-    def set(self, _: str):
-        raise NotImplementedError()
-
-    def get(self):
-        value = self._read_file_str(self.filename)
-        return value == "Charging"
 
 
 class BatteryIsCharging(FileFeature):
