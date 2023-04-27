@@ -428,6 +428,38 @@ class MainWindow(QTabWidget):
         self.close_timer.timeout.connect(self.close)
         self.close_timer.start(milliseconds)
 
+    def bring_to_foreground(self):
+        self.setWindowState(self.windowState(
+        ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+        self.activateWindow()
+
+class LegionTray:
+    def __init__(self, icon, app, main_window):
+        self.tray = QSystemTrayIcon()
+        self.tray.setIcon(icon)
+        self.tray.setVisible(True)
+
+        self.menu = QMenu()
+        # title
+        self.title = QAction("Legion")
+        self.title.setEnabled(False)
+        self.menu.addAction(self.title)
+        # ---
+        self.menu.addSeparator() 
+        # open
+        self.open_action = QAction("Show")
+        self.open_action.triggered.connect(main_window.bring_to_foreground)
+        self.menu.addAction(self.open_action)
+        # quit
+        self.quit_action = QAction("Quit")
+        self.quit_action.triggered.connect(app.quit)
+        self.menu.addAction(self.quit_action)
+        self.tray.setContextMenu(self.menu)
+
+    def show(self):
+        self.tray.show()
+
+    
 
 def main():
     app = QApplication(sys.argv)
@@ -447,27 +479,8 @@ def main():
         main_window.close_after(3000)
     main_window.show()
 
-    tray = QSystemTrayIcon()
-    tray.setIcon(icon)
-    tray.setVisible(True)
-
-    def bring_to_foreground():
-        main_window.setWindowState(main_window.windowState(
-        ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
-        main_window.activateWindow()
-
-    menu = QMenu()
-    # open
-    open_action = QAction("Show")
-    open_action.triggered.connect(bring_to_foreground)
-    menu.addAction(open_action)
-    # quit
-    quit_action = QAction("Quit")
-    quit_action.triggered.connect(app.quit)
-    menu.addAction(quit_action)
-    tray.setContextMenu(menu)
+    tray = LegionTray(icon, app, main_window)
     tray.show()
-
     sys.exit(app.exec_())
 
 
