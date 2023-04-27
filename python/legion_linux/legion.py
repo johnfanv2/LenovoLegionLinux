@@ -49,6 +49,17 @@ class FanCurve:
         with open(filename, 'r', encoding=DEFAULT_ENCODING) as filepointer:
             return cls.from_yaml(filepointer.read())
 
+# pylint: disable=too-few-public-methods
+
+
+class NamedValue:
+    value: str
+    name: str
+
+    def __init__(self, value, name):
+        self.value = value
+        self.name = name
+
 
 class FileFeature:
     pattern: str
@@ -79,6 +90,10 @@ class FileFeature:
             return matches[0]
         return None
 
+    # pylint: disable=no-self-use
+    def get_values(self) -> List[NamedValue]:
+        return []
+
     def exists(self):
         return self.filename is not None
 
@@ -89,6 +104,15 @@ class FileFeature:
     def get(self):
         invalue = self._read_file_int(self.filename)
         return invalue != 0
+
+
+class StrFileFeature(FileFeature):
+
+    def set(self, value):
+        return self._write_file(self.filename, value)
+
+    def get(self):
+        return self._read_file_str(self.filename)
 
 
 class LockFanController(FileFeature):
@@ -157,36 +181,26 @@ class MaximumFanSpeedFeature(FileFeature):
         return invalue == 1
 
 
-class NamedValue:
-    value: str
-    name: str
-
-    def __init__(self, value, name):
-        self.value = value
-        self.name = name
-
-
 class PlatformProfileFeature(FileFeature):
     def __init__(self):
         super().__init__("/sys/firmware/acpi/platform_profile")
-        self.choices = FileFeature(
+        self.choices = StrFileFeature(
             "/sys/firmware/acpi/platform_profile_choices")
-
-    def get_values(self) -> List[NamedValue]:
-        try:
-            available_choices_str = self.choices._read_file_str(
-                self.choices.filename)
-        except Exception as e:
-            print(e)
-            available_choices_str = ""
-        available_choices = available_choices_str.split(" ")
-        all_profiles = [
+        self.all_values = [
             NamedValue("quiet", "Quiet Mode"),
             NamedValue("balanced", "Balanced Mode"),
             NamedValue("performance", "Performance Mode"),
             NamedValue("balanced-performance", "Custom Mode")
         ]
-        return [p for p in all_profiles if p.value in available_choices]
+
+    def get_values(self) -> List[NamedValue]:
+        try:
+            available_choices_str = self.choices.get()
+        except IOError as error:
+            print(error)
+            available_choices_str = ""
+        available_choices = available_choices_str.split(" ")
+        return [p for p in self.all_values if p.value in available_choices]
 
     def set(self, value: str):
         self._write_file(self.filename, value)
@@ -503,11 +517,13 @@ class CustomConservationController:
         battery_cap = self.battery_capacity_perc.get()
         if battery_cap > self.upper_limit:
             print(
-                f"Enabling conservation mode because battery {battery_cap} is greater than upper limit {self.upper_limit}")
+                "Enabling conservation mode because battery" +
+                f" {battery_cap} is greater than upper limit {self.upper_limit}")
             self.battery_conservation.set(True)
         if battery_cap < self.lower_limit:
             print(
-                f"Disabling conservation mode because battery {battery_cap} is lower than lower limit {self.lower_limit}")
+                "Disabling conservation mode because battery" +
+                f" {battery_cap} is lower than lower limit {self.lower_limit}")
             self.battery_conservation.set(False)
 
 

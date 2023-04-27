@@ -10,7 +10,7 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox
+    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QHBoxLayout
 from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature
 
 
@@ -19,6 +19,13 @@ def mark_error(checkbox: QCheckBox):
         "QCheckBox::indicator {background-color : red;} "
         "QCheckBox:disabled{background-color : red;} "
         "QCheckBox {background-color : red;}")
+
+
+def mark_error_combobox(combobox: QComboBox):
+    combobox.setStyleSheet(
+        "QComboBox::indicator {background-color : red;} "
+        "QComboBox:disabled{background-color : red;} "
+        "QComboBox {background-color : red;}")
 
 
 def log_error(ex: Exception):
@@ -57,6 +64,65 @@ def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
         log_error(ex)
 
 
+class EnumFeatureController:
+    widget: QComboBox
+    feature: FileFeature
+
+    def __init__(self, widget: QComboBox, feature: FileFeature):
+        self.widget = widget
+        self.feature = feature
+        self.widget.currentIndexChanged.connect(self.update_feature_from_view)
+
+    def update_feature_from_view(self):
+        # print("update_feature_from_view", self.widget.currentText())
+        try:
+            if self.feature.exists():
+                gui_value = self.widget.currentText()
+                values = self.feature.get_values()
+                value = None
+                for val in values:
+                    if gui_value == val.name:
+                        value = val.value
+
+                if value is not None:
+                    print(f"Set to value: {value}")
+                    self.feature.set(value)
+                else:
+                    print(f"Value for gui_value {gui_value} not found")
+            else:
+                self.widget.setDisabled(True)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error_combobox(self.widget)
+            log_error(ex)
+        time.sleep(0.200)
+        self.update_view_from_feature()
+
+    def update_view_from_feature(self, k=0, update_items=False):
+        print("update_view_from_feature", k)
+        try:
+            if self.feature.exists():
+                # possible values -> items
+                values = self.feature.get_values()
+                if update_items:
+                    self.widget.clear()
+                    for val in values:
+                        self.widget.addItem(val.name)
+
+                # value -> index
+                value = self.feature.get()
+                for i, val in enumerate(values):
+                    if value == val.value:
+                        self.widget.setCurrentIndex(i)
+                self.widget.setDisabled(False)
+            else:
+                self.widget.setDisabled(True)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error_combobox(self.widget)
+            log_error(ex)
+
+
 class BoolFeatureController:
     checkbox: QCheckBox
     feature: FileFeature
@@ -65,18 +131,18 @@ class BoolFeatureController:
     def __init__(self, checkbox: QCheckBox, feature: FileFeature):
         self.checkbox = checkbox
         self.feature = feature
-        self.checkbox.clicked.connect(self.sync_feature_to_view)
+        self.checkbox.clicked.connect(self.update_feature_from_view)
         self.dependent_controllers = []
 
-    def sync_feature_to_view(self):
+    def update_feature_from_view(self):
         sync_checkbox(
             self.checkbox, self.feature)
         if self.dependent_controllers:
             time.sleep(0.100)
-            for c in self.dependent_controllers:
-                c.sync_view_to_feature()
+            for contr in self.dependent_controllers:
+                contr.sync_view_to_feature()
 
-    def sync_view_to_feature(self):
+    def update_view_from_feature(self):
         sync_checkbox_from_feature(self.checkbox, self.feature)
 
 
@@ -91,6 +157,7 @@ class LegionController:
     batteryconservation_controller: BoolFeatureController
     always_on_usb_controller: BoolFeatureController
     rapid_charging_controller: BoolFeatureController
+    power_mode_controller: EnumFeatureController
 
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
@@ -126,19 +193,24 @@ class LegionController:
         self.always_on_usb_controller = BoolFeatureController(
             self.view_otheroptions.always_on_usb_check,
             self.model.always_on_usb_charging)
+        self.power_mode_controller = EnumFeatureController(
+            self.view_otheroptions.power_mode_combo,
+            self.model.platform_profile
+        )
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
             # fan controller
         # fan
-        self.lockfancontroller_controller.sync_view_to_feature()
-        self.maximumfanspeed_controller.sync_view_to_feature()
+        self.lockfancontroller_controller.update_view_from_feature()
+        self.maximumfanspeed_controller.update_view_from_feature()
         # other
-        self.fnlock_controller.sync_view_to_feature()
-        self.touchpad_controller.sync_view_to_feature()
-        self.batteryconservation_controller.sync_view_to_feature()
-        self.rapid_charging_controller.sync_feature_to_view()
-        self.always_on_usb_controller.sync_feature_to_view()
+        self.fnlock_controller.update_view_from_feature()
+        self.touchpad_controller.update_view_from_feature()
+        self.batteryconservation_controller.update_view_from_feature()
+        self.rapid_charging_controller.update_view_from_feature()
+        self.always_on_usb_controller.update_view_from_feature()
+        self.power_mode_controller.update_view_from_feature(update_items=True)
         self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = not self.model.is_root_user()
@@ -393,6 +465,14 @@ class OtherOptionsTab(QWidget):
         self.always_on_usb_check = QCheckBox(
             "AlwaysOnUsbCharging")
         self.options_layout.addWidget(self.always_on_usb_check, 4)
+
+        self.power_mode_label = QLabel(
+            'Select the power mode/platform profile:')
+        self.power_mode_combo = QComboBox()
+        self.power_mode_layout = QHBoxLayout()
+        self.power_mode_layout.addWidget(self.power_mode_label)
+        self.power_mode_layout.addWidget(self.power_mode_combo)
+        self.options_layout.addLayout(self.power_mode_layout, 5)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)
