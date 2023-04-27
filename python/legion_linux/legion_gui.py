@@ -10,8 +10,8 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QHBoxLayout
-from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature
+    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QHBoxLayout, QSpinBox
+from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
 
 
 def mark_error(checkbox: QCheckBox):
@@ -146,6 +146,57 @@ class BoolFeatureController:
         sync_checkbox_from_feature(self.checkbox, self.feature)
 
 
+class IntFeatureController:
+    widget: QSpinBox
+    feature: IntFileFeature
+
+    def __init__(self, widget: QComboBox, feature: FileFeature, update_on_change=False):
+        self.widget = widget
+        self.feature = feature
+        if update_on_change:
+            self.widget.valueChanged.connect(self.update_feature_from_view)
+
+    def update_feature_from_view(self):
+        # print("update_feature_from_view", self.widget.currentText())
+        try:
+            if self.feature.exists():
+                gui_value = self.widget.value()
+                low, up, _ = self.feature.get_limits_and_step()
+                if gui_value >= low and gui_value <= up:
+                    print(f"Set to value: {gui_value}")
+                    self.feature.set(gui_value)
+                else:
+                    print(f"Value for gui_value {gui_value} not ignored with limits {low} and {up}")
+            else:
+                self.widget.setDisabled(True)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error_combobox(self.widget)
+            log_error(ex)
+        time.sleep(0.200)
+        self.update_view_from_feature()
+
+    def update_view_from_feature(self, k=0, update_bounds=False):
+        print("update_view_from_feature", k)
+        try:
+            if self.feature.exists():
+                # possible values
+                low, up, _ = self.feature.get_limits_and_step()
+                if update_bounds:
+                    self.widget.setMinimum(low)
+                    self.widget.setMaximum(up)
+
+                # value -> index
+                value = self.feature.get()
+                self.widget.setValue(value)
+                self.widget.setDisabled(False)
+            else:
+                self.widget.setDisabled(True)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error_combobox(self.widget)
+            log_error(ex)
+
 class LegionController:
     model: LegionModelFacade
     # fan
@@ -158,6 +209,8 @@ class LegionController:
     always_on_usb_controller: BoolFeatureController
     rapid_charging_controller: BoolFeatureController
     power_mode_controller: EnumFeatureController
+    # OC/Power
+    cpu_longterm_power_limit_controller: IntFeatureController
 
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
@@ -197,6 +250,10 @@ class LegionController:
             self.view_otheroptions.power_mode_combo,
             self.model.platform_profile
         )
+        self.cpu_longterm_power_limit_controller = IntFeatureController(
+            self.view_otheroptions.cpu_longterm_power_limit_spinbox,
+            self.model.cpu_longterm_power_limit
+        )
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -211,6 +268,7 @@ class LegionController:
         self.rapid_charging_controller.update_view_from_feature()
         self.always_on_usb_controller.update_view_from_feature()
         self.power_mode_controller.update_view_from_feature(update_items=True)
+        self.cpu_longterm_power_limit_controller.update_view_from_feature(update_bounds=True)
         self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = not self.model.is_root_user()
@@ -368,7 +426,7 @@ class FanCurveTab(QWidget):
         self.lockfancontroller_check = QCheckBox(
             "Lock fan controller, lock temperature sensors, and lock current fan speed")
         self.maximumfanspeed_check = QCheckBox(
-            "Set speed to maximum fan speed")
+            "Set speed to maximum fan speed (often only in custom power mode possible)")
         self.layout.addWidget(self.point_id_label, 0, 0)
         self.layout.addWidget(self.fan_speed1_label, 1, 0)
         self.layout.addWidget(self.fan_speed2_label, 2, 0)
@@ -473,6 +531,9 @@ class OtherOptionsTab(QWidget):
         self.power_mode_layout.addWidget(self.power_mode_label)
         self.power_mode_layout.addWidget(self.power_mode_combo)
         self.options_layout.addLayout(self.power_mode_layout, 5)
+
+        self.cpu_longterm_power_limit_spinbox = QSpinBox()
+        self.options_layout.addWidget(self.cpu_longterm_power_limit_spinbox)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)

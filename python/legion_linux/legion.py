@@ -240,6 +240,32 @@ class BatteryCurrentCapacityPercentage(FileFeature):
     def get(self):
         value = self._read_file_str(self.filename)
         return float(value)
+    
+
+class IntFileFeature(FileFeature):
+    limit_low_default:int
+    limit_up_default:int
+    step_default:int    
+
+    def __init__(self, pattern, limit_low_default=0, limit_up_default=255, step_default=1):
+        super().__init__(pattern)
+        self.limit_low_default = limit_low_default
+        self.limit_up_default = limit_up_default
+        self.step_default = step_default
+
+    def get_limits_and_step(self):
+        return (self.limit_low_default, self.limit_up_default, self.step_default)
+
+    def set(self, value:int):
+        return self._write_file(self.filename, str(value))
+
+    def get(self)->int:
+        return self._read_file_int(self.filename)
+        
+class CPULongtermPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_longterm_powerlimit", 5, 100, 1)
+
 
 
 class FanCurveIO:
@@ -551,6 +577,9 @@ class LegionModelFacade:
         self.battery_capacity_perc = BatteryCurrentCapacityPercentage()
         self.battery_custom_conservation_controller = CustomConservationController(
             self.battery_conservation, self.battery_capacity_perc)
+        
+        # OC and Power
+        self.cpu_longterm_power_limit = CPULongtermPowerLimit()
 
     @staticmethod
     def is_root_user():
