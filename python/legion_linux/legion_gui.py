@@ -165,8 +165,8 @@ class IntFeatureController:
         try:
             if self.feature.exists():
                 gui_value = self.widget.value()
-                low, uppper, _ = self.feature.get_limits_and_step()
-                if  low<= gui_value <= uppper:
+                low, upper, _ = self.feature.get_limits_and_step()
+                if  low<= gui_value <= upper:
                     print(f"Set to value: {gui_value}")
                     self.feature.set(gui_value)
                 else:
@@ -581,6 +581,7 @@ class OtherOptionsTab(QWidget):
     def __init__(self, controller: LegionController):
         super().__init__()
         self.controller = controller
+        self.init_power_ui()
         self.init_ui()
         self.controller.view_otheroptions = self
 
@@ -625,7 +626,6 @@ class OtherOptionsTab(QWidget):
             "Charge Output from USB always on")
         self.options_layout.addWidget(self.always_on_usb_check, 4)
 
-        self.init_power_ui()
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)
         self.main_layout.addWidget(self.power_group, 1)
