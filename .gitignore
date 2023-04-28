@@ -3,6 +3,8 @@ __pycache__/
 
 legion_linux.egg-info/
 
+reverse_engineer
+
 # Prerequisites
 *.d
 
@@ -55,3 +57,6 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+build/
+dist/

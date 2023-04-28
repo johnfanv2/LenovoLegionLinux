@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox
-from legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
 
 
 def mark_error(checkbox: QCheckBox):

@@ -3,7 +3,7 @@
 # pylint: disable=wrong-import-order
 import argcomplete
 import argparse
-from legion import LegionModelFacade
+from legion_linux.legion import LegionModelFacade
 
 
 class CLIFeatureCommand:

@@ -411,7 +411,7 @@ psensor
 Start the GUI as root
 ```bash
 # run from folder LenovoLegionLinux
-sudo python/legion_linux/legion_gui.py
+sudo python/legion_linux/legion_linux/legion_gui.py
 ```
 <p align="center">
     <img height="450" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
@@ -435,7 +435,7 @@ Unexpected:
 You can do the same as the GUI from a CLI program. It will access the same presets.
 ```bash
 # run from folder LenovoLegionLinux
-sudo python/legion_linux/legion_cli.py
+sudo python/legion_linux/legion_linux/legion_cli.py
 ```
 
 ```text
