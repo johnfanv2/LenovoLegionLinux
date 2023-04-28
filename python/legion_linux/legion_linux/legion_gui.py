@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # pylint: disable=c-extension-no-member
 import sys
+import os
 import os.path
 import traceback
 import time
@@ -11,8 +12,8 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox
-
 # Make it possible to run without installation
+# pylint: disable=# pylint: disable=wrong-import-position
 sys.path.append(os.path.dirname(__file__) + "/..")
 from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
 
