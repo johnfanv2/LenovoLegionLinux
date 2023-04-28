@@ -618,7 +618,7 @@ These are the temperatures measured and used by the embedded controller. Only th
 They are provided by the new kernel module and otherwise not accessible because they are read from the embedded controller.
 
 ### What are the new fan speed sensors?
-They report the fan speed in rounds per minute (rpm). They are provided by the new kernel module and otherwise not accessible because they are read from the embedded controller.
+They report the fan speed in revolutions per minute (rpm). They are provided by the new kernel module and otherwise not accessible because they are read from the embedded controller.
 
 ### What temperatures are used for controlling the fan speed?
 The CPU, GPU, and "IC" temperature is used. These are (usually) additional sensors that are different from the temperature sensors that are reported when you do not use the kernel model. In particular, the "IC" temperature limit might be set to a low value which results in almost-always running fans.
