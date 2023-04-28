@@ -115,12 +115,66 @@ class StrFileFeature(FileFeature):
         return self._read_file_str(self.filename)
 
 
-class LockFanController(FileFeature):
+class BoolFileFeature(FileFeature):
+
+    def set(self, value):
+        outvalue = 1 if value else 0
+        return self._write_file(self.filename, outvalue)
+
+    def get(self):
+        invalue = self._read_file_int(self.filename)
+        return invalue != 0
+
+
+class IntFileFeature(FileFeature):
+    limit_low_default: int
+    limit_up_default: int
+    step_default: int
+
+    def __init__(self, pattern, limit_low_default=0, limit_up_default=255, step_default=1):
+        super().__init__(pattern)
+        self.limit_low_default = limit_low_default
+        self.limit_up_default = limit_up_default
+        self.step_default = step_default
+
+    def get_limits_and_step(self):
+        return (self.limit_low_default, self.limit_up_default, self.step_default)
+
+    def set(self, value: int):
+        return self._write_file(self.filename, str(value))
+
+    def get(self) -> int:
+        return self._read_file_int(self.filename)
+
+
+class FloatFileFeature(FileFeature):
+    limit_low_default: int
+    limit_up_default: int
+    step_default: int
+
+    def __init__(self, pattern, limit_low_default=0, limit_up_default=255, step_default=1):
+        super().__init__(pattern)
+        self.limit_low_default = limit_low_default
+        self.limit_up_default = limit_up_default
+        self.step_default = step_default
+
+    def get_limits_and_step(self):
+        return (self.limit_low_default, self.limit_up_default, self.step_default)
+
+    def set(self, value: int):
+        return self._write_file(self.filename, str(value))
+
+    def get(self):
+        value = self._read_file_str(self.filename)
+        return float(value)
+
+
+class LockFanController(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/lockfancontroller")
 
 
-class BatteryConservation(FileFeature):
+class BatteryConservation(BoolFileFeature):
     def __init__(self, rapidcharging_feature):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode")
         self.rapidcharging_feature = rapidcharging_feature
@@ -132,7 +186,7 @@ class BatteryConservation(FileFeature):
         return super().set(value)
 
 
-class RapidChargingFeature(FileFeature):
+class RapidChargingFeature(BoolFileFeature):
     '''Rapid charging of laptop battery'''
 
     def __init__(self, batterconservation_feature: BatteryConservation):
@@ -146,39 +200,49 @@ class RapidChargingFeature(FileFeature):
         return super().set(value)
 
 
-class FnLockFeature(FileFeature):
+class FnLockFeature(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/fn_lock")
 
 
-class TouchpadFeature(FileFeature):
+class WinkeyFeature(BoolFileFeature):
+    def __init__(self):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/winkey")
+
+
+class TouchpadFeature(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/touchpad")
 
 
-class CameraPowerFeature(FileFeature):
+class CameraPowerFeature(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/camera_power")
 
 
-class AlwaysOnUSBChargingFeature(FileFeature):
+class OverdriveFeature(BoolFileFeature):
+    def __init__(self):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/overdrive")
+
+
+class GsyncFeature(BoolFileFeature):
+    def __init__(self):
+        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gsync")
+
+
+class AlwaysOnUSBChargingFeature(BoolFileFeature):
     '''Always on USB Charging of external devices on while laptop is off'''
 
     def __init__(self):
         super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/usb_charging")
 
+    def set(self, value: str):
+        raise NotImplementedError()
 
-class MaximumFanSpeedFeature(FileFeature):
+
+class MaximumFanSpeedFeature(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed")
-
-    def set(self, value):
-        outvalue = 1 if value else 0
-        return self._write_file(self.filename, outvalue)
-
-    def get(self):
-        invalue = self._read_file_int(self.filename)
-        return invalue == 1
 
 
 class PlatformProfileFeature(FileFeature):
@@ -210,7 +274,7 @@ class PlatformProfileFeature(FileFeature):
         return value
 
 
-class IsOnPowerSupplyFeature(FileFeature):
+class IsOnPowerSupplyFeature(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/class/power_supply/ADP0/online")
 
@@ -218,7 +282,7 @@ class IsOnPowerSupplyFeature(FileFeature):
         raise NotImplementedError()
 
 
-class BatteryIsCharging(FileFeature):
+class BatteryIsCharging(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/class/power_supply/BAT0/status")
 
@@ -230,42 +294,65 @@ class BatteryIsCharging(FileFeature):
         return value == "Charging"
 
 
-class BatteryCurrentCapacityPercentage(FileFeature):
+class BatteryCurrentCapacityPercentage(FloatFileFeature):
     def __init__(self):
         super().__init__("/sys/class/power_supply/BAT0/capacity")
 
     def set(self, _: str):
         raise NotImplementedError()
 
-    def get(self):
-        value = self._read_file_str(self.filename)
-        return float(value)
-    
 
-class IntFileFeature(FileFeature):
-    limit_low_default:int
-    limit_up_default:int
-    step_default:int    
+BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 
-    def __init__(self, pattern, limit_low_default=0, limit_up_default=255, step_default=1):
-        super().__init__(pattern)
-        self.limit_low_default = limit_low_default
-        self.limit_up_default = limit_up_default
-        self.step_default = step_default
 
-    def get_limits_and_step(self):
-        return (self.limit_low_default, self.limit_up_default, self.step_default)
+class CPUShorttermPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/cpu_shortterm_powerlimit", 5, 100, 1)
 
-    def set(self, value:int):
-        return self._write_file(self.filename, str(value))
 
-    def get(self)->int:
-        return self._read_file_int(self.filename)
-        
 class CPULongtermPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_longterm_powerlimit", 5, 100, 1)
+        super().__init__(BASEPATH+"/cpu_longterm_powerlimit", 5, 100, 1)
 
+
+class CPUPeakPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/cpu_peak_powerlimit", 0, 100, 1)
+
+
+class CPUAPUSPPTPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/cpu_apu_sppt_powerlimit", 0, 100, 1)
+
+
+class CPUDefaultPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/cpu_default_powerlimit", 0, 100, 1)
+
+
+class CPUCrossLoadingPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/cpu_cross_loading_powerlimit", 0, 100, 1)
+
+
+class GPUBoostClock(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/gpu_boost_clock", 0, 10000, 1)
+
+
+class GPUCTGPPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/gpu_ctgp_powerlimit", 0, 200, 1)
+
+
+class GPUPPABPowerLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/gpu_ppab_powerlimit", 0, 200, 1)
+
+
+class GPUTemperatureLimit(IntFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/gpu_temperature_limit", 0, 120, 1)
 
 
 class FanCurveIO:
@@ -569,17 +656,29 @@ class LegionModelFacade:
         self.battery_conservation.rapidcharging_feature = self.rapid_charging
         self.maximum_fanspeed = MaximumFanSpeedFeature()
         self.fn_lock = FnLockFeature()
+        self.winkey = WinkeyFeature()
         self.touchpad = TouchpadFeature()
+        self.camera_power = CameraPowerFeature()
+        self.overdrive = OverdriveFeature()
+        self.gsync = GsyncFeature()
         self.platform_profile = PlatformProfileFeature()
         self.on_power_supply = IsOnPowerSupplyFeature()
-        self.camera_power = CameraPowerFeature()
         self.always_on_usb_charging = AlwaysOnUSBChargingFeature()
         self.battery_capacity_perc = BatteryCurrentCapacityPercentage()
         self.battery_custom_conservation_controller = CustomConservationController(
             self.battery_conservation, self.battery_capacity_perc)
-        
+
         # OC and Power
         self.cpu_longterm_power_limit = CPULongtermPowerLimit()
+        self.cpu_shortterm_power_limit = CPUShorttermPowerLimit()
+        self.cpu_peak_power_limit = CPUPeakPowerLimit()
+        self.cpu_default_power_limit = CPUDefaultPowerLimit()
+        self.cpu_cross_loading_power_limit = CPUCrossLoadingPowerLimit()
+        self.cpu_apu_sppt_power_limit = CPUAPUSPPTPowerLimit()
+        self.gpu_boost_clock = GPUBoostClock()
+        self.gpu_ctgp_power_limit = GPUCTGPPowerLimit()
+        self.gpu_ppab_power_limit = GPUPPABPowerLimit()
+        self.gpu_temperature_limit = GPUTemperatureLimit()
 
     @staticmethod
     def is_root_user():
