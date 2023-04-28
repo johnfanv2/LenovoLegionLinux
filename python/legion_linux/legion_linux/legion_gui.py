@@ -11,6 +11,9 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox
+
+# Make it possible to run without installation
+sys.path.append(os.path.dirname(__file__) + "/..")
 from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
 
 

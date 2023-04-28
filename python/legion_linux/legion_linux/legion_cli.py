@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 # pylint: disable=wrong-import-order
+
+import sys
+import os
 import argcomplete
 import argparse
+
+# Make it possible to run without installation
+sys.path.append(os.path.dirname(__file__) + "/..")
 from legion_linux.legion import LegionModelFacade
 
 
