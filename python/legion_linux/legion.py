@@ -305,6 +305,16 @@ class BatteryCurrentCapacityPercentage(FloatFileFeature):
 BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 
 
+class CPUOverclock(BoolFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/cpu_oc")
+
+
+class GPUOverclock(BoolFileFeature):
+    def __init__(self):
+        super().__init__(BASEPATH+"/gpu_oc")
+
+
 class CPUShorttermPowerLimit(IntFileFeature):
     def __init__(self):
         super().__init__(BASEPATH+"/cpu_shortterm_powerlimit", 5, 100, 1)
@@ -669,12 +679,14 @@ class LegionModelFacade:
             self.battery_conservation, self.battery_capacity_perc)
 
         # OC and Power
+        self.cpu_overclock = CPUOverclock()
         self.cpu_longterm_power_limit = CPULongtermPowerLimit()
         self.cpu_shortterm_power_limit = CPUShorttermPowerLimit()
         self.cpu_peak_power_limit = CPUPeakPowerLimit()
         self.cpu_default_power_limit = CPUDefaultPowerLimit()
         self.cpu_cross_loading_power_limit = CPUCrossLoadingPowerLimit()
         self.cpu_apu_sppt_power_limit = CPUAPUSPPTPowerLimit()
+        self.gpu_overclock = GPUOverclock()
         self.gpu_boost_clock = GPUBoostClock()
         self.gpu_ctgp_power_limit = GPUCTGPPowerLimit()
         self.gpu_ppab_power_limit = GPUPPABPowerLimit()
