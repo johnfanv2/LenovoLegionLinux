@@ -7,6 +7,7 @@
 [![Check Reddit](https://img.shields.io/static/v1?label=Reddit&message=LenovoLegion&color=green)](https://www.reddit.com/r/LenovoLegion/)
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 [![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=aur%20package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
+[![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=aur%20package%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![Gentoo Overlay](https://img.shields.io/badge/Gentoo--Overlay-mrduarte--ebuilds-blueviolet)](https://github.com/MrDuartePT/mrduarte-ebuilds)
 ---
 **This project is not affiliated with Lenovo in any way**
