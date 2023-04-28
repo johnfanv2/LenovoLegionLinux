@@ -160,7 +160,7 @@ class IntFeatureController:
         if update_on_change:
             self.widget.valueChanged.connect(self.update_feature_from_view)
 
-    def update_feature_from_view(self):
+    def update_feature_from_view(self, wait=True):
         # print("update_feature_from_view", self.widget.currentText())
         try:
             if self.feature.exists():
@@ -178,7 +178,8 @@ class IntFeatureController:
         except Exception as ex:
             mark_error_combobox(self.widget)
             log_error(ex)
-        time.sleep(0.200)
+        if wait:
+            time.sleep(0.200)
         self.update_view_from_feature()
 
     def update_view_from_feature(self, k=0, update_bounds=False):
@@ -361,14 +362,15 @@ class LegionController:
             update_bounds=update_bounds)
 
     def power_gui_write_to_hw(self):
-        self.cpu_longterm_power_limit_controller.update_feature_from_view()
-        self.cpu_shortterm_power_limit_controller.update_feature_from_view()
-        self.cpu_peak_power_limit_controller.update_feature_from_view()
-        self.cpu_cross_loading_power_limit_controller.update_feature_from_view()
-        self.cpu_apu_sppt_power_limit_controller.update_feature_from_view()
-        self.gpu_ctgp_power_limit_controller.update_feature_from_view()
-        self.gpu_ppab_power_limit_controller.update_feature_from_view()
-        self.gpu_temperature_limit_controller.update_feature_from_view()
+        self.cpu_longterm_power_limit_controller.update_feature_from_view(False)
+        self.cpu_shortterm_power_limit_controller.update_feature_from_view(False)
+        self.cpu_peak_power_limit_controller.update_feature_from_view(False)
+        self.cpu_cross_loading_power_limit_controller.update_feature_from_view(False)
+        self.cpu_apu_sppt_power_limit_controller.update_feature_from_view(False)
+        self.gpu_ctgp_power_limit_controller.update_feature_from_view(False)
+        self.gpu_ppab_power_limit_controller.update_feature_from_view(False)
+        self.gpu_temperature_limit_controller.update_feature_from_view(False)
+        self.update_power_gui()
 
     def update_fancurve_gui(self):
         self.view_fancurve.set_fancurve(self.model.fan_curve,
