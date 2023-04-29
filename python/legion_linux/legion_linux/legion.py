@@ -3,12 +3,12 @@ import glob
 from dataclasses import asdict, dataclass
 from typing import List
 from pathlib import Path
-
 import yaml
 
 DEFAULT_ENCODING = "utf8"
 CONFIG_FOLDER = ".config/legion_linux"
-
+LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
+IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
 
 @dataclass(order=True)
 class FanCurveEntry:
@@ -171,12 +171,12 @@ class FloatFileFeature(FileFeature):
 
 class LockFanController(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/lockfancontroller")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'lockfancontroller'))
 
 
 class BatteryConservation(BoolFileFeature):
     def __init__(self, rapidcharging_feature):
-        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode")
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'conservation_mode'))
         self.rapidcharging_feature = rapidcharging_feature
 
     def set(self, value):
@@ -190,7 +190,7 @@ class RapidChargingFeature(BoolFileFeature):
     '''Rapid charging of laptop battery'''
 
     def __init__(self, batterconservation_feature: BatteryConservation):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/rapidcharge")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'rapidcharge'))
         self.batterconservation_feature = batterconservation_feature
 
     def set(self, value):
@@ -202,39 +202,39 @@ class RapidChargingFeature(BoolFileFeature):
 
 class FnLockFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/fn_lock")
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'fn_lock'))
 
 
 class WinkeyFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/winkey")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'winkey'))
 
 
 class TouchpadFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/touchpad")
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'touchpad'))
 
 
 class CameraPowerFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/camera_power")
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'camera_power'))
 
 
 class OverdriveFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/overdrive")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'overdrive'))
 
 
 class GsyncFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gsync")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'gsync'))
 
 
 class AlwaysOnUSBChargingFeature(BoolFileFeature):
     '''Always on USB Charging of external devices on while laptop is off'''
 
     def __init__(self):
-        super().__init__("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/usb_charging")
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'usb_charging'))
 
     def set(self, value: str):
         raise NotImplementedError()
@@ -242,7 +242,7 @@ class AlwaysOnUSBChargingFeature(BoolFileFeature):
 
 class MaximumFanSpeedFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed")
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'fan_fullspeed'))
 
 
 class PlatformProfileFeature(FileFeature):
@@ -302,71 +302,68 @@ class BatteryCurrentCapacityPercentage(FloatFileFeature):
         raise NotImplementedError()
 
 
-BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
-
-
 class CPUOverclock(BoolFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_oc")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_oc"))
 
 
 class GPUOverclock(BoolFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/gpu_oc")
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_oc"))
 
 
 class CPUShorttermPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_shortterm_powerlimit", 5, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_shortterm_powerlimit"), 5, 100, 1)
 
 
 class CPULongtermPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_longterm_powerlimit", 5, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_longterm_powerlimit"), 5, 100, 1)
 
 
 class CPUPeakPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_peak_powerlimit", 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_peak_powerlimit"), 0, 100, 1)
 
 
 class CPUAPUSPPTPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_apu_sppt_powerlimit", 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_apu_sppt_powerlimit",) 0, 100, 1)
 
 
 class CPUDefaultPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_default_powerlimit", 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_default_powerlimit"), 0, 100, 1)
 
 
 class CPUCrossLoadingPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/cpu_cross_loading_powerlimit", 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_cross_loading_powerlimit"), 0, 100, 1)
 
 
 class GPUBoostClock(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/gpu_boost_clock", 0, 10000, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_boost_clock"), 0, 10000, 1)
 
 
 class GPUCTGPPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/gpu_ctgp_powerlimit", 0, 200, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_ctgp_powerlimit"), 0, 200, 1)
 
 
 class GPUPPABPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/gpu_ppab_powerlimit", 0, 200, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_ppab_powerlimit"), 0, 200, 1)
 
 
 class GPUTemperatureLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(BASEPATH+"/gpu_temperature_limit", 0, 120, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_temperature_limit"), 0, 120, 1)
 
 
 class FanCurveIO:
-    hwmon_dir_pattern = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*'
+    hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
     pwm2_fan_speed = "pwm2_auto_point{}_pwm"
     pwm1_temp_hyst = "pwm1_auto_point{}_temp_hyst"
