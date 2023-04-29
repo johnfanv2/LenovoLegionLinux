@@ -3,12 +3,34 @@ import glob
 from dataclasses import asdict, dataclass
 from typing import List
 from pathlib import Path
+import logging
+import subprocess
 import yaml
+
+
+log = logging.getLogger(__name__)
+
 
 DEFAULT_ENCODING = "utf8"
 CONFIG_FOLDER = ".config/legion_linux"
 LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
+
+
+def get_dmesg(only_tail=False, filter_log=True):
+    try:
+        if filter_log:
+            cmd = 'dmesg | grep legion | tail -n 20' if only_tail else 'dmesg | grep legion'
+        else:
+            cmd = 'dmesg | tail -n 20' if only_tail else 'dmesg'
+        with subprocess.Popen(['bash', '-c', cmd], stdout=subprocess.PIPE) as process:
+            out, _ = process.communicate(timeout=1)
+            out_str = out.decode(DEFAULT_ENCODING)
+            return out_str
+    except OSError as ex:
+        log.error(ex)
+        return str(ex)
+
 
 @dataclass(order=True)
 class FanCurveEntry:
@@ -68,20 +90,39 @@ class FileFeature:
     def __init__(self, pattern):
         self.pattern = pattern
         self.filename = FileFeature._find_by_file_pattern(pattern)
+        log.info('Feature %s with path %s', self.name(), self.filename)
+        if not self.exists():
+            log.warning('Feature %s exist not. exits: %d',
+                        self.name(), self.exists())
 
-    @staticmethod
-    def _read_file_str(file_path) -> str:
-        with open(file_path, "r", encoding=DEFAULT_ENCODING) as filepointer:
-            return str(filepointer.read()).strip()
+    def _read_file_str(self, file_path) -> str:
+        log.info('Feature %s reading', self.name())
+        if not self.exists():
+            log.warning('Feature %s reading from non exisitng', self.name())
+        try:
+            with open(file_path, "r", encoding=DEFAULT_ENCODING) as filepointer:
+                out = str(filepointer.read()).strip()
+            log.info('Feature %s reading: %s', self.name(), str(out))
+            return out
+        except IOError as err:
+            log.error('Feature %s reading error %s', self.name(), str(err))
+            log.error(get_dmesg(only_tail=True, filter_log=False))
+            raise err
 
-    @staticmethod
-    def _read_file_int(file_path) -> int:
-        return int(FileFeature._read_file_str(file_path))
+    def _read_file_int(self, file_path) -> int:
+        return int(self._read_file_str(file_path))
 
-    @staticmethod
-    def _write_file(file_path, value):
-        with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
-            filepointer.write(str(value))
+    def _write_file(self, file_path, value):
+        log.info('Feature %s writing: %s', self.name(), str(value))
+        if not self.exists():
+            log.error('Feature %s writing to non exisitng', self.name())
+        try:
+            with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
+                filepointer.write(str(value))
+        except IOError as err:
+            log.error('Feature %s writing error %s', self.name(), str(err))
+            log.error(get_dmesg(only_tail=True, filter_log=False))
+            raise err
 
     @staticmethod
     def _find_by_file_pattern(pattern):
@@ -89,6 +130,9 @@ class FileFeature:
         if matches:
             return matches[0]
         return None
+
+    def name(self):
+        return type(self).__name__
 
     # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
@@ -304,62 +348,63 @@ class BatteryCurrentCapacityPercentage(FloatFileFeature):
 
 class CPUOverclock(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_oc"))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_oc"))
 
 
 class GPUOverclock(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_oc"))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_oc"))
 
 
 class CPUShorttermPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_shortterm_powerlimit"), 5, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_shortterm_powerlimit"), 5, 100, 1)
 
 
 class CPULongtermPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_longterm_powerlimit"), 5, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_longterm_powerlimit"), 5, 100, 1)
 
 
 class CPUPeakPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_peak_powerlimit"), 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_peak_powerlimit"), 0, 100, 1)
 
 
 class CPUAPUSPPTPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_apu_sppt_powerlimit",) 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_apu_sppt_powerlimit"), 0, 100, 1)
 
 
 class CPUDefaultPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_default_powerlimit"), 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_default_powerlimit"), 0, 100, 1)
 
 
 class CPUCrossLoadingPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"cpu_cross_loading_powerlimit"), 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH,
+                                      "cpu_cross_loading_powerlimit"), 0, 100, 1)
 
 
 class GPUBoostClock(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_boost_clock"), 0, 10000, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_boost_clock"), 0, 10000, 1)
 
 
 class GPUCTGPPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_ctgp_powerlimit"), 0, 200, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_ctgp_powerlimit"), 0, 200, 1)
 
 
 class GPUPPABPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_ppab_powerlimit"), 0, 200, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_ppab_powerlimit"), 0, 200, 1)
 
 
 class GPUTemperatureLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,"gpu_temperature_limit"), 0, 120, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_temperature_limit"), 0, 120, 1)
 
 
 class FanCurveIO:
@@ -649,6 +694,7 @@ class CustomConservationController:
 
 class LegionModelFacade:
     def __init__(self, expect_hwmon=True):
+        log.info(get_dmesg())
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
         self.fancurve_repo = FanCurveRepository()
         self.fan_curve = FanCurve(name='unknown',

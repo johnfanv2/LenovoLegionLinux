@@ -4,6 +4,7 @@ import sys
 import os
 import os.path
 import traceback
+import logging
 import time
 from typing import List
 
@@ -11,11 +12,44 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox
+    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.append(os.path.dirname(__file__) + "/..")
+import legion_linux.legion
 from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
+
+# pylint: disable=too-few-public-methods
+class QtLogHandler(QtCore.QObject):
+    logBuffer = []
+    logWritten = QtCore.pyqtSignal(str)
+
+    def emit(self, msg):
+        self.logBuffer.append(msg)
+        if self.receivers(self.logWritten) > 0:
+            while self.logBuffer:
+                self.logWritten.emit(self.logBuffer.pop(0))
+
+
+class QtHandler(logging.Handler):
+    logWritten = QtCore.pyqtSignal(str)
+
+    def __init__(self, level=0) -> None:
+        super().__init__(level)
+        self.qt_obj = QtLogHandler()
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.qt_obj.emit(msg)
+
+
+logging.basicConfig()
+log = logging.getLogger(legion_linux.legion.__name__)
+qt_handler = QtHandler()
+qt_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(levelname)s: %(message)s"))
+log.addHandler(qt_handler)
+log.setLevel('INFO')
 
 
 def mark_error(checkbox: QCheckBox):
@@ -245,6 +279,7 @@ class LegionController:
         self.view_fancurve = None
         self.view_otheroptions = None
         self.main_window = None
+        self.log_view = None
 
     def init(self, read_from_hw=True):
         # fan
@@ -366,11 +401,15 @@ class LegionController:
             update_bounds=update_bounds)
 
     def power_gui_write_to_hw(self):
-        self.cpu_longterm_power_limit_controller.update_feature_from_view(False)
-        self.cpu_shortterm_power_limit_controller.update_feature_from_view(False)
+        self.cpu_longterm_power_limit_controller.update_feature_from_view(
+            False)
+        self.cpu_shortterm_power_limit_controller.update_feature_from_view(
+            False)
         self.cpu_peak_power_limit_controller.update_feature_from_view(False)
-        self.cpu_cross_loading_power_limit_controller.update_feature_from_view(False)
-        self.cpu_apu_sppt_power_limit_controller.update_feature_from_view(False)
+        self.cpu_cross_loading_power_limit_controller.update_feature_from_view(
+            False)
+        self.cpu_apu_sppt_power_limit_controller.update_feature_from_view(
+            False)
         self.gpu_ctgp_power_limit_controller.update_feature_from_view(False)
         self.gpu_ppab_power_limit_controller.update_feature_from_view(False)
         self.gpu_temperature_limit_controller.update_feature_from_view(False)
@@ -401,6 +440,9 @@ class LegionController:
         name = self.view_fancurve.preset_combobox.currentText()
         self.model.fan_curve = self.view_fancurve.get_fancurve()
         self.model.save_fancurve_to_preset(name)
+
+    def on_new_log_msg(self, msg):
+        self.log_view.log_out.insertPlainText(msg+'\n')
 
 
 class FanCurveEntryView():
@@ -749,6 +791,22 @@ class OtherOptionsTab(QWidget):
         self.power_note_label.setStyleSheet("color: red;")
         self.power_all_layout.addWidget(self.power_note_label)
 
+
+# pylint: disable=too-few-public-methods
+
+
+class LogTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        self.log_out = QTextBrowser(self)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.log_out)
+        self.setLayout(layout)
+
 # pylint: disable=too-few-public-methods
 
 
@@ -764,9 +822,8 @@ class AboutTab(QWidget):
         layout.addWidget(about_label)
         self.setLayout(layout)
 
+
 # pylint: disable=too-few-public-methods
-
-
 class MainWindow(QTabWidget):
     def __init__(self, controller):
         super().__init__()
@@ -774,11 +831,15 @@ class MainWindow(QTabWidget):
         self.controller.main_window = self
         self.fan_curve_tab = FanCurveTab(controller)
         self.other_options_tab = OtherOptionsTab(controller)
+        self.log_tab = LogTab()
+        controller.log_view = self.log_tab
         self.about_tab = AboutTab()
         self.close_timer = QTimer()
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.other_options_tab, "Other Options")
+        self.addTab(self.log_tab, "Log")
         self.addTab(self.about_tab, "About")
+        qt_handler.qt_obj.logWritten.connect(self.controller.on_new_log_msg)
         self.show_root_dialog = False
         self.onstart_timer = QtCore.QTimer()
         self.onstart_timer.singleShot(0, self.on_start)

@@ -3,12 +3,17 @@
 # pylint: disable=wrong-import-order
 import argcomplete
 import argparse
+import logging
 import sys
 import os
-# Make it possible to run without installation
+# Make it possible to run without installationimport
 # pylint: disable=# pylint: disable=wrong-import-position
-sys.path.append(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, os.path.dirname(__file__) + "/..")
+import legion_linux.legion
 from legion_linux.legion import LegionModelFacade
+logging.basicConfig()
+log = logging.getLogger(legion_linux.legion.__name__)
+log.setLevel('ERROR')
 
 
 class CLIFeatureCommand:
