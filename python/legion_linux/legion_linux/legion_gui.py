@@ -6,20 +6,21 @@ import os.path
 import traceback
 import logging
 import time
-from typing import List
+from typing import List, Optional
 
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser
+    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.append(os.path.dirname(__file__) + "/..")
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature
 import legion_linux.legion
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature
-
 # pylint: disable=too-few-public-methods
+
+
 class QtLogHandler(QtCore.QObject):
     logBuffer = []
     logWritten = QtCore.pyqtSignal(str)
@@ -246,6 +247,60 @@ class IntFeatureController:
             log_error(ex)
 
 
+class HybridGsyncController:
+    gsynchybrid_feature: GsyncFeature
+    target_value: Optional[dict]
+
+    def __init__(self, gsynchybrid_feature: GsyncFeature,
+                 current_state_label: QLabel,
+                 activate_button: QPushButton,
+                 deactivate_button: QPushButton):
+        self.current_state_label = current_state_label
+        self.gsynchybrid_feature = gsynchybrid_feature
+        self.target_value = None
+        self.activate_button = activate_button
+        self.deactivate_button = deactivate_button
+        self.activate_button.clicked.connect(self.activate)
+        self.deactivate_button.clicked.connect(self.deactivate)
+
+    def activate(self):
+        self.gsynchybrid_feature.set(True)
+        self.target_value = True
+        self.update_view_from_feature()
+
+    def deactivate(self):
+        self.gsynchybrid_feature.set(False)
+        self.target_value = False
+        self.update_view_from_feature()
+
+    def update_feature_from_view(self, _):
+        pass
+
+    def update_view_from_feature(self):
+        try:
+            if not self.gsynchybrid_feature.exists():
+                current_val_str = 'not found'
+            else:
+                value = self.gsynchybrid_feature.get()
+                if value:
+                    current_val_str = 'active'
+                else:
+                    current_val_str = 'inactive'
+        # pylint: disable=broad-except
+        except Exception as ex:
+            current_val_str = 'error'
+            log_error(ex)
+
+        if self.target_value is None:
+            target_val_str = ''
+        elif self.target_value:
+            target_val_str = '- target: active (restart required)'
+        else:
+            target_val_str = '- target: inactive (restart required)'
+        self.current_state_label.setText(
+            current_val_str + ' ' + target_val_str)
+
+
 class LegionController:
     model: LegionModelFacade
     # fan
@@ -257,7 +312,7 @@ class LegionController:
     touchpad_controller: BoolFeatureController
     camera_power_controller: BoolFeatureController
     overdrive_controller: BoolFeatureController
-    gsync_controller: BoolFeatureController
+    hybrid_gsync_controller: HybridGsyncController
     batteryconservation_controller: BoolFeatureController
     always_on_usb_controller: BoolFeatureController
     rapid_charging_controller: BoolFeatureController
@@ -305,9 +360,6 @@ class LegionController:
         self.overdrive_controller = BoolFeatureController(
             self.view_otheroptions.overdrive_check,
             self.model.overdrive)
-        self.gsync_controller = BoolFeatureController(
-            self.view_otheroptions.gsync_check,
-            self.model.gsync)
         self.batteryconservation_controller = BoolFeatureController(
             self.view_otheroptions.batteryconservation_check,
             self.model.battery_conservation)
@@ -325,6 +377,12 @@ class LegionController:
             self.view_otheroptions.power_mode_combo,
             self.model.platform_profile
         )
+        self.hybrid_gsync_controller = HybridGsyncController(
+            gsynchybrid_feature=self.model.gsync,
+            current_state_label=self.view_otheroptions.hybrid_state_label,
+            activate_button=self.view_otheroptions.hybrid_activate_button,
+            deactivate_button=self.view_otheroptions.hybrid_deactivate_button)
+
         # power limits
         self.cpu_overclock = BoolFeatureController(
             self.view_otheroptions.cpu_overclock_ckeck,
@@ -368,13 +426,13 @@ class LegionController:
         self.winkey_controller.update_view_from_feature()
         self.touchpad_controller.update_view_from_feature()
         self.camera_power_controller.update_view_from_feature()
-        self.overdrive_controller.update_view_from_feature()
-        self.gsync_controller.update_view_from_feature()
         self.batteryconservation_controller.update_view_from_feature()
         self.rapid_charging_controller.update_view_from_feature()
         self.always_on_usb_controller.update_view_from_feature()
         self.cpu_overclock.update_view_from_feature()
         self.gpu_overclock.update_view_from_feature()
+        self.overdrive_controller.update_view_from_feature()
+        self.hybrid_gsync_controller.update_view_from_feature()
         self.update_power_gui(True)
         self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
@@ -664,14 +722,6 @@ class OtherOptionsTab(QWidget):
             "Camera Power Enabled")
         self.options_layout.addWidget(self.camera_power_check, 0)
 
-        self.gsync_check = QCheckBox(
-            "GSync Enabled")
-        self.options_layout.addWidget(self.gsync_check, 0)
-
-        self.overdrive_check = QCheckBox(
-            "Display Overdrive Enabled")
-        self.options_layout.addWidget(self.overdrive_check, 0)
-
         self.batteryconservation_check = QCheckBox(
             "Battery Conservation (keep battery at about 50 percent and do not charge on AC to extend battery life)")
         self.options_layout.addWidget(self.batteryconservation_check, 2)
@@ -683,6 +733,22 @@ class OtherOptionsTab(QWidget):
         self.always_on_usb_check = QCheckBox(
             "Charge Output from USB always on")
         self.options_layout.addWidget(self.always_on_usb_check, 4)
+
+        self.overdrive_check = QCheckBox(
+            "Display Overdrive Enabled")
+        self.options_layout.addWidget(self.overdrive_check, 5)
+
+        self.hybrid_label = QLabel('Hybrid Mode (somtimtes also GSync):')
+        self.hybrid_state_label = QLabel('')
+        self.hybrid_activate_button = QPushButton('Activate')
+        self.hybrid_deactivate_button = QPushButton('Deactivate')
+        self.hybrid_layout = QHBoxLayout()
+        self.hybrid_layout.addWidget(self.hybrid_label)
+        self.hybrid_layout.addWidget(self.hybrid_activate_button)
+        self.hybrid_layout.addWidget(self.hybrid_deactivate_button)
+        self.hybrid_layout.addWidget(self.hybrid_state_label)
+
+        self.options_layout.addLayout(self.hybrid_layout, 6)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)
