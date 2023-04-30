@@ -1049,7 +1049,7 @@ ssize_t ecram_portio_write(struct ecram_portio *ec_portio, u16 offset, u8 value)
 
 	mutex_unlock(&ec_portio->io_port_mutex);
 	// TODO: remove this
-	pr_info("Writing %d to addr %x\n", value, offset);
+	//pr_info("Writing %d to addr %x\n", value, offset);
 	return 0;
 }
 
