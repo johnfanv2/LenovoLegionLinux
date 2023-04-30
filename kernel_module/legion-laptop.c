@@ -2816,7 +2816,7 @@ static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
 {
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  LEGION_WMI_GAMEZONE_GUID, 0,
-					  WMI_METHOD_ID_SETGSYNCSTATUS, false,
+					  WMI_METHOD_ID_SETGSYNCSTATUS, true,
 					  1);
 }
 
