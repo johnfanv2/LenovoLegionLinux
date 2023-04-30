@@ -1803,6 +1803,10 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 				    bool write_size)
 {
 	size_t i;
+
+	//TODO: remove again
+	pr_info("Set fancurve\n");
+
 	// Reset fan update counters (try to avoid any race conditions)
 	ecram_write(ecram, 0xC5FE, 0);
 	ecram_write(ecram, 0xC5FF, 0);
@@ -2222,6 +2226,9 @@ ssize_t write_powermode(struct legion_private *priv,
 			enum legion_wmi_powermode value)
 {
 	ssize_t res;
+
+	//TODO: remove again
+	pr_info("Set powermode\n");
 
 	switch (priv->conf->access_method_powermode) {
 	case ACCESS_METHOD_EC:
