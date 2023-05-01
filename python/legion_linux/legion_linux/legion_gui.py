@@ -283,9 +283,9 @@ class HybridGsyncController:
             else:
                 value = self.gsynchybrid_feature.get()
                 if value:
-                    current_val_str = 'active'
+                    current_val_str = 'current: active'
                 else:
-                    current_val_str = 'inactive'
+                    current_val_str = 'current: inactive'
         # pylint: disable=broad-except
         except Exception as ex:
             current_val_str = 'error'
