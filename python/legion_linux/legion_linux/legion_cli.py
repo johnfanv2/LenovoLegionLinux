@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 # pylint: disable=wrong-import-order
+from legion_linux.legion import LegionModelFacade
+import legion_linux.legion
 import argcomplete
 import argparse
 import logging
@@ -9,8 +11,6 @@ import os
 # Make it possible to run without installationimport
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
-import legion_linux.legion
-from legion_linux.legion import LegionModelFacade
 logging.basicConfig()
 log = logging.getLogger(legion_linux.legion.__name__)
 log.setLevel('ERROR')
@@ -315,6 +315,13 @@ def fancurve_write_preset_for_current_profile(legion: LegionModelFacade, **_) ->
     return 0
 
 
+def conservation_apply_mode_for_current_battery_capacity(legion: LegionModelFacade,
+                                                         lowerlimit=50, upperlimit=60, **_) -> int:
+    print(legion.conservation_apply_mode_for_current_battery_capacity(
+        lowerlimit, upperlimit))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description='Legion CLI')
     parser.add_argument(
@@ -359,6 +366,15 @@ def main():
         help='Write fan curve for the current profile (power mode, power supply status) to hardware')
     hw_to_file_parser.set_defaults(
         func=fancurve_write_preset_for_current_profile)
+
+    custom_conservation_mode = subcommands.add_parser(
+        'custom-conservation-mode-apply', help='Turn conservation mode on or off depending on battery level')
+    custom_conservation_mode.add_argument(
+        'lowerlimit', type=int, help='Limit when conservation mode should be turned off, e.g. 60', default=61)
+    custom_conservation_mode.add_argument(
+        'upperlimit', type=int, help='Limit when conservation mode should be turned on, e.g. 80', default=81)
+    custom_conservation_mode.set_defaults(
+        func=conservation_apply_mode_for_current_battery_capacity)
 
     cmd_group = []
     MiniFancurveFeatureCommand(subcommands, None, cmd_group)

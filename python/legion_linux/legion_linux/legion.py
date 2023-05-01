@@ -229,6 +229,11 @@ class BatteryConservation(BoolFileFeature):
             self.rapidcharging_feature.set(False)
         return super().set(value)
 
+    def set_if_not_set(self, value:bool)->None:
+        if value is not self.get():
+            self.set(value)
+        print(f"Already has value {value} - skip setting again.")
+
 
 class RapidChargingFeature(BoolFileFeature):
     '''Rapid charging of laptop battery'''
@@ -684,12 +689,18 @@ class CustomConservationController:
             print(
                 "Enabling conservation mode because battery" +
                 f" {battery_cap} is greater than upper limit {self.upper_limit}")
-            self.battery_conservation.set(True)
+            self.battery_conservation.set_if_not_set(True)
+            return self.battery_conservation.get()
         if battery_cap < self.lower_limit:
             print(
                 "Disabling conservation mode because battery" +
                 f" {battery_cap} is lower than lower limit {self.lower_limit}")
-            self.battery_conservation.set(False)
+            self.battery_conservation.set_if_not_set(False)
+            return self.battery_conservation.get()
+        print(
+            "Keeping conservation mode because battery" +
+            f" {battery_cap} is within bounds {self.lower_limit} and {self.upper_limit}")
+        return self.battery_conservation.get()
 
 
 class LegionModelFacade:
@@ -791,5 +802,9 @@ class LegionModelFacade:
             self.fancurve_io.write_fan_curve(fancurve)
             print(fancurve)
 
-    def conservation_apply_mode_for_current_battery_capacity(self):
-        self.battery_custom_conservation_controller.run()
+    def conservation_apply_mode_for_current_battery_capacity(self, lower_limit=None, upper_limit=None):
+        if lower_limit is not None:
+            self.battery_custom_conservation_controller.lower_limit = lower_limit
+        if upper_limit is not None:
+            self.battery_custom_conservation_controller.upper_limit = upper_limit
+        return self.battery_custom_conservation_controller.run()
