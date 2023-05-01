@@ -2330,7 +2330,14 @@ static ssize_t legion_kbd_bl2_brightness_get(struct legion_private *priv)
 //			    sizeof(in_param));
 //}
 
-static int legion_kbd_bl_brightness_get(struct legion_private *priv)
+//min: 1, max: 3
+#define LIGHT_ID_KEYBOARD 0x00
+//min: 0, max: 1
+#define LIGHT_ID_YLOGO 0x03
+//min: 1, max: 2
+#define LIGHT_ID_IOPORT 0x05
+
+static int legion_wmi_light_get(struct legion_private *priv, u8 light_id, unsigned int min_value, unsigned int max_value)
 {
 	struct acpi_buffer params;
 	u8 in;
@@ -2340,7 +2347,7 @@ static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 
 	params.length = 1;
 	params.pointer = &in;
-	in = 0;
+	in = light_id;
 	err = wmi_exec_ints(LEGION_WMI_KBBACKLIGHT_GUID, 0,
 			    WMI_METHOD_ID_KBBACKLIGHTGET, &params, result,
 			    ARRAY_SIZE(result));
@@ -2350,9 +2357,9 @@ static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 	}
 
 	value = result[1];
-	if (!(value >= 1 && value <= 3)) {
-		pr_info("Error ACPI call for reading keyboard brightness: expected a value between 1 and 3, but got %d\n",
-			value);
+	if (!(value >= min_value && value <= max_value)) {
+		pr_info("Error ACPI call for reading keyboard brightness: expected a value between %u and %u, but got %d\n",
+			min_value, max_value, value);
 		return -EFAULT;
 	}
 	return value - 1;
@@ -2360,7 +2367,7 @@ static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 	return 0;
 }
 
-static int legion_kbd_bl_brightness_set(struct legion_private *priv,
+static int legion_wmi_light_set(struct legion_private *priv, u8 light_id, unsigned int min_value, unsigned int max_value,
 					unsigned int brightness)
 {
 	struct acpi_buffer buffer;
@@ -2370,9 +2377,9 @@ static int legion_kbd_bl_brightness_set(struct legion_private *priv,
 
 	buffer.length = 3;
 	buffer.pointer = &in_buffer_param[0];
-	in_buffer_param[0] = 0;
+	in_buffer_param[0] = light_id;
 	in_buffer_param[1] = 0x01;
-	in_buffer_param[2] = clamp(brightness + 1u, 1u, 3u);
+	in_buffer_param[2] = clamp(brightness + 1u, min_value, max_value);
 
 	err = wmi_exec_int(LEGION_WMI_KBBACKLIGHT_GUID, 0,
 			   WMI_METHOD_ID_KBBACKLIGHTSET, &buffer, &result);
@@ -2382,6 +2389,18 @@ static int legion_kbd_bl_brightness_set(struct legion_private *priv,
 	}
 
 	return 0;
+}
+
+
+static int legion_kbd_bl_brightness_get(struct legion_private *priv)
+{
+	return legion_wmi_light_get(priv, LIGHT_ID_KEYBOARD, 1, 3);
+}
+
+static int legion_kbd_bl_brightness_set(struct legion_private *priv,
+					unsigned int brightness)
+{
+	return legion_wmi_light_set(priv, LIGHT_ID_KEYBOARD, 1, 3, brightness);
 }
 
 /* =============================  */
@@ -2507,6 +2526,12 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   legion_kbd_bl2_brightness_get(priv));
 	seq_printf(s, "WMI backlight 3 state: %d\n",
 		   legion_kbd_bl_brightness_get(priv));
+
+	seq_printf(s, "WMI light IO port: %d\n",
+		   legion_wmi_light_get(priv, LIGHT_ID_IOPORT, 0, 4));
+
+	seq_printf(s, "WMI light y logo/lid: %d\n",
+		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 4));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
 		   priv->conf->has_minifancurve);
