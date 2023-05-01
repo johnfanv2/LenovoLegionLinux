@@ -14,6 +14,7 @@
 
 
 # If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46). 
+# If you have a light in the lid (Y-logo) or at the IO-ports, please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). 
 
 
 Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
@@ -66,6 +67,7 @@ It allows to control a few features like fan curve and power mode.
 ## :pushpin: Confirmed Compatible Models
 
 # If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46). 
+# If you have a light in the lid (Y-logo) or at the IO-ports, please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). 
 
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If your model is not in the list or it does not work, please raise a issue.
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
