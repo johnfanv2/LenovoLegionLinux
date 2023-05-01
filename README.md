@@ -14,7 +14,7 @@
 
 
 # If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46). 
-# If you have a light in the lid (Y-logo) or at the IO-ports, please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). 
+# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). 
 
 
 Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
