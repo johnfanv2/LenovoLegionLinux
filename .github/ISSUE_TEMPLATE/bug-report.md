@@ -12,6 +12,7 @@ assignees: ''
 
 **Model and Debug Info**
 
+Distribution: ??? (including version, e.g. Ubuntu 24.04)
 Model name: ???
 CPU model: ??? (e.g. AMD Ryzen 7 5800H)
 GPU model: ??? (e.g NVIDIA RTX 3700)
