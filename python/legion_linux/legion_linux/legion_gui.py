@@ -328,6 +328,9 @@ class LegionController:
     gpu_ctgp_power_limit_controller: IntFeatureController
     gpu_ppab_power_limit_controller: IntFeatureController
     gpu_temperature_limit_controller: IntFeatureController
+    # light
+    ylogo_light_controller: BoolFeatureController
+    ioport_light_controller: BoolFeatureController
 
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
@@ -414,6 +417,14 @@ class LegionController:
         self.gpu_temperature_limit_controller = IntFeatureController(
             self.view_otheroptions.gpu_temperature_limit_spinbox,
             self.model.gpu_temperature_limit)
+
+        # light
+        self.ylogo_light_controller = BoolFeatureController(
+            self.view_otheroptions.ylogo_light_check,
+            self.model.ylogo_light)
+        self.ioport_light_controller = BoolFeatureController(
+            self.view_otheroptions.ioport_light_check,
+            self.model.ioport_light)
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -737,6 +748,14 @@ class OtherOptionsTab(QWidget):
         self.overdrive_check = QCheckBox(
             "Display Overdrive Enabled")
         self.options_layout.addWidget(self.overdrive_check, 5)
+
+        self.ylogo_light_check = QCheckBox(
+            "Y-Logo/Lid LED light")
+        self.options_layout.addWidget(self.ylogo_light_check, 5)
+
+        self.ioport_light_check = QCheckBox(
+            "IO-Port/Rear LEDs light")
+        self.options_layout.addWidget(self.ioport_light_check, 5)
 
         self.hybrid_label = QLabel('Hybrid Mode (somtimtes also GSync):')
         self.hybrid_state_label = QLabel('')

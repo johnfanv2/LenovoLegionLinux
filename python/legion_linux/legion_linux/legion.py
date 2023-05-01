@@ -412,6 +412,15 @@ class GPUTemperatureLimit(IntFileFeature):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_temperature_limit"), 0, 120, 1)
 
 
+class YLogoLight(BoolFileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/leds/platform::ylogo/brightness")
+
+
+class IOPortLight(BoolFileFeature):
+    def __init__(self):
+        super().__init__("/sys/class/leds/platform::ioport/brightness")
+
 class FanCurveIO:
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
@@ -745,6 +754,10 @@ class LegionModelFacade:
         self.gpu_ctgp_power_limit = GPUCTGPPowerLimit()
         self.gpu_ppab_power_limit = GPUPPABPowerLimit()
         self.gpu_temperature_limit = GPUTemperatureLimit()
+
+        # light
+        self.ylogo_light = YLogoLight()
+        self.ioport_light = IOPortLight()
 
     @staticmethod
     def is_root_user():
