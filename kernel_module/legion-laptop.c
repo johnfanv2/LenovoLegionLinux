@@ -1396,13 +1396,21 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 	return 0;
 }
 
+struct light {
+	bool initialized;
+	struct led_classdev led;
+	unsigned int last_brightness;
+	u8 light_id;
+	unsigned int lower_limit;
+	unsigned int upper_limit;
+};
+
 /* =============================  */
 /* Global and shared data between */
 /* all calls to this module       */
 /* =============================  */
 // Implemented like ideapad-laptop.c but currenlty still
 // wihtout dynamic memory allocation (instead global _priv)
-
 struct legion_private {
 	struct platform_device *platform_device;
 	// TODO: remove or keep? init?
@@ -1427,11 +1435,9 @@ struct legion_private {
 	struct device *hwmon_dev;
 	struct platform_profile_handler platform_profile_handler;
 
-	struct {
-		bool initialized;
-		struct led_classdev led;
-		unsigned int last_brightness;
-	} kbd_bl;
+	struct light kbd_bl;
+	struct light ylogo_light;
+	struct light iport_light;
 
 	// TODO: remove?
 	bool loaded;
@@ -2337,7 +2343,8 @@ static ssize_t legion_kbd_bl2_brightness_get(struct legion_private *priv)
 //min: 1, max: 2
 #define LIGHT_ID_IOPORT 0x05
 
-static int legion_wmi_light_get(struct legion_private *priv, u8 light_id, unsigned int min_value, unsigned int max_value)
+static int legion_wmi_light_get(struct legion_private *priv, u8 light_id,
+				unsigned int min_value, unsigned int max_value)
 {
 	struct acpi_buffer params;
 	u8 in;
@@ -2362,13 +2369,13 @@ static int legion_wmi_light_get(struct legion_private *priv, u8 light_id, unsign
 			min_value, max_value, value);
 		return -EFAULT;
 	}
-	return value - 1;
 
-	return 0;
+	return value - min_value;
 }
 
-static int legion_wmi_light_set(struct legion_private *priv, u8 light_id, unsigned int min_value, unsigned int max_value,
-					unsigned int brightness)
+static int legion_wmi_light_set(struct legion_private *priv, u8 light_id,
+				unsigned int min_value, unsigned int max_value,
+				unsigned int brightness)
 {
 	struct acpi_buffer buffer;
 	u8 in_buffer_param[8];
@@ -2379,7 +2386,8 @@ static int legion_wmi_light_set(struct legion_private *priv, u8 light_id, unsign
 	buffer.pointer = &in_buffer_param[0];
 	in_buffer_param[0] = light_id;
 	in_buffer_param[1] = 0x01;
-	in_buffer_param[2] = clamp(brightness + 1u, min_value, max_value);
+	in_buffer_param[2] =
+		clamp(brightness + min_value, min_value, max_value);
 
 	err = wmi_exec_int(LEGION_WMI_KBBACKLIGHT_GUID, 0,
 			   WMI_METHOD_ID_KBBACKLIGHTSET, &buffer, &result);
@@ -2390,7 +2398,6 @@ static int legion_wmi_light_set(struct legion_private *priv, u8 light_id, unsign
 
 	return 0;
 }
-
 
 static int legion_kbd_bl_brightness_get(struct legion_private *priv)
 {
@@ -4414,14 +4421,14 @@ static int legion_kbd_bl_init(struct legion_private *priv)
 {
 	int brightness, err;
 
-	if (priv->conf->access_method_keyboard == ACCESS_METHOD_NO_ACCESS) {
-		pr_info("Keyboard backlight handling disabled by this driver\n");
-		return -ENODEV;
-	}
-
 	if (WARN_ON(priv->kbd_bl.initialized)) {
 		pr_info("Keyboard backlight already initialized\n");
 		return -EEXIST;
+	}
+
+	if (priv->conf->access_method_keyboard == ACCESS_METHOD_NO_ACCESS) {
+		pr_info("Keyboard backlight handling disabled by this driver\n");
+		return -ENODEV;
 	}
 
 	brightness = legion_kbd_bl_brightness_get(priv);
@@ -4464,6 +4471,93 @@ static void legion_kbd_bl_exit(struct legion_private *priv)
 	priv->kbd_bl.initialized = false;
 
 	led_classdev_unregister(&priv->kbd_bl.led);
+}
+
+/* =============================  */
+/* Additional light driver        */
+/* ============================   */
+
+static enum led_brightness
+legion_wmi_cdev_brightness_get(struct led_classdev *led_cdev)
+{
+	struct legion_private *priv =
+		container_of(led_cdev, struct legion_private, kbd_bl.led);
+	struct light *light_ins = container_of(led_cdev, struct light, led);
+
+	return legion_wmi_light_get(priv, light_ins->light_id,
+				    light_ins->lower_limit,
+				    light_ins->upper_limit);
+}
+
+static int legion_wmi_cdev_brightness_set(struct led_classdev *led_cdev,
+					  enum led_brightness brightness)
+{
+	struct legion_private *priv =
+		container_of(led_cdev, struct legion_private, kbd_bl.led);
+	struct light *light_ins = container_of(led_cdev, struct light, led);
+
+	return legion_wmi_light_set(priv, light_ins->light_id,
+				    light_ins->lower_limit,
+				    light_ins->upper_limit, brightness);
+}
+
+static int legion_light_init(struct legion_private *priv,
+			     struct light *light_ins, u8 light_id,
+			     u8 lower_limit, u8 upper_limit, const char *name)
+{
+	int brightness, err;
+
+	if (WARN_ON(light_ins->initialized)) {
+		pr_info("Light already initialized for light: %u\n",
+			light_ins->light_id);
+		return -EEXIST;
+	}
+
+	light_ins->light_id = light_id;
+	light_ins->lower_limit = lower_limit;
+	light_ins->upper_limit = upper_limit;
+
+	brightness = legion_wmi_light_get(priv, light_ins->light_id,
+					  light_ins->lower_limit,
+					  light_ins->upper_limit);
+	if (brightness < 0) {
+		pr_info("Error reading brighntess for light: %u\n",
+			light_ins->light_id);
+		return brightness;
+	}
+
+	light_ins->led.name = name;
+	light_ins->led.max_brightness =
+		light_ins->upper_limit - light_ins->lower_limit;
+	light_ins->led.brightness_get = legion_wmi_cdev_brightness_get;
+	light_ins->led.brightness_set_blocking = legion_wmi_cdev_brightness_set;
+	light_ins->led.flags = LED_BRIGHT_HW_CHANGED;
+
+	err = led_classdev_register(&priv->platform_device->dev,
+				    &light_ins->led);
+	if (err)
+		return err;
+
+	light_ins->initialized = true;
+
+	return 0;
+}
+
+/**
+ * Deinit light.
+ *
+ * Can also be called if init was not successful.
+ *
+ */
+static void legion_light_exit(struct legion_private *priv,
+			      struct light *light_ins)
+{
+	if (!light_ins->initialized)
+		return;
+
+	light_ins->initialized = false;
+
+	led_classdev_unregister(&light_ins->led);
 }
 
 /* =============================  */
@@ -4607,10 +4701,28 @@ int legion_add(struct platform_device *pdev)
 			"Init keyboard backlight LED driver failed. Skipping ...\n");
 	}
 
+	pr_info("Init Y-Logo LED driver\n");
+	err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
+				"platform::ylogo");
+	if (err) {
+		dev_info(&pdev->dev,
+			 "Init Y-Logo LED driver failed. Skipping ...\n");
+	}
+
+	pr_info("Init IO-Port LED driver\n");
+	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
+				"platform::ioport");
+	if (err) {
+		dev_info(&pdev->dev,
+			 "Init IO-Port LED driver failed. Skipping ...\n");
+	}
+
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
 	// TODO: remove eventually
+	legion_light_exit(priv, &priv->iport_light);
+	legion_light_exit(priv, &priv->ylogo_light);
 	legion_kbd_bl_exit(priv);
 	legion_wmi_exit();
 err_wmi:
@@ -4640,6 +4752,8 @@ int legion_remove(struct platform_device *pdev)
 	priv->loaded = false;
 	mutex_unlock(&legion_shared_mutex);
 
+	legion_light_exit(priv, &priv->iport_light);
+	legion_light_exit(priv, &priv->ylogo_light);
 	legion_kbd_bl_exit(priv);
 	// first unregister wmi, so toggling powermode does not
 	// generate events anymore that even might be delayed

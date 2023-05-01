@@ -127,6 +127,22 @@ cat /proc/acpi/call; printf '\n'
 0x0
 ```
 
+#### IO-Port Light
+```bash
+# Get current state
+echo '\_SB.GZFD.WMBA 0 0x1 0x5' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+{0x00, 0x01}
+
+# Set current state (off?)
+echo '\_SB.GZFD.WMBA 0 0x2 {0x05, 0x00, 0x01}' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+
+# Set current state (on?)
+echo '\_SB.GZFD.WMBA 0 0x2 {0x05, 0x01, 0x02}' > /proc/acpi/call
+cat /proc/acpi/call; printf '\n'
+```
+
 ### GSync
 ```text
 WMI
