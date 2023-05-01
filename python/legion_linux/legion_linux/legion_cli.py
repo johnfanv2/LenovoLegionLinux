@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 # pylint: disable=wrong-import-order
-from legion_linux.legion import LegionModelFacade
-import legion_linux.legion
 import argcomplete
 import argparse
 import logging
@@ -11,6 +9,8 @@ import os
 # Make it possible to run without installationimport
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
+from legion_linux.legion import LegionModelFacade
+import legion_linux.legion
 logging.basicConfig()
 log = logging.getLogger(legion_linux.legion.__name__)
 log.setLevel('ERROR')
