@@ -470,7 +470,7 @@ static const struct model_config model_e9cn = {
 	.access_method_temperature = ACCESS_METHOD_WMI,
 	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
 	.acpi_check_dev = false,
-	.ramio_physical_start = 0xFE0B0800,
+	.ramio_physical_start = 0xFC7E0800,
 	.ramio_size = 0x600
 };
 
