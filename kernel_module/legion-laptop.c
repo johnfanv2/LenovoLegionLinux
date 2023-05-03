@@ -209,10 +209,13 @@ struct model_config {
 	bool three_state_keyboard;
 
 	bool acpi_check_dev;
+
+	phys_addr_t ramio_physical_start;
+	size_t ramio_size;
 };
 
 /* =================================== */
-/* Coinfiguration for different models */
+/* Configuration for different models */
 /* =================================== */
 
 // Idea by SmokelesssCPU (modified)
@@ -330,7 +333,9 @@ static const struct model_config model_v0 = {
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_kfcn = {
@@ -346,7 +351,9 @@ static const struct model_config model_kfcn = {
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_hacn = {
@@ -362,7 +369,9 @@ static const struct model_config model_hacn = {
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_k9cn = {
@@ -378,7 +387,9 @@ static const struct model_config model_k9cn = {
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_eucn = {
@@ -394,7 +405,9 @@ static const struct model_config model_eucn = {
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_fccn = {
@@ -410,7 +423,9 @@ static const struct model_config model_fccn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_ACPI,
 	.access_method_fancurve = ACCESS_METHOD_EC2,
-	.acpi_check_dev = true
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_h3cn = {
@@ -431,7 +446,9 @@ static const struct model_config model_h3cn = {
 	.access_method_fanspeed = ACCESS_METHOD_NO_ACCESS,
 	.access_method_temperature = ACCESS_METHOD_WMI,
 	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
-	.acpi_check_dev = false
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0800,
+	.ramio_size = 0x600
 };
 
 static const struct model_config model_e9cn = {
@@ -452,7 +469,9 @@ static const struct model_config model_e9cn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_WMI,
 	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
-	.acpi_check_dev = false
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0800,
+	.ramio_size = 0x600
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -927,6 +946,102 @@ enum IGPUState {
 // access the keyboard backlight with 3 states
 #define WMI_METHOD_ID_KBBACKLIGHTGET 0x1
 #define WMI_METHOD_ID_KBBACKLIGHTSET 0x2
+
+
+/* =================================== */
+/* EC RAM Access with memory mapped IO */
+/* =================================== */
+
+struct ecram_memoryio {
+	// TODO: start of remapped memory in EC RAM is assumed to be 0
+	// u16 ecram_start;
+
+	// physical address of remapped IO, depends on model and firmware
+	phys_addr_t physical_start;
+	// start adress of region in ec memory
+	phys_addr_t physical_ec_start;
+	// virtual address of remapped IO
+	u8 *virtual_start;
+	// size of remapped access
+	size_t size;
+};
+
+/**
+ * physical_start : corresponds to EC RAM 0 inside EC
+ * size: size of remapped region
+ *
+ * strong exception safety
+ */
+ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
+			    phys_addr_t physical_start,
+			    phys_addr_t physical_ec_start, size_t size)
+{
+	void *virtual_start = ioremap(physical_start, size);
+
+	if (!IS_ERR_OR_NULL(virtual_start)) {
+		ec_memoryio->virtual_start = virtual_start;
+		ec_memoryio->physical_start = physical_start;
+		ec_memoryio->physical_ec_start = physical_ec_start;
+		ec_memoryio->size = size;
+		pr_info("Succeffuly mapped embedded controller: 0x%llx (in RAM)/0x%llx (in EC) to virtual 0x%p\n",
+			ec_memoryio->physical_start,
+			ec_memoryio->physical_ec_start,
+			ec_memoryio->virtual_start);
+	} else {
+		pr_info("Error mapping embedded controller memory at 0x%llx\n",
+			physical_start);
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
+{
+	if (ec_memoryio->virtual_start != NULL) {
+		pr_info("Unmapping embedded controller memory at 0x%llx (in RAM)/0x%llx (in EC) at virtual 0x%p\n",
+			ec_memoryio->physical_start,
+			ec_memoryio->physical_ec_start,
+			ec_memoryio->virtual_start);
+		iounmap(ec_memoryio->virtual_start);
+		ec_memoryio->virtual_start = NULL;
+	}
+}
+
+/* Read a byte from the EC RAM.
+ *
+ * Return status because of commong signature for alle
+ * methods to access EC RAM.
+ */
+ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
+			    u16 ec_offset, u8 *value)
+{
+	if (ec_offset < ec_memoryio->physical_ec_start) {
+		pr_info("Unexpected read at offset %d into EC RAM\n",
+			ec_offset);
+		return -1;
+	}
+	*value = *(ec_memoryio->virtual_start +
+		   (ec_offset - ec_memoryio->physical_ec_start));
+	return 0;
+}
+
+/* Write a byte to the EC RAM.
+ *
+ * Return status because of commong signature for alle
+ * methods to access EC RAM.
+ */
+ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
+			     u16 ec_offset, u8 value)
+{
+	if (ec_offset < ec_memoryio->physical_ec_start) {
+		pr_info("Unexpected write at offset %d into EC RAM\n",
+			ec_offset);
+		return -1;
+	}
+	*(ec_memoryio->virtual_start +
+	  (ec_offset - ec_memoryio->physical_ec_start)) = value;
+	return 0;
+}
 
 /* ================================= */
 /* EC RAM Access with port-mapped IO */
@@ -1441,6 +1556,9 @@ struct legion_private {
 
 	// TODO: remove?
 	bool loaded;
+
+	// TODO: remove, only for reverse enginnering
+	struct ecram_memoryio ec_memoryio;
 };
 
 // shared between different drivers: WMI, platform and proteced by mutex
@@ -2431,6 +2549,25 @@ static int debugfs_ecmemory_show(struct seq_file *s, void *unused)
 
 DEFINE_SHOW_ATTRIBUTE(debugfs_ecmemory);
 
+static int debugfs_ecmemoryram_show(struct seq_file *s, void *unused)
+{
+	struct legion_private *priv = s->private;
+	size_t offset;
+	ssize_t err;
+	u8 value;
+
+	for (offset = 0; offset < priv->conf->ramio_size; ++offset) {
+		err = ecram_memoryio_read(&priv->ec_memoryio, offset, &value);
+		if (!err)
+			seq_write(s, &value, 1);
+		else
+			return -EACCES;
+	}
+	return 0;
+}
+
+DEFINE_SHOW_ATTRIBUTE(debugfs_ecmemoryram);
+
 //TODO: make (almost) all methods static
 
 static void seq_file_print_with_error(struct seq_file *s, const char *name,
@@ -2588,6 +2725,8 @@ static void legion_debugfs_init(struct legion_private *priv)
 			    &debugfs_fancurve_fops);
 	debugfs_create_file("ecmemory", 0444, dir, priv,
 			    &debugfs_ecmemory_fops);
+	debugfs_create_file("ecmemoryram", 0444, dir, priv,
+			    &debugfs_ecmemoryram_fops);
 
 	priv->debugfs_dir = dir;
 }
@@ -4642,6 +4781,15 @@ int legion_add(struct platform_device *pdev)
 		goto err_acpi_init;
 	}
 
+	// TODO: remove; only used for reverse engineering
+	pr_info("Creating RAM access to embedded controller\n");
+	err = ecram_memoryio_init(&priv->ec_memoryio, priv->conf->ramio_physical_start, 0, priv->conf->ramio_size);
+	if (err) {
+		dev_info(&pdev->dev,
+			 "Could not init RAM access to embedded controller\n");
+		goto err_ecram_memoryio_init;
+	}
+
 	err = ecram_init(&priv->ecram, priv->conf->memoryio_physical_ec_start,
 			 priv->conf->memoryio_size);
 	if (err) {
@@ -4736,6 +4884,8 @@ err_sysfs_init:
 err_ecram_id:
 	ecram_exit(&priv->ecram);
 err_ecram_init:
+	ecram_memoryio_exit(&priv->ec_memoryio);
+err_ecram_memoryio_init:
 err_acpi_init:
 	legion_shared_exit(priv);
 err_legion_shared_init:
@@ -4768,6 +4918,7 @@ int legion_remove(struct platform_device *pdev)
 	legion_sysfs_exit(priv);
 	legion_debugfs_exit(priv);
 	ecram_exit(&priv->ecram);
+	ecram_memoryio_exit(&priv->ec_memoryio);
 	legion_shared_exit(priv);
 
 	pr_info("Legion platform unloaded\n");
