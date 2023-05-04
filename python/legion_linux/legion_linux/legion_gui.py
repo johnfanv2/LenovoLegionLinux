@@ -945,8 +945,8 @@ class MainWindow(QTabWidget):
 
 
 class LegionTray:
-    def __init__(self, icon, app, main_window):
-        self.tray = QSystemTrayIcon()
+    def __init__(self, icon, app, main_window:MainWindow):
+        self.tray = QSystemTrayIcon(icon, main_window)
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
 
@@ -966,18 +966,30 @@ class LegionTray:
         self.quit_action.triggered.connect(app.quit)
         self.menu.addAction(self.quit_action)
         self.tray.setContextMenu(self.menu)
+        self.tray.show()
+
+    def show_message(self, title):
+        self.tray.setToolTip(title)
+        self.tray.showMessage(title, title)
 
     def show(self):
         self.tray.show()
 
+    def hide_to_tray(self):
+        self.main_window.setWindowFlag(QtCore.Qt.Tool)
+
+def get_ressource_path(name):
+    path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), name)
+    return path
 
 def main():
     app = QApplication(sys.argv)
     automatic_close = '--automaticclose' in sys.argv
     do_not_excpect_hwmon = True
 
-    icon = QtGui.QIcon(os.path.join(
-        os.path.realpath(__file__), 'legion_logo.png'))
+    icon_path = get_ressource_path('legion_logo.png')
+    icon = QtGui.QIcon(icon_path)
 
     contr = LegionController(expect_hwmon=not do_not_excpect_hwmon)
     main_window = MainWindow(contr)
