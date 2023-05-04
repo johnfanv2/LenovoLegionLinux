@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# pylint: disable=too-many-lines
 # pylint: disable=c-extension-no-member
 import sys
 import os
@@ -907,7 +908,6 @@ class AboutTab(QWidget):
         layout.addWidget(about_label)
         self.setLayout(layout)
 
-
 # pylint: disable=too-few-public-methods
 class MainWindow(QTabWidget):
     def __init__(self, controller):
@@ -943,12 +943,12 @@ class MainWindow(QTabWidget):
         ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
         self.activateWindow()
 
-
 class LegionTray:
     def __init__(self, icon, app, main_window:MainWindow):
         self.tray = QSystemTrayIcon(icon, main_window)
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
+        self.main_window = main_window
 
         self.menu = QMenu()
         # title
@@ -982,6 +982,8 @@ def get_ressource_path(name):
     path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), name)
     return path
+
+
 
 def main():
     app = QApplication(sys.argv)
