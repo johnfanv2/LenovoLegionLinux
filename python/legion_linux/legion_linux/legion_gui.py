@@ -184,7 +184,7 @@ class BoolFeatureController:
         if self.dependent_controllers:
             time.sleep(0.100)
             for contr in self.dependent_controllers:
-                contr.sync_view_to_feature()
+                contr.update_view_from_feature()
 
     def update_view_from_feature(self):
         sync_checkbox_from_feature(self.checkbox, self.feature)
