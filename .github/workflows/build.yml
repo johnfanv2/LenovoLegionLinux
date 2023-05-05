@@ -28,14 +28,25 @@ jobs:
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
-    - name: Build
+    - name: Test Install
       run: ./tests/test_kernel_install.sh
       shell: bash
-    - name: Reload First
+    - name: Test Reload First
       run: ./tests/test_kernel_reload.sh
       shell: bash
-    - name: Reload Second
+    - name: Test Reload Second
       run: ./tests/test_kernel_reload.sh
+      shell: bash
+  run-kernel-dkms-install-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
+    - name: Build
+      run: ./tests/test_kenel_dkms_install.sh
       shell: bash
   run-tests:
     name: Run Tests
