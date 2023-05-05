@@ -210,11 +210,6 @@ cd kernel_module
 sudo make dkms # Don't forget to run as root
 ```
 
-Or you can just use the script:
-```
-cd deploy
-sudo ./build-dkms.sh  # Don't forget to run as root
-```
 
 #### Secure boot
 If you want the driver to work with secure boot, then follow the steps described here
