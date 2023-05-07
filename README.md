@@ -213,7 +213,7 @@ sudo make dkms # Don't forget to run as root
 
 #### Secure boot
 If you want the driver to work with secure boot, then follow the steps described here
-https://github.com/dell/dkms#secure-boot.
+https://github.com/dell/dkms#secure-boot or here https://wiki.archlinux.org/title/User:Krin/Secure_Boot,_full_disk_encryption,_and_TPM2_unlocking_install#Secure_boot. Note that this is a little more advanced. For initial testing, just load the module as described in the steps above or disable secure boot.
 ### Uninstalling via DKMS
 ```
 sudo dkms remove -m LenovoLegionLinux -v 1.0.0
