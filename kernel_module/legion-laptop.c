@@ -474,6 +474,25 @@ static const struct model_config model_e9cn = {
 	.ramio_size = 0x600
 };
 
+
+static const struct model_config model_8jcn  = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8226,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
+	.access_method_fancurve = ACCESS_METHOD_EC,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -614,6 +633,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "E9CN"),
 		},
 		.driver_data = (void *)&model_e9cn
+	},
+	{
+		// e.g. Legion Y7000 (older version)
+		.ident = "8JCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "8JCN"),
+		},
+		.driver_data = (void *)&model_8jcn
 	},
 	{}
 };
@@ -1866,6 +1894,27 @@ ssize_t read_temperature(struct legion_private *priv, int sensor_id,
 /* ============================= */
 /* Fancurve reading/writing      */
 /* ============================= */
+
+/* Fancurve from WMI
+ * This allows changing fewer parameters.
+ * It is only available on newer models.
+*/
+
+// struct WMIFanTable{
+// 	u8 FSTM; //FSMD
+// 	u8 FSID;
+// 	u32 FSTL; //FSST
+// 	u16 FSS0;
+// 	u16 FSS1;
+// 	u16 FSS2;
+// 	u16 FSS3;
+// 	u16 FSS4;
+// 	u16 FSS5;
+// 	u16 FSS6;
+// 	u16 FSS7;
+// 	u16 FSS8;
+// 	u16 FSS9;
+// };
 
 /* Read the fan curve from the EC.
  *
