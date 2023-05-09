@@ -79,50 +79,36 @@ lll_kernel_patching() {
         fi
 
         case "${1}" in
-            build)
-                make
-                ;;
-            install)
-                printf "%s\n" "MAKEINSTALL"
-                make
-                ${privup} make install
-                ;;
-            dkms)
-                printf "%s\n" "Copy folder for dkms"
-                if [[ -d "${dkms_usr_folder}" ]]; then
-                    ${privup} dkms remove -m "${package_name}" -v "${package_version}"
-                    ${privup} rmdir --ignore-fail-on-non-empty --verbose "${dkms_usr_folder}"
-                fi
-                ${privup} mkdir --parent --verbose "${dkms_usr_folder}"
-                ${privup} cp --recursive --verbose "${script_folder}"/* "${dkms_usr_folder}"
-
-                printf "%s\n" "Build and install as dkms module"
-                ${privup} dkms add -m "${package_name}" -v "${package_version}"
-                ${privup} dkms build "${package_name}" --force -v "${package_version}"
-                ${privup} dkms install "${package_name}" --force -v "${package_version}"
-
-                printf "%s\n" "Load the module"
-                ${privup} modprobe "legion_laptop"
-                ${privup} dmesg --ctime | grep "legion_laptop"
-                ;;
-            dkmsrm)
-                if [[ -d "${dkms_usr_folder}" ]]; then
-                    dkms remove -m "${package_name}" -v "${package_version}"
-                    rmdir --ignore-fail-on-non-empty --verbose "${dkms_usr_folder}"
-                fi
-                ;;
-            remove)
-                make
-                ${privup} make uninstall
-                ;;
-            load)
-                make
-                ${privup} make reloadmodule | tail --lines="${reload_verbosity}" | ${catit}
-                ;;
-            *)
-                printf "%s" "${usage_message}"
-                exit 1
-                ;;
+        build)
+            make
+            ;;
+        install)
+            printf "%s\n" "MAKEINSTALL"
+            make
+            ${privup} make install
+            ;;
+        dkms)
+            printf "%s\n" " folder for dkms"
+            ${privup} make dkms
+            ;;
+        dkmsrm)
+            if [[ -d "${dkms_usr_folder}" ]]; then
+                dkms remove -m "${package_name}" -v "${package_version}"
+                rmdir --ignore-fail-on-non-empty --verbose "${dkms_usr_folder}"
+            fi
+            ;;
+        remove)
+            make
+            ${privup} make uninstall
+            ;;
+        load)
+            make
+            ${privup} make reloadmodule | tail --lines="${reload_verbosity}" | ${catit}
+            ;;
+        *)
+            printf "%s" "${usage_message}"
+            exit 1
+            ;;
         esac
         ${privup} systemctl restart power-profiles-daemon --no-pager --show-transaction
         printf "Patching process done. Exit %s\n" "$?"

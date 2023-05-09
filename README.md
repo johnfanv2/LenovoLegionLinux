@@ -362,7 +362,7 @@ echo 1800 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/h
 cat /sys/kernel/debug/legion/fancurve
 ```
 Expected: 
-- the controller might have loaded default values if you pressed Ctr+Q(or FN+Q on certain devices) to change the power mode or waited too long; then try again
+- the controller might have loaded default values if you pressed Ctrl+Q(or FN+Q on certain devices) to change the power mode or waited too long; then try again
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
 ```
 rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -376,7 +376,7 @@ XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
 ```
 
-**If you want to reset your fan curve, just toggle with Ctrl+Q the power mode or restart and everything is gone.**
+**If you want to reset your fan curve, just toggle with Ctrl+Q or Fn+Q the power mode or restart and everything is gone.**
 
 Unexpected: 
 - `file not found`: please report your problem as a Github Issue
@@ -473,7 +473,7 @@ Unexpected output:
 - script does not end with "fancurve set": maybe path to hwmon changed; Please report this
 
 Note: 
-- **If you want to reset your fan curve, just toggle with Ctrl+Q the power mode or restart and everything is gone.**
+- **If you want to reset your fan curve, just toggle with Ctrl+Q or Fn+Q the power mode or restart and everything is gone.**
 - Currently, there is no GUI available. 
 - Currently, the hardware resets the fan curve randomly or if you change power mode, suspend, or restart. Just run the script again. 
 - You might want to create different scripts for different usages. Just copy it and adapt the values.
