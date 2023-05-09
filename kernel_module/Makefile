@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-KERNELVERSION  ?= $(shell uname -r)
+KERNELVERSION  ?= $(shell uname --kernel-release)
 KSRC := /lib/modules/$(KERNELVERSION)/build
 
 #install dir for kernel drivers
@@ -19,17 +19,17 @@ clean:
 	make -C $(KSRC) M=$(shell pwd) clean
 
 install: all
-	@rm -f $(INSTALLDIR)/legion-laptop.ko
-	@mkdir -p $(MODDESTDIR)
-	@install -p -D -m 644 *.ko $(INSTALLDIR)
-	@depmod -a $(KVER)
-	@echo "Installion finished."
+	@rm --force --verbose $(INSTALLDIR)/legion-laptop.ko
+	@mkdir --parent --verbose $(MODDESTDIR)
+	@install --preserve-timestamps -D --mode=644 *.ko $(INSTALLDIR)
+	@depmod --all $(KVER)
+	@printf "%s\n" "Installion finished."
 	bash -c "./issue-warning.sh"
 
 uninstall:
 	@rm -f $(INSTALLDIR)/legion-laptop.ko
-	@depmod -a
-	@echo "Uninstall finished."
+	@depmod --all
+	@printf "%s\n" "Uninstall finished."
 
 install_forcereload:
 	make install
@@ -39,32 +39,32 @@ install_forcereload:
 reloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko
-	dmesg
+	dmesg --ctime
 	bash -c "./issue-warning.sh"
 
 forcereloadmodule:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko force=1
-	dmesg
+	dmesg --ctime
 	bash -c "./issue-warning.sh"
 
 forcereloadmodulereadonly:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko force=1 ec_readonly=1
-	dmesg
+	dmesg --ctime
 
 dkms:
 	if [ -d $(DKMSDIR) ]; then\
-    	rm -r $(DKMSDIR)/*;\
-        cp -r * $(DKMSDIR)/;\
+    	rm --recursive $(DKMSDIR)/*;\
+        cp --recursive * $(DKMSDIR)/;\
 	else \
-		mkdir $(DKMSDIR);\
-        cp -r * $(DKMSDIR);\
+		mkdir --verbose $(DKMSDIR);\
+        cp --recursive * $(DKMSDIR);\
 		dkms add -m LenovoLegionLinux -v 1.0.0;\
 	fi
 	dkms build LenovoLegionLinux --force -v 1.0.0
 	dkms install LenovoLegionLinux --force -v 1.0.0
-	echo "Loading module"
+	printf "%s\n" "Loading module"
 	modprobe legion_laptop
-	dmesg | grep legion_laptop
+	dmesg --ctime | grep legion_laptop
 	bash -c "./issue-warning.sh"
