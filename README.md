@@ -1,6 +1,6 @@
 <img height="50" align="left" src="assets/headerlogo.png" alt="HeaderLogo">
 
-# Lenovo Legion Linux
+# Lenovo Legion Linux Support
 
 [![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml)
 [![Join Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
