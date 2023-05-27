@@ -10,6 +10,10 @@
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=aur%20package%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![Gentoo Overlay](https://img.shields.io/badge/Gentoo--Overlay-mrduarte--ebuilds-blueviolet)](https://github.com/MrDuartePT/mrduarte-ebuilds)
 ---
+#### Other language versions of this README file:
+* [简体中文版简介](README_zh-hans.md)
+---
+
 **This project is not affiliated with Lenovo in any way**
 
 
