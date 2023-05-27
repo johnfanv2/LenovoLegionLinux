@@ -23,13 +23,13 @@
 
 它允许控制一些功能，如风扇曲线和电源模式。
 
-:star： **如果这个库有用或将来可能有用，请给这个库加星 **。
+⭐ **如果这个库有用或将来可能有用，请给这个库加星 **。
 
-:star2： **我的目标是把驱动合并到Linux的主内核中，这样它就会自动与Linux一起出现，在Linux更新后不需要重新编译**。
+🌟 **我的目标是把驱动合并到Linux的主内核中，这样它就会自动与Linux一起出现，在Linux更新后不需要重新编译**。
 
-:boom： **Starring表明这对我和Linux社区是有用的，所以希望能合并到内核中去。
+💥 **Starring表明这对我和Linux社区是有用的，所以希望能合并到内核中去。
 
-## :rocket： 特点
+## 🚀 特点
 <p align="center">
     <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">。
     <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
@@ -66,7 +66,7 @@
   
   
 
-## :pushpin： 已确认的兼容型号
+## 📌 已确认的兼容型号
 
 # 如果你有2022或2023型号，请帮助测试新功能[这里](https://github.com/johnfanv2/LenovoLegionLinux/issues/46)。
 # 如果你在盖子（Y-logo）或IO-ports（所有Legion 7）上有灯，请帮助测试控制它[这里](https://github.com/johnfanv2/LenovoLegionLinux/issues/54)。
