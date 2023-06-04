@@ -189,6 +189,56 @@ class BoolFeatureController:
     def update_view_from_feature(self):
         sync_checkbox_from_feature(self.checkbox, self.feature)
 
+class BoolFeatureTrayController:
+    action: QAction
+    feature: FileFeature
+    dependent_controllers: List
+
+    def __init__(self, action: QAction, feature: FileFeature):
+        self.action = action
+        self.feature = feature
+        self.action.setCheckable(True)
+        self.action.triggered.connect(self.update_feature_from_view)
+        self.dependent_controllers = []
+
+    def update_feature_from_view(self):
+        try:
+            if self.feature.exists():
+                gui_value = self.action.isChecked()
+                self.feature.set(gui_value)
+                time.sleep(0.100)
+                hw_value = self.feature.get()
+                self.action.setChecked(hw_value)
+                self.action.setDisabled(False)
+                self.action.setCheckable(True)
+            else:
+                self.action.setDisabled(True)
+                self.action.setCheckable(False)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            log_error(ex)
+        if self.dependent_controllers:
+            time.sleep(0.100)
+            for contr in self.dependent_controllers:
+                contr.update_view_from_feature()
+
+    def update_view_from_feature(self):
+        try:
+            if self.feature.exists():
+                hw_value = self.feature.get()
+                self.action.setChecked(hw_value)
+                self.action.setDisabled(False)
+                self.action.setCheckable(True)
+            else:
+                self.action.setDisabled(True)
+                self.action.setCheckable(False)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            log_error(ex)
+
+def set_dependent(controller1, controller2):
+    controller1.dependent_controllers.append(controller2)
+    controller2.dependent_controllers.append(controller1)
 
 class IntFeatureController:
     widget: QSpinBox
@@ -333,12 +383,14 @@ class LegionController:
     ylogo_light_controller: BoolFeatureController
     ioport_light_controller: BoolFeatureController
 
+
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
         self.view_fancurve = None
         self.view_otheroptions = None
         self.main_window = None
         self.log_view = None
+        self.tray = None
 
     def init(self, read_from_hw=True):
         # fan
@@ -449,6 +501,13 @@ class LegionController:
         self.update_fancurve_gui()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = not self.model.is_root_user()
+
+    def init_tray(self):
+        # tray/other
+        self.batteryconservation_tray_controller = BoolFeatureTrayController(self.tray.batteryconservation_action, self.model.battery_conservation)
+        set_dependent(self.batteryconservation_controller, self.batteryconservation_tray_controller)
+        self.batteryconservation_tray_controller.update_view_from_feature()
+        
 
     def update_power_gui(self, update_bounds=False):
         self.power_mode_controller.update_view_from_feature(
@@ -967,6 +1026,10 @@ class LegionTray:
         self.menu.addAction(self.quit_action)
         self.tray.setContextMenu(self.menu)
         self.tray.show()
+        # ---
+        self.menu.addSeparator()
+        self.batteryconservation_action = QAction("Conservation Mode")
+        self.menu.addAction(self.batteryconservation_action)
 
     def show_message(self, title):
         self.tray.setToolTip(title)
@@ -1005,6 +1068,8 @@ def main():
 
     tray = LegionTray(icon, app, main_window)
     tray.show()
+    contr.tray = tray
+    contr.init_tray()
     sys.exit(app.exec_())
 
 
