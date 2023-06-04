@@ -171,18 +171,20 @@ class BoolFeatureController:
     checkbox: QCheckBox
     feature: FileFeature
     dependent_controllers: List
+    check_after_set_time: float
 
     def __init__(self, checkbox: QCheckBox, feature: FileFeature):
         self.checkbox = checkbox
         self.feature = feature
         self.checkbox.clicked.connect(self.update_feature_from_view)
         self.dependent_controllers = []
+        self.check_after_set_time = 0.1
 
     def update_feature_from_view(self):
         sync_checkbox(
             self.checkbox, self.feature)
         if self.dependent_controllers:
-            time.sleep(0.100)
+            time.sleep(self.check_after_set_time)
             for contr in self.dependent_controllers:
                 contr.update_view_from_feature()
 
@@ -382,7 +384,9 @@ class LegionController:
     # light
     ylogo_light_controller: BoolFeatureController
     ioport_light_controller: BoolFeatureController
-
+    # deamon and automation
+    power_profiles_deamon_service_controller: BoolFeatureController
+    lenovo_legion_laptop_support_service_controller: BoolFeatureController
 
     def __init__(self, expect_hwmon=True):
         self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
@@ -478,6 +482,17 @@ class LegionController:
         self.ioport_light_controller = BoolFeatureController(
             self.view_otheroptions.ioport_light_check,
             self.model.ioport_light)
+        
+        #services and automation
+        self.power_profiles_deamon_service_controller = BoolFeatureController(
+            self.view_automation.power_profiles_deamon_service_check,
+            self.model.power_profiles_deamon_service
+        )
+        self.lenovo_legion_laptop_support_service_controller = BoolFeatureController(
+            self.view_automation.lenovo_legion_laptop_support_service_check,
+            self.model.lenovo_legion_laptop_support_service
+        )
+        
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -499,6 +514,7 @@ class LegionController:
         self.hybrid_gsync_controller.update_view_from_feature()
         self.update_power_gui(True)
         self.update_fancurve_gui()
+        self.update_automation()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = not self.model.is_root_user()
 
@@ -548,6 +564,10 @@ class LegionController:
         self.view_fancurve.set_fancurve(self.model.fan_curve,
                                         self.model.fancurve_io.has_minifancurve(),
                                         self.model.fancurve_io.exists())
+        
+    def update_automation(self):
+        self.power_profiles_deamon_service_controller.update_view_from_feature()
+        self.lenovo_legion_laptop_support_service_controller.update_view_from_feature()
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -937,6 +957,38 @@ class OtherOptionsTab(QWidget):
         self.power_all_layout.addWidget(self.power_note_label)
 
 
+class AutomationTab(QWidget):
+    def __init__(self, controller: LegionController):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+        self.controller.view_automation = self
+
+    def init_ui(self):
+        self.options_group = QGroupBox("Systemd Services")
+        self.options_layout = QVBoxLayout()
+        self.options_group.setLayout(self.options_layout)
+
+        self.power_profiles_deamon_service_check = QCheckBox(
+            "Power Profiles Deamon Enabled")
+        self.options_layout.addWidget(self.power_profiles_deamon_service_check, 0)
+
+        self.lenovo_legion_laptop_support_service_check = QCheckBox(
+            "Lenovo Legion Laptop Support Deamon Enabled")
+        self.options_layout.addWidget(self.lenovo_legion_laptop_support_service_check, 1)
+
+        self.note_label = QLabel(
+            "These are experimental features.")
+        self.options_layout.addWidget(self.note_label, 3)
+
+
+        self.note_label2 = QLabel("")
+
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.options_group, 0)
+        self.main_layout.addWidget(self.note_label2, 3)
+        self.setLayout(self.main_layout)
+
 # pylint: disable=too-few-public-methods
 
 
@@ -975,12 +1027,14 @@ class MainWindow(QTabWidget):
         self.controller.main_window = self
         self.fan_curve_tab = FanCurveTab(controller)
         self.other_options_tab = OtherOptionsTab(controller)
+        self.automation_tab = AutomationTab(controller)
         self.log_tab = LogTab()
         controller.log_view = self.log_tab
         self.about_tab = AboutTab()
         self.close_timer = QTimer()
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.other_options_tab, "Other Options")
+        self.addTab(self.automation_tab, "Automation")
         self.addTab(self.log_tab, "Log")
         self.addTab(self.about_tab, "About")
         qt_handler.qt_obj.logWritten.connect(self.controller.on_new_log_msg)

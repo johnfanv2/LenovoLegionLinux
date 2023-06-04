@@ -437,6 +437,87 @@ class NVIDIAGPUIsRunning(BoolFileFeature):
         else:
             return False
 
+class CommandFeature:
+    _exists: bool
+
+    def __init__(self, cmds):
+        self.cmds = cmds
+        self._exists = False
+        log.info('CommandFeature %s: %s', self.name(), self.cmds)
+        if not self.exists():
+            log.warning('Feature %s exist not. exits: %d',
+                        self.name(), self.exists())
+
+    def _exec_cmd(self, cmd, timeout=None) -> Tuple[str, int]:
+        log.info('CommandFeature %s execute "%s"', self.name(), cmd)
+        try:
+            with subprocess.Popen(['bash', '-c', cmd], stdout=subprocess.PIPE) as process:
+                stdout, _ = process.communicate(timeout=timeout)
+                out_str = stdout.decode(DEFAULT_ENCODING)
+                returncode = process.returncode
+                log.info('CommandFeature %s reading with code %d: %s', self.name(), returncode, out_str)
+                return out_str, returncode
+        except IOError as err:
+            log.error('CommandFeature %s reading error %s', self.name(), str(err))
+            log.error(get_dmesg(only_tail=True, filter_log=False))
+            raise err
+
+    def name(self):
+        return type(self).__name__
+
+    # pylint: disable=no-self-use
+    def get_values(self) -> List[NamedValue]:
+        return []
+
+    def exists(self):
+        return self._exists
+
+    def set(self, value):
+        raise NotImplementedError()
+
+    def get(self):
+        raise NotImplementedError()
+    
+class BoolCommandFeature(CommandFeature):
+    pass
+
+class SystemDServiceFeature(BoolCommandFeature):
+    def __init__(self, servicename):
+        super().__init__([])
+        self.status_cmd = f'systemctl status {servicename}'
+        self.stop_cmd = f'systemctl stop {servicename}'
+        self.start_cmd = f'systemctl start {servicename}'
+        self.enable_cmd = f'systemctl enable {servicename}'
+        self.disable_cmd = f'systemctl disable {servicename}'
+        self.read_cmd = f'systemctl is-active {servicename}'
+        self._exists = self._does_service_exists()
+
+    def _does_service_exists(self):
+        _, returncode = self._exec_cmd(self.status_cmd)
+        return returncode == 0
+
+    def set(self, value:bool):
+        if value:
+            self._exec_cmd(self.start_cmd)
+            self._exec_cmd(self.enable_cmd)
+        else:
+            self._exec_cmd(self.stop_cmd)
+            self._exec_cmd(self.disable_cmd)
+
+    def get(self)->bool:
+        if self.exists():
+            _, returncode = self._exec_cmd(self.read_cmd)
+            return returncode == 0
+        else:
+            return False
+
+class PowerProfilesDeamonService(SystemDServiceFeature):
+    def __init__(self):
+        super().__init__('power-profiles-daemon')
+
+class LenovoLegionLaptopSuppoerService(SystemDServiceFeature):
+    def __init__(self):
+        super().__init__('lenovo-fancurve')
 
 class FanCurveIO:
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
@@ -972,12 +1053,17 @@ class LegionModelFacade:
         self.ylogo_light = YLogoLight()
         self.ioport_light = IOPortLight()
 
+        # services
+        self.power_profiles_deamon_service = PowerProfilesDeamonService()
+        self.lenovo_legion_laptop_support_service = LenovoLegionLaptopSuppoerService()
+
         # monitors
         self.nvidia_gpu_running = NVIDIAGPUIsRunning()
         self.nvidia_gpu_monitor = NVIDIAGPUMonitor(self.nvidia_gpu_running)
         self.nvidia_battery_monitor = NVIDIAGPUOnBatteryMonitor(self.nvidia_gpu_running, self.on_power_supply)
         self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(self.nvidia_gpu_running, self.platform_profile)
         self.monitors = [self.nvidia_gpu_monitor, self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
+
 
     @staticmethod
     def is_root_user():
