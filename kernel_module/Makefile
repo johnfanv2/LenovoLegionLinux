@@ -53,7 +53,7 @@ forcereloadmodulereadonly:
 	insmod legion-laptop.ko force=1 ec_readonly=1
 	dmesg --ctime
 
-dkms:
+dkms: all
 	if [ -d $(DKMSDIR) ]; then\
     	rm --recursive $(DKMSDIR)/*;\
         cp --recursive * $(DKMSDIR)/;\
