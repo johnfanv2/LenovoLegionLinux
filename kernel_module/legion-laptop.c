@@ -2526,13 +2526,13 @@ static int legion_wmi_light_get(struct legion_private *priv, u8 light_id,
 			    WMI_METHOD_ID_KBBACKLIGHTGET, &params, result,
 			    ARRAY_SIZE(result));
 	if (err) {
-		pr_info("Error for WMI method call to get keyboard brightness\n");
+		pr_info("Error for WMI method call to get brightness\n");
 		return -EIO;
 	}
 
 	value = result[1];
 	if (!(value >= min_value && value <= max_value)) {
-		pr_info("Error ACPI call for reading keyboard brightness: expected a value between %u and %u, but got %d\n",
+		pr_info("Error WMI call for reading brightness: expected a value between %u and %u, but got %d\n",
 			min_value, max_value, value);
 		return -EFAULT;
 	}
@@ -2559,7 +2559,7 @@ static int legion_wmi_light_set(struct legion_private *priv, u8 light_id,
 	err = wmi_exec_int(LEGION_WMI_KBBACKLIGHT_GUID, 0,
 			   WMI_METHOD_ID_KBBACKLIGHTSET, &buffer, &result);
 	if (err) {
-		pr_info("Error for WMI method call to set keyboard brightness\n");
+		pr_info("Error for WMI method call to set brightness on light: %d\n", light_id);
 		return -EIO;
 	}
 
