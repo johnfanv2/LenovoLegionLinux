@@ -306,7 +306,7 @@ def autocomplete_install(_, **__) -> int:
 
 def fancurve_write_preset_to_hw(legion: LegionModelFacade, presetname: str, **_) -> int:
     # pylint: disable=unused-argument
-    legion.fancurve_write_preset_to_hw(presetname)
+    legion.fancurve_write_preset_to_hw(presetname, write_minifancurve=True)
     print(f'Successfully wrote preset {presetname} to hardware')
     return 0
 
@@ -320,7 +320,7 @@ def fancurve_write_hw_to_preset(legion: LegionModelFacade, presetname: str, **_)
 
 def fancurve_write_file_to_hw(legion: LegionModelFacade, filename: str, **_) -> int:
     # pylint: disable=unused-argument
-    legion.fancurve_write_file_to_hw(filename)
+    legion.fancurve_write_file_to_hw(filename, write_minifancurve=True)
     print(f'Successfully wrote fan curve from file {filename} to hardware')
     return 0
 
@@ -334,7 +334,7 @@ def fancurve_write_hw_to_file(legion: LegionModelFacade, filename: str, **_) -> 
 
 def fancurve_write_preset_for_current_profile(legion: LegionModelFacade, **_) -> int:
     # pylint: disable=unused-argument
-    legion.fancurve_write_preset_for_current_profile()
+    legion.fancurve_write_preset_for_current_profile(write_minifancurve=True)
     return 0
 
 

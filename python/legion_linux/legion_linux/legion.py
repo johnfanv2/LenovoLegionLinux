@@ -62,7 +62,9 @@ class FanCurve:
         data = yaml.load(yaml_str, Loader=yaml.SafeLoader)
         name = data['name']
         entries = [FanCurveEntry(**entry) for entry in data['entries']]
-        return cls(name, entries)
+        enable_minifancurve = bool(data['enable_minifancurve']) if 'enable_minifancurve' in data else True
+        fan_curve = cls(name, entries, enable_minifancurve)
+        return fan_curve
 
     def save_to_file(self, filename):
         with open(filename, 'w', encoding=DEFAULT_ENCODING) as filepointer:
@@ -451,7 +453,7 @@ class CommandFeature:
     def _exec_cmd(self, cmd, timeout=None) -> Tuple[str, int]:
         log.info('CommandFeature %s execute "%s"', self.name(), cmd)
         try:
-            with subprocess.Popen(['bash', '-c', cmd], stdout=subprocess.PIPE) as process:
+            with subprocess.Popen(['bash', '-c', cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
                 stdout, _ = process.communicate(timeout=timeout)
                 out_str = stdout.decode(DEFAULT_ENCODING)
                 returncode = process.returncode
@@ -689,13 +691,13 @@ class FanCurveIO:
         invalue = self._read_file_or(file_path, False)
         return invalue != 0
 
-    def write_fan_curve(self, fan_curve: FanCurve):
+    def write_fan_curve(self, fan_curve: FanCurve, set_minifancurve=False):
         """Writes a fan curve object to the file system"""
         try:
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
-        except Exception as error:
-            print(error)
+        except BaseException as error:
+            log.error(str(error))
         for index, entry in enumerate(fan_curve.entries):
             point_id = index + 1
             self.set_fan_1_speed(point_id, entry.fan1_speed)
@@ -734,7 +736,7 @@ class FanCurveIO:
             fancurve.enable_minifancurve = self.get_minifancuve()
         # pylint: disable=broad-except
         except BaseException as error:
-            print(error)
+            log.error(str(error))
         return fancurve
 
 
@@ -1084,8 +1086,8 @@ class LegionModelFacade:
     def read_fancurve_from_hw(self):
         self.fan_curve = self.fancurve_io.read_fan_curve()
 
-    def write_fancurve_to_hw(self):
-        self.fancurve_io.write_fan_curve(self.fan_curve)
+    def write_fancurve_to_hw(self, write_minifancurve=False):
+        self.fancurve_io.write_fan_curve(self.fan_curve, write_minifancurve)
 
     def load_fancurve_from_preset(self, name):
         self.fan_curve = self.fancurve_repo.load_by_name(name)
@@ -1093,23 +1095,23 @@ class LegionModelFacade:
     def save_fancurve_to_preset(self, name):
         self.fancurve_repo.save_by_name(name, self.fan_curve)
 
-    def fancurve_write_preset_to_hw(self, name):
+    def fancurve_write_preset_to_hw(self, name, write_minifancurve=False):
         self.load_fancurve_from_preset(name)
-        self.write_fancurve_to_hw()
+        self.write_fancurve_to_hw(write_minifancurve)
 
     def fancurve_write_hw_to_preset(self, name):
         self.read_fancurve_from_hw()
         self.save_fancurve_to_preset(name)
 
-    def fancurve_write_file_to_hw(self, filename: str):
+    def fancurve_write_file_to_hw(self, filename: str, write_minifancurve=False):
         self.fan_curve = FanCurve.load_from_file(filename)
-        self.write_fancurve_to_hw()
+        self.write_fancurve_to_hw(write_minifancurve)
 
     def fancurve_write_hw_to_file(self, filename: str):
         self.read_fancurve_from_hw()
         self.fan_curve.save_to_file(filename)
 
-    def fancurve_write_preset_for_current_profile(self):
+    def fancurve_write_preset_for_current_profile(self, write_minifancurve=False):
         is_on_powersupply = self.on_power_supply.get()
         profile = self.platform_profile.get()
         preset_name = self.fancurve_repo.get_preset_name(
@@ -1118,7 +1120,7 @@ class LegionModelFacade:
             f"Loading preset={preset_name} for profile={profile} and is_powersupply={is_on_powersupply}")
         if preset_name in self.fancurve_repo.fancurve_presets:
             fancurve = self.fancurve_repo.load_by_name_or_default(preset_name)
-            self.fancurve_io.write_fan_curve(fancurve)
+            self.fancurve_io.write_fan_curve(fancurve, write_minifancurve)
             print(fancurve)
 
     def conservation_apply_mode_for_current_battery_capacity(self, lower_limit=None, upper_limit=None):
