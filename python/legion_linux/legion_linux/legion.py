@@ -1,11 +1,13 @@
 import os
 import glob
 from dataclasses import asdict, dataclass
-from typing import List
+import time
+from typing import List, Optional, Tuple
 from pathlib import Path
 import logging
 import subprocess
 import yaml
+# import inotify.adapters
 
 
 log = logging.getLogger(__name__)
@@ -421,6 +423,21 @@ class IOPortLight(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/class/leds/platform::ioport/brightness")
 
+class NVIDIAGPUIsRunning(BoolFileFeature):
+    def __init__(self):
+        super().__init__('/sys/bus/pci/devices/0000:01:00.0/power/runtime_status')
+
+    def set(self, _: str):
+        raise NotImplementedError()
+
+    def get(self):
+        if self.exists():
+            value = self._read_file_str(self.filename)
+            return value != "suspended"
+        else:
+            return False
+
+
 class FanCurveIO:
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
@@ -710,9 +727,205 @@ class CustomConservationController:
             "Keeping conservation mode because battery" +
             f" {battery_cap} is within bounds {self.lower_limit} and {self.upper_limit}")
         return self.battery_conservation.get()
+    
+@dataclass
+class DiagnosticMsg:
+    value:bool = None
+    has_value:bool = True
+    msg:str = ''
+    # filter by setting attribute so current message could still be displayed
+    filter_do_output:bool = True
+
+class DiagFilter:
+
+    def predicate(self, diag_msg:DiagnosticMsg):
+        raise NotImplemented()
+
+    def apply_filter(self, diag_msg:DiagnosticMsg)->DiagnosticMsg:
+        if diag_msg.has_value and diag_msg.filter_do_output:
+            diag_msg.filter_do_output = diag_msg.filter_do_output and self.predicate(diag_msg)
+        return diag_msg
+
+class FilterNotChanged(DiagFilter):
+    last_value:Optional[bool]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.last_value = None
+
+    def predicate(self, diag_msg:DiagnosticMsg)->bool:
+        out = diag_msg.value != self.last_value
+        self.last_value = diag_msg.value
+        return out
+    
+class FilterAtMostEvery(DiagFilter):
+    last_output_time:Optional[float]
+    period_s:float
+
+    def __init__(self, period_s:float):
+        self.period_s = period_s
+        self.last_output_time = None
+
+    def predicate(self, diag_msg:DiagnosticMsg)->bool:
+        cur_time = time.time()
+        if self.last_output_time is None:
+            do_output = True
+        else:
+            do_output = cur_time > self.last_output_time + self.period_s
+        if do_output:
+            self.last_output_time = cur_time
+        return do_output
+    
+class Monitor:
+    inputs:List[FileFeature]
+
+    def __init__(self, inputs:List[FileFeature] = []) -> None:
+        self.inputs = list(inputs) # copy list
+
+    def run(self) -> List[DiagnosticMsg]:
+        raise NotImplemented()
+    
+    def get_inputs(self)->List[FileFeature]:
+        return self.inputs
+        
+    def add_input(self, input:FileFeature):
+        self.inputs.append(input)
+class NVIDIAGPUMonitor(Monitor):
+    gpu_is_running:NVIDIAGPUIsRunning
+    filter:DiagFilter
+
+    def __init__(self, gpu_is_running:NVIDIAGPUIsRunning) -> None:
+        super().__init__([gpu_is_running])
+        self.gpu_is_running = gpu_is_running
+        self.filter = FilterNotChanged()
+    
+    def run(self) -> List[DiagnosticMsg]:
+        is_gpu_running = self.gpu_is_running.get()
+        gpu_running_diag = DiagnosticMsg()
+        if is_gpu_running:
+            gpu_running_diag.value = True
+            gpu_running_diag.msg = 'GPU wakeup'
+        else:
+            gpu_running_diag.value = False
+            gpu_running_diag.msg = 'GPU suspended'
+        gpu_running_diag = self.filter.apply_filter(gpu_running_diag)
+
+        return [gpu_running_diag]
+    
+class NVIDIAGPUOnBatteryMonitor(Monitor):
+    gpu_is_running:NVIDIAGPUIsRunning
+    gpu_is_on_power_supply:IsOnPowerSupplyFeature
+    filter:DiagFilter
+
+    def __init__(self, gpu_is_running:NVIDIAGPUIsRunning, is_on_power_supply:IsOnPowerSupplyFeature) -> None:
+        super().__init__([gpu_is_running, is_on_power_supply])
+        self.gpu_is_running = gpu_is_running
+        self.is_on_power_supply = is_on_power_supply
+        self.filter = FilterAtMostEvery(period_s=10)
+    
+    def run(self) -> List[DiagnosticMsg]:
+        is_gpu_running = self.gpu_is_running.get()
+        is_on_battery = not self.is_on_power_supply.get()
+        diag = DiagnosticMsg()
+        if is_gpu_running and is_on_battery:
+            diag.value = True
+            diag.msg = 'Running on battery with dGPU on.'
+            diag = self.filter.apply_filter(diag)
+        else:
+            diag.value = False
+            diag.msg = 'Running on battery with dGPU off.'
+            diag.has_value = False
+            diag = self.filter.apply_filter(diag)
+
+        return [diag]
+    
+
+
+class NVIDIAGPUOnQuietMode(Monitor):
+    gpu_is_running:NVIDIAGPUIsRunning
+    platform_profile:PlatformProfileFeature
+    filter:DiagFilter
+
+    def __init__(self, gpu_is_running:NVIDIAGPUIsRunning, platform_profile:PlatformProfileFeature) -> None:
+        super().__init__([gpu_is_running, platform_profile])
+        self.gpu_is_running = gpu_is_running
+        self.platform_profile = platform_profile
+        self.filter = FilterAtMostEvery(period_s=60*10)
+    
+    def run(self) -> List[DiagnosticMsg]:
+        is_gpu_running = self.gpu_is_running.get()
+        is_quiet_mode = self.platform_profile.get() == "quiet"
+        diag = DiagnosticMsg()
+        if is_gpu_running and is_quiet_mode:
+            diag.value = True
+            diag.msg = 'Running on quiet mode with dGPU on.'
+            diag = self.filter.apply_filter(diag)
+        else:
+            diag.value = False
+            diag.msg = 'Not running on quiet mode with dGPU on.'
+            diag.has_value = False
+            diag = self.filter.apply_filter(diag)
+
+        return [diag]
+    
+# class INotifyMonitor:
+
+#     def __init__(self):
+#         self.monitors = []
+#         self.monitors_by_featurefilename = {}
+#         self.inot = inotify.adapters.Inotify()
+
+    
+#     def add_monitor(self, monitor:Monitor):
+#         for file_feature in monitor.get_inputs():
+#             filename = file_feature.filename
+#             if filename:
+#                 self.inot.add_watch(filename.encode())
+#                 if filename in self.monitors_by_featurefilename:
+#                     self.monitors_by_featurefilename[filename].append(monitor)
+#                 else:
+#                     self.monitors_by_featurefilename[filename] = [monitor]
+#                 self.monitors.append(monitor)
+
+#     def get_monitors_for_filename(self, filename):
+#         return self.monitors_by_featurefilename.get(filename, [])
+
+#     def run(self):
+#         monitors_to_notify : List[Monitor] = []
+#         for event in self.inot.event_gen(yield_nones=True):
+#             # collect all monitors that should be notified
+#             if event:
+#                 header, type_names, path, filename = event
+#                 print(event)
+#                 for m in self.get_monitors_for_filename():
+#                     if m not in monitors_to_notify:
+#                         monitors_to_notify.append(m)
+#             # call each monitor that should be notified once
+#             # for this timestep
+#             if event is None:
+#                 for m in monitors_to_notify:
+#                     m.run()
+#                 monitors_to_notify = []
+
+
+class NotifcationSender:
+    disable_notifications:bool
+    def __init__(self):
+        self.disable_notifications = False
+
+    def notify(self, title, msg):
+        return self._send_notification(title, msg)
+
+    def _send_notification(self, title, msg):
+        raise NotImplemented()
+    
+class SystemNotificationSender(NotifcationSender):
+    def _send_notification(self, _, msg):
+        subprocess.Popen(['notify-send', msg])
 
 
 class LegionModelFacade:
+    monitors: List[Monitor]
     def __init__(self, expect_hwmon=True):
         log.info(get_dmesg())
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
@@ -758,6 +971,13 @@ class LegionModelFacade:
         # light
         self.ylogo_light = YLogoLight()
         self.ioport_light = IOPortLight()
+
+        # monitors
+        self.nvidia_gpu_running = NVIDIAGPUIsRunning()
+        self.nvidia_gpu_monitor = NVIDIAGPUMonitor(self.nvidia_gpu_running)
+        self.nvidia_battery_monitor = NVIDIAGPUOnBatteryMonitor(self.nvidia_gpu_running, self.on_power_supply)
+        self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(self.nvidia_gpu_running, self.platform_profile)
+        self.monitors = [self.nvidia_gpu_monitor, self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
 
     @staticmethod
     def is_root_user():
@@ -821,3 +1041,29 @@ class LegionModelFacade:
         if upper_limit is not None:
             self.battery_custom_conservation_controller.upper_limit = upper_limit
         return self.battery_custom_conservation_controller.run()
+    
+    def run_monitors(self, period_s):
+        notification_sender = SystemNotificationSender()
+        period_s = period_s or self.nvidia_gpu_monitor.period_s
+        try:
+            while True:
+                print(".", flush=True, end = '')
+                diag_msgs : List[DiagnosticMsg] = [] 
+                for mon in self.monitors:
+                    try:
+                        diag_msgs = diag_msgs + mon.run()
+                    except Exception as e:
+                        log.error(str(e))
+                for msg in diag_msgs:
+                    if msg.has_value and msg.filter_do_output:
+                        print('')
+                        print(msg.msg)
+                        notification_sender.notify('Legion', msg.msg)
+                    elif msg.has_value:
+                        print(f"FILTERED: {msg.msg}")
+                    else:
+                        print(f"FILTERED2: {msg.msg}")
+                time.sleep(period_s)
+        except KeyboardInterrupt:
+            print('Monitor Interrupted!')
+

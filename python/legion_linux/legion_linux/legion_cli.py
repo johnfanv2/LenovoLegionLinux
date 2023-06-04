@@ -273,6 +273,29 @@ class RapidCharging(CLIFeatureCommand):
     def command_disable(self, **_) -> int:
         self.model.rapid_charging.set(False)
         return 0
+    
+class HybridMode(CLIFeatureCommand):
+    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+        super().__init__("hybrid-mode", parser_subcommands, cmd_group)
+        self.model = model
+
+    def exists(self) -> bool:
+        return self.model.gsync.exists()
+
+    def command_status(self, **_) -> int:
+        print("This is the current state. Changing it by setting it will apply only after a reboot.")
+        print(self.model.gsync.get())
+        return 0
+
+    def command_enable(self, **_) -> int:
+        print("Changes will only apply only after a reboot.")
+        self.model.gsync.set(True)
+        return 0
+
+    def command_disable(self, **_) -> int:
+        print("Changes will only apply only after a reboot.")
+        self.model.gsync.set(False)
+        return 0
 
 
 def autocomplete_install(_, **__) -> int:
@@ -321,6 +344,11 @@ def conservation_apply_mode_for_current_battery_capacity(legion: LegionModelFaca
         lowerlimit, upperlimit))
     return 0
 
+
+def monitor(legion: LegionModelFacade, period=None, **_) -> int:
+    print("Starting monitoring:")
+    legion.run_monitors(period_s=period)
+    return 0
 
 def main():
     parser = argparse.ArgumentParser(description='Legion CLI')
@@ -375,6 +403,13 @@ def main():
         'upperlimit', type=int, help='Limit when conservation mode should be turned on, e.g. 80', default=81)
     custom_conservation_mode.set_defaults(
         func=conservation_apply_mode_for_current_battery_capacity)
+
+    monitor_cmd = subcommands.add_parser(
+        'monitor', help='Run monitors with notifciations')
+    monitor_cmd.add_argument(
+        'period', type=int, help='Monitoring period in seconds', default=60)
+    monitor_cmd.set_defaults(
+        func=monitor)
 
     cmd_group = []
     MiniFancurveFeatureCommand(subcommands, None, cmd_group)
