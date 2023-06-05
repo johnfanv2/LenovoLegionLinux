@@ -350,6 +350,15 @@ def monitor(legion: LegionModelFacade, period=None, **_) -> int:
     legion.run_monitors(period_s=period)
     return 0
 
+def set_feature(legion: LegionModelFacade, name, value, **_) -> int:
+    if legion.set_feature_to_str_value(name, value):
+        return 0
+    else:
+        print("Feature not found.")
+        for f in legion.get_all_features():
+            print(f)
+        return -2
+
 def main():
     parser = argparse.ArgumentParser(description='Legion CLI')
     parser.add_argument(
@@ -410,6 +419,15 @@ def main():
         'period', type=int, help='Monitoring period in seconds', default=60)
     monitor_cmd.set_defaults(
         func=monitor)
+    
+    set_feature_cmd = subcommands.add_parser(
+        'set-feature', help='Set feature')
+    set_feature_cmd.add_argument(
+        'name', type=str, help='Name of feature')
+    set_feature_cmd.add_argument(
+        'value', type=str, help='Value of feature')
+    set_feature_cmd.set_defaults(
+        func=set_feature)
 
     cmd_group = []
     MiniFancurveFeatureCommand(subcommands, None, cmd_group)
