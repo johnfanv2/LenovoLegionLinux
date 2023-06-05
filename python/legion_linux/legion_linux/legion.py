@@ -86,12 +86,38 @@ class NamedValue:
         self.value = value
         self.name = name
 
+def write_file_with_legion_cli(name, value):
+    cmd_list = ['pkexec', 'legion_cli', 'set-feature', name, str(value)]
+    log.info('FileFeature %s execute "%s"', name, cmd_list)
+    try:
+        with subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            stdout, _ = process.communicate(timeout=None)
+            out_str = stdout.decode(DEFAULT_ENCODING)
+            returncode = process.returncode
+            log.info('FileFeature %s executed with code %d: %s', name, returncode, out_str)
+    except IOError as err:
+        log.error('FileFeature %s executed with error %s', name, str(err))
+        log.error(get_dmesg(only_tail=True, filter_log=False))
+        raise err
 
-class FileFeature:
+class Feature:
+    features : List['FileFeature'] = []
+    default_use_legion_cli_to_write : bool = False
+
+    use_legion_cli_to_write : bool
+
+    def __init__(self) -> None:
+        Feature.features.append(self)
+        self.use_legion_cli_to_write = Feature.default_use_legion_cli_to_write
+
+    def name(self):
+        return type(self).__name__
+class FileFeature(Feature):
     pattern: str
     filename: str
 
     def __init__(self, pattern):
+        super().__init__()
         self.pattern = pattern
         self.filename = FileFeature._find_by_file_pattern(pattern)
         log.info('Feature %s with path %s', self.name(), self.filename)
@@ -115,8 +141,13 @@ class FileFeature:
 
     def _read_file_int(self, file_path) -> int:
         return int(self._read_file_str(file_path))
+    
+    def set_str_value(self, value:str):
+        return self._write_file(self.filename, value)
 
     def _write_file(self, file_path, value):
+        if self.use_legion_cli_to_write:
+            return write_file_with_legion_cli(self.name(), value)
         log.info('Feature %s writing: %s', self.name(), str(value))
         if not self.exists():
             log.error('Feature %s writing to non exisitng', self.name())
@@ -127,6 +158,7 @@ class FileFeature:
             log.error('Feature %s writing error %s', self.name(), str(err))
             log.error(get_dmesg(only_tail=True, filter_log=False))
             raise err
+           
 
     @staticmethod
     def _find_by_file_pattern(pattern):
@@ -134,9 +166,6 @@ class FileFeature:
         if matches:
             return matches[0]
         return None
-
-    def name(self):
-        return type(self).__name__
 
     # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
@@ -156,7 +185,7 @@ class FileFeature:
 
 class StrFileFeature(FileFeature):
 
-    def set(self, value):
+    def set(self, value:str):
         return self._write_file(self.filename, value)
 
     def get(self):
@@ -165,7 +194,8 @@ class StrFileFeature(FileFeature):
 
 class BoolFileFeature(FileFeature):
 
-    def set(self, value):
+    def set(self, value:bool):
+        value = bool(value)
         outvalue = 1 if value else 0
         return self._write_file(self.filename, outvalue)
 
@@ -189,6 +219,7 @@ class IntFileFeature(FileFeature):
         return (self.limit_low_default, self.limit_up_default, self.step_default)
 
     def set(self, value: int):
+        value = int(value)
         return self._write_file(self.filename, str(value))
 
     def get(self) -> int:
@@ -209,7 +240,8 @@ class FloatFileFeature(FileFeature):
     def get_limits_and_step(self):
         return (self.limit_low_default, self.limit_up_default, self.step_default)
 
-    def set(self, value: int):
+    def set(self, value: float):
+        value = float(value)
         return self._write_file(self.filename, str(value))
 
     def get(self):
@@ -429,7 +461,7 @@ class NVIDIAGPUIsRunning(BoolFileFeature):
     def __init__(self):
         super().__init__('/sys/bus/pci/devices/0000:01:00.0/power/runtime_status')
 
-    def set(self, _: str):
+    def set(self, _: bool):
         raise NotImplementedError()
 
     def get(self):
@@ -496,7 +528,7 @@ class SystemDServiceFeature(BoolCommandFeature):
 
     def _does_service_exists(self):
         _, returncode = self._exec_cmd(self.status_cmd)
-        return returncode == 0
+        return returncode != 4
 
     def set(self, value:bool):
         if value:
@@ -521,7 +553,7 @@ class LenovoLegionLaptopSuppoerService(SystemDServiceFeature):
     def __init__(self):
         super().__init__('lenovo-fancurve')
 
-class FanCurveIO:
+class FanCurveIO(Feature):
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
     pwm2_fan_speed = "pwm2_auto_point{}_pwm"
@@ -538,6 +570,7 @@ class FanCurveIO:
     encoding = DEFAULT_ENCODING
 
     def __init__(self, expect_hwmon=True):
+        super().__init__()
         self.hwmon_path = self._find_hwmon_dir()
         if (not self.hwmon_path) and expect_hwmon:
             raise Exception("hwmon dir not found")
@@ -690,9 +723,16 @@ class FanCurveIO:
         file_path = self.hwmon_path + self.minifancurve
         invalue = self._read_file_or(file_path, False)
         return invalue != 0
+    
+    def set_str_value(self, value:str):
+        fancurve = FanCurve.from_yaml(value)
+        self.write_fan_curve(fancurve)
 
     def write_fan_curve(self, fan_curve: FanCurve, set_minifancurve=False):
         """Writes a fan curve object to the file system"""
+        if self.use_legion_cli_to_write:
+            return write_file_with_legion_cli(self.name(), str(fan_curve.to_yaml()))
+        
         try:
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
@@ -1009,7 +1049,8 @@ class SystemNotificationSender(NotifcationSender):
 
 class LegionModelFacade:
     monitors: List[Monitor]
-    def __init__(self, expect_hwmon=True):
+    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False):
+        Feature.default_use_legion_cli_to_write = use_legion_cli_to_write
         log.info(get_dmesg())
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
         self.fancurve_repo = FanCurveRepository()
@@ -1066,6 +1107,16 @@ class LegionModelFacade:
         self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(self.nvidia_gpu_running, self.platform_profile)
         self.monitors = [self.nvidia_gpu_monitor, self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
 
+
+    def set_feature_to_str_value(self, name:str, value:str) -> bool:
+        for f in Feature.features:
+            if f.name() == name:
+                f.set_str_value(value)
+                return True
+        return False
+    
+    def get_all_features(self):
+        return [f.name() for f in Feature.features]
 
     @staticmethod
     def is_root_user():

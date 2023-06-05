@@ -388,13 +388,14 @@ class LegionController:
     power_profiles_deamon_service_controller: BoolFeatureController
     lenovo_legion_laptop_support_service_controller: BoolFeatureController
 
-    def __init__(self, expect_hwmon=True):
-        self.model = LegionModelFacade(expect_hwmon=expect_hwmon)
+    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False):
+        self.model = LegionModelFacade(expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
         self.view_fancurve = None
         self.view_otheroptions = None
         self.main_window = None
         self.log_view = None
         self.tray = None
+        self.show_root_dialog = (not self.model.is_root_user()) and (not use_legion_cli_to_write)
 
     def init(self, read_from_hw=True):
         # fan
@@ -516,13 +517,20 @@ class LegionController:
         self.update_fancurve_gui()
         self.update_automation()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
-        self.main_window.show_root_dialog = not self.model.is_root_user()
+        self.main_window.show_root_dialog = self.show_root_dialog
 
     def init_tray(self):
         # tray/other
         self.batteryconservation_tray_controller = BoolFeatureTrayController(self.tray.batteryconservation_action, self.model.battery_conservation)
         set_dependent(self.batteryconservation_controller, self.batteryconservation_tray_controller)
+        set_dependent(self.rapid_charging_controller, self.batteryconservation_tray_controller)
         self.batteryconservation_tray_controller.update_view_from_feature()
+
+        self.rapid_charging_tray_controller = BoolFeatureTrayController(self.tray.rapid_charging_action, self.model.rapid_charging)
+        set_dependent(self.batteryconservation_controller, self.rapid_charging_tray_controller)
+        set_dependent(self.rapid_charging_controller, self.rapid_charging_tray_controller)
+        set_dependent(self.batteryconservation_tray_controller, self.rapid_charging_tray_controller)
+        self.rapid_charging_tray_controller.update_view_from_feature()
         
 
     def update_power_gui(self, update_bounds=False):
@@ -1084,6 +1092,8 @@ class LegionTray:
         self.menu.addSeparator()
         self.batteryconservation_action = QAction("Conservation Mode")
         self.menu.addAction(self.batteryconservation_action)
+        self.rapid_charging_action = QAction("Rapid Charging")
+        self.menu.addAction(self.rapid_charging_action)
 
     def show_message(self, title):
         self.tray.setToolTip(title)
@@ -1107,10 +1117,12 @@ def main():
     automatic_close = '--automaticclose' in sys.argv
     do_not_excpect_hwmon = True
 
+    use_legion_cli_to_write = '--use_legion_cli_to_write' in sys.argv
+
     icon_path = get_ressource_path('legion_logo.png')
     icon = QtGui.QIcon(icon_path)
 
-    contr = LegionController(expect_hwmon=not do_not_excpect_hwmon)
+    contr = LegionController(expect_hwmon=not do_not_excpect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
     main_window.setWindowIcon(icon)
