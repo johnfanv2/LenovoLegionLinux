@@ -9,6 +9,10 @@
 [![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=aur%20package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=aur%20package%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![Gentoo Overlay](https://img.shields.io/badge/Gentoo--Overlay-mrduarte--ebuilds-blueviolet)](https://github.com/MrDuartePT/mrduarte-ebuilds)
+[![Gentoo Overlay](https://img.shields.io/badge/NixOS--package-lenovo--legion-9cf)](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
+
+
+
 ---
 #### Other language versions of this README file:
 * [简体中文版简介](README_zh-hans.md)
