@@ -643,6 +643,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_8jcn
 	},
+	{
+		// e.g. Legion 2023 
+		.ident = "8JCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "KWCN"),
+		},
+		.driver_data = (void *)&model_v0
+	},
 	{}
 };
 
