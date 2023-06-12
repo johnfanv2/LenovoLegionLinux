@@ -345,13 +345,13 @@ static const struct model_config model_kwcn = {
 	.embedded_controller_id = 0x5507,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
-	.access_method_fanspeed = ACCESS_METHOD_EC,
-	.access_method_temperature = ACCESS_METHOD_EC,
-	.access_method_fancurve = ACCESS_METHOD_EC,
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600
@@ -4529,6 +4529,8 @@ static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;
+
+	supported = supported && (priv->conf->access_method_fancurve != ACCESS_METHOD_NO_ACCESS);
 
 	return supported ? attr->mode : 0;
 }
