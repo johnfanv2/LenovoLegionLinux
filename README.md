@@ -688,7 +688,8 @@ Changing mode without Lenovo Legion Linux is purely implemented in hardware:
 - color of LED changes
 - fan curve in embedded controller changes
 - other purely hardware configs might also change, but I have not observed one
-- as far as I know, power saving or performance of CPU does not change, as this is controlled by kernel or tools like cpupower
+- ~~as far as I know, power saving or performance of CPU does not change, as this is controlled by kernel or tools like cpupower~~ 
+- an analysis of the ACPI firmware, which is "stored in hardware", shows that some power options, e.g. the STAPM limit, of the CPU and GPU are changed via ACPI calls. This can be observed by changing power mode with Fn+Q and checking CPU power limits, e.g. with ryzenadj for AMD CPUs. However, no changes to the GPU power limits are observed on NVIDIA GPUs, which might indicate that the integration of ACPI and GPU driver is faulty in Linux
 - without Lenovo Legion Linux the kernel or other system tools will not know that you have changed the mode
 
 Changing mode with Lenovo Legion Linux:
