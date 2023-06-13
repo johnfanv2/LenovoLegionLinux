@@ -185,7 +185,8 @@ enum access_method {
 	ACCESS_METHOD_ACPI = 2,
 	ACCESS_METHOD_WMI = 3,
 	ACCESS_METHOD_WMI2 = 4,
-	ACCESS_METHOD_EC2 = 5, // ideapad fancurve method
+	ACCESS_METHOD_WMI3 = 5,
+	ACCESS_METHOD_EC2 = 10, // ideapad fancurve method
 };
 
 struct model_config {
@@ -338,7 +339,6 @@ static const struct model_config model_v0 = {
 	.ramio_size = 0x600
 };
 
-
 static const struct model_config model_kwcn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -356,8 +356,6 @@ static const struct model_config model_kwcn = {
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600
 };
-
-
 
 static const struct model_config model_kfcn = {
 	.registers = &ec_register_offsets_v0,
@@ -495,8 +493,7 @@ static const struct model_config model_e9cn = {
 	.ramio_size = 0x600
 };
 
-
-static const struct model_config model_8jcn  = {
+static const struct model_config model_8jcn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8226,
@@ -1005,6 +1002,59 @@ enum IGPUState {
 #define WMI_METHOD_ID_KBBACKLIGHTGET 0x1
 #define WMI_METHOD_ID_KBBACKLIGHTSET 0x2
 
+// new method in newer methods to get or set most of the values
+// with the two methods GetFeatureValue or SetFeatureValue.
+// They are called like GetFeatureValue(feature_id) where
+// feature_id is a id for the feature
+#define LEGION_WMI_LENOVO_OTHER_METHOD_GUID \
+	"dc2a8805-3a8c-41ba-a6f7-092e0089cd3b"
+#define WMI_METHOD_ID_GET_FEATURE_VALUE 17
+#define WMI_METHOD_ID_SET_FEATURE_VALUE 18
+
+enum OtherMethodFeature {
+	OtherMethodFeature_U1 = 0x010000, //->PC00.LPCB.EC0.REJF
+	OtherMethodFeature_U2 = 0x0F0000, //->C00.PEG1.PXP._STA?
+	OtherMethodFeature_U3 = 0x030000, //->PC00.LPCB.EC0.FLBT?
+	OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT = 0x01010000,
+	OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT = 0x01020000,
+	OtherMethodFeature_CPU_PEAK_POWER_LIMIT = 0x01030000,
+	OtherMethodFeature_CPU_TEMPERATURE_LIMIT = 0x01040000,
+
+	OtherMethodFeature_APU_PPT_POWER_LIMIT = 0x01050000,
+
+	OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT = 0x01060000,
+	OtherMethodFeature_CPU_L1_TAU = 0x01070000,
+
+	OtherMethodFeature_GPU_POWER_BOOST = 0x02010000,
+	OtherMethodFeature_GPU_cTGP = 0x02020000,
+	OtherMethodFeature_GPU_TEMPERATURE_LIMIT = 0x02030000,
+	OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE =
+		0x02040000,
+
+	OtherMethodFeature_FAN_SPEED_1 = 0x04030001,
+	OtherMethodFeature_FAN_SPEED_2 = 0x04030002,
+
+	OtherMethodFeature_C_U1 = 0x05010000,
+	OtherMethodFeature_TEMP_CPU = 0x05040000,
+	OtherMethodFeature_TEMP_GPU = 0x05050000,
+};
+
+ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
+				   int *value)
+{
+	struct acpi_buffer params;
+	int error;
+	unsigned long res;
+	u32 param1 = feature_id;
+
+	params.length = sizeof(param1);
+	params.pointer = &param1;
+	error = wmi_exec_int(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
+			     WMI_METHOD_ID_GET_FEATURE_VALUE, &params, &res);
+	if (!error)
+		*value = res;
+	return error;
+}
 
 /* =================================== */
 /* EC RAM Access with memory mapped IO */
@@ -1880,6 +1930,51 @@ ssize_t wmi_read_temperature_gz(int sensor_id, int *temperature)
 	return err;
 }
 
+// fan_id: 0 or 1
+ssize_t wmi_read_fanspeed_other(int fan_id, int *fanspeed_rpm)
+{
+	int err;
+	enum OtherMethodFeature featured_id;
+	int res;
+
+	if (fan_id == 0)
+		featured_id = OtherMethodFeature_FAN_SPEED_1;
+	else if (fan_id == 1)
+		featured_id = OtherMethodFeature_FAN_SPEED_2;
+	else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+
+	err = wmi_other_method_get_value(featured_id, &res);
+
+	if (!err)
+		*fanspeed_rpm = res;
+	return err;
+}
+
+//sensor_id: cpu = 0, gpu = 1
+ssize_t wmi_read_temperature_other(int sensor_id, int *temperature)
+{
+	int err;
+	enum OtherMethodFeature featured_id;
+	int res;
+
+	if (sensor_id == 0)
+		featured_id = OtherMethodFeature_TEMP_CPU;
+	else if (sensor_id == 1)
+		featured_id = OtherMethodFeature_TEMP_GPU;
+	else {
+		// TODO: use all correct error codes
+		return -EEXIST;
+	}
+
+	err = wmi_other_method_get_value(featured_id, &res);
+	if (!err)
+		*temperature = res;
+	return err;
+}
+
 ssize_t read_fanspeed(struct legion_private *priv, int fan_id, int *speed_rpm)
 {
 	// TODO: use enums or function pointers?
@@ -1893,6 +1988,8 @@ ssize_t read_fanspeed(struct legion_private *priv, int fan_id, int *speed_rpm)
 		return wmi_read_fanspeed_gz(fan_id, speed_rpm);
 	case ACCESS_METHOD_WMI2:
 		return wmi_read_fanspeed(fan_id, speed_rpm);
+	case ACCESS_METHOD_WMI3:
+		return wmi_read_fanspeed_other(fan_id, speed_rpm);
 	default:
 		pr_info("No access method for fanspeed: %d\n",
 			priv->conf->access_method_fanspeed);
@@ -1914,6 +2011,8 @@ ssize_t read_temperature(struct legion_private *priv, int sensor_id,
 		return wmi_read_temperature_gz(sensor_id, temperature);
 	case ACCESS_METHOD_WMI2:
 		return wmi_read_temperature(sensor_id, temperature);
+	case ACCESS_METHOD_WMI3:
+		return wmi_read_temperature_other(sensor_id, temperature);
 	default:
 		pr_info("No access method for temperature: %d\n",
 			priv->conf->access_method_temperature);
@@ -2589,7 +2688,8 @@ static int legion_wmi_light_set(struct legion_private *priv, u8 light_id,
 	err = wmi_exec_int(LEGION_WMI_KBBACKLIGHT_GUID, 0,
 			   WMI_METHOD_ID_KBBACKLIGHTSET, &buffer, &result);
 	if (err) {
-		pr_info("Error for WMI method call to set brightness on light: %d\n", light_id);
+		pr_info("Error for WMI method call to set brightness on light: %d\n",
+			light_id);
 		return -EIO;
 	}
 
@@ -2694,6 +2794,9 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_file_print_with_error(s, "CPU temperature WMI", err, temperature);
 	err = wmi_read_temperature(0, &temperature);
 	seq_file_print_with_error(s, "CPU temperature WMI2", err, temperature);
+	err = wmi_read_temperature_other(0, &temperature);
+	seq_file_print_with_error(s, "CPU temperature WMI3", err, temperature);
+
 	err = read_temperature(priv, 1, &temperature);
 	seq_file_print_with_error(s, "GPU temperature", err, temperature);
 	err = ec_read_temperature(&priv->ecram, priv->conf, 1, &temperature);
@@ -2704,6 +2807,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_file_print_with_error(s, "GPU temperature WMI", err, temperature);
 	err = wmi_read_temperature(1, &temperature);
 	seq_file_print_with_error(s, "GPU temperature WMI2", err, temperature);
+	err = wmi_read_temperature_other(1, &temperature);
+	seq_file_print_with_error(s, "GPU temperature WMI3", err, temperature);
 
 	seq_printf(s, "fan speed access method: %d\n",
 		   priv->conf->access_method_fanspeed);
@@ -2717,6 +2822,9 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_file_print_with_error(s, "1 fanspeed WMI", err, fanspeed);
 	err = wmi_read_fanspeed(0, &fanspeed);
 	seq_file_print_with_error(s, "1 fanspeed WMI2", err, fanspeed);
+	err = wmi_read_fanspeed_other(0, &fanspeed);
+	seq_file_print_with_error(s, "1 fanspeed WMI3", err, fanspeed);
+
 	err = read_fanspeed(priv, 1, &fanspeed);
 	seq_file_print_with_error(s, "2 fanspeed", err, fanspeed);
 	err = ec_read_fanspeed(&priv->ecram, priv->conf, 1, &fanspeed);
@@ -2727,6 +2835,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_file_print_with_error(s, "2 fanspeed WMI", err, fanspeed);
 	err = wmi_read_fanspeed(1, &fanspeed);
 	seq_file_print_with_error(s, "2 fanspeed WMI2", err, fanspeed);
+	err = wmi_read_fanspeed_other(1, &fanspeed);
+	seq_file_print_with_error(s, "2 fanspeed WMI3", err, fanspeed);
 
 	seq_printf(s, "powermode access method: %d\n",
 		   priv->conf->access_method_powermode);
@@ -4530,7 +4640,8 @@ static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;
 
-	supported = supported && (priv->conf->access_method_fancurve != ACCESS_METHOD_NO_ACCESS);
+	supported = supported && (priv->conf->access_method_fancurve !=
+				  ACCESS_METHOD_NO_ACCESS);
 
 	return supported ? attr->mode : 0;
 }
@@ -4864,7 +4975,9 @@ int legion_add(struct platform_device *pdev)
 
 	// TODO: remove; only used for reverse engineering
 	pr_info("Creating RAM access to embedded controller\n");
-	err = ecram_memoryio_init(&priv->ec_memoryio, priv->conf->ramio_physical_start, 0, priv->conf->ramio_size);
+	err = ecram_memoryio_init(&priv->ec_memoryio,
+				  priv->conf->ramio_physical_start, 0,
+				  priv->conf->ramio_size);
 	if (err) {
 		dev_info(&pdev->dev,
 			 "Could not init RAM access to embedded controller\n");
