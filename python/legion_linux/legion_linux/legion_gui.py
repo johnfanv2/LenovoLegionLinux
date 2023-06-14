@@ -104,6 +104,15 @@ def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
         log_error(ex)
 
 
+def log_ui_feature_action(widget, feature):
+    text = "###"
+    if hasattr(widget, 'currentText'):
+        text = widget.currentText()
+    if hasattr(widget, 'text'):
+        text = widget.text()
+    name = feature.name() if hasattr(feature, 'name') else "###"
+    log.info(f"Click on UI '{text}' element for {name}.")
+
 class EnumFeatureController:
     widget: QComboBox
     feature: FileFeature
@@ -111,7 +120,11 @@ class EnumFeatureController:
     def __init__(self, widget: QComboBox, feature: FileFeature):
         self.widget = widget
         self.feature = feature
-        self.widget.currentIndexChanged.connect(self.update_feature_from_view)
+        self.widget.currentIndexChanged.connect(self.on_ui_element_click)
+
+    def on_ui_element_click(self):
+        log_ui_feature_action(self.widget, self.feature)
+        self.update_feature_from_view()
 
     def update_feature_from_view(self):
         # print("update_feature_from_view", self.widget.currentText())
@@ -176,9 +189,13 @@ class BoolFeatureController:
     def __init__(self, checkbox: QCheckBox, feature: FileFeature):
         self.checkbox = checkbox
         self.feature = feature
-        self.checkbox.clicked.connect(self.update_feature_from_view)
+        self.checkbox.clicked.connect(self.on_ui_element_click)
         self.dependent_controllers = []
         self.check_after_set_time = 0.1
+
+    def on_ui_element_click(self):
+        log_ui_feature_action(self.checkbox, self.feature)
+        self.update_feature_from_view()
 
     def update_feature_from_view(self):
         sync_checkbox(
@@ -200,8 +217,12 @@ class BoolFeatureTrayController:
         self.action = action
         self.feature = feature
         self.action.setCheckable(True)
-        self.action.triggered.connect(self.update_feature_from_view)
+        self.action.triggered.connect(self.on_ui_element_click)
         self.dependent_controllers = []
+
+    def on_ui_element_click(self):
+        log_ui_feature_action(self.action, self.feature)
+        self.update_feature_from_view()
 
     def update_feature_from_view(self):
         try:
@@ -250,7 +271,11 @@ class IntFeatureController:
         self.widget = widget
         self.feature = feature
         if update_on_change:
-            self.widget.valueChanged.connect(self.update_feature_from_view)
+            self.widget.valueChanged.connect(self.on_ui_element_click)
+
+    def on_ui_element_click(self):
+        log_ui_feature_action(self.widget, self.feature)
+        self.update_feature_from_view()
 
     def update_feature_from_view(self, wait=True):
         # print("update_feature_from_view", self.widget.currentText())
@@ -317,11 +342,13 @@ class HybridGsyncController:
         self.deactivate_button.clicked.connect(self.deactivate)
 
     def activate(self):
+        log_ui_feature_action(self.activate_button, self.gsynchybrid_feature)
         self.gsynchybrid_feature.set(True)
         self.target_value = True
         self.update_view_from_feature()
 
     def deactivate(self):
+        log_ui_feature_action(self.deactivate_button, self.gsynchybrid_feature)
         self.gsynchybrid_feature.set(False)
         self.target_value = False
         self.update_view_from_feature()
