@@ -756,6 +756,8 @@ static int acpi_process_buffer_to_ints(const char *id_name, int id_nr,
 		error = -AE_ERROR;
 		goto err;
 	}
+	pr_info("ACPI result for %s:%d: ACPI buffer length: %u\n", id_name,
+		id_nr, out->buffer.length);
 
 	for (i = 0; i < ressize; ++i)
 		res[i] = out->buffer.pointer[i];
@@ -2029,21 +2031,66 @@ ssize_t read_temperature(struct legion_private *priv, int sensor_id,
  * It is only available on newer models.
  */
 
-//struct WMIFanTable{
-//	u8 FSTM; //FSMD
-//	u8 FSID;
-//	u32 FSTL; //FSST
-//	u16 FSS0;
-//	u16 FSS1;
-//	u16 FSS2;
-//	u16 FSS3;
-//	u16 FSS4;
-//	u16 FSS5;
-//	u16 FSS6;
-//	u16 FSS7;
-//	u16 FSS8;
-//	u16 FSS9;
-//};
+struct WMIFanTable {
+	u8 FSTM; //FSMD
+	u8 FSID;
+	u32 FSTL; //FSST
+	u16 FSS0;
+	u16 FSS1;
+	u16 FSS2;
+	u16 FSS3;
+	u16 FSS4;
+	u16 FSS5;
+	u16 FSS6;
+	u16 FSS7;
+	u16 FSS8;
+	u16 FSS9;
+} __packed;
+
+struct WMIFanTableRead {
+	u32 FSFL;
+	u32 FSS0;
+	u32 FSS1;
+	u32 FSS2;
+	u32 FSS3;
+	u32 FSS4;
+	u32 FSS5;
+	u32 FSS6;
+	u32 FSS7;
+	u32 FSS8;
+	u32 FSS9;
+	u32 FSSA;
+} __packed;
+
+static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
+					struct fancurve *fancurve)
+{
+	u8 buffer[200];
+	int err;
+
+	pr_info("Size of object: %lu\n", sizeof(struct WMIFanTableRead));
+	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
+				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
+				  sizeof(buffer));
+	if (!err) {
+		struct WMIFanTableRead *fantable =
+			(struct WMIFanTableRead *)&buffer[0];
+		fancurve->current_point_i = 0;
+		fancurve->size = 10;
+		fancurve->points[0].rpm1_raw = fantable->FSS0;
+		fancurve->points[1].rpm1_raw = fantable->FSS1;
+		fancurve->points[2].rpm1_raw = fantable->FSS2;
+		fancurve->points[3].rpm1_raw = fantable->FSS3;
+		fancurve->points[4].rpm1_raw = fantable->FSS4;
+		fancurve->points[5].rpm1_raw = fantable->FSS5;
+		fancurve->points[6].rpm1_raw = fantable->FSS6;
+		fancurve->points[7].rpm1_raw = fantable->FSS7;
+		fancurve->points[8].rpm1_raw = fantable->FSS8;
+		fancurve->points[9].rpm1_raw = fantable->FSS9;
+		fancurve->points[10].rpm1_raw = fantable->FSSA;
+	}
+	return err;
+}
 
 /* Read the fan curve from the EC.
  *
@@ -2768,6 +2815,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	int fanspeed;
 	int err;
 	unsigned long cfg;
+	struct fancurve wmi_fancurve;
 	//int kb_backlight;
 
 	mutex_lock(&priv->fancurve_mutex);
@@ -2893,6 +2941,12 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	fancurve_print_seqfile(&priv->fancurve, s);
 	seq_puts(s, "=====================\n");
 	mutex_unlock(&priv->fancurve_mutex);
+
+	seq_puts(s, "Current fan curve in hardware (WMI) (might be empty)\n");
+	wmi_fancurve.size = 0;
+	err = wmi_read_fancurve_custom(priv->conf, &wmi_fancurve);
+	fancurve_print_seqfile(&wmi_fancurve, s);
+	seq_puts(s, "=====================\n");
 	return 0;
 }
 
