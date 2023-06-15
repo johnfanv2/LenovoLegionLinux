@@ -7,6 +7,7 @@ from pathlib import Path
 import logging
 import subprocess
 import yaml
+# import jsonrpyc
 # import inotify.adapters
 
 
@@ -14,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 DEFAULT_ENCODING = "utf8"
-CONFIG_FOLDER = ".config/legion_linux"
+DEFAULT_CONFIG_DIR=os.path.join(os.getenv("HOME"), ".config/legion_linux")
 LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
 
@@ -99,6 +100,9 @@ def write_file_with_legion_cli(name, value):
         log.error('FileFeature %s executed with error %s', name, str(err))
         log.error(get_dmesg(only_tail=True, filter_log=False))
         raise err
+    
+#def write_file_with_legion_cli_rpc(name, value):
+
 
 class Feature:
     features : List['FileFeature'] = []
@@ -120,7 +124,7 @@ class FileFeature(Feature):
         super().__init__()
         self.pattern = pattern
         self.filename = FileFeature._find_by_file_pattern(pattern)
-        log.info('Feature %s with path %s', self.name(), self.filename)
+        log.info('Feature %s with pattern %s and path %s', self.name(), pattern, self.filename)
         if not self.exists():
             log.warning('Feature %s exist not. exits: %d',
                         self.name(), self.exists())
@@ -162,10 +166,17 @@ class FileFeature(Feature):
 
     @staticmethod
     def _find_by_file_pattern(pattern):
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-        return None
+        if isinstance(pattern, list):
+            matches_by_pattern = [ list(glob.glob(p)) for p in pattern ]
+            all_matches = sum(matches_by_pattern, [])
+            if all_matches:
+                return all_matches[0]
+            return None
+        else:
+            matches = glob.glob(pattern)
+            if matches:
+                return matches[0]
+            return None
 
     # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
@@ -297,7 +308,7 @@ class WinkeyFeature(BoolFileFeature):
 
 class TouchpadFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'touchpad'))
+        super().__init__([os.path.join(IDEAPAD_SYS_BASEPATH, 'touchpad'), os.path.join(LEGION_SYS_BASEPATH, 'touchpad')])
 
 
 class CameraPowerFeature(BoolFileFeature):
@@ -576,7 +587,10 @@ class FanCurveIO(Feature):
             raise Exception("hwmon dir not found")
 
     def exists(self):
-        return self.hwmon_path is not None
+        has_hwmon_path = self.hwmon_path is not None
+        file_path = self.hwmon_path + self.pwm1_fan_speed.format(1)
+        has_point1 = os.path.exists(file_path)
+        return has_hwmon_path and has_point1
 
     def _find_hwmon_dir(self):
         matches = glob.glob(self.hwmon_dir_pattern)
@@ -781,7 +795,7 @@ class FanCurveIO(Feature):
 
 
 class FanCurveRepository:
-    def __init__(self):
+    def __init__(self, preset_dir):
         self.fancurve_presets = {
             "quiet-battery": None,
             "balanced-battery": None,
@@ -791,7 +805,7 @@ class FanCurveRepository:
             "performance-ac": None
         }
 
-        self.preset_dir = os.path.join(os.getenv("HOME"), CONFIG_FOLDER)
+        self.preset_dir = preset_dir
 
     @staticmethod
     def get_preset_name(profile: str, is_on_powersupply: bool):
@@ -1047,13 +1061,14 @@ class SystemNotificationSender(NotifcationSender):
         subprocess.Popen(['notify-send', msg])
 
 
+
 class LegionModelFacade:
     monitors: List[Monitor]
-    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False):
+    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False, config_dir=DEFAULT_CONFIG_DIR):
         Feature.default_use_legion_cli_to_write = use_legion_cli_to_write
         log.info(get_dmesg())
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
-        self.fancurve_repo = FanCurveRepository()
+        self.fancurve_repo = FanCurveRepository(preset_dir=config_dir)
         self.fan_curve = FanCurve(name='unknown',
                                   entries=[FanCurveEntry(
                                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
@@ -1206,3 +1221,6 @@ class LegionModelFacade:
         except KeyboardInterrupt:
             print('Monitor Interrupted!')
 
+
+# def start_rpc(legion_facade):
+#     jsonrpyc.RPC(legion_facade)
