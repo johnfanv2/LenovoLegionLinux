@@ -207,6 +207,7 @@ struct model_config {
 	enum access_method access_method_temperature;
 	enum access_method access_method_fanspeed;
 	enum access_method access_method_fancurve;
+	enum access_method access_method_fanfullspeed;
 	bool three_state_keyboard;
 
 	bool acpi_check_dev;
@@ -749,7 +750,7 @@ static int acpi_process_buffer_to_ints(const char *id_name, int id_nr,
 		goto err;
 	}
 
-	if (out->type != ACPI_TYPE_BUFFER || out->buffer.length < ressize) {
+	if (out->type != ACPI_TYPE_BUFFER || out->buffer.length != ressize) {
 		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d; expected length %lu but got %u;\n",
 			id_name, id_nr, ACPI_TYPE_BUFFER, out->type, ressize,
 			out->buffer.length);
@@ -2065,9 +2066,11 @@ struct WMIFanTableRead {
 static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 					struct fancurve *fancurve)
 {
-	u8 buffer[200];
+	u8 buffer[88];
 	int err;
 
+	// The output buffer from the ACPI call is 88 bytes and larger
+	// than the returned object
 	pr_info("Size of object: %lu\n", sizeof(struct WMIFanTableRead));
 	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
 				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
@@ -2445,6 +2448,22 @@ ssize_t ec_write_fanfullspeed(struct ecram *ecram,
 	ecram_write(ecram, model->registers->EXT_MAXIMUMFANSPEED, val);
 	return 0;
 }
+
+
+// ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
+// {
+// 	// TODO: use enums or function pointers?
+// 	switch (priv->conf->access_method_fanfullspeed) {
+// 	case ACCESS_METHOD_WMI:
+// 		return wmi_read_temperature_gz(sensor_id, temperature);
+// 	case ACCESS_METHOD_WMI2:
+// 		return wmi_read_temperature(sensor_id, temperature);
+// 	default:
+// 		pr_info("No access method for fan full speed: %d\n",
+// 			priv->conf->access_method_fanfullspeed);
+// 		return -EINVAL;
+// 	}
+// }
 
 /* ============================= */
 /* Power mode reading/writing    */
@@ -3206,6 +3225,8 @@ static ssize_t winkey_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR_RW(winkey);
 
+// on newer models the touchpad feature in ideapad does not work anymore, so
+// we need this
 static ssize_t touchpad_show(struct device *dev, struct device_attribute *attr,
 			     char *buf)
 {
