@@ -1041,6 +1041,11 @@ class LogTab(QWidget):
 
 # pylint: disable=too-few-public-methods
 
+def open_web_link():
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
+
+def open_star_link():
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
 
 class AboutTab(QWidget):
     def __init__(self):
@@ -1048,7 +1053,8 @@ class AboutTab(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        about_label = QLabel("https://github.com/johnfanv2/LenovoLegionLinux")
+        about_label = QLabel('Help giving a star to the github repo <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>')
+        about_label.setOpenExternalLinks(True)
         about_label.setAlignment(Qt.AlignCenter)
         layout = QVBoxLayout()
         layout.addWidget(about_label)
@@ -1121,6 +1127,11 @@ class LegionTray:
         self.menu.addAction(self.batteryconservation_action)
         self.rapid_charging_action = QAction("Rapid Charging")
         self.menu.addAction(self.rapid_charging_action)
+        # ---
+        self.menu.addSeparator()
+        self.star_action = QAction("Help giving a star to the github repo (click here)")
+        self.star_action.triggered.connect(open_star_link)
+        self.menu.addAction(self.star_action)
 
     def show_message(self, title):
         self.tray.setToolTip(title)
