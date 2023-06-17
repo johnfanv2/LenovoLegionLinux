@@ -2118,7 +2118,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		fancurve->points[7].rpm1_raw = fantable->FSS7;
 		fancurve->points[8].rpm1_raw = fantable->FSS8;
 		fancurve->points[9].rpm1_raw = fantable->FSS9;
-		fancurve->points[10].rpm1_raw = fantable->FSSA;
+		//fancurve->points[10].rpm1_raw = fantable->FSSA;
 	}
 	return err;
 }
