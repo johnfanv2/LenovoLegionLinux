@@ -1,0 +1,6 @@
+[Path]
+Unit=legion-linux-restart.service
+PathModified=/sys/firmware/acpi/platform_profile
+
+[Install]
+WantedBy=default.target

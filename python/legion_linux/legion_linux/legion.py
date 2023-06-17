@@ -562,7 +562,7 @@ class PowerProfilesDeamonService(SystemDServiceFeature):
 
 class LenovoLegionLaptopSuppoerService(SystemDServiceFeature):
     def __init__(self):
-        super().__init__('lenovo-fancurve')
+        super().__init__('legion-linux.service legion-linux-restart.service legion-linux-restart.path') 
 
 class FanCurveIO(Feature):
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
