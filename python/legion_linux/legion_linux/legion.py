@@ -800,9 +800,11 @@ class FanCurveRepository:
             "quiet-battery": None,
             "balanced-battery": None,
             "performance-battery": None,
+            "balanced-performance-battery": None,
             "quiet-ac": None,
             "balanced-ac": None,
-            "performance-ac": None
+            "performance-ac": None,
+            "balanced-performance-ac": None
         }
 
         self.preset_dir = preset_dir
