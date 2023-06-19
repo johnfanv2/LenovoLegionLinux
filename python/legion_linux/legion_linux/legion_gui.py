@@ -1013,7 +1013,7 @@ class AutomationTab(QWidget):
         self.options_layout.addWidget(self.lenovo_legion_laptop_support_service_check, 1)
 
         self.note_label = QLabel(
-            "These are experimental features.\n *LLL Daemon full working")
+            "These are experimental features.\n *LLL deamon is fully working.")
         self.options_layout.addWidget(self.note_label, 3)
 
 

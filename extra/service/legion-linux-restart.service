@@ -1,3 +1,0 @@
-[Service]
-Type=oneshot
-ExecStart=/bin/systemctl restart legion-linux.service

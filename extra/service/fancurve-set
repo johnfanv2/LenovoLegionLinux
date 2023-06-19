@@ -2,6 +2,7 @@
 
 #NOTE: The values for the gpu tdp in this script are for 3070 MAX-Q
 #      You can add cpu/apu option per profile the changing the command in CPU_CONTROL_COMMAD variable and addying the RyzenADJ or Undervolt command (read the readme)
+#      Developer: To test the script just run it from the /extra/service directory using the command "su -c ./fancurve-set"
 
 POWER_PROFILE=$(cat /sys/firmware/acpi/platform_profile)
 AC_ADAPTER=$(cat /sys/class/power_supply/ADP0/online)
@@ -9,17 +10,17 @@ AC_ADAPTER=$(cat /sys/class/power_supply/ADP0/online)
 VFIO_LOADED=$(lsmod | grep -w "vfio_pci") #verify vfio
 NVIDIA_LOADED=$(lsmod | grep -w "nvidia") #verify nvidia dGPU is loaded
 
-#fix home user
-HOME=$(eval echo ~$(id -un 1000)) #pls change the uid if you have multiple user check with this command 'id'
-
 #add run as root
 if [ "$EUID" -ne 0 ]
   then echo "Please run as root"
   exit
 fi
 
+#fix home user
+HOME=$(eval echo ~$(id -un 1000)) #pls change the uid if you have multiple user check with this command 'id'
+
 #Pls edit this file for enable GPU TDP
-source .env
+source $HOME/.config/legion_linux/.env
 
 if  [ $AC_ADAPTER == 1 ]; then
     if [ $POWER_PROFILE == quiet ]; then
@@ -50,13 +51,13 @@ else
     if [ $POWER_PROFILE == quiet ]; then
         echo "Applying Quiet Mode Profile ﴛ  -> battery..."
         GPU_TDP=55 #set to GPU 55W
-        FANCURVE_FILE=quiet-bat #set the fancurve file
+        FANCURVE_FILE=quiet-battery #set the fancurve file
         CPU_CONTROL_COMMAD=$(echo test)
 
     elif [ $POWER_PROFILE == balanced ]; then
-        echo "Applying Balance Mode Profile   -> battery..."     
+        echo "Applying Balance Mode Profile 󰈐  -> battery..."     
         GPU_TDP=65 #set to GPU 65W
-        FANCURVE_FILE=balanced-bat #set the fancurve file
+        FANCURVE_FILE=balanced-battery #set the fancurve file
         CPU_CONTROL_COMMAD=$(echo test)
 
     elif [ $POWER_PROFILE == balanced-performance ]; then

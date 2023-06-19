@@ -1,5 +1,5 @@
 [Path]
-Unit=legion-linux-restart.service
+Unit=legion-linux.service
 PathModified=/sys/firmware/acpi/platform_profile
 
 [Install]
