@@ -14,4 +14,5 @@ sudo mkdir -p /usr/share/icons/
 sudo cp legion_linux/legion_logo.png /usr/share/icons/legion_logo.png
 
 sudo cp legion_linux/legion_gui.policy /usr/share/polkit-1/actions/
+
 echo "Done"
