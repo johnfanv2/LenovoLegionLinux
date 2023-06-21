@@ -370,7 +370,7 @@ static const struct model_config model_kwcn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
@@ -2103,6 +2103,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
 				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
 				  sizeof(buffer));
+	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi buffer", DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer), true);
 	if (!err) {
 		struct WMIFanTableRead *fantable =
 			(struct WMIFanTableRead *)&buffer[0];
@@ -2120,6 +2121,46 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		fancurve->points[9].rpm1_raw = fantable->FSS9;
 		//fancurve->points[10].rpm1_raw = fantable->FSSA;
 	}
+	return err;
+}
+
+static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
+					const struct fancurve *fancurve)
+{
+	u8 buffer[0x18];
+	int err;
+
+	// Read like this in ACPI
+	// CreateByteField (Arg2, Zero, FSTM)
+	// CreateByteField (Arg2, One, FSID)
+	// CreateDWordField (Arg2, 0x02, FSTL)
+	// CreateByteField (Arg2, 0x06, FSS0)
+	// CreateByteField (Arg2, 0x08, FSS1)
+	// CreateByteField (Arg2, 0x0A, FSS2)
+	// CreateByteField (Arg2, 0x0C, FSS3)
+	// CreateByteField (Arg2, 0x0E, FSS4)
+	// CreateByteField (Arg2, 0x10, FSS5)
+	// CreateByteField (Arg2, 0x12, FSS6)
+	// CreateByteField (Arg2, 0x14, FSS7)
+	// CreateByteField (Arg2, 0x16, FSS8)
+	// CreateByteField (Arg2, 0x18, FSS9)
+
+	memset(buffer, 0, sizeof(buffer));
+	buffer[0x06] = fancurve->points[0].rpm1_raw;
+	buffer[0x08] = fancurve->points[1].rpm1_raw;
+	buffer[0x0A] = fancurve->points[2].rpm1_raw;
+	buffer[0x0C] = fancurve->points[3].rpm1_raw;
+	buffer[0x0E] = fancurve->points[4].rpm1_raw;
+	buffer[0x10] = fancurve->points[5].rpm1_raw;
+	buffer[0x12] = fancurve->points[6].rpm1_raw;
+	buffer[0x14] = fancurve->points[7].rpm1_raw;
+	buffer[0x16] = fancurve->points[8].rpm1_raw;
+	buffer[0x18] = fancurve->points[9].rpm1_raw;
+
+	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi write buffer", DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer), true);
+	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
+				  WMI_METHOD_ID_FAN_SET_TABLE, buffer,
+				  sizeof(buffer));
 	return err;
 }
 
@@ -2355,6 +2396,8 @@ static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 	case ACCESS_METHOD_EC2:
 		return ec_read_fancurve_ideapad(&priv->ecram, priv->conf,
 						fancurve);
+	case ACCESS_METHOD_WMI3:
+		return wmi_read_fancurve_custom(priv->conf, fancurve);
 	default:
 		pr_info("No access method for fancurve:%d\n",
 			priv->conf->access_method_fancurve);
@@ -2373,6 +2416,8 @@ static int write_fancurve(struct legion_private *priv,
 	case ACCESS_METHOD_EC2:
 		return ec_write_fancurve_ideapad(&priv->ecram, priv->conf,
 						 fancurve);
+	case ACCESS_METHOD_WMI3:
+		return wmi_write_fancurve_custom(priv->conf, fancurve);
 	default:
 		pr_info("No access method for fancurve:%d\n",
 			priv->conf->access_method_fancurve);
@@ -2984,12 +3029,12 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   priv->fancurve.current_point_i);
 	seq_printf(s, "EC fan curve points size: %ld\n", priv->fancurve.size);
 
-	seq_puts(s, "Current fan curve in hardware (embedded controller):\n");
+	seq_puts(s, "Current fan curve in hardware:\n");
 	fancurve_print_seqfile(&priv->fancurve, s);
 	seq_puts(s, "=====================\n");
 	mutex_unlock(&priv->fancurve_mutex);
 
-	seq_puts(s, "Current fan curve in hardware (WMI) (might be empty)\n");
+	seq_puts(s, "Current fan curve in hardware (WMI; might be empty)\n");
 	wmi_fancurve.size = 0;
 	err = wmi_read_fancurve_custom(priv->conf, &wmi_fancurve);
 	fancurve_print_seqfile(&wmi_fancurve, s);
