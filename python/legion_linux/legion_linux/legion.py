@@ -338,7 +338,7 @@ class AlwaysOnUSBChargingFeature(BoolFileFeature):
 
 class MaximumFanSpeedFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'fan_fullspeed'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'fan_fullspeed'))
 
 
 class PlatformProfileFeature(FileFeature):
