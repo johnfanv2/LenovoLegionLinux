@@ -729,6 +729,7 @@ class FanCurveIO(Feature):
         return self.exists() and os.path.exists(self.hwmon_path + self.minifancurve)
 
     def set_minifancuve(self, value):
+        log.info(f"Setting minifancurve to: {value}")
         file_path = self.hwmon_path + self.minifancurve
         outvalue = 1 if value else 0
         return self._write_file_or(file_path, outvalue)
@@ -748,6 +749,7 @@ class FanCurveIO(Feature):
             return write_file_with_legion_cli(self.name(), str(fan_curve.to_yaml()))
         
         try:
+            log.info(f"Try setting minifancurve by fancurve profile to: {fan_curve.enable_minifancurve}")
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
         except BaseException as error:
