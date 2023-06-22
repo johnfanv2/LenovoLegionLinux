@@ -13,9 +13,8 @@ from legion_linux.legion import LegionModelFacade
 import legion_linux.legion
 logging.basicConfig()
 log = logging.getLogger(legion_linux.legion.__name__)
-log.setLevel('ERROR')
-
-
+loglevels = ['NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']
+log.setLevel('ERROR') # will be set in main to user defined level after parsing
 class CLIFeatureCommand:
     def __init__(self, name: str, parser_subcommands, cmd_group: list, writeable: bool = True):
         self.name = name
@@ -359,10 +358,12 @@ def set_feature(legion: LegionModelFacade, name, value, **_) -> int:
             print(f)
         return -2
 
+
 def main():
     parser = argparse.ArgumentParser(description='Legion CLI')
     parser.add_argument(
         '--donotexpecthwmon', action='store_true', help='Do not check hwmon dir when not needed', default=False)
+    parser.add_argument('--loglevel', type=str, help=f'Level of log output', choices=loglevels, default='ERROR')
 
     subcommands = parser.add_subparsers(title='subcommands', dest='subcommand')
 
@@ -428,6 +429,8 @@ def main():
         'value', type=str, help='Value of feature')
     set_feature_cmd.set_defaults(
         func=set_feature)
+    
+    
 
     cmd_group = []
     MiniFancurveFeatureCommand(subcommands, None, cmd_group)
@@ -443,7 +446,10 @@ def main():
 
     # only add autocompletion if package is installed
     argcomplete.autocomplete(parser)
+
     args = parser.parse_args()
+    log.setLevel(args.loglevel)
+
     if args.subcommand is None:
         parser.print_help()
     else:
