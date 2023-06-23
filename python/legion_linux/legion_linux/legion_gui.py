@@ -9,8 +9,6 @@ import logging
 import random
 import time
 from typing import List, Optional
-import legion_linux.legion
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
@@ -18,7 +16,9 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLab
     QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
-sys.path.append(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, os.path.dirname(__file__) + "/..")
+import legion_linux.legion
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature
 # pylint: disable=too-few-public-methods
 
 
