@@ -9,7 +9,8 @@ import logging
 import random
 import time
 from typing import List, Optional
-
+import legion_linux.legion
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
@@ -18,8 +19,6 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLab
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.append(os.path.dirname(__file__) + "/..")
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature
-import legion_linux.legion
 # pylint: disable=too-few-public-methods
 
 
@@ -112,7 +111,8 @@ def log_ui_feature_action(widget, feature):
     if hasattr(widget, 'text'):
         text = widget.text()
     name = feature.name() if hasattr(feature, 'name') else "###"
-    log.info(f"Click on UI '{text}' element for {name}.")
+    log.info("Click on UI %s element for %s", text, name)
+
 
 class EnumFeatureController:
     widget: QComboBox
@@ -209,6 +209,7 @@ class BoolFeatureController:
     def update_view_from_feature(self):
         sync_checkbox_from_feature(self.checkbox, self.feature)
 
+
 class BoolFeatureTrayController:
     action: QAction
     feature: FileFeature
@@ -260,9 +261,11 @@ class BoolFeatureTrayController:
         except Exception as ex:
             log_error(ex)
 
+
 def set_dependent(controller1, controller2):
     controller1.dependent_controllers.append(controller2)
     controller2.dependent_controllers.append(controller1)
+
 
 class IntFeatureController:
     widget: QSpinBox
@@ -416,14 +419,21 @@ class LegionController:
     power_profiles_deamon_service_controller: BoolFeatureController
     lenovo_legion_laptop_support_service_controller: BoolFeatureController
 
+    # tray
+    batteryconservation_tray_controller:BoolFeatureTrayController
+    rapid_charging_tray_controller:BoolFeatureTrayController
+
     def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False):
-        self.model = LegionModelFacade(expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
+        self.model = LegionModelFacade(
+            expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
         self.view_fancurve = None
         self.view_otheroptions = None
         self.main_window = None
         self.log_view = None
         self.tray = None
-        self.show_root_dialog = (not self.model.is_root_user()) and (not use_legion_cli_to_write)
+        self.view_automation = None
+        self.show_root_dialog = (not self.model.is_root_user()) and (
+            not use_legion_cli_to_write)
 
     def init(self, read_from_hw=True):
         # connect logger output to GUI
@@ -514,8 +524,8 @@ class LegionController:
         self.ioport_light_controller = BoolFeatureController(
             self.view_otheroptions.ioport_light_check,
             self.model.ioport_light)
-        
-        #services and automation
+
+        # services and automation
         self.power_profiles_deamon_service_controller = BoolFeatureController(
             self.view_automation.power_profiles_deamon_service_check,
             self.model.power_profiles_deamon_service
@@ -524,7 +534,6 @@ class LegionController:
             self.view_automation.lenovo_legion_laptop_support_service_check,
             self.model.lenovo_legion_laptop_support_service
         )
-        
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -552,17 +561,23 @@ class LegionController:
 
     def init_tray(self):
         # tray/other
-        self.batteryconservation_tray_controller = BoolFeatureTrayController(self.tray.batteryconservation_action, self.model.battery_conservation)
-        set_dependent(self.batteryconservation_controller, self.batteryconservation_tray_controller)
-        set_dependent(self.rapid_charging_controller, self.batteryconservation_tray_controller)
+        self.batteryconservation_tray_controller = BoolFeatureTrayController(
+            self.tray.batteryconservation_action, self.model.battery_conservation)
+        set_dependent(self.batteryconservation_controller,
+                      self.batteryconservation_tray_controller)
+        set_dependent(self.rapid_charging_controller,
+                      self.batteryconservation_tray_controller)
         self.batteryconservation_tray_controller.update_view_from_feature()
 
-        self.rapid_charging_tray_controller = BoolFeatureTrayController(self.tray.rapid_charging_action, self.model.rapid_charging)
-        set_dependent(self.batteryconservation_controller, self.rapid_charging_tray_controller)
-        set_dependent(self.rapid_charging_controller, self.rapid_charging_tray_controller)
-        set_dependent(self.batteryconservation_tray_controller, self.rapid_charging_tray_controller)
+        self.rapid_charging_tray_controller = BoolFeatureTrayController(
+            self.tray.rapid_charging_action, self.model.rapid_charging)
+        set_dependent(self.batteryconservation_controller,
+                      self.rapid_charging_tray_controller)
+        set_dependent(self.rapid_charging_controller,
+                      self.rapid_charging_tray_controller)
+        set_dependent(self.batteryconservation_tray_controller,
+                      self.rapid_charging_tray_controller)
         self.rapid_charging_tray_controller.update_view_from_feature()
-        
 
     def update_power_gui(self, update_bounds=False):
         self.power_mode_controller.update_view_from_feature(
@@ -603,7 +618,7 @@ class LegionController:
         self.view_fancurve.set_fancurve(self.model.fan_curve,
                                         self.model.fancurve_io.has_minifancurve(),
                                         self.model.fancurve_io.exists())
-        
+
     def update_automation(self):
         self.power_profiles_deamon_service_controller.update_view_from_feature()
         self.lenovo_legion_laptop_support_service_controller.update_view_from_feature()
@@ -1010,16 +1025,17 @@ class AutomationTab(QWidget):
 
         self.power_profiles_deamon_service_check = QCheckBox(
             "Power Profiles Deamon Enabled")
-        self.options_layout.addWidget(self.power_profiles_deamon_service_check, 0)
+        self.options_layout.addWidget(
+            self.power_profiles_deamon_service_check, 0)
 
         self.lenovo_legion_laptop_support_service_check = QCheckBox(
             "Lenovo Legion Laptop Support Deamon Enabled")
-        self.options_layout.addWidget(self.lenovo_legion_laptop_support_service_check, 1)
+        self.options_layout.addWidget(
+            self.lenovo_legion_laptop_support_service_check, 1)
 
         self.note_label = QLabel(
             "These are experimental features.\n *LLL deamon is fully working.")
         self.options_layout.addWidget(self.note_label, 3)
-
 
         self.note_label2 = QLabel("")
 
@@ -1046,11 +1062,16 @@ class LogTab(QWidget):
 
 # pylint: disable=too-few-public-methods
 
+
 def open_web_link():
-    QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl(
+        "https://github.com/johnfanv2/LenovoLegionLinux"))
+
 
 def open_star_link():
-    QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl(
+        "https://github.com/johnfanv2/LenovoLegionLinux"))
+
 
 class AboutTab(QWidget):
     def __init__(self, _):
@@ -1058,7 +1079,9 @@ class AboutTab(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        about_label = QLabel('Help giving a star to the github repo <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>')
+        # pylint: disable=line-too-long
+        about_label = QLabel(
+            'Help giving a star to the github repo <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>')
         about_label.setOpenExternalLinks(True)
         about_label.setAlignment(Qt.AlignCenter)
         layout = QVBoxLayout()
@@ -1066,6 +1089,8 @@ class AboutTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
+
+
 class Tabs(QTabWidget):
     def __init__(self, controller):
         super().__init__()
@@ -1085,9 +1110,19 @@ class Tabs(QTabWidget):
         self.addTab(self.other_options_tab, "Other Options")
         self.addTab(self.automation_tab, "Automation")
         self.addTab(self.log_tab, "Log")
-        self.addTab(self.about_tab, "About")        
+        self.addTab(self.about_tab, "About")
+
+
+class QClickLabel(QLabel):
+    clicked = QtCore.pyqtSignal()
+
+    #pylint: disable=invalid-name
+    def mousePressEvent(self, _):
+        self.clicked.emit()
 
 # pylint: disable=too-few-public-methods
+
+
 class MainWindow(QMainWindow):
     def __init__(self, controller):
         super().__init__()
@@ -1096,14 +1131,15 @@ class MainWindow(QMainWindow):
         self.controller.main_window = self
 
         # header message
-        self.header_msg = QLabel()
+        self.header_msg = QClickLabel()
+        # self.header_msg.clicked.connect(open_star_link)
         self.set_random_header_msg()
 
         # tabs
         self.tabs = Tabs(controller)
 
         # main layout
-        self.main_layout = QVBoxLayout()    
+        self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.header_msg)
         self.main_layout.addWidget(self.tabs)
 
@@ -1120,12 +1156,13 @@ class MainWindow(QMainWindow):
         # timer to automatically close window during testing in CI
         self.close_timer = QTimer()
 
-    def set_header_msg(self, text:str):
+    def set_header_msg(self, text: str):
         self.header_msg.setText(text)
         self.header_msg.setOpenExternalLinks(True)
         self.header_msg.setAlignment(Qt.AlignCenter)
 
     def set_random_header_msg(self):
+        # pylint: disable=line-too-long
         msgs = [
             'Show your appreciation for this tool by giving a star on github <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Help by giving a star to the github repository <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
@@ -1149,8 +1186,9 @@ class MainWindow(QMainWindow):
         ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
         self.activateWindow()
 
+
 class LegionTray:
-    def __init__(self, icon, app, main_window:MainWindow):
+    def __init__(self, icon, app, main_window: MainWindow):
         self.tray = QSystemTrayIcon(icon, main_window)
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
@@ -1181,7 +1219,8 @@ class LegionTray:
         self.menu.addAction(self.rapid_charging_action)
         # ---
         self.menu.addSeparator()
-        self.star_action = QAction("Help giving a star to the github repo (click here)")
+        self.star_action = QAction(
+            "Help giving a star to the github repo (click here)")
         self.star_action.triggered.connect(open_star_link)
         self.menu.addAction(self.star_action)
 
@@ -1195,11 +1234,11 @@ class LegionTray:
     def hide_to_tray(self):
         self.main_window.setWindowFlag(QtCore.Qt.Tool)
 
+
 def get_ressource_path(name):
     path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), name)
     return path
-
 
 
 def main():
@@ -1212,7 +1251,8 @@ def main():
     icon_path = get_ressource_path('legion_logo.png')
     icon = QtGui.QIcon(icon_path)
 
-    contr = LegionController(expect_hwmon=not do_not_excpect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
+    contr = LegionController(expect_hwmon=not do_not_excpect_hwmon,
+                             use_legion_cli_to_write=use_legion_cli_to_write)
     main_window = MainWindow(contr)
     main_window.setWindowTitle("LenovoLegionLinux")
     main_window.setWindowIcon(icon)

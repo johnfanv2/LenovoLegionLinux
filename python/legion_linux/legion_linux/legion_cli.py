@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 # pylint: disable=wrong-import-order
+import legion_linux.legion
+from legion_linux.legion import LegionModelFacade
 import argcomplete
 import argparse
 import logging
@@ -9,12 +11,13 @@ import os
 # Make it possible to run without installationimport
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
-from legion_linux.legion import LegionModelFacade
-import legion_linux.legion
 logging.basicConfig()
 log = logging.getLogger(legion_linux.legion.__name__)
 loglevels = ['NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']
-log.setLevel('ERROR') # will be set in main to user defined level after parsing
+# will be set in main to user defined level after parsing
+log.setLevel('ERROR')
+
+
 class CLIFeatureCommand:
     def __init__(self, name: str, parser_subcommands, cmd_group: list, writeable: bool = True):
         self.name = name
@@ -272,7 +275,8 @@ class RapidCharging(CLIFeatureCommand):
     def command_disable(self, **_) -> int:
         self.model.rapid_charging.set(False)
         return 0
-    
+
+
 class HybridMode(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("hybrid-mode", parser_subcommands, cmd_group)
@@ -349,21 +353,21 @@ def monitor(legion: LegionModelFacade, period=None, **_) -> int:
     legion.run_monitors(period_s=period)
     return 0
 
+
 def set_feature(legion: LegionModelFacade, name, value, **_) -> int:
     if legion.set_feature_to_str_value(name, value):
         return 0
-    else:
-        print("Feature not found.")
-        for f in legion.get_all_features():
-            print(f)
-        return -2
+    print("Feature not found.")
+    for feat in legion.get_all_features():
+        print(feat)
+    return -2
 
-
-def main():
+def create_argparser()->argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Legion CLI')
     parser.add_argument(
         '--donotexpecthwmon', action='store_true', help='Do not check hwmon dir when not needed', default=False)
-    parser.add_argument('--loglevel', type=str, help=f'Level of log output', choices=loglevels, default='ERROR')
+    parser.add_argument('--loglevel', type=str,
+                        help='Level of log output', choices=loglevels, default='ERROR')
 
     subcommands = parser.add_subparsers(title='subcommands', dest='subcommand')
 
@@ -420,7 +424,7 @@ def main():
         'period', type=int, help='Monitoring period in seconds', default=60)
     monitor_cmd.set_defaults(
         func=monitor)
-    
+
     set_feature_cmd = subcommands.add_parser(
         'set-feature', help='Set feature')
     set_feature_cmd.add_argument(
@@ -429,8 +433,10 @@ def main():
         'value', type=str, help='Value of feature')
     set_feature_cmd.set_defaults(
         func=set_feature)
-    
-    
+    return parser, subcommands
+
+def main():
+    parser, subcommands = create_argparser()
 
     cmd_group = []
     MiniFancurveFeatureCommand(subcommands, None, cmd_group)

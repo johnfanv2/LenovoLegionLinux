@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 import os
 import glob
 from dataclasses import asdict, dataclass
@@ -15,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 DEFAULT_ENCODING = "utf8"
-DEFAULT_CONFIG_DIR=os.path.join(os.getenv("HOME"), ".config/legion_linux")
+DEFAULT_CONFIG_DIR = os.path.join(os.getenv("HOME"), ".config/legion_linux")
 LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
 
@@ -63,7 +64,8 @@ class FanCurve:
         data = yaml.load(yaml_str, Loader=yaml.SafeLoader)
         name = data['name']
         entries = [FanCurveEntry(**entry) for entry in data['entries']]
-        enable_minifancurve = bool(data['enable_minifancurve']) if 'enable_minifancurve' in data else True
+        enable_minifancurve = bool(
+            data['enable_minifancurve']) if 'enable_minifancurve' in data else True
         fan_curve = cls(name, entries, enable_minifancurve)
         return fan_curve
 
@@ -87,6 +89,7 @@ class NamedValue:
         self.value = value
         self.name = name
 
+
 def write_file_with_legion_cli(name, value):
     cmd_list = ['pkexec', 'legion_cli', 'set-feature', name, str(value)]
     log.info('FileFeature %s execute "%s"', name, cmd_list)
@@ -95,20 +98,21 @@ def write_file_with_legion_cli(name, value):
             stdout, _ = process.communicate(timeout=None)
             out_str = stdout.decode(DEFAULT_ENCODING)
             returncode = process.returncode
-            log.info('FileFeature %s executed with code %d: %s', name, returncode, out_str)
+            log.info('FileFeature %s executed with code %d: %s',
+                     name, returncode, out_str)
     except IOError as err:
         log.error('FileFeature %s executed with error %s', name, str(err))
         log.error(get_dmesg(only_tail=True, filter_log=False))
         raise err
-    
-#def write_file_with_legion_cli_rpc(name, value):
+
+# def write_file_with_legion_cli_rpc(name, value):
 
 
 class Feature:
-    features : List['FileFeature'] = []
-    default_use_legion_cli_to_write : bool = False
+    features: List['FileFeature'] = []
+    default_use_legion_cli_to_write: bool = False
 
-    use_legion_cli_to_write : bool
+    use_legion_cli_to_write: bool
 
     def __init__(self) -> None:
         Feature.features.append(self)
@@ -116,6 +120,8 @@ class Feature:
 
     def name(self):
         return type(self).__name__
+
+
 class FileFeature(Feature):
     pattern: str
     filename: str
@@ -124,7 +130,8 @@ class FileFeature(Feature):
         super().__init__()
         self.pattern = pattern
         self.filename = FileFeature._find_by_file_pattern(pattern)
-        log.info('Feature %s with pattern %s and path %s', self.name(), pattern, self.filename)
+        log.info('Feature %s with pattern %s and path %s',
+                 self.name(), pattern, self.filename)
         if not self.exists():
             log.warning('Feature %s exist not. exits: %d',
                         self.name(), self.exists())
@@ -145,13 +152,13 @@ class FileFeature(Feature):
 
     def _read_file_int(self, file_path) -> int:
         return int(self._read_file_str(file_path))
-    
-    def set_str_value(self, value:str):
+
+    def set_str_value(self, value: str):
         return self._write_file(self.filename, value)
 
     def _write_file(self, file_path, value):
         if self.use_legion_cli_to_write:
-            return write_file_with_legion_cli(self.name(), value)
+            write_file_with_legion_cli(self.name(), value)
         log.info('Feature %s writing: %s', self.name(), str(value))
         if not self.exists():
             log.error('Feature %s writing to non exisitng', self.name())
@@ -162,21 +169,19 @@ class FileFeature(Feature):
             log.error('Feature %s writing error %s', self.name(), str(err))
             log.error(get_dmesg(only_tail=True, filter_log=False))
             raise err
-           
 
     @staticmethod
     def _find_by_file_pattern(pattern):
         if isinstance(pattern, list):
-            matches_by_pattern = [ list(glob.glob(p)) for p in pattern ]
+            matches_by_pattern = [list(glob.glob(p)) for p in pattern]
             all_matches = sum(matches_by_pattern, [])
             if all_matches:
                 return all_matches[0]
-            return None
         else:
             matches = glob.glob(pattern)
             if matches:
                 return matches[0]
-            return None
+        return None
 
     # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
@@ -196,7 +201,7 @@ class FileFeature(Feature):
 
 class StrFileFeature(FileFeature):
 
-    def set(self, value:str):
+    def set(self, value: str):
         return self._write_file(self.filename, value)
 
     def get(self):
@@ -205,7 +210,7 @@ class StrFileFeature(FileFeature):
 
 class BoolFileFeature(FileFeature):
 
-    def set(self, value:bool):
+    def set(self, value: bool):
         value = bool(value)
         outvalue = 1 if value else 0
         return self._write_file(self.filename, outvalue)
@@ -276,7 +281,7 @@ class BatteryConservation(BoolFileFeature):
             self.rapidcharging_feature.set(False)
         return super().set(value)
 
-    def set_if_not_set(self, value:bool)->None:
+    def set_if_not_set(self, value: bool) -> None:
         if value is not self.get():
             self.set(value)
         print(f"Already has value {value} - skip setting again.")
@@ -308,7 +313,8 @@ class WinkeyFeature(BoolFileFeature):
 
 class TouchpadFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__([os.path.join(IDEAPAD_SYS_BASEPATH, 'touchpad'), os.path.join(LEGION_SYS_BASEPATH, 'touchpad')])
+        super().__init__([os.path.join(IDEAPAD_SYS_BASEPATH, 'touchpad'), os.path.join(
+            LEGION_SYS_BASEPATH, 'touchpad')])
 
 
 class CameraPowerFeature(BoolFileFeature):
@@ -468,6 +474,7 @@ class IOPortLight(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/class/leds/platform::ioport/brightness")
 
+
 class NVIDIAGPUIsRunning(BoolFileFeature):
     def __init__(self):
         super().__init__('/sys/bus/pci/devices/0000:01:00.0/power/runtime_status')
@@ -479,8 +486,8 @@ class NVIDIAGPUIsRunning(BoolFileFeature):
         if self.exists():
             value = self._read_file_str(self.filename)
             return value != "suspended"
-        else:
-            return False
+        return False
+
 
 class CommandFeature:
     _exists: bool
@@ -500,10 +507,12 @@ class CommandFeature:
                 stdout, _ = process.communicate(timeout=timeout)
                 out_str = stdout.decode(DEFAULT_ENCODING)
                 returncode = process.returncode
-                log.info('CommandFeature %s reading with code %d: %s', self.name(), returncode, out_str)
+                log.info('CommandFeature %s reading with code %d: %s',
+                         self.name(), returncode, out_str)
                 return out_str, returncode
         except IOError as err:
-            log.error('CommandFeature %s reading error %s', self.name(), str(err))
+            log.error('CommandFeature %s reading error %s',
+                      self.name(), str(err))
             log.error(get_dmesg(only_tail=True, filter_log=False))
             raise err
 
@@ -522,9 +531,17 @@ class CommandFeature:
 
     def get(self):
         raise NotImplementedError()
-    
+
+
 class BoolCommandFeature(CommandFeature):
-    pass
+
+    def set(self, value):
+        raise NotImplementedError()
+
+    def get(self)->bool:
+        raise NotImplementedError()
+
+
 
 class SystemDServiceFeature(BoolCommandFeature):
     def __init__(self, servicename):
@@ -541,7 +558,7 @@ class SystemDServiceFeature(BoolCommandFeature):
         _, returncode = self._exec_cmd(self.status_cmd)
         return returncode != 4
 
-    def set(self, value:bool):
+    def set(self, value: bool):
         if value:
             self._exec_cmd(self.start_cmd)
             self._exec_cmd(self.enable_cmd)
@@ -549,20 +566,22 @@ class SystemDServiceFeature(BoolCommandFeature):
             self._exec_cmd(self.stop_cmd)
             self._exec_cmd(self.disable_cmd)
 
-    def get(self)->bool:
+    def get(self) -> bool:
         if self.exists():
             _, returncode = self._exec_cmd(self.read_cmd)
             return returncode == 0
-        else:
-            return False
+        return False
+
 
 class PowerProfilesDeamonService(SystemDServiceFeature):
     def __init__(self):
         super().__init__('power-profiles-daemon')
 
+
 class LenovoLegionLaptopSuppoerService(SystemDServiceFeature):
     def __init__(self):
-        super().__init__('legion-linux.service legion-linux.path') 
+        super().__init__('legion-linux.service legion-linux.path')
+
 
 class FanCurveIO(Feature):
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
@@ -729,7 +748,7 @@ class FanCurveIO(Feature):
         return self.exists() and os.path.exists(self.hwmon_path + self.minifancurve)
 
     def set_minifancuve(self, value):
-        log.info(f"Setting minifancurve to: {value}")
+        log.info("Setting minifancurve to: %s", str(value))
         file_path = self.hwmon_path + self.minifancurve
         outvalue = 1 if value else 0
         return self._write_file_or(file_path, outvalue)
@@ -738,18 +757,19 @@ class FanCurveIO(Feature):
         file_path = self.hwmon_path + self.minifancurve
         invalue = self._read_file_or(file_path, False)
         return invalue != 0
-    
-    def set_str_value(self, value:str):
+
+    def set_str_value(self, value: str):
         fancurve = FanCurve.from_yaml(value)
         self.write_fan_curve(fancurve)
 
-    def write_fan_curve(self, fan_curve: FanCurve, set_minifancurve=False):
-        """Writes a fan curve object to the file system"""
+    def write_fan_curve(self, fan_curve: FanCurve, _=False):
+        """Writes a fan curve object to the file system and sets minifancurve if enabled"""
         if self.use_legion_cli_to_write:
-            return write_file_with_legion_cli(self.name(), str(fan_curve.to_yaml()))
-        
+            write_file_with_legion_cli(self.name(), str(fan_curve.to_yaml()))
+
         try:
-            log.info(f"Try setting minifancurve by fancurve profile to: {fan_curve.enable_minifancurve}")
+            log.info(
+                "Try setting minifancurve by fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
         except BaseException as error:
@@ -868,46 +888,51 @@ class CustomConservationController:
             "Keeping conservation mode because battery" +
             f" {battery_cap} is within bounds {self.lower_limit} and {self.upper_limit}")
         return self.battery_conservation.get()
-    
+
+
 @dataclass
 class DiagnosticMsg:
-    value:bool = None
-    has_value:bool = True
-    msg:str = ''
+    value: bool = None
+    has_value: bool = True
+    msg: str = ''
     # filter by setting attribute so current message could still be displayed
-    filter_do_output:bool = True
+    filter_do_output: bool = True
+
 
 class DiagFilter:
 
-    def predicate(self, diag_msg:DiagnosticMsg):
-        raise NotImplemented()
+    def predicate(self, diag_msg: DiagnosticMsg):
+        raise NotImplementedError()
 
-    def apply_filter(self, diag_msg:DiagnosticMsg)->DiagnosticMsg:
+    def apply_filter(self, diag_msg: DiagnosticMsg) -> DiagnosticMsg:
         if diag_msg.has_value and diag_msg.filter_do_output:
-            diag_msg.filter_do_output = diag_msg.filter_do_output and self.predicate(diag_msg)
+            diag_msg.filter_do_output = diag_msg.filter_do_output and self.predicate(
+                diag_msg)
         return diag_msg
 
+
 class FilterNotChanged(DiagFilter):
-    last_value:Optional[bool]
+    last_value: Optional[bool]
 
     def __init__(self) -> None:
         super().__init__()
         self.last_value = None
 
-    def predicate(self, diag_msg:DiagnosticMsg)->bool:
+    def predicate(self, diag_msg: DiagnosticMsg) -> bool:
         out = diag_msg.value != self.last_value
         self.last_value = diag_msg.value
         return out
-    
-class FilterAtMostEvery(DiagFilter):
-    last_output_time:Optional[float]
-    period_s:float
 
-    def __init__(self, period_s:float):
+
+class FilterAtMostEvery(DiagFilter):
+    last_output_time: Optional[float]
+    period_s: float
+
+    def __init__(self, period_s: float):
         self.period_s = period_s
         self.last_output_time = None
 
-    def predicate(self, diag_msg:DiagnosticMsg)->bool:
+    def predicate(self, diag_msg: DiagnosticMsg) -> bool:
         cur_time = time.time()
         if self.last_output_time is None:
             do_output = True
@@ -916,30 +941,37 @@ class FilterAtMostEvery(DiagFilter):
         if do_output:
             self.last_output_time = cur_time
         return do_output
-    
-class Monitor:
-    inputs:List[FileFeature]
 
-    def __init__(self, inputs:List[FileFeature] = []) -> None:
-        self.inputs = list(inputs) # copy list
+
+class Monitor:
+    inputs: List[FileFeature]
+    period_s: float
+
+    def __init__(self, inputs: List[FileFeature] = None) -> None:
+        if inputs is None:
+            inputs = []
+        self.inputs = list(inputs)  # copy list
+        self.period_s = 1.0
 
     def run(self) -> List[DiagnosticMsg]:
-        raise NotImplemented()
-    
-    def get_inputs(self)->List[FileFeature]:
-        return self.inputs
-        
-    def add_input(self, input:FileFeature):
-        self.inputs.append(input)
-class NVIDIAGPUMonitor(Monitor):
-    gpu_is_running:NVIDIAGPUIsRunning
-    filter:DiagFilter
+        raise NotImplementedError()
 
-    def __init__(self, gpu_is_running:NVIDIAGPUIsRunning) -> None:
+    def get_inputs(self) -> List[FileFeature]:
+        return self.inputs
+
+    def add_input(self, new_input: FileFeature):
+        self.inputs.append(new_input)
+
+
+class NVIDIAGPUMonitor(Monitor):
+    gpu_is_running: NVIDIAGPUIsRunning
+    filter: DiagFilter
+
+    def __init__(self, gpu_is_running: NVIDIAGPUIsRunning) -> None:
         super().__init__([gpu_is_running])
         self.gpu_is_running = gpu_is_running
         self.filter = FilterNotChanged()
-    
+
     def run(self) -> List[DiagnosticMsg]:
         is_gpu_running = self.gpu_is_running.get()
         gpu_running_diag = DiagnosticMsg()
@@ -952,18 +984,19 @@ class NVIDIAGPUMonitor(Monitor):
         gpu_running_diag = self.filter.apply_filter(gpu_running_diag)
 
         return [gpu_running_diag]
-    
-class NVIDIAGPUOnBatteryMonitor(Monitor):
-    gpu_is_running:NVIDIAGPUIsRunning
-    gpu_is_on_power_supply:IsOnPowerSupplyFeature
-    filter:DiagFilter
 
-    def __init__(self, gpu_is_running:NVIDIAGPUIsRunning, is_on_power_supply:IsOnPowerSupplyFeature) -> None:
+
+class NVIDIAGPUOnBatteryMonitor(Monitor):
+    gpu_is_running: NVIDIAGPUIsRunning
+    gpu_is_on_power_supply: IsOnPowerSupplyFeature
+    filter: DiagFilter
+
+    def __init__(self, gpu_is_running: NVIDIAGPUIsRunning, is_on_power_supply: IsOnPowerSupplyFeature) -> None:
         super().__init__([gpu_is_running, is_on_power_supply])
         self.gpu_is_running = gpu_is_running
         self.is_on_power_supply = is_on_power_supply
         self.filter = FilterAtMostEvery(period_s=10)
-    
+
     def run(self) -> List[DiagnosticMsg]:
         is_gpu_running = self.gpu_is_running.get()
         is_on_battery = not self.is_on_power_supply.get()
@@ -979,20 +1012,19 @@ class NVIDIAGPUOnBatteryMonitor(Monitor):
             diag = self.filter.apply_filter(diag)
 
         return [diag]
-    
 
 
 class NVIDIAGPUOnQuietMode(Monitor):
-    gpu_is_running:NVIDIAGPUIsRunning
-    platform_profile:PlatformProfileFeature
-    filter:DiagFilter
+    gpu_is_running: NVIDIAGPUIsRunning
+    platform_profile: PlatformProfileFeature
+    filter: DiagFilter
 
-    def __init__(self, gpu_is_running:NVIDIAGPUIsRunning, platform_profile:PlatformProfileFeature) -> None:
+    def __init__(self, gpu_is_running: NVIDIAGPUIsRunning, platform_profile: PlatformProfileFeature) -> None:
         super().__init__([gpu_is_running, platform_profile])
         self.gpu_is_running = gpu_is_running
         self.platform_profile = platform_profile
         self.filter = FilterAtMostEvery(period_s=60*10)
-    
+
     def run(self) -> List[DiagnosticMsg]:
         is_gpu_running = self.gpu_is_running.get()
         is_quiet_mode = self.platform_profile.get() == "quiet"
@@ -1008,7 +1040,7 @@ class NVIDIAGPUOnQuietMode(Monitor):
             diag = self.filter.apply_filter(diag)
 
         return [diag]
-    
+
 # class INotifyMonitor:
 
 #     def __init__(self):
@@ -1016,7 +1048,7 @@ class NVIDIAGPUOnQuietMode(Monitor):
 #         self.monitors_by_featurefilename = {}
 #         self.inot = inotify.adapters.Inotify()
 
-    
+
 #     def add_monitor(self, monitor:Monitor):
 #         for file_feature in monitor.get_inputs():
 #             filename = file_feature.filename
@@ -1050,7 +1082,8 @@ class NVIDIAGPUOnQuietMode(Monitor):
 
 
 class NotifcationSender:
-    disable_notifications:bool
+    disable_notifications: bool
+
     def __init__(self):
         self.disable_notifications = False
 
@@ -1058,16 +1091,18 @@ class NotifcationSender:
         return self._send_notification(title, msg)
 
     def _send_notification(self, title, msg):
-        raise NotImplemented()
-    
+        raise NotImplementedError()
+
+
 class SystemNotificationSender(NotifcationSender):
     def _send_notification(self, _, msg):
-        subprocess.Popen(['notify-send', msg])
-
+        with subprocess.Popen(['notify-send', msg]) as _:
+            pass
 
 
 class LegionModelFacade:
     monitors: List[Monitor]
+
     def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False, config_dir=DEFAULT_CONFIG_DIR):
         Feature.default_use_legion_cli_to_write = use_legion_cli_to_write
         log.info(get_dmesg())
@@ -1122,24 +1157,28 @@ class LegionModelFacade:
         # monitors
         self.nvidia_gpu_running = NVIDIAGPUIsRunning()
         self.nvidia_gpu_monitor = NVIDIAGPUMonitor(self.nvidia_gpu_running)
-        self.nvidia_battery_monitor = NVIDIAGPUOnBatteryMonitor(self.nvidia_gpu_running, self.on_power_supply)
-        self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(self.nvidia_gpu_running, self.platform_profile)
-        self.monitors = [self.nvidia_gpu_monitor, self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
-
-
-    def set_feature_to_str_value(self, name:str, value:str) -> bool:
-        for f in Feature.features:
-            if f.name() == name:
-                f.set_str_value(value)
-                return True
-        return False
-    
-    def get_all_features(self):
-        return [f.name() for f in Feature.features]
+        self.nvidia_battery_monitor = NVIDIAGPUOnBatteryMonitor(
+            self.nvidia_gpu_running, self.on_power_supply)
+        self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(
+            self.nvidia_gpu_running, self.platform_profile)
+        self.monitors = [self.nvidia_gpu_monitor,
+                         self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
 
     @staticmethod
     def is_root_user():
         return os.geteuid() == 0
+
+    @staticmethod
+    def set_feature_to_str_value(name: str, value: str) -> bool:
+        for feat in Feature.features:
+            if feat.name() == name:
+                feat.set_str_value(value)
+                return True
+        return False
+
+    @staticmethod
+    def get_all_features():
+        return [feat.name() for feat in Feature.features]
 
     def set_lockfancontroller(self, value):
         self.lockfancontroller.set(value)
@@ -1199,19 +1238,20 @@ class LegionModelFacade:
         if upper_limit is not None:
             self.battery_custom_conservation_controller.upper_limit = upper_limit
         return self.battery_custom_conservation_controller.run()
-    
+
     def run_monitors(self, period_s):
         notification_sender = SystemNotificationSender()
         period_s = period_s or self.nvidia_gpu_monitor.period_s
         try:
             while True:
-                print(".", flush=True, end = '')
-                diag_msgs : List[DiagnosticMsg] = [] 
+                print(".", flush=True, end='')
+                diag_msgs: List[DiagnosticMsg] = []
                 for mon in self.monitors:
                     try:
                         diag_msgs = diag_msgs + mon.run()
-                    except Exception as e:
-                        log.error(str(e))
+                    # pylint: disable=broad-except
+                    except Exception as err:
+                        log.error(str(err))
                 for msg in diag_msgs:
                     if msg.has_value and msg.filter_do_output:
                         print('')
