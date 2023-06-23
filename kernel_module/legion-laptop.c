@@ -2181,7 +2181,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 					const struct fancurve *fancurve)
 {
-	u8 buffer[0x18];
+	u8 buffer[0x20];
 	int err;
 
 	// Read like this in ACPI
