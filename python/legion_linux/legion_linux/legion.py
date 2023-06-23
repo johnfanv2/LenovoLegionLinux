@@ -606,10 +606,11 @@ class FanCurveIO(Feature):
             raise Exception("hwmon dir not found")
 
     def exists(self):
-        has_hwmon_path = self.hwmon_path is not None
-        file_path = self.hwmon_path + self.pwm1_fan_speed.format(1)
-        has_point1 = os.path.exists(file_path)
-        return has_hwmon_path and has_point1
+        if self.hwmon_path is not None:
+            file_path = self.hwmon_path + self.pwm1_fan_speed.format(1)
+            has_point1 = os.path.exists(file_path)
+            return has_point1
+        return False
 
     def _find_hwmon_dir(self):
         matches = glob.glob(self.hwmon_dir_pattern)
