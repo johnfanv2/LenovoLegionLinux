@@ -6,12 +6,13 @@ import os
 import os.path
 import traceback
 import logging
+import random
 import time
 from typing import List, Optional
 
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QTabWidget, QWidget, QLabel, \
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
 # Make it possible to run without installation
@@ -425,6 +426,9 @@ class LegionController:
         self.show_root_dialog = (not self.model.is_root_user()) and (not use_legion_cli_to_write)
 
     def init(self, read_from_hw=True):
+        # connect logger output to GUI
+        qt_handler.qt_obj.logWritten.connect(self.on_new_log_msg)
+
         # fan
         self.lockfancontroller_controller = BoolFeatureController(
             self.view_fancurve.lockfancontroller_check,
@@ -1028,8 +1032,9 @@ class AutomationTab(QWidget):
 
 
 class LogTab(QWidget):
-    def __init__(self):
+    def __init__(self, controller):
         super().__init__()
+        controller.log_view = self
         self.init_ui()
 
     def init_ui(self):
@@ -1048,7 +1053,7 @@ def open_star_link():
     QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
 
 class AboutTab(QWidget):
-    def __init__(self):
+    def __init__(self, _):
         super().__init__()
         self.init_ui()
 
@@ -1061,27 +1066,74 @@ class AboutTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
-class MainWindow(QTabWidget):
+class Tabs(QTabWidget):
     def __init__(self, controller):
         super().__init__()
+        # setup controller
         self.controller = controller
-        self.controller.main_window = self
+        self.controller.tabs = self
+
+        # setup tabs
         self.fan_curve_tab = FanCurveTab(controller)
         self.other_options_tab = OtherOptionsTab(controller)
         self.automation_tab = AutomationTab(controller)
-        self.log_tab = LogTab()
-        controller.log_view = self.log_tab
-        self.about_tab = AboutTab()
-        self.close_timer = QTimer()
+        self.log_tab = LogTab(controller)
+        self.about_tab = AboutTab(controller)
+
+        # tabs
         self.addTab(self.fan_curve_tab, "Fan Curve")
         self.addTab(self.other_options_tab, "Other Options")
         self.addTab(self.automation_tab, "Automation")
         self.addTab(self.log_tab, "Log")
-        self.addTab(self.about_tab, "About")
-        qt_handler.qt_obj.logWritten.connect(self.controller.on_new_log_msg)
+        self.addTab(self.about_tab, "About")        
+
+# pylint: disable=too-few-public-methods
+class MainWindow(QMainWindow):
+    def __init__(self, controller):
+        super().__init__()
+        # setup controller
+        self.controller = controller
+        self.controller.main_window = self
+
+        # header message
+        self.header_msg = QLabel()
+        self.set_random_header_msg()
+
+        # tabs
+        self.tabs = Tabs(controller)
+
+        # main layout
+        self.main_layout = QVBoxLayout()    
+        self.main_layout.addWidget(self.header_msg)
+        self.main_layout.addWidget(self.tabs)
+
+        # use main layout for main window
+        self.main_widget = QWidget()
+        self.main_widget.setLayout(self.main_layout)
+        self.setCentralWidget(self.main_widget)
+
+        # display of root warning message
         self.show_root_dialog = False
         self.onstart_timer = QtCore.QTimer()
         self.onstart_timer.singleShot(0, self.on_start)
+
+        # timer to automatically close window during testing in CI
+        self.close_timer = QTimer()
+
+    def set_header_msg(self, text:str):
+        self.header_msg.setText(text)
+        self.header_msg.setOpenExternalLinks(True)
+        self.header_msg.setAlignment(Qt.AlignCenter)
+
+    def set_random_header_msg(self):
+        msgs = [
+            'Show your appreciation for this tool by giving a star on github <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
+            'Help by giving a star to the github repository <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
+            'Please give a star on github to support my goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a'
+            'Please give star on github the repository if this is useful or might be useful in the future <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
+            'Please give a star on github to show that this it useful to me and the Linux community,<br> so hopefully the driver can be merged to the Linux kernel <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>'
+        ]
+        self.set_header_msg(random.choice(msgs))
 
     def on_start(self):
         if self.show_root_dialog:
