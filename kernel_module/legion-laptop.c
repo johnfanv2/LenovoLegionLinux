@@ -2577,20 +2577,18 @@ ssize_t ec_write_fanfullspeed(struct ecram *ecram,
 }
 
 
-// ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
-// {
-// 	// TODO: use enums or function pointers?
-// 	switch (priv->conf->access_method_fanfullspeed) {
-// 	case ACCESS_METHOD_WMI:
-// 		return wmi_read_temperature_gz(sensor_id, temperature);
-// 	case ACCESS_METHOD_WMI2:
-// 		return wmi_read_temperature(sensor_id, temperature);
-// 	default:
-// 		pr_info("No access method for fan full speed: %d\n",
-// 			priv->conf->access_method_fanfullspeed);
-// 		return -EINVAL;
-// 	}
-// }
+ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
+{
+	// TODO: use enums or function pointers?
+	switch (priv->conf->access_method_fanfullspeed) {
+	case ACCESS_METHOD_EC:
+		return ec_read_fanfullspeed(&priv->ecram, priv->conf, state);
+	default:
+		pr_info("No access method for fan full speed: %d\n",
+			priv->conf->access_method_fanfullspeed);
+		return -EINVAL;
+	}
+}
 
 /* ============================= */
 /* Power mode reading/writing    */
@@ -3133,6 +3131,50 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* sysfs interface                */
 /* ============================   */
 
+static int get_simple_wmi_attribute(struct legion_private *priv, 
+					const char *guid, u8 instance,
+				    u32 method_id, bool invert,
+				    unsigned long scale, unsigned long int* value){
+	unsigned long state = 0;
+	int err;
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+
+	if (err)
+		return -EINVAL;
+
+	state = state * scale;
+
+	if (invert)
+		state = !state;
+	*value = state;
+	return 0;
+}
+
+static int set_simple_wmi_attribute(struct legion_private *priv, 
+					const char *guid, u8 instance,
+				    u32 method_id, bool invert, int scale, int state){
+	int err;
+	u8 in_param;
+
+	if (scale == 0) {
+		pr_info("Scale cannot be 0\n");
+		return -EINVAL;
+	}
+
+	if (invert)
+		state = !state;
+
+	in_param = state / scale;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_arg(guid, instance, method_id, &in_param,
+			   sizeof(in_param));
+	mutex_unlock(&priv->fancurve_mutex);
+	return err;
+}
+
 static int show_simple_wmi_attribute(struct device *dev,
 				     struct device_attribute *attr, char *buf,
 				     const char *guid, u8 instance,
@@ -3142,17 +3184,9 @@ static int show_simple_wmi_attribute(struct device *dev,
 	unsigned long state = 0;
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
-	mutex_unlock(&priv->fancurve_mutex);
+	err = get_simple_wmi_attribute(priv, guid, instance, method_id, invert, scale, &state);
 	if (err)
 		return -EINVAL;
-
-	state = state * scale;
-
-	if (invert)
-		state = !state;
 
 	return sysfs_emit(buf, "%lu\n", state);
 }
@@ -3194,29 +3228,16 @@ static int store_simple_wmi_attribute(struct device *dev,
 				      const char *guid, u8 instance,
 				      u32 method_id, bool invert, int scale)
 {
-	u8 in_param;
 	int state;
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (scale == 0) {
-		pr_info("Scale cannot be 0\n");
-		return -EINVAL;
-	}
-
 	err = kstrtouint(buf, 0, &state);
 	if (err)
 		return err;
-	if (invert)
-		state = !state;
-
-	in_param = state / scale;
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = wmi_exec_arg(guid, instance, method_id, &in_param,
-			   sizeof(in_param));
-	mutex_unlock(&priv->fancurve_mutex);
-
+	err = set_simple_wmi_attribute(priv, guid, instance, method_id, invert, scale, state);
+	if (err)
+		return err;
 	return count;
 }
 
