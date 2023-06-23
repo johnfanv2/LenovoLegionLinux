@@ -745,7 +745,7 @@ class FanCurveIO(Feature):
         return self._read_file(file_path)
 
     def has_minifancurve(self):
-        return self.exists() and os.path.exists(self.hwmon_path + self.minifancurve)
+        return self.exists() and self.hwmon_path is not None and os.path.exists(self.hwmon_path + self.minifancurve)
 
     def set_minifancuve(self, value):
         log.info("Setting minifancurve to: %s", str(value))
