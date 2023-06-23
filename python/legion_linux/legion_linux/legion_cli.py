@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 # pylint: disable=wrong-import-order
-import legion_linux.legion
-from legion_linux.legion import LegionModelFacade
 import argcomplete
 import argparse
 import logging
