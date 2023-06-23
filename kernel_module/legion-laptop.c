@@ -584,7 +584,6 @@ static const struct model_config model_8jcn = {
 	.ramio_size = 0x600
 };
 
-
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -745,7 +744,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_kwcn
 	},
 	{
-		// e.g. Legion Pro 5 2023 or R9000P 
+		// e.g. Legion Pro 5 2023 or R9000P
 		.ident = "LPCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -2184,7 +2183,9 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
 				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
 				  sizeof(buffer));
-	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi buffer", DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer), true);
+	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi buffer",
+		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
+		       true);
 	if (!err) {
 		struct WMIFanTableRead *fantable =
 			(struct WMIFanTableRead *)&buffer[0];
@@ -2206,7 +2207,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 }
 
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
-					const struct fancurve *fancurve)
+					 const struct fancurve *fancurve)
 {
 	u8 buffer[0x20];
 	int err;
@@ -2238,10 +2239,11 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	buffer[0x16] = fancurve->points[8].rpm1_raw;
 	buffer[0x18] = fancurve->points[9].rpm1_raw;
 
-	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi write buffer", DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer), true);
+	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi write buffer",
+		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
+		       true);
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
-				  WMI_METHOD_ID_FAN_SET_TABLE, buffer,
-				  sizeof(buffer));
+			   WMI_METHOD_ID_FAN_SET_TABLE, buffer, sizeof(buffer));
 	return err;
 }
 
@@ -2602,7 +2604,6 @@ ssize_t ec_write_fanfullspeed(struct ecram *ecram,
 	ecram_write(ecram, model->registers->EXT_MAXIMUMFANSPEED, val);
 	return 0;
 }
-
 
 ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
@@ -3158,12 +3159,15 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* sysfs interface                */
 /* ============================   */
 
-static int get_simple_wmi_attribute(struct legion_private *priv, 
-					const char *guid, u8 instance,
+static int get_simple_wmi_attribute(struct legion_private *priv,
+				    const char *guid, u8 instance,
 				    u32 method_id, bool invert,
-				    unsigned long scale, unsigned long int* value){
+				    unsigned long scale,
+				    unsigned long *value)
+{
 	unsigned long state = 0;
 	int err;
+
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
 	mutex_unlock(&priv->fancurve_mutex);
@@ -3179,9 +3183,11 @@ static int get_simple_wmi_attribute(struct legion_private *priv,
 	return 0;
 }
 
-static int set_simple_wmi_attribute(struct legion_private *priv, 
-					const char *guid, u8 instance,
-				    u32 method_id, bool invert, int scale, int state){
+static int set_simple_wmi_attribute(struct legion_private *priv,
+				    const char *guid, u8 instance,
+				    u32 method_id, bool invert, int scale,
+				    int state)
+{
 	int err;
 	u8 in_param;
 
@@ -3211,7 +3217,9 @@ static int show_simple_wmi_attribute(struct device *dev,
 	unsigned long state = 0;
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
-	err = get_simple_wmi_attribute(priv, guid, instance, method_id, invert, scale, &state);
+
+	err = get_simple_wmi_attribute(priv, guid, instance, method_id, invert,
+				       scale, &state);
 	if (err)
 		return -EINVAL;
 
@@ -3262,7 +3270,8 @@ static int store_simple_wmi_attribute(struct device *dev,
 	err = kstrtouint(buf, 0, &state);
 	if (err)
 		return err;
-	err = set_simple_wmi_attribute(priv, guid, instance, method_id, invert, scale, state);
+	err = set_simple_wmi_attribute(priv, guid, instance, method_id, invert,
+				       scale, state);
 	if (err)
 		return err;
 	return count;
