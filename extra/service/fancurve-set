@@ -24,44 +24,44 @@ if  [ $AC_ADAPTER == 1 ]; then
     if [ $POWER_PROFILE == quiet ]; then
         echo "Applying Quiet Mode Profile ﴛ  -> charger..."
         GPU_TDP=$GPU_TDP_AC_Q
-        FANCURVE_FILE=$FOLDER/quiet-ac #set the fancurve file
+        FANCURVE_FILE=quiet-ac #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_AC_Q
 
     elif [ $POWER_PROFILE == balanced ]; then
         echo "Applying Balance Mode Profile   -> charger..."
         GPU_TDP=$GPU_TDP_AC_B
-        FANCURVE_FILE=$FOLDER/balanced-ac #set the fancurve file
+        FANCURVE_FILE=balanced-ac #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_AC_B
 
     elif [ $POWER_PROFILE == performance ]; then
         echo "Applying Performance Mode Profile 龍  -> charger..."
         GPU_TDP=$GPU_TDP_AC_P
-        FANCURVE_FILE=$FOLDER/performance-ac #set the fancurve file
+        FANCURVE_FILE=performance-ac #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_AC_P
 
     elif [ $POWER_PROFILE == balanced-performance ]; then
         echo "Applying Balance Mode Profile   -> battery..."     
         GPU_TDP=$GPU_TDP_AC_BP
-        FANCURVE_FILE=$FOLDER/balanced-performance-ac #set the fancurve file
+        FANCURVE_FILE=balanced-performance-ac #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_AC_BP
     fi
 else
     if [ $POWER_PROFILE == quiet ]; then
         echo "Applying Quiet Mode Profile ﴛ  -> battery..."
         GPU_TDP=$GPU_TDP_BAT_Q
-        FANCURVE_FILE=$FOLDER/quiet-battery #set the fancurve file
+        FANCURVE_FILE=quiet-battery #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_BAT_Q
 
     elif [ $POWER_PROFILE == balanced ]; then
         echo "Applying Balance Mode Profile 󰈐  -> battery..."     
         GPU_TDP=$GPU_TDP_BAT_B
-        FANCURVE_FILE=$FOLDER/balanced-battery #set the fancurve file
+        FANCURVE_FILE=balanced-battery #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_BAT_B
 
     elif [ $POWER_PROFILE == balanced-performance ]; then
         echo "Applying Balance Mode Profile   -> battery..."     
         GPU_TDP=$GPU_TDP_BAT_BP
-        FANCURVE_FILE=$FOLDER/balanced-performance-battery #set the fancurve file
+        FANCURVE_FILE=balanced-performance-battery #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_BAT_BP
     fi
 fi
