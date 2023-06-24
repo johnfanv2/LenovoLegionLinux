@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 DEFAULT_ENCODING = "utf8"
-DEFAULT_CONFIG_DIR = os.path.join(os.getenv("HOME"), ".config/legion_linux")
+DEFAULT_CONFIG_DIR = "/etc/legion_linux"
 LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
 
