@@ -354,8 +354,9 @@ def monitor(legion: LegionModelFacade, period=None, **_) -> int:
     return 0
 
 
-def set_feature(legion: LegionModelFacade, name, value, **_) -> int:
-    if legion.set_feature_to_str_value(name, value):
+def set_feature(legion: LegionModelFacade, name, values, **_) -> int:
+    log.setLevel('INFO')
+    if legion.set_feature_to_str_value(name, values):
         return 0
     print("Feature not found.")
     for feat in legion.get_all_features():
@@ -430,7 +431,7 @@ def create_argparser()->argparse.ArgumentParser:
     set_feature_cmd.add_argument(
         'name', type=str, help='Name of feature')
     set_feature_cmd.add_argument(
-        'value', type=str, help='Value of feature')
+        'values', type=str, help='Value of feature', nargs='+')
     set_feature_cmd.set_defaults(
         func=set_feature)
     return parser, subcommands
