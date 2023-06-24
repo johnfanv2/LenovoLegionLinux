@@ -420,8 +420,8 @@ class LegionController:
     lenovo_legion_laptop_support_service_controller: BoolFeatureController
 
     # tray
-    batteryconservation_tray_controller:BoolFeatureTrayController
-    rapid_charging_tray_controller:BoolFeatureTrayController
+    batteryconservation_tray_controller: BoolFeatureTrayController
+    rapid_charging_tray_controller: BoolFeatureTrayController
 
     def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False):
         self.model = LegionModelFacade(
@@ -1116,7 +1116,7 @@ class Tabs(QTabWidget):
 class QClickLabel(QLabel):
     clicked = QtCore.pyqtSignal()
 
-    #pylint: disable=invalid-name
+    # pylint: disable=invalid-name
     def mousePressEvent(self, _):
         self.clicked.emit()
 
@@ -1257,7 +1257,6 @@ def main():
     main_window.setWindowTitle("LenovoLegionLinux")
     main_window.setWindowIcon(icon)
     contr.init(read_from_hw=not do_not_excpect_hwmon)
-    contr.model.fancurve_repo.create_preset_folder()
     if automatic_close:
         main_window.close_after(3000)
     main_window.show()

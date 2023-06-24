@@ -69,9 +69,15 @@ class FanCurve:
         fan_curve = cls(name, entries, enable_minifancurve)
         return fan_curve
 
-    def save_to_file(self, filename):
+    def save_to_file(self, filename, create_dir=True):
+        if create_dir:
+            directory = Path(filename).parent.resolve()
+            log.info("Create directory %s for presets", directory)
+            Path(directory).mkdir(parents=True, exist_ok=True)
+        log.info("Trying to save fan curve to %s", filename)
         with open(filename, 'w', encoding=DEFAULT_ENCODING) as filepointer:
             filepointer.write(self.to_yaml())
+        log.info("Saved fan curve to %s", filename)
 
     @classmethod
     def load_from_file(cls, filename):
@@ -90,8 +96,9 @@ class NamedValue:
         self.name = name
 
 
-def write_file_with_legion_cli(name, value):
-    cmd_list = ['pkexec', 'legion_cli', 'set-feature', name, str(value)]
+def write_file_with_legion_cli(name, values):
+    cmd_list = ['pkexec', 'legion_cli', 'set-feature', name]
+    cmd_list = cmd_list + [str(val) for val in values]
     log.info('FileFeature %s execute "%s"', name, cmd_list)
     try:
         with subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
@@ -117,6 +124,12 @@ class Feature:
     def __init__(self) -> None:
         Feature.features.append(self)
         self.use_legion_cli_to_write = Feature.default_use_legion_cli_to_write
+
+    def set_str_value(self, value: str):
+        pass
+
+    def set_str_values(self, values: List[str]):
+        self.set_str_value(values[0])
 
     def name(self):
         return type(self).__name__
@@ -158,7 +171,8 @@ class FileFeature(Feature):
 
     def _write_file(self, file_path, value):
         if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(self.name(), value)
+            write_file_with_legion_cli(self.name(), [value])
+            return
         log.info('Feature %s writing: %s', self.name(), str(value))
         if not self.exists():
             log.error('Feature %s writing to non exisitng', self.name())
@@ -538,9 +552,8 @@ class BoolCommandFeature(CommandFeature):
     def set(self, value):
         raise NotImplementedError()
 
-    def get(self)->bool:
+    def get(self) -> bool:
         raise NotImplementedError()
-
 
 
 class SystemDServiceFeature(BoolCommandFeature):
@@ -766,8 +779,8 @@ class FanCurveIO(Feature):
     def write_fan_curve(self, fan_curve: FanCurve, _=False):
         """Writes a fan curve object to the file system and sets minifancurve if enabled"""
         if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(self.name(), str(fan_curve.to_yaml()))
-
+            write_file_with_legion_cli(self.name(), [str(fan_curve.to_yaml())])
+            return
         try:
             log.info(
                 "Try setting minifancurve by fancurve profile to: %s", str(fan_curve.enable_minifancurve))
@@ -817,8 +830,9 @@ class FanCurveIO(Feature):
         return fancurve
 
 
-class FanCurveRepository:
+class FanCurveRepository(Feature):
     def __init__(self, preset_dir):
+        super().__init__()
         self.fancurve_presets = {
             "quiet-battery": None,
             "balanced-battery": None,
@@ -838,10 +852,6 @@ class FanCurveRepository:
         preset_name = f"{profile}-{symb}"
         return preset_name
 
-    def create_preset_folder(self):
-        print(f"Create path {self.preset_dir}")
-        Path(self.preset_dir).mkdir(parents=True, exist_ok=True)
-
     def _name_to_filename(self, name):
         return os.path.join(self.preset_dir, name+".yaml")
 
@@ -860,7 +870,16 @@ class FanCurveRepository:
         return FanCurve(name='unknown', entries=[])
 
     def save_by_name(self, name, fancurve: FanCurve):
+        if self.use_legion_cli_to_write:
+            write_file_with_legion_cli(
+                self.name(), [name, str(fancurve.to_yaml())])
+            return
         fancurve.save_to_file(self._name_to_filename(name))
+
+    def set_str_values(self, values: List[str]):
+        name = values[0]
+        fancurve = FanCurve.from_yaml(values[1])
+        self.save_by_name(name, fancurve)
 
 
 class CustomConservationController:
@@ -1170,10 +1189,13 @@ class LegionModelFacade:
         return os.geteuid() == 0
 
     @staticmethod
-    def set_feature_to_str_value(name: str, value: str) -> bool:
+    def set_feature_to_str_value(name: str, values: List[str]) -> bool:
         for feat in Feature.features:
             if feat.name() == name:
-                feat.set_str_value(value)
+                if len(values) == 1:
+                    feat.set_str_value(values[0])
+                else:
+                    feat.set_str_values(values)
                 return True
         return False
 
