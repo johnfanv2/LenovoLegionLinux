@@ -100,15 +100,18 @@ def write_file_with_legion_cli(name, values):
     cmd_list = ['pkexec', 'legion_cli', 'set-feature', name]
     cmd_list = cmd_list + [str(val) for val in values]
     log.info('FileFeature %s execute "%s"', name, cmd_list)
+    out_str = ""
+    err_str = ""
     try:
         with subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
-            stdout, _ = process.communicate(timeout=None)
+            stdout, stderr = process.communicate(timeout=None)
             out_str = stdout.decode(DEFAULT_ENCODING)
+            err_str = stderr.decode(DEFAULT_ENCODING)
             returncode = process.returncode
-            log.info('FileFeature %s executed with code %d: %s',
-                     name, returncode, out_str)
+            log.info('FileFeature %s executed with code %d: %s; %s',
+                     name, returncode, out_str, err_str)
     except IOError as err:
-        log.error('FileFeature %s executed with error %s', name, str(err))
+        log.error('FileFeature %s executed with error %s and out %s and err %s', name, str(err), out_str, err_str)
         log.error(get_dmesg(only_tail=True, filter_log=False))
         raise err
 
