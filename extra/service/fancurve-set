@@ -16,9 +16,7 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
-#fix home user
-HOME=$(eval echo ~$(id -un 1000)) #pls change the uid if you have multiple user check with this command 'id'
-FOLDER=$HOME/.config/legion_linux/
+FOLDER=$HOME=/etc/legion_linux/
 #Pls edit this file for enable GPU TDP
 source $FOLDER/.env
 
