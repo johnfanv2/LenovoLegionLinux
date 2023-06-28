@@ -1,0 +1,16 @@
+#!/bin/bash
+
+daemon=$(systemctl is-active power-profiles-daemon.service)
+
+if [[ $daemon == "inactive" ]]; then
+	printf "power-profiles-daemon is not running.\n"
+	return 0
+fi
+
+profile=$(powerprofilesctl get)
+
+battery=$(cat /sys/class/power_supply/BAT*/status | grep -c Discharging)
+
+if [[ $profile == "performance" && battery -gt 0 ]]; then
+	powerprofilesctl set balanced
+fi

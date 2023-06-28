@@ -1,0 +1,10 @@
+[Unit]
+Description=Restrict Power Profiles On Battery
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/restrict-profiles
+
+[Install]
+RequiredBy=legion-linux.service
