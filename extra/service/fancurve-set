@@ -57,6 +57,12 @@ else
         GPU_TDP=$GPU_TDP_BAT_B
         FANCURVE_FILE=$FOLDER/balanced-battery #set the fancurve file
         CPU_CONTROL_COMMAD=$CPU_CC_BAT_B
+    
+    elif [ $POWER_PROFILE == performance ]; then
+        echo "Applying Performance Mode Profile 龍  -> charger..."
+        GPU_TDP=$GPU_TDP_BAT_P
+        FANCURVE_FILE=$FOLDER/performance-battery #set the fancurve file
+        CPU_CONTROL_COMMAD=$CPU_CC_BAT_P
 
     elif [ $POWER_PROFILE == balanced-performance ]; then
         echo "Applying Balance Mode Profile   -> battery..."     
