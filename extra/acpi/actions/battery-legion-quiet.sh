@@ -8,5 +8,3 @@ else
 	/bin/echo quiet > /sys/firmware/acpi/platform_profile
 fi
 
-/bin/systemctl restart legion-linux #systemd restart on profile change
-
