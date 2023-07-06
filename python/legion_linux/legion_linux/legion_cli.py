@@ -450,6 +450,7 @@ def main():
     OnPowerSupplyFeatureCommand(subcommands, None, cmd_group)
     AlwaysOnUsbCharging(subcommands, None, cmd_group)
     RapidCharging(subcommands, None, cmd_group)
+    HybridMode(subcommands, None, cmd_group)
 
     # only add autocompletion if package is installed
     argcomplete.autocomplete(parser)
