@@ -2,6 +2,7 @@
 import os
 import glob
 from dataclasses import asdict, dataclass
+import shutil
 import time
 from typing import List, Optional, Tuple
 from pathlib import Path
@@ -157,6 +158,7 @@ class BoolSettingFeature(Feature):
     def get(self)->bool:
         return self.value
 
+
 class FileFeature(Feature):
     pattern: str
     filename: str
@@ -255,6 +257,34 @@ class BoolFileFeature(FileFeature):
         invalue = self._read_file_int(self.filename)
         return invalue != 0
 
+
+class LegionGUIAutostart(BoolFileFeature):
+
+    def __init__(self):
+        self.autostart_dekstop_folder_path = Path.home()  / ".config" / "autostart"
+        self.desktop_file_path = Path('/usr/share/applications') / 'legion_gui_user.desktop'
+        self.autostart_desktop_file_path =  self.autostart_dekstop_folder_path / "legion_gui_user.desktop"
+
+    def exists(self):
+        return self.desktop_file_path.exists() and self.autostart_dekstop_folder_path.exists()
+
+    def set(self, value: bool):
+        log.info('Feature %s setting to %d', self.name(), value)
+        if value:
+            src = self.desktop_file_path
+            dest = self.autostart_desktop_file_path
+            log.info('Feature %s: Copy %s to %s', self.name(), src, dest)
+            shutil.copyfile(src, dest)
+        else:
+            dest = self.autostart_desktop_file_path
+            log.info('Feature %s: Delete %s', self.name(), dest)
+            dest.unlink(missing_ok=True)
+            log.info('Feature %s: Deleted %s', self.name(), dest)
+
+    def get(self)->bool:
+        if not self.autostart_desktop_file_path.exists():
+            return False
+        return True
 
 class IntFileFeature(FileFeature):
     limit_low_default: int
@@ -1195,6 +1225,7 @@ class LegionModelFacade:
         # services
         self.power_profiles_deamon_service = PowerProfilesDeamonService()
         self.lenovo_legion_laptop_support_service = LenovoLegionLaptopSuppoerService()
+        self.legion_gui_autostart = LegionGUIAutostart()
 
         # monitors
         self.nvidia_gpu_running = NVIDIAGPUIsRunning()

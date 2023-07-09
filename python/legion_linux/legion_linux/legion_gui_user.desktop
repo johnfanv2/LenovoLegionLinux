@@ -1,9 +1,9 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Root LenovoLegionLinux
+Name=User LenovoLegionLinux
 Icon=/usr/share/icons/legion_logo.png
-Exec=pkexec /usr/local/bin/legion_gui
+Exec=/usr/local/bin/legion_gui --use_legion_cli_to_write
 Comment=Control Lenovo Legion Laptops
 Categories=Application
 Terminal=false

@@ -426,6 +426,8 @@ class LegionController:
     # deamon and automation
     power_profiles_deamon_service_controller: BoolFeatureController
     lenovo_legion_laptop_support_service_controller: BoolFeatureController
+    legion_gui_autstart_controller: BoolFeatureController
+
     close_to_tray_controller:BoolFeatureController
     open_closed_to_tray:BoolFeatureController
 
@@ -546,6 +548,10 @@ class LegionController:
             self.view_automation.lenovo_legion_laptop_support_service_check,
             self.model.lenovo_legion_laptop_support_service
         )
+        self.legion_gui_autstart_controller = BoolFeatureController(
+            self.view_automation.legion_gui_autostart_check,
+            self.model.legion_gui_autostart
+        )
         self.close_to_tray_controller = BoolFeatureController(
             self.view_automation.close_to_tray_check,
             self.app_model.close_to_tray
@@ -644,6 +650,7 @@ class LegionController:
         self.lenovo_legion_laptop_support_service_controller.update_view_from_feature()
         self.close_to_tray_controller.update_view_from_feature()
         self.open_closed_to_tray.update_view_from_feature()
+        self.legion_gui_autstart_controller.update_view_from_feature()
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -1060,6 +1067,12 @@ class AutomationTab(QWidget):
             "Lenovo Legion Laptop Support Deamon Enabled")
         self.options_layout.addWidget(
             self.lenovo_legion_laptop_support_service_check, 1)
+        
+        self.legion_gui_autostart_check = QCheckBox(
+            "Autostart Legion GUI on Session Startup")
+        self.options_layout.addWidget(
+            self.legion_gui_autostart_check, 1)
+        
         
         self.close_to_tray_check = QCheckBox(
             "Close to Tray")
