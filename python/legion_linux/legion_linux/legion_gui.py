@@ -328,6 +328,15 @@ class IntFeatureController:
             mark_error_combobox(self.widget)
             log_error(ex)
 
+class ApplicationModel:
+    close_to_tray: bool
+    automatic_close: bool
+    open_closed_to_tray: bool
+
+    def __init__(self):
+        self.close_to_tray = False
+        self.automatic_close = False
+        self.open_closed_to_tray = False
 
 class HybridGsyncController:
     gsynchybrid_feature: GsyncFeature
@@ -387,6 +396,7 @@ class HybridGsyncController:
 
 class LegionController:
     model: LegionModelFacade
+    app_model: ApplicationModel
     # fan
     lockfancontroller_controller: BoolFeatureController
     maximumfanspeed_controller: BoolFeatureController
@@ -423,9 +433,11 @@ class LegionController:
     batteryconservation_tray_controller: BoolFeatureTrayController
     rapid_charging_tray_controller: BoolFeatureTrayController
 
-    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False):
+    def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
+        self.app_model = ApplicationModel()
         self.model = LegionModelFacade(
             expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
+        self.app = app
         self.view_fancurve = None
         self.view_otheroptions = None
         self.main_window = None
@@ -646,6 +658,12 @@ class LegionController:
 
     def on_new_log_msg(self, msg):
         self.log_view.log_out.insertPlainText(msg+'\n')
+
+    def app_close(self):
+        self.app.quit()
+
+    def app_show(self):
+        self.main_window.bring_to_foreground()
 
 
 class FanCurveEntryView():
@@ -1124,11 +1142,18 @@ class QClickLabel(QLabel):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, controller):
+    controller:LegionController
+
+    def __init__(self, controller, icon:QtGui.QIcon):
         super().__init__()
         # setup controller
         self.controller = controller
         self.controller.main_window = self
+
+        # window layout
+        self.setWindowTitle("LenovoLegionLinux")
+        self.icon = icon
+        self.setWindowIcon(self.icon)
 
         # header message
         self.header_msg = QClickLabel()
@@ -1176,23 +1201,42 @@ class MainWindow(QMainWindow):
         if self.show_root_dialog:
             QMessageBox.critical(
                 self, "Error", "Program must be run as root user!")
+            
+        if self.controller.app_model.open_closed_to_tray:
+            self.hide_to_tray()
+            
+    def closeEvent(self, event):
+        log.info("Received close event")
+        if self.controller.app_model.close_to_tray:
+            log.info("Ignore close event and hide to tray instead.")
+            event.ignore()
+            self.hide_to_tray()
+        else:
+            log.info("Accept close event and close.")
 
     def close_after(self, milliseconds: int):
         self.close_timer.timeout.connect(self.close)
         self.close_timer.start(milliseconds)
 
     def bring_to_foreground(self):
+        self.setWindowFlag(QtCore.Qt.Window)
+        self.setWindowFlags(self.windowFlags() & (~QtCore.Qt.Tool))
         self.setWindowState(self.windowState(
         ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
         self.activateWindow()
+        self.show()
+
+    def hide_to_tray(self):
+        self.setWindowFlag(QtCore.Qt.Tool)
+        self.hide()
 
 
 class LegionTray:
-    def __init__(self, icon, app, main_window: MainWindow):
+    def __init__(self, icon, main_window:QMainWindow, controller:LegionController):
         self.tray = QSystemTrayIcon(icon, main_window)
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
-        self.main_window = main_window
+        self.controller = controller
 
         self.menu = QMenu()
         # title
@@ -1203,11 +1247,11 @@ class LegionTray:
         self.menu.addSeparator()
         # open
         self.open_action = QAction("Show")
-        self.open_action.triggered.connect(main_window.bring_to_foreground)
+        self.open_action.triggered.connect(self.controller.app_show)
         self.menu.addAction(self.open_action)
         # quit
         self.quit_action = QAction("Quit")
-        self.quit_action.triggered.connect(app.quit)
+        self.quit_action.triggered.connect(self.controller.app_close)
         self.menu.addAction(self.quit_action)
         self.tray.setContextMenu(self.menu)
         self.tray.show()
@@ -1231,9 +1275,6 @@ class LegionTray:
     def show(self):
         self.tray.show()
 
-    def hide_to_tray(self):
-        self.main_window.setWindowFlag(QtCore.Qt.Tool)
-
 
 def get_ressource_path(name):
     path = os.path.join(
@@ -1243,28 +1284,38 @@ def get_ressource_path(name):
 
 def main():
     app = QApplication(sys.argv)
-    automatic_close = '--automaticclose' in sys.argv
-    do_not_excpect_hwmon = True
 
     use_legion_cli_to_write = '--use_legion_cli_to_write' in sys.argv
+    automatic_close = '--automaticclose' in sys.argv
+    close_to_tray = '--close_to_tray' in sys.argv
+    open_closed_to_tray = '--open_closed_to_tray' in sys.argv
+    do_not_excpect_hwmon = True
+    controller = LegionController(app, expect_hwmon=not do_not_excpect_hwmon,
+                             use_legion_cli_to_write=use_legion_cli_to_write)
+    controller.app_model.automatic_close = automatic_close
+    controller.app_model.close_to_tray = close_to_tray
+    controller.app_model.open_closed_to_tray = open_closed_to_tray
 
+    # Ressources
     icon_path = get_ressource_path('legion_logo.png')
     icon = QtGui.QIcon(icon_path)
 
-    contr = LegionController(expect_hwmon=not do_not_excpect_hwmon,
-                             use_legion_cli_to_write=use_legion_cli_to_write)
-    main_window = MainWindow(contr)
-    main_window.setWindowTitle("LenovoLegionLinux")
-    main_window.setWindowIcon(icon)
-    contr.init(read_from_hw=not do_not_excpect_hwmon)
-    if automatic_close:
+    # Main Windows
+    main_window = MainWindow(controller, icon)
+    controller.init(read_from_hw=not do_not_excpect_hwmon)
+
+    # Tray
+    tray = LegionTray(icon, main_window, controller)
+    tray.show()
+    controller.tray = tray
+    controller.init_tray()
+
+    # Start Windows
+    if controller.app_model.automatic_close:
         main_window.close_after(3000)
     main_window.show()
 
-    tray = LegionTray(icon, app, main_window)
-    tray.show()
-    contr.tray = tray
-    contr.init_tray()
+    # Run
     sys.exit(app.exec_())
 
 
