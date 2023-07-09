@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLab
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature, BoolSettingFeature
 # pylint: disable=too-few-public-methods
 
 
@@ -72,36 +72,6 @@ def log_error(ex: Exception):
     print("Error occured", ex)
     print(traceback.format_exc())
 
-
-def sync_checkbox_from_feature(checkbox: QCheckBox, feature: FileFeature):
-    try:
-        if feature.exists():
-            hw_value = feature.get()
-            checkbox.setChecked(hw_value)
-            checkbox.setDisabled(False)
-        else:
-            checkbox.setDisabled(True)
-    # pylint: disable=broad-except
-    except Exception as ex:
-        mark_error(checkbox)
-        log_error(ex)
-
-
-def sync_checkbox(checkbox: QCheckBox, feature: FileFeature):
-    try:
-        if feature.exists():
-            gui_value = checkbox.isChecked()
-            feature.set(gui_value)
-            time.sleep(0.100)
-            hw_value = feature.get()
-            checkbox.setChecked(hw_value)
-            checkbox.setDisabled(False)
-        else:
-            checkbox.setDisabled(True)
-    # pylint: disable=broad-except
-    except Exception as ex:
-        mark_error(checkbox)
-        log_error(ex)
 
 
 def log_ui_feature_action(widget, feature):
@@ -199,15 +169,38 @@ class BoolFeatureController:
         self.update_feature_from_view()
 
     def update_feature_from_view(self):
-        sync_checkbox(
-            self.checkbox, self.feature)
+        try:
+            if self.feature.exists():
+                gui_value = self.checkbox.isChecked()
+                self.feature.set(gui_value)
+                time.sleep(0.100)
+                feature_value = self.feature.get()
+                self.checkbox.setChecked(feature_value)
+                self.checkbox.setDisabled(False)
+            else:
+                self.checkbox.setDisabled(True)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error(self.checkbox)
+            log_error(ex)
+
         if self.dependent_controllers:
             time.sleep(self.check_after_set_time)
             for contr in self.dependent_controllers:
                 contr.update_view_from_feature()
 
     def update_view_from_feature(self):
-        sync_checkbox_from_feature(self.checkbox, self.feature)
+        try:
+            if self.feature.exists():
+                feature_value = self.feature.get()
+                self.checkbox.setChecked(feature_value)
+                self.checkbox.setDisabled(False)
+            else:
+                self.checkbox.setDisabled(True)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error(self.checkbox)
+            log_error(ex)
 
 
 class BoolFeatureTrayController:
@@ -329,14 +322,19 @@ class IntFeatureController:
             log_error(ex)
 
 class ApplicationModel:
-    close_to_tray: bool
-    automatic_close: bool
-    open_closed_to_tray: bool
+    automatic_close: BoolSettingFeature
+    close_to_tray: BoolSettingFeature
+    open_closed_to_tray: BoolSettingFeature
 
     def __init__(self):
-        self.close_to_tray = False
-        self.automatic_close = False
-        self.open_closed_to_tray = False
+        self.automatic_close = BoolSettingFeature()
+        self.automatic_close.set(False)
+
+        self.close_to_tray = BoolSettingFeature()
+        self.close_to_tray.set(False)
+
+        self.open_closed_to_tray = BoolSettingFeature()
+        self.open_closed_to_tray.set(False)
 
 class HybridGsyncController:
     gsynchybrid_feature: GsyncFeature
@@ -428,6 +426,8 @@ class LegionController:
     # deamon and automation
     power_profiles_deamon_service_controller: BoolFeatureController
     lenovo_legion_laptop_support_service_controller: BoolFeatureController
+    close_to_tray_controller:BoolFeatureController
+    open_closed_to_tray:BoolFeatureController
 
     # tray
     batteryconservation_tray_controller: BoolFeatureTrayController
@@ -546,6 +546,14 @@ class LegionController:
             self.view_automation.lenovo_legion_laptop_support_service_check,
             self.model.lenovo_legion_laptop_support_service
         )
+        self.close_to_tray_controller = BoolFeatureController(
+            self.view_automation.close_to_tray_check,
+            self.app_model.close_to_tray
+        )
+        self.open_closed_to_tray = BoolFeatureController(
+            self.view_automation.open_closed_to_tray_check,
+            self.app_model.open_closed_to_tray
+        )
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -634,6 +642,8 @@ class LegionController:
     def update_automation(self):
         self.power_profiles_deamon_service_controller.update_view_from_feature()
         self.lenovo_legion_laptop_support_service_controller.update_view_from_feature()
+        self.close_to_tray_controller.update_view_from_feature()
+        self.open_closed_to_tray.update_view_from_feature()
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -1050,6 +1060,18 @@ class AutomationTab(QWidget):
             "Lenovo Legion Laptop Support Deamon Enabled")
         self.options_layout.addWidget(
             self.lenovo_legion_laptop_support_service_check, 1)
+        
+        self.close_to_tray_check = QCheckBox(
+            "Close to Tray")
+        self.options_layout.addWidget(
+            self.close_to_tray_check, 2)
+        
+        self.open_closed_to_tray_check = QCheckBox(
+            "Open Closed to Tray")
+        self.options_layout.addWidget(
+            self.open_closed_to_tray_check, 3)
+        
+        
 
         self.note_label = QLabel(
             "These are experimental features.\n *LLL deamon is fully working.")
@@ -1202,17 +1224,19 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self, "Error", "Program must be run as root user!")
             
-        if self.controller.app_model.open_closed_to_tray:
+        if self.controller.app_model.open_closed_to_tray.get():
             self.hide_to_tray()
             
     def closeEvent(self, event):
         log.info("Received close event")
-        if self.controller.app_model.close_to_tray:
+        if self.controller.app_model.close_to_tray.get():
             log.info("Ignore close event and hide to tray instead.")
             event.ignore()
             self.hide_to_tray()
         else:
             log.info("Accept close event and close.")
+            self.controller.app_close()
+            event.accept()
 
     def close_after(self, milliseconds: int):
         self.close_timer.timeout.connect(self.close)
@@ -1292,9 +1316,9 @@ def main():
     do_not_excpect_hwmon = True
     controller = LegionController(app, expect_hwmon=not do_not_excpect_hwmon,
                              use_legion_cli_to_write=use_legion_cli_to_write)
-    controller.app_model.automatic_close = automatic_close
-    controller.app_model.close_to_tray = close_to_tray
-    controller.app_model.open_closed_to_tray = open_closed_to_tray
+    controller.app_model.automatic_close.set(automatic_close)
+    controller.app_model.close_to_tray.set(close_to_tray)
+    controller.app_model.open_closed_to_tray.set(open_closed_to_tray)
 
     # Ressources
     icon_path = get_ressource_path('legion_logo.png')
@@ -1311,7 +1335,7 @@ def main():
     controller.init_tray()
 
     # Start Windows
-    if controller.app_model.automatic_close:
+    if controller.app_model.automatic_close.get():
         main_window.close_after(3000)
     main_window.show()
 

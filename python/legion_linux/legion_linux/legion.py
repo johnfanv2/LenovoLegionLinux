@@ -136,7 +136,26 @@ class Feature:
 
     def name(self):
         return type(self).__name__
+    
+    def exists(self):
+        return True
+    
+    # pylint: disable=no-self-use
+    def get_values(self) -> List[NamedValue]:
+        return []
+    
+class BoolSettingFeature(Feature):
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.value = True
+
+    def set(self, value: bool):
+        log.info('Feature %s setting to %d', self.name(), value)
+        self.value = value
+
+    def get(self)->bool:
+        return self.value
 
 class FileFeature(Feature):
     pattern: str
