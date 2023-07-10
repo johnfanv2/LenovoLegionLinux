@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLab
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature, BoolSettingFeature
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature, ApplicationModel
 # pylint: disable=too-few-public-methods
 
 
@@ -321,21 +321,6 @@ class IntFeatureController:
             mark_error_combobox(self.widget)
             log_error(ex)
 
-class ApplicationModel:
-    automatic_close: BoolSettingFeature
-    close_to_tray: BoolSettingFeature
-    open_closed_to_tray: BoolSettingFeature
-
-    def __init__(self):
-        self.automatic_close = BoolSettingFeature()
-        self.automatic_close.set(False)
-
-        self.close_to_tray = BoolSettingFeature()
-        self.close_to_tray.set(False)
-
-        self.open_closed_to_tray = BoolSettingFeature()
-        self.open_closed_to_tray.set(False)
-
 class HybridGsyncController:
     gsynchybrid_feature: GsyncFeature
     target_value: Optional[dict]
@@ -394,7 +379,6 @@ class HybridGsyncController:
 
 class LegionController:
     model: LegionModelFacade
-    app_model: ApplicationModel
     # fan
     lockfancontroller_controller: BoolFeatureController
     maximumfanspeed_controller: BoolFeatureController
@@ -436,7 +420,6 @@ class LegionController:
     rapid_charging_tray_controller: BoolFeatureTrayController
 
     def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
-        self.app_model = ApplicationModel()
         self.model = LegionModelFacade(
             expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
         self.app = app
@@ -554,11 +537,11 @@ class LegionController:
         )
         self.close_to_tray_controller = BoolFeatureController(
             self.view_automation.close_to_tray_check,
-            self.app_model.close_to_tray
+            self.model.app_model.close_to_tray
         )
         self.open_closed_to_tray = BoolFeatureController(
             self.view_automation.open_closed_to_tray_check,
-            self.app_model.open_closed_to_tray
+            self.model.app_model.open_closed_to_tray
         )
 
         if read_from_hw:
@@ -677,6 +660,10 @@ class LegionController:
         self.log_view.log_out.insertPlainText(msg+'\n')
 
     def app_close(self):
+        try:
+            self.model.save_settings()
+        except PermissionError as e:
+            log_error(e)
         self.app.quit()
 
     def app_show(self):
@@ -1237,12 +1224,12 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self, "Error", "Program must be run as root user!")
             
-        if self.controller.app_model.open_closed_to_tray.get():
+        if self.controller.model.app_model.open_closed_to_tray.get():
             self.hide_to_tray()
             
     def closeEvent(self, event):
         log.info("Received close event")
-        if self.controller.app_model.close_to_tray.get():
+        if self.controller.model.app_model.close_to_tray.get():
             log.info("Ignore close event and hide to tray instead.")
             event.ignore()
             self.hide_to_tray()
@@ -1323,15 +1310,16 @@ def main():
     app = QApplication(sys.argv)
 
     use_legion_cli_to_write = '--use_legion_cli_to_write' in sys.argv
-    automatic_close = '--automaticclose' in sys.argv
-    close_to_tray = '--close_to_tray' in sys.argv
-    open_closed_to_tray = '--open_closed_to_tray' in sys.argv
     do_not_excpect_hwmon = True
     controller = LegionController(app, expect_hwmon=not do_not_excpect_hwmon,
                              use_legion_cli_to_write=use_legion_cli_to_write)
-    controller.app_model.automatic_close.set(automatic_close)
-    controller.app_model.close_to_tray.set(close_to_tray)
-    controller.app_model.open_closed_to_tray.set(open_closed_to_tray)
+    controller.model.load_settings()
+    if '--automaticclose' in sys.argv:
+        controller.model.app_model.automatic_close.set(True)
+    if '--close_to_tray' in sys.argv:
+        controller.model.app_model.close_to_tray.set(True)
+    if '--open_closed_to_tray' in sys.argv:
+        controller.model.app_model.open_closed_to_tray.set(True)
 
     # Ressources
     icon_path = get_ressource_path('legion_logo.png')
@@ -1348,7 +1336,7 @@ def main():
     controller.init_tray()
 
     # Start Windows
-    if controller.app_model.automatic_close.get():
+    if controller.model.app_model.automatic_close.get():
         main_window.close_after(3000)
     main_window.show()
 

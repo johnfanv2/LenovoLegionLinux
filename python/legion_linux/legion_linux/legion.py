@@ -4,7 +4,7 @@ import glob
 from dataclasses import asdict, dataclass
 import shutil
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 from pathlib import Path
 import logging
 import subprocess
@@ -50,9 +50,29 @@ class FanCurveEntry:
     acceleration: int
     deceleration: int
 
+class Serializable:
+    def __init__(self) -> None:
+        pass
+
+    def save_to_file(self, filename, create_dir=True):
+        name = type(self).__name__
+        if create_dir:
+            directory = Path(filename).parent.resolve()
+            log.info("Create directory %s for presets", directory)
+            Path(directory).mkdir(parents=True, exist_ok=True)
+        log.info("Trying to save %s to %s", name, filename)
+        with open(filename, 'w', encoding=DEFAULT_ENCODING) as filepointer:
+            filepointer.write(self.to_yaml())
+        log.info("Saved %s to %s", name, filename)
+
+    @classmethod
+    def load_from_file(cls, filename):
+        with open(filename, 'r', encoding=DEFAULT_ENCODING) as filepointer:
+            return cls.from_yaml(filepointer.read())
+
 
 @dataclass
-class FanCurve:
+class FanCurve(Serializable):
     name: str
     entries: List[FanCurveEntry]
     enable_minifancurve: bool = True
@@ -70,20 +90,6 @@ class FanCurve:
         fan_curve = cls(name, entries, enable_minifancurve)
         return fan_curve
 
-    def save_to_file(self, filename, create_dir=True):
-        if create_dir:
-            directory = Path(filename).parent.resolve()
-            log.info("Create directory %s for presets", directory)
-            Path(directory).mkdir(parents=True, exist_ok=True)
-        log.info("Trying to save fan curve to %s", filename)
-        with open(filename, 'w', encoding=DEFAULT_ENCODING) as filepointer:
-            filepointer.write(self.to_yaml())
-        log.info("Saved fan curve to %s", filename)
-
-    @classmethod
-    def load_from_file(cls, filename):
-        with open(filename, 'r', encoding=DEFAULT_ENCODING) as filepointer:
-            return cls.from_yaml(filepointer.read())
 
 # pylint: disable=too-few-public-methods
 
@@ -145,11 +151,34 @@ class Feature:
     def get_values(self) -> List[NamedValue]:
         return []
     
+    @staticmethod
+    def set_feature_to_str_value(name:str, values:List[str]):
+        for feat in Feature.features:
+            if feat.name() == name:
+                if len(values) == 1:
+                    feat.set_str_value(values[0])
+                else:
+                    feat.set_str_values(values)
+                return True
+        return False
+    
+    @staticmethod
+    def set_feature_to_value(name:str, value):
+        for feat in Feature.features:
+            if feat.name() == name:
+                feat.set(value)
+                return True
+        return False
+    
 class BoolSettingFeature(Feature):
 
-    def __init__(self) -> None:
+    def __init__(self, name) -> None:
         super().__init__()
+        self._name = name
         self.value = True
+
+    def name(self):
+        return self._name
 
     def set(self, value: bool):
         log.info('Feature %s setting to %d', self.name(), value)
@@ -881,6 +910,82 @@ class FanCurveIO(Feature):
             log.error(str(error))
         return fancurve
 
+class ApplicationModel:
+    automatic_close: BoolSettingFeature
+    close_to_tray: BoolSettingFeature
+    open_closed_to_tray: BoolSettingFeature
+
+    def __init__(self):
+        self.automatic_close = BoolSettingFeature('automatic_close')
+        self.automatic_close.set(False)
+
+        self.close_to_tray = BoolSettingFeature('close_to_tray')
+        self.close_to_tray.set(False)
+
+        self.open_closed_to_tray = BoolSettingFeature('open_closed_to_tray')
+        self.open_closed_to_tray.set(False)
+
+@dataclass
+class Settings(Serializable):
+    setting_entries: Dict 
+
+    def to_yaml(self):
+        return yaml.dump(asdict(self), default_flow_style=False, sort_keys=False)
+
+    @classmethod
+    def from_yaml(cls, yaml_str):
+        data = yaml.load(yaml_str, Loader=yaml.SafeLoader)['setting_entries']
+        return Settings(data)
+
+
+class SettingsManager(Feature):
+    features: List[Feature]
+
+    def __init__(self, preset_dir) -> None:
+        super().__init__()
+        self.preset_dir = preset_dir
+        self.features = []
+
+    def add_feature(self, feature:Feature):
+        self.features.append(feature)
+
+    def get_settings(self)->Settings:
+        settings = Settings({})
+        for feat in self.features:
+            name = feat.name()
+            value = feat.get()
+            log.info("Add to setting: %s, %s", name, value)
+            settings.setting_entries[name] = value
+        return settings
+
+    def apply_settings(self, preset:Settings):
+        for name, value in preset.setting_entries.items():
+            log.error("Try seting %s from preset to %s", name, value)
+            has_set = Feature.set_feature_to_value(name, value)
+            if not has_set:
+                log.error("Cannot set %s from preset to %s", name, value)
+
+    def _name_to_filename(self, name):
+        return os.path.join(self.preset_dir, name+".yaml")
+
+    def does_exists_by_name(self, name):
+        return os.path.exists(self._name_to_filename(name))
+
+    def load_by_name(self, name):
+        return Settings.load_from_file(self._name_to_filename(name))
+
+    def save_by_name(self, name, settings: Settings):
+        if self.use_legion_cli_to_write:
+            write_file_with_legion_cli(
+                self.name(), [name, str(settings.to_yaml())])
+            return
+        settings.save_to_file(self._name_to_filename(name))
+
+    def set_str_values(self, values: List[str]):
+        name = values[0]
+        fancurve = Settings.from_yaml(values[1])
+        self.save_by_name(name, fancurve)
+
 
 class FanCurveRepository(Feature):
     def __init__(self, preset_dir):
@@ -1236,6 +1341,14 @@ class LegionModelFacade:
             self.nvidia_gpu_running, self.platform_profile)
         self.monitors = [self.nvidia_gpu_monitor,
                          self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
+        
+        # Other settings mainly for app
+        self.app_model = ApplicationModel()
+        
+        # Savable Settings
+        self.settings_manager = SettingsManager(preset_dir=config_dir)
+        self.settings_manager.add_feature(self.app_model.close_to_tray)
+        self.settings_manager.add_feature(self.app_model.open_closed_to_tray)
 
     @staticmethod
     def is_root_user():
@@ -1243,14 +1356,7 @@ class LegionModelFacade:
 
     @staticmethod
     def set_feature_to_str_value(name: str, values: List[str]) -> bool:
-        for feat in Feature.features:
-            if feat.name() == name:
-                if len(values) == 1:
-                    feat.set_str_value(values[0])
-                else:
-                    feat.set_str_values(values)
-                return True
-        return False
+        return Feature.set_feature_to_str_value(name, values)
 
     @staticmethod
     def get_all_features():
@@ -1314,6 +1420,22 @@ class LegionModelFacade:
         if upper_limit is not None:
             self.battery_custom_conservation_controller.upper_limit = upper_limit
         return self.battery_custom_conservation_controller.run()
+    
+    def load_settings(self):
+        if self.settings_manager.does_exists_by_name('settings'):
+            log.info("Settings file exists and will be loaded.")
+            settings = self.settings_manager.load_by_name('settings')
+            log.info("Loaded settings:\n %s", settings.to_yaml())
+            self.settings_manager.apply_settings(settings)
+        else:
+            log.info("No settings file exists.")
+
+    def save_settings(self):
+        log.info("Begin saving settings")
+        settings = self.settings_manager.get_settings()
+        log.info("Settings:\n %s", settings.to_yaml())
+        self.settings_manager.save_by_name('settings', settings)
+        log.info("Saving settings done")
 
     def run_monitors(self, period_s):
         notification_sender = SystemNotificationSender()
