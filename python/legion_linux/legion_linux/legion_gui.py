@@ -84,6 +84,16 @@ def log_ui_feature_action(widget, feature):
     log.info("Click on UI %s element for %s", text, name)
 
 
+def open_web_link():
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl(
+        "https://github.com/johnfanv2/LenovoLegionLinux"))
+
+
+def open_star_link():
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl(
+        "https://github.com/johnfanv2/LenovoLegionLinux"))
+
+
 class EnumFeatureController:
     widget: QComboBox
     feature: FileFeature
@@ -659,11 +669,17 @@ class LegionController:
     def on_new_log_msg(self, msg):
         self.log_view.log_out.insertPlainText(msg+'\n')
 
-    def app_close(self):
+    def save_settings(self):
         try:
             self.model.save_settings()
         except PermissionError as e:
             log_error(e)
+
+    def app_close_and_save(self):
+        self.save_settings()
+        self.app.quit()
+
+    def app_close(self):
         self.app.quit()
 
     def app_show(self):
@@ -1099,18 +1115,6 @@ class LogTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
-
-
-def open_web_link():
-    QtGui.QDesktopServices.openUrl(QtCore.QUrl(
-        "https://github.com/johnfanv2/LenovoLegionLinux"))
-
-
-def open_star_link():
-    QtGui.QDesktopServices.openUrl(QtCore.QUrl(
-        "https://github.com/johnfanv2/LenovoLegionLinux"))
-
-
 class AboutTab(QWidget):
     def __init__(self, _):
         super().__init__()
@@ -1127,8 +1131,6 @@ class AboutTab(QWidget):
         self.setLayout(layout)
 
 # pylint: disable=too-few-public-methods
-
-
 class Tabs(QTabWidget):
     def __init__(self, controller):
         super().__init__()
@@ -1164,7 +1166,7 @@ class QClickLabel(QLabel):
 class MainWindow(QMainWindow):
     controller:LegionController
 
-    def __init__(self, controller, icon:QtGui.QIcon):
+    def __init__(self, controller:LegionController, icon:QtGui.QIcon):
         super().__init__()
         # setup controller
         self.controller = controller
@@ -1183,10 +1185,25 @@ class MainWindow(QMainWindow):
         # tabs
         self.tabs = Tabs(controller)
 
+        # bottom buttons
+        self.quit_button = QPushButton("Quit")
+        self.quit_button.clicked.connect(controller.app_close)
+        self.ok_button = QPushButton("Save")
+        self.ok_button.clicked.connect(controller.save_settings)
+        self.ok_quit_button = QPushButton("Save and Quit")
+        self.ok_quit_button.clicked.connect(controller.app_close_and_save)
+        self.button_layout = QHBoxLayout()
+        # Push to the right with strecht
+        self.button_layout.addStretch()  
+        self.button_layout.addWidget(self.quit_button)
+        self.button_layout.addWidget(self.ok_button)
+        self.button_layout.addWidget(self.ok_quit_button)
+
         # main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.header_msg)
         self.main_layout.addWidget(self.tabs)
+        self.main_layout.addLayout(self.button_layout)
 
         # use main layout for main window
         self.main_widget = QWidget()
