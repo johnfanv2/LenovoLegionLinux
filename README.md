@@ -8,16 +8,8 @@
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 [![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=aur%20package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=aur%20package%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
-[![MrDuarte Overlay](https://img.shields.io/badge/Gentoo--Overlay-mrduarte--ebuilds-blueviolet)](https://github.com/MrDuartePT/mrduarte-ebuilds)
 [![GURU Overlay](https://img.shields.io/badge/Gentoo--Overlay-GURU-blueviolet)](https://gitweb.gentoo.org/repo/proj/guru.git/)
 [![NixOS](https://img.shields.io/badge/NixOS--package-lenovo--legion-9cf)](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
-
----
-
-#### The guru ebuild is a bit outdated i will update the readme to only use the guru overlay when the new version get push to master @MrDuartePT
-
----
-
 ---
 
 #### Other language versions of this README file:
