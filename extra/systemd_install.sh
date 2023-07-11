@@ -1,14 +1,21 @@
 #!/bin/bash
+
+#Force run with root
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
+fi
+
 read -p "This script Install systemd service" -n 1 -r
 
-sudo cp service/fancurve-set /usr/bin/
+cp service/fancurve-set /usr/bin/
 
 mkdir /usr/share/legion_linux/
 
-cp service/.env $HOME/.config/lenovo_linux/
+cp service/.env /etc/lenovo_linux/
 cp service/.env /usr/share/legion_linux/
 
-cp -r service/profiles/* $HOME/.config/lenovo_linux
+cp -r service/profiles/* /etc/.config/lenovo_linux
 cp -r service/profiles/* cp service/.env /usr/share/legion_linux/
 
 sudo cp service/{legion-linux.service,legion-linux.path} /etc/systemd/system/

@@ -1056,25 +1056,23 @@ class AutomationTab(QWidget):
             self.lenovo_legion_laptop_support_service_check, 1)
         
         self.legion_gui_autostart_check = QCheckBox(
-            "Autostart Legion GUI on Session Startup")
+            "Autostart Legion GUI on Session Startup*")
         self.options_layout.addWidget(
             self.legion_gui_autostart_check, 1)
         
         
         self.close_to_tray_check = QCheckBox(
-            "Close to Tray")
+            "Close to Tray*")
         self.options_layout.addWidget(
             self.close_to_tray_check, 2)
         
         self.open_closed_to_tray_check = QCheckBox(
-            "Open Closed to Tray")
+            "Open Closed to Tray*")
         self.options_layout.addWidget(
             self.open_closed_to_tray_check, 3)
-        
-        
 
         self.note_label = QLabel(
-            "These are experimental features.\n *LLL deamon is fully working.")
+            'These are experimental features.\n *To apply this settings you need to close and reopen the GUI')
         self.options_layout.addWidget(self.note_label, 3)
 
         self.note_label2 = QLabel("")
