@@ -1088,7 +1088,7 @@ class AutomationTab(QWidget):
             self.open_closed_to_tray_check, 3)
 
         self.note_label = QLabel(
-            'These are experimental features.\n *To apply this settings you need to close and reopen the GUI')
+            'These are experimental features.\n *To apply this settings you need to press "Save" or "Save and Quit"')
         self.options_layout.addWidget(self.note_label, 3)
 
         self.note_label2 = QLabel("")
