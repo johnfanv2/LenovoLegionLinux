@@ -351,10 +351,10 @@ static const struct model_config model_9vcn = {
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
-	.access_method_fanspeed = ACCESS_METHOD_EC,
-	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true,
+	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600
 };
