@@ -779,6 +779,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_4gcn
 	},
+	{
+		// e.g. Legion Slim 5 16APH8 2023
+		.ident = "M3CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "M3CN"),
+		},
+		.driver_data = (void *)&model_lpcn
+	},
 	{}
 };
 
