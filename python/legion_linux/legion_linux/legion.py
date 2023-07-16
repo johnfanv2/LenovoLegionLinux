@@ -301,12 +301,12 @@ class BoolFileFeature(FileFeature):
 class LegionGUIAutostart(BoolFileFeature):
 
     def __init__(self):
-        super().__init__(str(Path.home() / ".config"))
         self.autostart_dekstop_folder_path = Path.home() / ".config" / "autostart"
         self.desktop_file_path = Path(
             '/usr/share/applications') / 'legion_gui_user.desktop'
         self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / \
             "legion_gui_user.desktop"
+        super().__init__(str(Path.home() / ".config"))
 
     def exists(self):
         return self.desktop_file_path.exists() and self.autostart_dekstop_folder_path.exists()
