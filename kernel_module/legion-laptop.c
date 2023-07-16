@@ -788,6 +788,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_lpcn
 	},
+	{
+		// e.g. Legion Y7000p-1060
+		.ident = "9VCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "9VCN"),
+		},
+		.driver_data = (void *)&model_v0
+	},
 	{}
 };
 
