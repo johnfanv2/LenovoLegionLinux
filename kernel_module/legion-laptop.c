@@ -978,6 +978,7 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 	return 0;
 }
 
+
 /* ================================= */
 /* Lenovo WMI config                 */
 /* ================================= */
@@ -1818,6 +1819,31 @@ static void legion_shared_exit(struct legion_private *priv)
 	pr_info("Unloading legion shared done\n");
 }
 
+
+static int get_simple_wmi_attribute(struct legion_private *priv,
+				    const char *guid, u8 instance,
+				    u32 method_id, bool invert,
+				    unsigned long scale,
+				    unsigned long *value)
+{
+	unsigned long state = 0;
+	int err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+
+	if (err)
+		return -EINVAL;
+
+	state = state * scale;
+
+	if (invert)
+		state = !state;
+	*value = state;
+	return 0;
+}
+
 /* ============================= */
 /* Sensor values reading/writing */
 /* ============================= */
@@ -2605,12 +2631,31 @@ ssize_t ec_write_fanfullspeed(struct ecram *ecram,
 	return 0;
 }
 
+ssize_t wmi_read_fanfullspeed(struct legion_private *priv, bool *state){
+	int err;
+	unsigned long val;
+	err = get_simple_wmi_attribute(priv, LEGION_WMI_GAMEZONE_GUID, 0, WMI_METHOD_ID_FAN_SET_FULLSPEED, false,
+				       0, &val);
+	if(!err)
+		*state = val;
+	return err;
+}
+
+ssize_t wmi_write_fanfullspeed(struct legion_private *priv,
+			      const struct model_config *model, bool state)
+{
+	return -1;
+}
+
+
 ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
 	// TODO: use enums or function pointers?
 	switch (priv->conf->access_method_fanfullspeed) {
 	case ACCESS_METHOD_EC:
 		return ec_read_fanfullspeed(&priv->ecram, priv->conf, state);
+	case ACCESS_METHOD_WMI:
+		return wmi_read_fanfullspeed(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
@@ -3159,29 +3204,6 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* sysfs interface                */
 /* ============================   */
 
-static int get_simple_wmi_attribute(struct legion_private *priv,
-				    const char *guid, u8 instance,
-				    u32 method_id, bool invert,
-				    unsigned long scale,
-				    unsigned long *value)
-{
-	unsigned long state = 0;
-	int err;
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
-	mutex_unlock(&priv->fancurve_mutex);
-
-	if (err)
-		return -EINVAL;
-
-	state = state * scale;
-
-	if (invert)
-		state = !state;
-	*value = state;
-	return 0;
-}
 
 static int set_simple_wmi_attribute(struct legion_private *priv,
 				    const char *guid, u8 instance,
