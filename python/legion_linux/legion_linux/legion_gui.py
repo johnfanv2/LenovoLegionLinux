@@ -18,10 +18,10 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLab
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
-from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, IntFileFeature, GsyncFeature, ApplicationModel
+from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, \
+    IntFileFeature, GsyncFeature
+
 # pylint: disable=too-few-public-methods
-
-
 class QtLogHandler(QtCore.QObject):
     logBuffer = []
     logWritten = QtCore.pyqtSignal(str)
@@ -558,22 +558,10 @@ class LegionController:
             self.model.read_fancurve_from_hw()
             # fan controller
         # fan
-        self.lockfancontroller_controller.update_view_from_feature()
-        self.maximumfanspeed_controller.update_view_from_feature()
-        # other
-        self.fnlock_controller.update_view_from_feature()
-        self.winkey_controller.update_view_from_feature()
-        self.touchpad_controller.update_view_from_feature()
-        self.camera_power_controller.update_view_from_feature()
-        self.batteryconservation_controller.update_view_from_feature()
-        self.rapid_charging_controller.update_view_from_feature()
-        self.always_on_usb_controller.update_view_from_feature()
-        self.cpu_overclock.update_view_from_feature()
-        self.gpu_overclock.update_view_from_feature()
-        self.overdrive_controller.update_view_from_feature()
-        self.hybrid_gsync_controller.update_view_from_feature()
-        self.update_power_gui(True)
         self.update_fancurve_gui()
+        self.update_fan_additional_gui()
+        self.update_other_gui()
+        self.update_power_gui(True)
         self.update_automation()
         self.view_fancurve.set_presets(self.model.fancurve_repo.get_names())
         self.main_window.show_root_dialog = self.show_root_dialog
@@ -597,6 +585,23 @@ class LegionController:
         set_dependent(self.batteryconservation_tray_controller,
                       self.rapid_charging_tray_controller)
         self.rapid_charging_tray_controller.update_view_from_feature()
+
+    def update_fan_additional_gui(self):
+        self.lockfancontroller_controller.update_view_from_feature()
+        self.maximumfanspeed_controller.update_view_from_feature()
+
+    def update_other_gui(self):
+        self.fnlock_controller.update_view_from_feature()
+        self.winkey_controller.update_view_from_feature()
+        self.touchpad_controller.update_view_from_feature()
+        self.camera_power_controller.update_view_from_feature()
+        self.batteryconservation_controller.update_view_from_feature()
+        self.rapid_charging_controller.update_view_from_feature()
+        self.always_on_usb_controller.update_view_from_feature()
+        self.cpu_overclock.update_view_from_feature()
+        self.gpu_overclock.update_view_from_feature()
+        self.overdrive_controller.update_view_from_feature()
+        self.hybrid_gsync_controller.update_view_from_feature()
 
     def update_power_gui(self, update_bounds=False):
         self.power_mode_controller.update_view_from_feature(
@@ -672,8 +677,8 @@ class LegionController:
     def save_settings(self):
         try:
             self.model.save_settings()
-        except PermissionError as e:
-            log_error(e)
+        except PermissionError as err:
+            log_error(err)
 
     def app_close_and_save(self):
         self.save_settings()
@@ -1070,25 +1075,25 @@ class AutomationTab(QWidget):
             "Lenovo Legion Laptop Support Deamon Enabled")
         self.options_layout.addWidget(
             self.lenovo_legion_laptop_support_service_check, 1)
-        
+
         self.legion_gui_autostart_check = QCheckBox(
-            "Autostart Legion GUI on Session Startup*")
+            "Autostart Legion GUI on Session Startup")
         self.options_layout.addWidget(
             self.legion_gui_autostart_check, 1)
-        
-        
+
+
         self.close_to_tray_check = QCheckBox(
-            "Close to Tray*")
+            "Close Legion GUI to Tray")
         self.options_layout.addWidget(
             self.close_to_tray_check, 2)
-        
+
         self.open_closed_to_tray_check = QCheckBox(
-            "Open Closed to Tray*")
+            "Open Legion GUI Closed to Tray")
         self.options_layout.addWidget(
             self.open_closed_to_tray_check, 3)
 
         self.note_label = QLabel(
-            'These are experimental features.\n *To apply this settings you need to press "Save" or "Save and Quit"')
+            'These are Experimental Features.\n To apply and save the Settings Press "Save" or "Save and Quit"')
         self.options_layout.addWidget(self.note_label, 3)
 
         self.note_label2 = QLabel("")
@@ -1194,7 +1199,7 @@ class MainWindow(QMainWindow):
         self.ok_quit_button.clicked.connect(controller.app_close_and_save)
         self.button_layout = QHBoxLayout()
         # Push to the right with strecht
-        self.button_layout.addStretch()  
+        self.button_layout.addStretch()
         self.button_layout.addWidget(self.quit_button)
         self.button_layout.addWidget(self.ok_button)
         self.button_layout.addWidget(self.ok_quit_button)
@@ -1238,11 +1243,13 @@ class MainWindow(QMainWindow):
         if self.show_root_dialog:
             QMessageBox.critical(
                 self, "Error", "Program must be run as root user!")
-            
+
         if self.controller.model.app_model.open_closed_to_tray.get():
             self.hide_to_tray()
-            
+
+    # pylint: disable=invalid-name
     def closeEvent(self, event):
+        # Overide the close event of pyqt
         log.info("Received close event")
         if self.controller.model.app_model.close_to_tray.get():
             log.info("Ignore close event and hide to tray instead.")
