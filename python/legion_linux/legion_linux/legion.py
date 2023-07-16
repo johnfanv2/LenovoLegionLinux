@@ -50,9 +50,17 @@ class FanCurveEntry:
     acceleration: int
     deceleration: int
 
+
 class Serializable:
     def __init__(self) -> None:
         pass
+
+    def to_yaml(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def from_yaml(cls, yaml_str:str):
+        raise NotImplementedError()
 
     def save_to_file(self, filename, create_dir=True):
         name = type(self).__name__
@@ -118,7 +126,8 @@ def write_file_with_legion_cli(name, values):
             log.info('FileFeature %s executed with code %d: %s; %s',
                      name, returncode, out_str, err_str)
     except IOError as err:
-        log.error('FileFeature %s executed with error %s and out %s and err %s', name, str(err), out_str, err_str)
+        log.error('FileFeature %s executed with error %s and out %s and err %s', name, str(
+            err), out_str, err_str)
         log.error(get_dmesg(only_tail=True, filter_log=False))
         raise err
 
@@ -143,16 +152,17 @@ class Feature:
 
     def name(self):
         return type(self).__name__
-    
+
+    # pylint: disable=no-self-use
     def exists(self):
         return True
-    
+
     # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
         return []
-    
+
     @staticmethod
-    def set_feature_to_str_value(name:str, values:List[str]):
+    def set_feature_to_str_value(name: str, values: List[str]):
         for feat in Feature.features:
             if feat.name() == name:
                 if len(values) == 1:
@@ -161,15 +171,16 @@ class Feature:
                     feat.set_str_values(values)
                 return True
         return False
-    
+
     @staticmethod
-    def set_feature_to_value(name:str, value):
+    def set_feature_to_value(name: str, value):
         for feat in Feature.features:
             if feat.name() == name:
                 feat.set(value)
                 return True
         return False
-    
+
+
 class BoolSettingFeature(Feature):
 
     def __init__(self, name) -> None:
@@ -184,7 +195,7 @@ class BoolSettingFeature(Feature):
         log.info('Feature %s setting to %d', self.name(), value)
         self.value = value
 
-    def get(self)->bool:
+    def get(self) -> bool:
         return self.value
 
 
@@ -290,9 +301,12 @@ class BoolFileFeature(FileFeature):
 class LegionGUIAutostart(BoolFileFeature):
 
     def __init__(self):
-        self.autostart_dekstop_folder_path = Path.home()  / ".config" / "autostart"
-        self.desktop_file_path = Path('/usr/share/applications') / 'legion_gui_user.desktop'
-        self.autostart_desktop_file_path =  self.autostart_dekstop_folder_path / "legion_gui_user.desktop"
+        super().__init__(str(Path.home() / ".config"))
+        self.autostart_dekstop_folder_path = Path.home() / ".config" / "autostart"
+        self.desktop_file_path = Path(
+            '/usr/share/applications') / 'legion_gui_user.desktop'
+        self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / \
+            "legion_gui_user.desktop"
 
     def exists(self):
         return self.desktop_file_path.exists() and self.autostart_dekstop_folder_path.exists()
@@ -310,10 +324,11 @@ class LegionGUIAutostart(BoolFileFeature):
             dest.unlink(missing_ok=True)
             log.info('Feature %s: Deleted %s', self.name(), dest)
 
-    def get(self)->bool:
+    def get(self) -> bool:
         if not self.autostart_desktop_file_path.exists():
             return False
         return True
+
 
 class IntFileFeature(FileFeature):
     limit_low_default: int
@@ -910,6 +925,7 @@ class FanCurveIO(Feature):
             log.error(str(error))
         return fancurve
 
+
 class ApplicationModel:
     automatic_close: BoolSettingFeature
     close_to_tray: BoolSettingFeature
@@ -925,9 +941,10 @@ class ApplicationModel:
         self.open_closed_to_tray = BoolSettingFeature('open_closed_to_tray')
         self.open_closed_to_tray.set(False)
 
+
 @dataclass
 class Settings(Serializable):
-    setting_entries: Dict 
+    setting_entries: Dict
 
     def to_yaml(self):
         return yaml.dump(asdict(self), default_flow_style=False, sort_keys=False)
@@ -946,10 +963,10 @@ class SettingsManager(Feature):
         self.preset_dir = preset_dir
         self.features = []
 
-    def add_feature(self, feature:Feature):
+    def add_feature(self, feature: Feature):
         self.features.append(feature)
 
-    def get_settings(self)->Settings:
+    def get_settings(self) -> Settings:
         settings = Settings({})
         for feat in self.features:
             name = feat.name()
@@ -958,7 +975,8 @@ class SettingsManager(Feature):
             settings.setting_entries[name] = value
         return settings
 
-    def apply_settings(self, preset:Settings):
+    # pylint: disable=no-self-use
+    def apply_settings(self, preset: Settings):
         for name, value in preset.setting_entries.items():
             log.error("Try seting %s from preset to %s", name, value)
             has_set = Feature.set_feature_to_value(name, value)
@@ -1341,10 +1359,10 @@ class LegionModelFacade:
             self.nvidia_gpu_running, self.platform_profile)
         self.monitors = [self.nvidia_gpu_monitor,
                          self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
-        
+
         # Other settings mainly for app
         self.app_model = ApplicationModel()
-        
+
         # Savable Settings
         self.settings_manager = SettingsManager(preset_dir=config_dir)
         self.settings_manager.add_feature(self.app_model.close_to_tray)
@@ -1420,7 +1438,7 @@ class LegionModelFacade:
         if upper_limit is not None:
             self.battery_custom_conservation_controller.upper_limit = upper_limit
         return self.battery_custom_conservation_controller.run()
-    
+
     def load_settings(self):
         if self.settings_manager.does_exists_by_name('settings'):
             log.info("Settings file exists and will be loaded.")
