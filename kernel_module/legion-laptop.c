@@ -824,7 +824,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_v2022
 	},
-	
+
 	{}
 };
 
@@ -1023,7 +1023,6 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 		return -EIO;
 	return 0;
 }
-
 
 /* ================================= */
 /* Lenovo WMI config                 */
@@ -1865,12 +1864,10 @@ static void legion_shared_exit(struct legion_private *priv)
 	pr_info("Unloading legion shared done\n");
 }
 
-
 static int get_simple_wmi_attribute(struct legion_private *priv,
 				    const char *guid, u8 instance,
 				    u32 method_id, bool invert,
-				    unsigned long scale,
-				    unsigned long *value)
+				    unsigned long scale, unsigned long *value)
 {
 	unsigned long state = 0;
 	int err;
@@ -2677,22 +2674,24 @@ ssize_t ec_write_fanfullspeed(struct ecram *ecram,
 	return 0;
 }
 
-ssize_t wmi_read_fanfullspeed(struct legion_private *priv, bool *state){
+ssize_t wmi_read_fanfullspeed(struct legion_private *priv, bool *state)
+{
 	int err;
 	unsigned long val;
-	err = get_simple_wmi_attribute(priv, LEGION_WMI_GAMEZONE_GUID, 0, WMI_METHOD_ID_FAN_SET_FULLSPEED, false,
+
+	err = get_simple_wmi_attribute(priv, LEGION_WMI_GAMEZONE_GUID, 0,
+				       WMI_METHOD_ID_FAN_SET_FULLSPEED, false,
 				       0, &val);
-	if(!err)
+	if (!err)
 		*state = val;
 	return err;
 }
 
 ssize_t wmi_write_fanfullspeed(struct legion_private *priv,
-			      const struct model_config *model, bool state)
+			       const struct model_config *model, bool state)
 {
 	return -1;
 }
-
 
 ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
@@ -3249,7 +3248,6 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* =============================  */
 /* sysfs interface                */
 /* ============================   */
-
 
 static int set_simple_wmi_attribute(struct legion_private *priv,
 				    const char *guid, u8 instance,
