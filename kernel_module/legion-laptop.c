@@ -322,6 +322,39 @@ static const struct ec_register_offsets ec_register_offsets_ideapad_v0 = {
 	.EXT_WHITE_KEYBOARD_BACKLIGHT = 0xC5a0 // not found yet
 };
 
+static const struct ec_register_offsets ec_register_offsets_ideapad_v1 = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN_CUR_POINT = 0xC5a0, // not found yet
+	.EXT_FAN_POINTS_SIZE = 0xC5a0, // constant 0
+	.EXT_FAN1_BASE = 0xC5a0,
+	.EXT_FAN2_BASE = 0xC5a8,
+	.EXT_FAN_ACC_BASE = 0xC5a0, // not found yet
+	.EXT_FAN_DEC_BASE = 0xC5a0, // not found yet
+	.EXT_CPU_TEMP = 0xC550, // and repeated after 8 bytes
+	.EXT_CPU_TEMP_HYST = 0xC590, // and repeated after 8 bytes
+	.EXT_GPU_TEMP = 0xC5C0, // and repeated after 8 bytes
+	.EXT_GPU_TEMP_HYST = 0xC5D0, // and repeated after 8 bytes
+	.EXT_VRM_TEMP = 0xC5a0, // does not exists or not found
+	.EXT_VRM_TEMP_HYST = 0xC5a0, // does not exists ot not found yet
+	.EXT_FAN1_RPM_LSB = 0xC5a0, // not found yet
+	.EXT_FAN1_RPM_MSB = 0xC5a0, // not found yet
+	.EXT_FAN2_RPM_LSB = 0xC5a0, // not found yet
+	.EXT_FAN2_RPM_MSB = 0xC5a0, // not found yet
+	.EXT_MINIFANCURVE_ON_COOL = 0xC5a0, // does not exists or not found
+	.EXT_LOCKFANCONTROLLER = 0xC5a0, // does not exists or not found
+	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
+	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
+	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
+	.EXT_POWERMODE = 0xC5a0, // not found yet
+	.EXT_FAN1_TARGET_RPM = 0xC5a0, // not found yet
+	.EXT_FAN2_TARGET_RPM = 0xC5a0, // not found yet
+	.EXT_MAXIMUMFANSPEED = 0xC5a0, // not found yet
+	.EXT_WHITE_KEYBOARD_BACKLIGHT = 0xC5a0 // not found yet
+};
+
 static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -342,7 +375,7 @@ static const struct model_config model_v0 = {
 
 
 static const struct model_config model_9vcn = {
-	.registers = &ec_register_offsets_v0,
+	.registers = &ec_register_offsets_ideapad_v1,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8226,
 	.memoryio_physical_ec_start = 0xC400,
@@ -353,7 +386,7 @@ static const struct model_config model_9vcn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_WMI,
-	.access_method_fancurve = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC2,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600
