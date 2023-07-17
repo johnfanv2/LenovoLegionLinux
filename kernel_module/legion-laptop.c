@@ -5346,7 +5346,7 @@ int legion_add(struct platform_device *pdev)
 
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
 	if (err) {
-		dev_info(&pdev->dev, "Could not init ACPI access\n");
+		dev_info(&pdev->dev, "Could not init ACPI access: %d\n", err);
 		goto err_acpi_init;
 	}
 
@@ -5357,7 +5357,7 @@ int legion_add(struct platform_device *pdev)
 				  priv->conf->ramio_size);
 	if (err) {
 		dev_info(&pdev->dev,
-			 "Could not init RAM access to embedded controller\n");
+			 "Could not init RAM access to embedded controller: %d\n", err);
 		goto err_ecram_memoryio_init;
 	}
 
@@ -5365,7 +5365,7 @@ int legion_add(struct platform_device *pdev)
 			 priv->conf->memoryio_size);
 	if (err) {
 		dev_info(&pdev->dev,
-			 "Could not init access to embedded controller\n");
+			 "Could not init access to embedded controller: %d\n", err);
 		goto err_ecram_init;
 	}
 
@@ -5389,26 +5389,28 @@ int legion_add(struct platform_device *pdev)
 	pr_info("Creating sysfs inteface\n");
 	err = legion_sysfs_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating sysfs interface failed\n");
+		dev_info(&pdev->dev, "Creating sysfs interface failed: %d\n", err);
 		goto err_sysfs_init;
 	}
 
 	pr_info("Creating hwmon interface");
 	err = legion_hwmon_init(priv);
-	if (err)
+	if (err) {
+		dev_info(&pdev->dev, "Creating hwmon interface failed: %d\n", err);
 		goto err_hwmon_init;
+	}
 
 	pr_info("Creating platform profile support\n");
 	err = legion_platform_profile_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating platform profile failed\n");
+		dev_info(&pdev->dev, "Creating platform profile failed: %d\n", err);
 		goto err_platform_profile;
 	}
 
 	pr_info("Init WMI driver support\n");
 	err = legion_wmi_init();
 	if (err) {
-		dev_info(&pdev->dev, "Init WMI driver failed\n");
+		dev_info(&pdev->dev, "Init WMI driver failed: %d\n", err);
 		goto err_wmi;
 	}
 
