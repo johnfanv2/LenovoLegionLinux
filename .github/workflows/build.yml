@@ -107,6 +107,10 @@ jobs:
       if: steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
       shell: bash
+    - name: Build deb dkms
+      if: steps.check_if_tagged.outputs.hastag == 1
+      run: ./deploy/build_deb_dkms.sh
+      shell: bash
     - name: Create tag
       if: steps.check_if_tagged.outputs.hastag == 1
       id: create_tag
