@@ -98,7 +98,7 @@ jobs:
         otag=$(git tag --points-at HEAD)
         if [ -z "$var" ]
         then
-          hastag=0
+          hastag=1
         else
           hastag=1
         fi
