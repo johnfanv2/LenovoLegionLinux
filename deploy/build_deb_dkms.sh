@@ -1,4 +1,6 @@
 #!/bin/bash
+DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+REPODIR="${DIR}/.."
 DKMSDIR=/usr/src/LenovoLegionLinux-1.0.0
 BUILD_DIR=/tmp/linux
 
