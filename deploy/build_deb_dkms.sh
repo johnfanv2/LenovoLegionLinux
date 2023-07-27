@@ -2,12 +2,14 @@
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 REPODIR="${DIR}/.."
 DKMSDIR=/usr/src/LenovoLegionLinux-1.0.0
-BUILD_DIR=/tmp/linux
+BUILD_DIR=/tmp/dkms_deb
 
 set -ex
+#Intsall debian packages
 sudo apt-get install debhelper dkms linux-headers-$(uname -r)
 
-cp -r ${REPODIR}/kernel_module/ ${BUILD_DIR}/
+#Setup BUILD_DIR
+cp --recursive ${REPODIR}/kernel_module/* ${BUILD_DIR}/
 
 cd ${BUILD_DIR}
 
@@ -18,9 +20,10 @@ sudo cp --recursive * ${DKMSDIR}
 sudo dkms add -m LenovoLegionLinux -v 1.0.0
 sudo dkms build -m LenovoLegionLinux -v 1.0.0
 
-#Make deb file
+#Build deb file
 sudo dkms mkdsc -m LenovoLegionLinux -v 1.0.0
 sudo dkms mkdeb -m LenovoLegionLinux -v 1.0.0
 
-#copy deb to kernel_module folder
-cp /var/lib/dkms/LenovoLegionLinux/1.0.0/deb/LenovoLegionLinux-dkms_1.0.0_all.deb ./LenovoLegionLinux-dkms_1.0.0_all.deb
+#Copy deb to deploy folder
+cp /var/lib/dkms/LenovoLegionLinux/1.0.0/deb/LenovoLegionLinux-dkms_1.0.0_all.deb ${REPODIR}/deploy/LenovoLegionLinux-dkms_1.0.0_all.deb
+echo "Dkms deb located at ${REPODIR}/deploy/LenovoLegionLinux-dkms_1.0.0_all.deb"
