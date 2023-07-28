@@ -13,7 +13,7 @@ if [ "$EUID" -ne 0 ]
 else
     python3 -m installer --destdir="/" dist/*.whl
     #Create config folder
-    cp /usr/share/legion_linux /etc/share/legion_linux
+    cp /usr/share/legion_linux /etc/legion_linux
 fi
 
 echo "Done"
