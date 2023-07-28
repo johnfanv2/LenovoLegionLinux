@@ -6,6 +6,14 @@ cd ${DIR}/../python/legion_linux
 
 # Build and install python package with build and installer
 python3 -m build --wheel --no-isolation
-python3 -m installer --destdir="/" dist/*.whl
+
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root to install"
+  exit
+else
+    python3 -m installer --destdir="/" dist/*.whl
+    #Create config folder
+    cp /usr/share/legion_linux /etc/share/legion_linux
+fi
 
 echo "Done"

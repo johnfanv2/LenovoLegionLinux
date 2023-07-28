@@ -5,5 +5,5 @@ Name=Root LenovoLegionLinux
 Icon=/usr/share/pixmaps/legion_logo.png
 Exec=pkexec /usr/bin/legion_gui
 Comment=Control Lenovo Legion Laptops
-Categories=Application
+Categories=System
 Terminal=false

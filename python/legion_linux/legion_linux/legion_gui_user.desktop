@@ -5,5 +5,5 @@ Name=User LenovoLegionLinux
 Icon=/usr/share/pixmaps/legion_logo.png
 Exec=/usr/bin/legion_gui --use_legion_cli_to_write
 Comment=Control Lenovo Legion Laptops
-Categories=Application
+Categories=System
 Terminal=false
