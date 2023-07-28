@@ -98,7 +98,7 @@ jobs:
         otag=$(git tag --points-at HEAD)
         if [ -z "$var" ]
         then
-          hastag=1
+          hastag=0
         else
           hastag=1
         fi
@@ -106,10 +106,6 @@ jobs:
     - name: Build kernel patch
       if: steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
-      shell: bash
-    - name: Build deb dkms
-      if: steps.check_if_tagged.outputs.hastag == 1
-      run: ./deploy/build_deb_dkms.sh
       shell: bash
     - name: Create tag
       if: steps.check_if_tagged.outputs.hastag == 1
@@ -140,6 +136,46 @@ jobs:
         asset_content_type: text/plain
     - name: Publish Release
       if: steps.check_if_tagged.outputs.hastag == 1
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        release_id: ${{ steps.create_release.outputs.id }}
+  release-deb:
+    needs: [build, run-kernel-dkms-install-test, run-tests]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Build dkms deb
+      run: ./deploy/build_deb_dkms.sh
+      shell: bash
+    - name: Create tag
+      id: create_tag
+      run: |
+        tag=$(basename "${{ github.ref }}")$(date '+%Y-%m-%d-%H-%M-%S')
+        echo "tag=$tag" >> $GITHUB_OUTPUT
+    - name: Create Draft Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.create_tag.outputs.tag }}
+        release_name: ${{ steps.create_tag.outputs.tag }}
+        draft: true
+        prerelease: false
+    - name: Upload Release
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: /tmp/dkms_deb/LenovoLegionLinux-dkms_1.0.0_all.deb
+        asset_name: LenovoLegionLinux-dkms_1.0.0_all.deb
+        asset_content_type: application/octet-stream
+    - name: Publish Release
       uses: eregon/publish-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
