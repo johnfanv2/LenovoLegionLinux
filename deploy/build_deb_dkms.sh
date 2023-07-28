@@ -21,13 +21,14 @@ sudo mkdir --verbose ${DKMSDIR}
 sudo cp --recursive * ${DKMSDIR}
 
 #Build dkms
-sudo dkms add -m LenovoLegionLinux -v 1.0.0
-sudo dkms build -m LenovoLegionLinux -v 1.0.0
+sudo dkms add -m lenovolegionlinux -v 1.0.0
+sudo dkms build -m lenovolegionlinux -v 1.0.0
 
 #Build deb file
-sudo dkms mkdsc -m LenovoLegionLinux -v 1.0.0
-sudo dkms mkdeb -m LenovoLegionLinux -v 1.0.0
+sudo dkms mkdsc -m lenovolegionlinux -v 1.0.0
+sudo dkms mkdeb -m lenovolegionlinux -v 1.0.0
 
 #Copy deb to deploy folder
-cp /var/lib/dkms/LenovoLegionLinux/1.0.0/deb/LenovoLegionLinux-dkms_1.0.0_all.deb ${BUILD_DIR}/LenovoLegionLinux-dkms_1.0.0_all.deb
-echo "Dkms deb located at ${BUILD_DIR}/LenovoLegionLinux-dkms_1.0.0_all.deb"
+ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
+cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_all.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_all.deb
+echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_all.deb"
