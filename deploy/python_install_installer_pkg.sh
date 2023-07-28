@@ -8,7 +8,4 @@ cd ${DIR}/../python/legion_linux
 python3 -m build --wheel --no-isolation
 python3 -m installer --destdir="/" dist/*.whl
 
-sudo cp legion_linux/legion_gui.desktop /usr/share/applications/
-sudo cp legion_linux/legion_cli.policy /usr/share/polkit-1/actions/
-
 echo "Done"

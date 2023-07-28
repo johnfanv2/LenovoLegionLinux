@@ -15,8 +15,8 @@ mkdir /usr/share/legion_linux/
 cp service/.env /etc/lenovo_linux/
 cp service/.env /usr/share/legion_linux/
 
-cp -r service/profiles/* /etc/.config/lenovo_linux
-cp -r service/profiles/* cp service/.env /usr/share/legion_linux/
+cp -r service/profiles/* /etc/lenovo_linux
+cp -r service/profiles/* /usr/share/legion_linux/
 
 sudo cp service/{legion-linux.service,legion-linux.path} /etc/systemd/system/
 
