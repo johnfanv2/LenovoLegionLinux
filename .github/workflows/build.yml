@@ -172,8 +172,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: /tmp/dkms_deb/lenovolegionlinux-dkms_1.0.0_all.deb
-        asset_name: lenovolegionlinux-dkms_1.0.0_all.deb
+        asset_path: /tmp/dkms_deb/lenovolegionlinux-dkms_1.0.0_amd64.deb
+        asset_name: lenovolegionlinux-dkms_1.0.0_amd64.deb
         asset_content_type: application/octet-stream
     - name: Publish Release
       uses: eregon/publish-release@v1

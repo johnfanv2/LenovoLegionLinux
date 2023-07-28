@@ -30,5 +30,5 @@ sudo dkms mkdeb -m lenovolegionlinux -v 1.0.0
 
 #Copy deb to deploy folder
 ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
-cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_all.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_all.deb
-echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_all.deb"
+cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb
+echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
