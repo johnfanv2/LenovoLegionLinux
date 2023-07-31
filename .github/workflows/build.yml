@@ -112,6 +112,12 @@ jobs:
       if: steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
       shell: bash
+    - name: Set tag name
+      if: steps.check_if_tagged.outputs.hastag == 1
+      id: tag
+      run: |
+        tag=$(git describe --tags --abbrev=0)
+        echo "tag=$tag" >> $GITHUB_OUTPUTD
     - name: Create Draft Release
       if: steps.check_if_tagged.outputs.hastag == 1
       id: create_release
@@ -119,8 +125,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: $(git describe --tags --abbrev=0)
-        release_name: $(git describe --tags --abbrev=0)
+        tag_name: ${{ steps.tag.outputs.tag }}
+        release_name: ${{ steps.tag.outputs.tag }}
         draft: true
         prerelease: false
     - name: Upload Release - Kernel Patch
