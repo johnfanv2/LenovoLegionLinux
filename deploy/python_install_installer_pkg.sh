@@ -11,7 +11,7 @@ if [ "$EUID" -ne 0 ]
   then echo "Please run as root to install"
   exit
 else
-    python3 -m installer --destdir="/" dist/*.whl
+    python3 -m installer --destdir="/" dist/*.whl --record files.txt
     #Create config folder
     cp -r /usr/share/legion_linux /etc/legion_linux
 fi
