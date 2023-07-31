@@ -104,7 +104,6 @@ jobs:
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build Debs
-      if: steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_deb.sh
       shell: bash
     - name: Build kernel patch
@@ -139,7 +138,6 @@ jobs:
         asset_name: 0001-Add-legion-laptop-v0.1.patch
         asset_content_type: text/plain
     - name: Upload Release - Deb DKMS
-      if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,7 +147,6 @@ jobs:
         asset_name: lenovolegionlinux-dkms_1.0.0_amd64.deb
         asset_content_type: application/octet-stream
     - name: Upload Release - Deb Python (legion_gui & legion_cli)
-      if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -159,7 +156,6 @@ jobs:
         asset_name: python3-legion-linux_1.0.0-1_amd64.deb
         asset_content_type: application/octet-stream
     - name: Publish Release
-      if: steps.check_if_tagged.outputs.hastag == 1
       uses: eregon/publish-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
