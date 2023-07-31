@@ -137,13 +137,13 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v0.1.patch
         asset_name: 0001-Add-legion-laptop-v0.1.patch
+        asset_content_type: text/plain
     - name: Upload Release - Deb DKMS
       if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        asset_content_type: text/plain
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: /tmp/dkms_deb/lenovolegionlinux-dkms_1.0.0_amd64.deb
         asset_name: lenovolegionlinux-dkms_1.0.0_amd64.deb
