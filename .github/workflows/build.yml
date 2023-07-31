@@ -86,7 +86,7 @@ jobs:
       run: ./deploy/build_containers.sh
       shell: bash
   release-deb-kernel-patch:
-    needs: [build, run-kernel-module-test, run-tests, run-kernel-dkms-install-test]
+    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -147,13 +147,13 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: /tmp/dkms_deb/lenovolegionlinux-dkms_1.0.0_amd64.deb
         asset_name: lenovolegionlinux-dkms_1.0.0_amd64.deb
+        asset_content_type: application/octet-stream
     - name: Upload Release - Deb Python (legion_gui & legion_cli)
       if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        asset_content_type: application/octet-stream
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: /tmp/dkms_deb/python3-legion-linux_1.0.0-1_amd64.deb
         asset_name: python3-legion-linux_1.0.0-1_amd64.deb
