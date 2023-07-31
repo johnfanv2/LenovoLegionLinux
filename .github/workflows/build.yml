@@ -111,13 +111,11 @@ jobs:
       run: ./deploy/build_kernelpatch.sh
       shell: bash
     - name: Create tag
-      if: steps.check_if_tagged.outputs.hastag == 1
       id: create_tag
       run: |
         tag=$(basename "${{ github.ref }}")$(date '+%Y-%m-%d-%H-%M-%S')
         echo "tag=$tag" >> $GITHUB_OUTPUT
     - name: Create Draft Release
-      if: steps.check_if_tagged.outputs.hastag == 1
       id: create_release
       uses: actions/create-release@v1
       env:
