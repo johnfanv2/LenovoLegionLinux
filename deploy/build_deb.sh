@@ -6,7 +6,7 @@ BUILD_DIR=/tmp/dkms_deb
 
 set -ex
 #Intsall debian packages
-sudo apt-get install debhelper dkms linux-headers-$(uname -r) python3-all python3-stdeb
+sudo apt-get install debhelper dkms linux-headers-$(uname -r) python3-all python3-stdeb dh-python
 
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
@@ -30,7 +30,7 @@ sudo dkms mkdsc -m lenovolegionlinux -v 1.0.0
 sudo dkms mkdeb -m lenovolegionlinux -v 1.0.0
 
 #Copy deb to deploy folder
-ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
+sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
 cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb
 echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 ##
@@ -39,5 +39,5 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 cd ${REPODIR}/python/legion_linux
 
 #Build deb
-python3 setup.py --command-packages=stdeb.command bdist_deb
+sudo python3 setup.py --command-packages=stdeb.command bdist_deb
 cp deb_dist/python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
