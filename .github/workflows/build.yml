@@ -119,8 +119,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.create_tag.outputs.tag }}
-        release_name: ${{ steps.create_tag.outputs.tag }}
+        tag_name: $(git describe --tags --abbrev=0)
+        release_name: $(git describe --tags --abbrev=0)
         draft: true
         prerelease: false
     - name: Upload Release - Kernel Patch
