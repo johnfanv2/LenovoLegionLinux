@@ -96,11 +96,11 @@ jobs:
       id: check_if_tagged
       run: |
         otag=$(git tag --points-at HEAD)
-        if [ -z "$var" ]
+        if [ -z "$otag" ]
         then
-          hastag=0
-        else
           hastag=1
+        else
+          hastag=0
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build Debs
