@@ -39,5 +39,5 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 cd ${REPODIR}/python/legion_linux
 
 #Build deb
-sudo deb_dist/python3 setup.py --command-packages=stdeb.command bdist_deb
-cp ./python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
+sudo python3 setup.py --command-packages=stdeb.command bdist_deb
+cp deb_dist/python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
