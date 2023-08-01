@@ -117,7 +117,7 @@ jobs:
       id: tag
       run: |
         tag=$(git describe --tags --abbrev=0)
-        echo "tag=$tag" >> $GITHUB_OUTPUTD
+        echo "tag=$tag" >> $GITHUB_OUTPUT
     - name: Create Draft Release
       if: steps.check_if_tagged.outputs.hastag == 1
       id: create_release
