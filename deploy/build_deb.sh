@@ -6,7 +6,7 @@ BUILD_DIR=/tmp/dkms_deb
 
 set -ex
 #Intsall debian packages
-sudo apt-get install debhelper dkms linux-headers-$(uname -r) python3-all python3-stdeb dh-python
+sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python
 
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
@@ -41,5 +41,5 @@ cd ${REPODIR}/python/legion_linux
 #Build deb
 sudo python3 setup.py --command-packages=stdeb.command sdist_dsc
 cd deb_dist/legion-linux-1.0.0
-dpkg-buildpackage -uc -us
+sudo dpkg-buildpackage -uc -us
 cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
