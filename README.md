@@ -30,7 +30,7 @@
 Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
-It allows to control a few features like fan curve and power mode.
+It allows you to control features like the fan curve, power mode, power limits, rapid charging, and more. This has been achieved through reverse engineering and disassembling the ACPI firmware, as well as the firmware and memory of the embedded controller (EC).
 
 :star: **Please star this repository if this is useful or might be useful in the future.**
 
