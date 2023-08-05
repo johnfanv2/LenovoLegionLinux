@@ -16,5 +16,10 @@ else
     #cp -r /usr/share/legion_linux /etc/legion_linux
     cp -r /usr/local/share/legion_linux /etc/legion_linux
 fi
+# Desktop file
+# sudo cp legion_linux/legion_gui.desktop /usr/share/applications/
+# sudo cp legion_linux/legion_gui_user.desktop /usr/share/applications/
+# sudo mkdir -p /usr/share/icons/
+# sudo cp legion_linux/legion_logo.png /usr/share/icons/legion_logo.png
 
 echo "Done"

@@ -15,5 +15,8 @@ else
     #Create config folder
     cp -r /usr/share/legion_linux /etc/legion_linux
 fi
+# sudo cp legion_linux/legion_gui.desktop /usr/share/applications/
+# sudo cp legion_linux/legion_gui_user.desktop /usr/share/applications/
+# sudo cp legion_linux/legion_cli.policy /usr/share/polkit-1/actions/
 
 echo "Done"
