@@ -91,6 +91,12 @@ MODULE_PARM_DESC(
 	ec_readonly,
 	"Only read from embedded controller but do not write or change settings.");
 
+static bool enable_platformprofile = true;
+module_param(enable_platformprofile, bool, 0440);
+MODULE_PARM_DESC(
+	enable_platformprofile,
+	"Enable the platform profile sysfs API to read and write the power mode.");
+
 #define LEGIONFEATURES \
 	"fancurve powermode platformprofile platformprofilenotify minifancurve"
 
@@ -372,7 +378,6 @@ static const struct model_config model_v0 = {
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600
 };
-
 
 static const struct model_config model_9vcn = {
 	.registers = &ec_register_offsets_ideapad_v1,
@@ -3946,6 +3951,8 @@ static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 	return sysfs_emit(buf, "%d\n", power_mode);
 }
 
+static void legion_platform_profile_notify(void);
+
 static ssize_t powermode_store(struct device *dev,
 			       struct device_attribute *attr, const char *buf,
 			       size_t count)
@@ -3969,7 +3976,7 @@ static ssize_t powermode_store(struct device *dev,
 	// readback done after notifying returns correct value, otherwise
 	// the notified reader will read old value
 	msleep(500);
-	platform_profile_notify();
+	legion_platform_profile_notify();
 
 	return count;
 }
@@ -4073,7 +4080,7 @@ static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 		pr_info("Fan event: legion type: %d;  acpi type: %d (%d=integer)",
 			wpriv->event, data->type, ACPI_TYPE_INTEGER);
 		// TODO: here it is too early (first unlock mutext, then wait a bit)
-		//platform_profile_notify();
+		//legion_platform_profile_notify();
 		break;
 	default:
 		pr_info("Event: legion type: %d;  acpi type: %d (%d=integer)",
@@ -4087,7 +4094,7 @@ unlock:
 	// problem: we get a event just before the powermode change (from the key?),
 	// so if we notify to early, it will read the old power mode/platform profile
 	msleep(500);
-	platform_profile_notify();
+	legion_platform_profile_notify();
 }
 
 static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
@@ -4187,6 +4194,14 @@ static void legion_wmi_exit(void)
 /* Platform profile               */
 /* ============================   */
 
+static void legion_platform_profile_notify(void)
+{
+	if (!enable_platformprofile)
+		pr_info("Skipping platform_profile_notify because enable_platformprofile is false\n");
+
+	platform_profile_notify();
+}
+
 static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 				       enum platform_profile_option *profile)
 {
@@ -4249,6 +4264,11 @@ static int legion_platform_profile_init(struct legion_private *priv)
 {
 	int err;
 
+	if (!enable_platformprofile) {
+		pr_info("Skipping creating platform profile support because enable_platformprofile is false\n");
+		return 0;
+	}
+
 	priv->platform_profile_handler.profile_get =
 		legion_platform_profile_get;
 	priv->platform_profile_handler.profile_set =
@@ -4274,6 +4294,10 @@ static int legion_platform_profile_init(struct legion_private *priv)
 
 static void legion_platform_profile_exit(struct legion_private *priv)
 {
+	if (!enable_platformprofile) {
+		pr_info("Skipping unloading platform profile support because enable_platformprofile is false\n");
+		return;
+	}
 	pr_info("Unloading legion platform profile\n");
 	platform_profile_remove();
 	pr_info("Unloading legion platform profile done\n");
@@ -5356,8 +5380,10 @@ int legion_add(struct platform_device *pdev)
 				  priv->conf->ramio_physical_start, 0,
 				  priv->conf->ramio_size);
 	if (err) {
-		dev_info(&pdev->dev,
-			 "Could not init RAM access to embedded controller: %d\n", err);
+		dev_info(
+			&pdev->dev,
+			"Could not init RAM access to embedded controller: %d\n",
+			err);
 		goto err_ecram_memoryio_init;
 	}
 
@@ -5365,7 +5391,8 @@ int legion_add(struct platform_device *pdev)
 			 priv->conf->memoryio_size);
 	if (err) {
 		dev_info(&pdev->dev,
-			 "Could not init access to embedded controller: %d\n", err);
+			 "Could not init access to embedded controller: %d\n",
+			 err);
 		goto err_ecram_init;
 	}
 
@@ -5389,21 +5416,24 @@ int legion_add(struct platform_device *pdev)
 	pr_info("Creating sysfs inteface\n");
 	err = legion_sysfs_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating sysfs interface failed: %d\n", err);
+		dev_info(&pdev->dev, "Creating sysfs interface failed: %d\n",
+			 err);
 		goto err_sysfs_init;
 	}
 
 	pr_info("Creating hwmon interface");
 	err = legion_hwmon_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating hwmon interface failed: %d\n", err);
+		dev_info(&pdev->dev, "Creating hwmon interface failed: %d\n",
+			 err);
 		goto err_hwmon_init;
 	}
 
 	pr_info("Creating platform profile support\n");
 	err = legion_platform_profile_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating platform profile failed: %d\n", err);
+		dev_info(&pdev->dev, "Creating platform profile failed: %d\n",
+			 err);
 		goto err_platform_profile;
 	}
 

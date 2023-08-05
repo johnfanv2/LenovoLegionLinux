@@ -53,6 +53,12 @@ forcereloadmodulereadonly:
 	insmod legion-laptop.ko force=1 ec_readonly=1
 	dmesg --ctime
 
+reloadmodule_disableplatformprofile:
+	rmmod legion-laptop.ko || true
+	insmod legion-laptop.ko enable_platformprofile=0
+	dmesg --ctime
+	bash -c "./issue-warning.sh"
+
 dkms: all
 	if [ -d $(DKMSDIR) ]; then\
     	rm --recursive $(DKMSDIR)/*;\
