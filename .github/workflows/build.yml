@@ -96,6 +96,7 @@ jobs:
       id: check_if_tagged
       run: |
         otag=$(git tag --points-at HEAD)
+        echo "Tag is ${otag}"
         if [ -z "$otag" ]
         then
           hastag=0
