@@ -96,12 +96,11 @@ jobs:
       id: check_if_tagged
       run: |
         otag=$(git tag --points-at HEAD)
-        echo $otag
-        if [ -z "$var" ]
+        if [ -z "$otag" ]
         then
-          hastag=1
-        else
           hastag=0
+        else
+          hastag=1
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build Debs
@@ -139,7 +138,7 @@ jobs:
         asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v0.1.patch
         asset_name: 0001-Add-legion-laptop-v0.1.patch
         asset_content_type: text/plain
-    - name: Upload Release - Deb DKMS
+    - name: Upload Release - Deb Package DKMS
       if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
@@ -149,7 +148,7 @@ jobs:
         asset_path: /tmp/dkms_deb/lenovolegionlinux-dkms_1.0.0_amd64.deb
         asset_name: lenovolegionlinux-dkms_1.0.0_amd64.deb
         asset_content_type: application/octet-stream
-    - name: Upload Release - Deb Python (legion_gui & legion_cli)
+    - name: Upload Release - Deb Package Python (legion_gui & legion_cli)
       if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
