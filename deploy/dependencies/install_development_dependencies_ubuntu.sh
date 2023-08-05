@@ -2,6 +2,8 @@
 set -ex
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+# Needed in CI
+sudo apt-get update
 
 # Linter
 # Tools for running GUI tests headless
