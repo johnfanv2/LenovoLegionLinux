@@ -12,6 +12,9 @@ obj-m += legion-laptop.o
 all:
 	$(MAKE) -C $(KSRC) M=$(shell pwd) modules
 
+moduleInContainer:
+	docker run -it --rm -v "$(shell pwd)":/kernel_module -w /kernel_module  -v /usr/src/:/usr/src/  -v /lib/modules/:/lib/modules gcc:12.2.0 bash
+
 allWarn:
 	$(MAKE) -C $(KSRC) M=$(shell pwd) KCFLAGS=-W modules
 
