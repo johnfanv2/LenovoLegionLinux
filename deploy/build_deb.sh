@@ -2,7 +2,7 @@
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 REPODIR="${DIR}/.."
 DKMSDIR=/usr/src/lenovolegionlinux-1.0.0
-BUILD_DIR=/tmp/dkms_deb
+BUILD_DIR=/tmp/deb
 
 set -ex
 #Intsall debian packages
@@ -42,13 +42,9 @@ cd ${REPODIR}/python/legion_linux
 sudo python3 setup.py --command-packages=stdeb.command sdist_dsc
 cd deb_dist/legion-linux-1.0.0
 
-#Add systemd files
-cp ../extra/service/legion-linux.service
-cp ../extra/service/legion-linux.path
-
 ##Add to debial install
-echo "legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
-echo "legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
+echo "legion_linux/extra/service/legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legion_linux/extra/service/legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
 
 # Build package
 sudo dpkg-buildpackage -uc -us
