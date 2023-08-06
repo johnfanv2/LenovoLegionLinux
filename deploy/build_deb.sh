@@ -43,8 +43,11 @@ sudo python3 setup.py --command-packages=stdeb.command sdist_dsc
 cd deb_dist/legion-linux-1.0.0
 
 ##Add to debial install
-echo "legion_linux/extra/service/legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
-echo "legion_linux/extra/service/legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
+sudo cp -R ../../../../extra/service/legion-linux.service .
+sudo cp -R ../../../../extra/service/legion-linux.path .
+echo "legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
+sudo  EDITOR=/bin/true dpkg-source -q --commit . p1
 
 # Build package
 sudo dpkg-buildpackage -uc -us

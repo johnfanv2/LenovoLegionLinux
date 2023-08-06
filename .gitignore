@@ -3,6 +3,8 @@ __pycache__/
 
 legion_linux.egg-info/
 
+deb_dist
+
 reverse_engineer
 
 # Prerequisites
