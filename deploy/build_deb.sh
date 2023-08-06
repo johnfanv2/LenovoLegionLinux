@@ -38,8 +38,18 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 ##BUILD PYTHON DEB
 cd ${REPODIR}/python/legion_linux
 
-#Build deb
+# Create package sceleton
 sudo python3 setup.py --command-packages=stdeb.command sdist_dsc
 cd deb_dist/legion-linux-1.0.0
+
+#Add systemd files
+cp ../extra/service/legion-linux.service
+cp ../extra/service/legion-linux.path
+
+##Add to debial install
+echo "legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
+
+# Build package
 sudo dpkg-buildpackage -uc -us
 cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
