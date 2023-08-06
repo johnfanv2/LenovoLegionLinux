@@ -659,6 +659,25 @@ static const struct model_config model_8jcn = {
 	.ramio_size = 0x600
 };
 
+
+static const struct model_config model_jncn = {
+	.registers = &ec_register_offsets_v1,
+	.check_embedded_controller_id = false,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = false,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI,
+	.access_method_temperature = ACCESS_METHOD_WMI,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFC7E0800,
+	.ramio_size = 0x600
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -790,6 +809,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "H3CN"),
 		},
 		.driver_data = (void *)&model_h3cn
+	},
+	{
+		// e.g. IdeaPad Gaming 3 15ARH7 (2022)
+		.ident = "JNCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "JNCN"),
+		},
+		.driver_data = (void *)&model_jncn
 	},
 	{
 		// 2020, seems very different in ACPI dissassembly
