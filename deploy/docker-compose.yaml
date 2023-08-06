@@ -22,3 +22,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.ubuntu
+  ubuntu:
+    image: ubuntu:latest
+    volumes:
+      - "../:/app/LenovoLegionLinux"
