@@ -13,6 +13,7 @@
 [![NixOS](https://img.shields.io/badge/NixOS--package-lenovo--legion-9cf)](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
 [![Nobara](https://img.shields.io/badge/Nobara_Linux-Kernel_Patched-green)](https://nobaraproject.org/)
 [![CachyOS](https://img.shields.io/badge/CachyOS_Linux-Kernel_Patched-green)](https://cachyos.org)
+[![PikaOS](https://img.shields.io/badge/PikaOS_Linux-Kernel_Patched-green)](https://pika-os.com/)
 ---
 
 #### Other language versions of this README file:
