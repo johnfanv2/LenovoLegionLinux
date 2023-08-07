@@ -23,20 +23,20 @@
 
 **This project is not affiliated with Lenovo in any way**
 
-# If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46).
+<!-- # If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46).
 
-# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54).
+# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). -->
 
 Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
 It allows you to control features like the fan curve, power mode, power limits, rapid charging, and more. This has been achieved through reverse engineering and disassembling the ACPI firmware, as well as the firmware and memory of the embedded controller (EC).
 
-:star: **Please star this repository if this is useful or might be useful in the future.**
+<!-- :star: **Please star this repository if this is useful or might be useful in the future.**
 
 :star2: **My goal is to merge the driver into the main Linux kernel so it comes automatically with Linux and no recompilation is required after a Linux update**
 
-:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
+:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.** -->
 
 ## :rocket: Features
 
