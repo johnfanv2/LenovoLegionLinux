@@ -435,7 +435,7 @@ static const struct model_config model_4gcn = {
 
 static const struct model_config model_bvcn = {
 	.registers = &ec_register_offsets_v0,
-	.check_embedded_controller_id = true,
+	.check_embedded_controller_id = false,
 	.embedded_controller_id = 0x8226,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
