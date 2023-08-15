@@ -446,7 +446,7 @@ static const struct model_config model_bvcn = {
 	.access_method_fanspeed = ACCESS_METHOD_EC,
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.acpi_check_dev = true,
+	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600
 };
@@ -2393,7 +2393,8 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	u8 buffer[0x20];
 	int err;
 
-	// Read like this in ACPI
+	// The buffer is read like this in ACPI firmware
+	//
 	// CreateByteField (Arg2, Zero, FSTM)
 	// CreateByteField (Arg2, One, FSID)
 	// CreateDWordField (Arg2, 0x02, FSTL)
