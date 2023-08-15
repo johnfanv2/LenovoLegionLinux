@@ -1012,7 +1012,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_m2cn
 	},
-	
+
 	{}
 };
 
@@ -2046,9 +2046,9 @@ static int get_simple_wmi_attribute(struct legion_private *priv,
 
 	if (err)
 		return -EINVAL;
-	
+
 	// TODO: remove later
-	pr_info("get_simple_wmi_attribute with raw value: %ld\n", state);
+	pr_info("%swith raw value: %ld\n", __func__, state);
 
 	state = state * scale;
 
@@ -4043,6 +4043,7 @@ static ssize_t fan_fullspeed_show(struct device *dev,
 	bool state = false;
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
+
 	err = read_fanfullspeed(priv, &state);
 	if (err)
 		return -EINVAL;
