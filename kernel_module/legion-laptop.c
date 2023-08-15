@@ -957,7 +957,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 	},
 	{
 		// e.g. Legion 5 Pro 16IAH7H with a RTX 3070 Ti
-		.ident = "BVCN",
+		.ident = "J2CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "J2CN"),
