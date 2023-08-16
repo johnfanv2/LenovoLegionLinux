@@ -529,7 +529,7 @@ static const struct model_config model_m2cn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
-	.acpi_check_dev = true,
+	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
 };
@@ -2039,6 +2039,11 @@ static int get_simple_wmi_attribute(struct legion_private *priv,
 {
 	unsigned long state = 0;
 	int err;
+
+	if (scale == 0) {
+		pr_info("Scale cannot be 0\n");
+		return -EINVAL;
+	}
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
