@@ -2044,11 +2044,7 @@ static int get_simple_wmi_attribute(struct legion_private *priv,
 		pr_info("Scale cannot be 0\n");
 		return -EINVAL;
 	}
-
-	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_exec_noarg_int(guid, instance, method_id, &state);
-	mutex_unlock(&priv->fancurve_mutex);
-
 	if (err)
 		return -EINVAL;
 
@@ -2093,10 +2089,8 @@ static int set_simple_wmi_attribute(struct legion_private *priv,
 
 	in_param = state / scale;
 
-	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_exec_arg(guid, instance, method_id, &in_param,
 			   sizeof(in_param));
-	mutex_unlock(&priv->fancurve_mutex);
 	return err;
 }
 
@@ -3486,8 +3480,11 @@ static int show_simple_wmi_attribute(struct device *dev,
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	mutex_lock(&priv->fancurve_mutex);
 	err = get_simple_wmi_attribute(priv, guid, instance, method_id, invert,
 				       scale, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+	
 	if (err)
 		return -EINVAL;
 
@@ -4049,7 +4046,9 @@ static ssize_t fan_fullspeed_show(struct device *dev,
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	mutex_lock(&priv->fancurve_mutex);
 	err = read_fanfullspeed(priv, &state);
+	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
 
@@ -4068,7 +4067,9 @@ static ssize_t fan_fullspeed_store(struct device *dev,
 	if (err)
 		return err;
 
+	mutex_lock(&priv->fancurve_mutex);
 	err = write_fanfullspeed(priv, state);
+	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
 
