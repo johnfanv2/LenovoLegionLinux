@@ -11,6 +11,7 @@ obj-m += legion-laptop.o
 
 all:
 	$(MAKE) -C $(KSRC) M=$(shell pwd) modules
+	bash -c "./issue-warning.sh"
 
 moduleInContainer:
 	docker run -it --rm -v "$(shell pwd)":/kernel_module -w /kernel_module  -v /usr/src/:/usr/src/  -v /lib/modules/:/lib/modules gcc:12.2.0 bash
@@ -33,6 +34,7 @@ uninstall:
 	@rm -f $(INSTALLDIR)/legion-laptop.ko
 	@depmod --all
 	@printf "%s\n" "Uninstall finished."
+	bash -c "./issue-warning.sh"
 
 install_forcereload:
 	make install
@@ -55,10 +57,17 @@ forcereloadmodulereadonly:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko force=1 ec_readonly=1
 	dmesg --ctime
+	bash -c "./issue-warning.sh"
 
 reloadmodule_disableplatformprofile:
 	rmmod legion-laptop.ko || true
 	insmod legion-laptop.ko enable_platformprofile=0
+	dmesg --ctime
+	bash -c "./issue-warning.sh"
+
+forcereloadmodule_disableplatformprofile:
+	rmmod legion-laptop.ko || true
+	insmod legion-laptop.ko force=1 enable_platformprofile=0
 	dmesg --ctime
 	bash -c "./issue-warning.sh"
 
