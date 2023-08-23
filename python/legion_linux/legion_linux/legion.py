@@ -4,7 +4,7 @@ import glob
 from dataclasses import asdict, dataclass
 import shutil
 import time
-from typing import List, Optional, Tuple, Dict
+from typing import Callable, List, Optional, Tuple, Dict
 from pathlib import Path
 import logging
 import subprocess
@@ -143,6 +143,7 @@ class Feature:
     def __init__(self) -> None:
         Feature.features.append(self)
         self.use_legion_cli_to_write = Feature.default_use_legion_cli_to_write
+        self.callbacks = []
 
     def set_str_value(self, value: str):
         pass
@@ -152,6 +153,14 @@ class Feature:
 
     def name(self):
         return type(self).__name__
+    
+    def add_callback(self, callback:Callable[[any], None]):
+        self.callbacks.append(callback)
+
+    def _notify(self):
+        log.info("Notifying subscribers of change")
+        for cb in self.callbacks:
+            cb(self)
 
     # pylint: disable=no-self-use
     def exists(self):
@@ -194,6 +203,7 @@ class BoolSettingFeature(Feature):
     def set(self, value: bool):
         log.info('Feature %s setting to %d', self.name(), value)
         self.value = value
+        self._notify()
 
     def get(self) -> bool:
         return self.value
@@ -930,6 +940,7 @@ class ApplicationModel:
     automatic_close: BoolSettingFeature
     close_to_tray: BoolSettingFeature
     open_closed_to_tray: BoolSettingFeature
+    enable_gui_monitoring = BoolSettingFeature
 
     def __init__(self):
         self.automatic_close = BoolSettingFeature('automatic_close')
@@ -940,6 +951,9 @@ class ApplicationModel:
 
         self.open_closed_to_tray = BoolSettingFeature('open_closed_to_tray')
         self.open_closed_to_tray.set(False)
+
+        self.enable_gui_monitoring = BoolSettingFeature('enable_gui_monitoring')
+        self.enable_gui_monitoring.set(False)
 
 
 @dataclass
@@ -1367,6 +1381,7 @@ class LegionModelFacade:
         self.settings_manager = SettingsManager(preset_dir=config_dir)
         self.settings_manager.add_feature(self.app_model.close_to_tray)
         self.settings_manager.add_feature(self.app_model.open_closed_to_tray)
+        self.settings_manager.add_feature(self.app_model.enable_gui_monitoring)
 
     @staticmethod
     def is_root_user():

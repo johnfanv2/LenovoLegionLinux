@@ -10,7 +10,7 @@ import random
 import time
 from typing import List, Optional
 from PyQt5 import QtGui, QtCore
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLab
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
 from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, \
-    IntFileFeature, GsyncFeature
+    IntFileFeature, GsyncFeature, SystemNotificationSender, DiagnosticMsg
 
 # pylint: disable=too-few-public-methods
 class QtLogHandler(QtCore.QObject):
@@ -53,6 +53,41 @@ qt_handler.setFormatter(logging.Formatter(
 log.addHandler(qt_handler)
 log.setLevel('INFO')
 
+
+
+class MonitorWorker(QRunnable):
+    def __init__(self, model:LegionModelFacade):
+        super().__init__()
+        self.model = model
+        self.running = False
+        self.notification_sender = SystemNotificationSender()
+
+
+    @pyqtSlot()
+    def run(self):
+        log.info("Start monitoring thread")
+
+        # The thread itself
+        while self.running:
+            diag_msgs: List[DiagnosticMsg] = []
+            for mon in self.model.monitors:
+                try:
+                    diag_msgs = diag_msgs + mon.run()
+                # pylint: disable=broad-except
+                except Exception as err:
+                    log.error(str(err))
+            for msg in diag_msgs:
+                if msg.has_value and msg.filter_do_output:
+                    log.info(str(msg.msg))
+                    self.notification_sender.notify('Legion', msg.msg)
+                elif msg.has_value:
+                    log.info(f"FILTERED: {msg.msg}")
+                else:
+                    log.info(f"FILTERED2: {msg.msg}")
+            time.sleep(10.0)
+
+        log.info("Finishing monitoring thread")
+    
 
 def mark_error(checkbox: QCheckBox):
     checkbox.setStyleSheet(
@@ -424,6 +459,7 @@ class LegionController:
 
     close_to_tray_controller:BoolFeatureController
     open_closed_to_tray:BoolFeatureController
+    enable_gui_monitoring_controller:BoolFeatureController
 
     # tray
     batteryconservation_tray_controller: BoolFeatureTrayController
@@ -441,6 +477,8 @@ class LegionController:
         self.view_automation = None
         self.show_root_dialog = (not self.model.is_root_user()) and (
             not use_legion_cli_to_write)
+        self.monitoring_threadpool = QThreadPool()
+        self.monitoring_worker = MonitorWorker(None)
 
     def init(self, read_from_hw=True):
         # connect logger output to GUI
@@ -553,6 +591,12 @@ class LegionController:
             self.view_automation.open_closed_to_tray_check,
             self.model.app_model.open_closed_to_tray
         )
+        self.enable_gui_monitoring_controller = BoolFeatureController(
+            self.view_automation.enable_gui_monitoring_check,
+            self.model.app_model.enable_gui_monitoring
+        )
+        self.model.app_model.enable_gui_monitoring.add_callback(self.on_enable_monitoring_change)
+        
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -649,6 +693,7 @@ class LegionController:
         self.close_to_tray_controller.update_view_from_feature()
         self.open_closed_to_tray.update_view_from_feature()
         self.legion_gui_autstart_controller.update_view_from_feature()
+        self.enable_gui_monitoring_controller.update_view_from_feature()
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -681,14 +726,33 @@ class LegionController:
             log_error(err)
 
     def app_close_and_save(self):
+        self.stop_monitoring()
         self.save_settings()
         self.app.quit()
 
     def app_close(self):
+        self.stop_monitoring()
         self.app.quit()
 
     def app_show(self):
         self.main_window.bring_to_foreground()
+
+    def start_monitoring(self):
+        log.info("Starting monitoring")
+        if not self.monitoring_worker.running:
+            self.monitoring_worker = MonitorWorker(self.model)
+            self.monitoring_worker.running = True
+            self.monitoring_threadpool.start(self.monitoring_worker)
+
+    def stop_monitoring(self):
+        log.info("Stopping monitoring")
+        self.monitoring_worker.running = False
+
+    def on_enable_monitoring_change(self, _):
+        if self.model.app_model.enable_gui_monitoring.get():
+            self.start_monitoring()
+        else:
+            self.stop_monitoring()
 
 
 class FanCurveEntryView():
@@ -1091,6 +1155,11 @@ class AutomationTab(QWidget):
             "Open Legion GUI Closed to Tray")
         self.options_layout.addWidget(
             self.open_closed_to_tray_check, 3)
+        
+        self.enable_gui_monitoring_check = QCheckBox(
+            "Enable Monitoring while GUI is Running")
+        self.options_layout.addWidget(
+            self.enable_gui_monitoring_check, 3)
 
         self.note_label = QLabel(
             'These are Experimental Features.\n To apply and save the Settings Press "Save" or "Save and Quit"')
@@ -1273,8 +1342,12 @@ class MainWindow(QMainWindow):
         self.show()
 
     def hide_to_tray(self):
-        self.setWindowFlag(QtCore.Qt.Tool)
-        self.hide()
+        if not self.controller.model.is_root_user():
+            # do not hide to tray when running as root because
+            # a program run as root cannot usually
+            # show a tray icon
+            self.setWindowFlag(QtCore.Qt.Tool)
+            self.hide()
 
 
 class LegionTray:
@@ -1327,7 +1400,6 @@ def get_ressource_path(name):
         os.path.dirname(os.path.realpath(__file__)), name)
     return path
 
-
 def main():
     app = QApplication(sys.argv)
 
@@ -1335,13 +1407,29 @@ def main():
     do_not_excpect_hwmon = True
     controller = LegionController(app, expect_hwmon=not do_not_excpect_hwmon,
                              use_legion_cli_to_write=use_legion_cli_to_write)
+    
+    # Load savable settings from file if exists
     controller.model.load_settings()
+
+    # Overwrite settings from commandline args
     if '--automaticclose' in sys.argv:
         controller.model.app_model.automatic_close.set(True)
     if '--close_to_tray' in sys.argv:
         controller.model.app_model.close_to_tray.set(True)
     if '--open_closed_to_tray' in sys.argv:
         controller.model.app_model.open_closed_to_tray.set(True)
+    
+    # Overwrite settings by rules
+    if controller.model.is_root_user():
+        # When GUI is run as root it usually cannot display
+        # a icon in the tray due to security of XServer,
+        # so disable opening or closing minimized in tray,
+        # otherwise there is no way to close the program
+        # except sending a kill signal
+        #
+        # https://forum.qt.io/topic/78464/system-tray-icon-missing-when-running-as-root/5
+        controller.model.app_model.open_closed_to_tray.set(False)
+        controller.model.app_model.close_to_tray.set(False)
 
     # Ressources
     icon_path = get_ressource_path('legion_logo.png')
