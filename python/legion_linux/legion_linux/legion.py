@@ -22,6 +22,9 @@ LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
 
 
+def is_root_user():
+    return os.geteuid() == 0
+
 def get_dmesg(only_tail=False, filter_log=True):
     try:
         if filter_log:
@@ -1304,9 +1307,25 @@ class NotifcationSender:
 
 
 class SystemNotificationSender(NotifcationSender):
+    
     def _send_notification(self, _, msg):
-        with subprocess.Popen(['notify-send', msg]) as _:
-            pass
+        if is_root_user():
+            # Drop root privileges so we can send notifications
+            # TODO: find a better way
+            # Code by user dvilela on stackoverflow
+            # https://stackoverflow.com/a/54718205
+            userID = subprocess.run(['id', '-u', os.environ['SUDO_USER']],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=True).stdout.decode("utf-8").replace('\n', '')
+            subprocess.run(['sudo', '-u', os.environ['SUDO_USER'], 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{}/bus'.format(userID), 
+                    'notify-send', '-i', 'utilities-terminal', msg, msg],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True)
+        else:
+            with subprocess.Popen(['notify-send', msg]) as _:
+                pass
 
 
 class LegionModelFacade:
@@ -1385,7 +1404,7 @@ class LegionModelFacade:
 
     @staticmethod
     def is_root_user():
-        return os.geteuid() == 0
+        return is_root_user()
 
     @staticmethod
     def set_feature_to_str_value(name: str, values: List[str]) -> bool:
