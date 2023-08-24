@@ -8,7 +8,7 @@ import traceback
 import logging
 import random
 import time
-import darkdetect
+# import darkdetect
 from typing import List, Optional
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
@@ -1447,12 +1447,13 @@ def main():
 
     # Resources
     # need to be rewrite to use the old icon
-#    if use_old_tray_icon() == True:
-#        icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
-    if darkdetect.theme() == 'Dark':
-        icon_path = get_ressource_path('legion_logo_dark.png')
-    elif darkdetect.theme() == 'Light':
-        icon_path = get_ressource_path('legion_logo_light.png')
+    icon_path = get_ressource_path('legion_logo.png')
+    # if use_old_tray_icon() == True:
+        # icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
+    # if darkdetect.theme() == 'Dark':
+    #    icon_path = get_ressource_path('legion_logo_dark.png')
+    # elif darkdetect.theme() == 'Light':
+        # icon_path = get_ressource_path('legion_logo_light.png')
     
     icon = QtGui.QIcon(icon_path)
 
