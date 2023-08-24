@@ -31,8 +31,9 @@ def get_color_mode():
             return 'light'
         else:
             return 'unknown'
-    except:
+    except Exception as err:
         log.error("Error using darkdetect. darkdetect not installed?")
+        log.error(str(err))
         return 'unknown'
 
 # pylint: disable=too-few-public-methods
