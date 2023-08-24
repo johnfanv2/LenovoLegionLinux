@@ -8,6 +8,7 @@ import traceback
 import logging
 import random
 import time
+import darkdetect
 from typing import List, Optional
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
@@ -460,6 +461,7 @@ class LegionController:
     close_to_tray_controller:BoolFeatureController
     open_closed_to_tray:BoolFeatureController
     enable_gui_monitoring_controller:BoolFeatureController
+#    use_old_tray_icon:BoolFeatureController
 
     # tray
     batteryconservation_tray_controller: BoolFeatureTrayController
@@ -597,6 +599,10 @@ class LegionController:
         )
         self.model.app_model.enable_gui_monitoring.add_callback(self.on_enable_monitoring_change)
         
+#        self.use_old_tray_icon = BoolFeatureController(
+#            self.view_automation.use_old_tray_icon_check,
+#            self.model.app_model.use_old_tray_icon
+#        )
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -692,6 +698,7 @@ class LegionController:
         self.lenovo_legion_laptop_support_service_controller.update_view_from_feature()
         self.close_to_tray_controller.update_view_from_feature()
         self.open_closed_to_tray.update_view_from_feature()
+#        self.use_old_tray_icon.update_view_from_feature()
         self.legion_gui_autstart_controller.update_view_from_feature()
         self.enable_gui_monitoring_controller.update_view_from_feature()
 
@@ -1155,21 +1162,26 @@ class AutomationTab(QWidget):
             "Open Legion GUI Closed to Tray")
         self.options_layout.addWidget(
             self.open_closed_to_tray_check, 3)
-        
+                
         self.enable_gui_monitoring_check = QCheckBox(
             "Enable Monitoring while GUI is Running")
         self.options_layout.addWidget(
             self.enable_gui_monitoring_check, 3)
 
+#        self.use_old_tray_icon_check = QCheckBox(
+#            "Use App Icon as Tray Icon")
+#        self.options_layout.addWidget(
+#            self.use_old_tray_icon_check, 4)
+
         self.note_label = QLabel(
             'These are Experimental Features.\n To apply and save the Settings Press "Save" or "Save and Quit"')
-        self.options_layout.addWidget(self.note_label, 3)
+        self.options_layout.addWidget(self.note_label, 4)
 
         self.note_label2 = QLabel("")
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.options_group, 0)
-        self.main_layout.addWidget(self.note_label2, 3)
+        self.main_layout.addWidget(self.note_label2, 4)
         self.setLayout(self.main_layout)
 
 # pylint: disable=too-few-public-methods
@@ -1418,7 +1430,9 @@ def main():
         controller.model.app_model.close_to_tray.set(True)
     if '--open_closed_to_tray' in sys.argv:
         controller.model.app_model.open_closed_to_tray.set(True)
-    
+    #    if '--use_old_tray_icon' in sys.argv:
+#        controller.model.app_model.use_old_tray_icon(True)
+
     # Overwrite settings by rules
     if controller.model.is_root_user():
         # When GUI is run as root it usually cannot display
@@ -1431,8 +1445,15 @@ def main():
         controller.model.app_model.open_closed_to_tray.set(False)
         controller.model.app_model.close_to_tray.set(False)
 
-    # Ressources
-    icon_path = get_ressource_path('legion_logo.png')
+    # Resources
+    # need to be rewrite to use the old icon
+#    if use_old_tray_icon() == True:
+#        icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
+    if darkdetect.theme() == 'Dark':
+        icon_path = get_ressource_path('legion_logo_dark.png')
+    elif darkdetect.theme() == 'Light':
+        icon_path = get_ressource_path('legion_logo_light.png')
+    
     icon = QtGui.QIcon(icon_path)
 
     # Main Windows
