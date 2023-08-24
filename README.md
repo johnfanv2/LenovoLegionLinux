@@ -882,6 +882,57 @@ gsettings set org.gnome.settings-daemon.plugins.power idle-brightness 100
 
 see https://www.reddit.com/r/linuxquestions/comments/utle2w/ubuntu_2204_is_there_a_way_to_disable_screen/
 
+### How to power down the dGPU while not in use and use the iGPU for power saving?
+
+This describes **A way** to configure and use it in Ubuntu using XServer. It configures it such that
+everything runs on iGPU if not otherwise selected.
+- Check that Hybrid Mode is configured in the BIOS
+- Check that XServer is used and not Wayland
+```bash
+# It should output something like: x11
+echo $XDG_SESSION_TYPE
+```
+- Install prime and configure on demand. A restart might be needed
+```bash
+sudo prime-select on-demand
+```
+- Check with `nvidia-smi` that no programs run on the GPU.
+```bash
+sudo nvidia-smi
+```
+  Note that the one process `0   N/A  N/A  ***  G   /usr/lib/xorg/Xorg   4MiB` is ok. Moreover, note
+  that running `nvidia-smi` powers up the GPU for some time.
+- Allow d3cold mode
+```bash
+# Note: only of the commands is needed; use the path to the device which is the GPU; you probably have
+# to adapt the path
+echo 1 > /sys/devices/pci0000\:00/0000\:00\:01.1/d3cold_allowed 
+echo 1 > /sys/devices/pci0000\:00/0000\:00\:01.0/d3cold_allowed 
+```
+Check that GPU Runtime D3 status is enabled
+```bash
+sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
+```
+- Check the current state of the GPU
+```bash
+# Only one is needed - adapt path to your GPU
+# This should output D3cold
+cat /sys/devices/pci0000\:00/0000\:00\:01.0/power_state
+cat /sys/devices/pci0000\:00/0000\:00\:01.1/power_state 
+```
+- Run `nvidia-smi`, which power the GPU up for some time. Check the `power_state` again. It should go to `D0` and then go to `D3cold` after some time. Compared to `nvidia-smi` running `cat /sys/devices/pci0000\:00/0000\:00\:01.1/power_state ` does not seem to wake up the GPU.
+
+
+
+
+
+
+
+sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
+
+
+
+
 ## :question: Open Questions
 
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
