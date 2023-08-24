@@ -8,7 +8,6 @@ import traceback
 import logging
 import random
 import time
-# import darkdetect
 from typing import List, Optional
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
@@ -21,6 +20,20 @@ sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
 from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, FileFeature, \
     IntFileFeature, GsyncFeature, SystemNotificationSender, DiagnosticMsg
+
+
+def get_color_mode():
+    try:
+        import darkdetect
+        if darkdetect.theme() == 'Dark':
+            return 'dark'
+        elif darkdetect.theme() == 'Light':
+            return 'light'
+        else:
+            return 'unknown'
+    except:
+        log.error("Error using darkdetect. darkdetect not installed?")
+        return 'unknown'
 
 # pylint: disable=too-few-public-methods
 class QtLogHandler(QtCore.QObject):
@@ -1447,14 +1460,17 @@ def main():
 
     # Resources
     # need to be rewrite to use the old icon
-    icon_path = get_ressource_path('legion_logo.png')
+    color_mode = get_color_mode()
+    if color_mode == 'dark':
+        icon_path = get_ressource_path('legion_logo_dark.png')
+    elif color_mode == 'light':
+        icon_path = get_ressource_path('legion_logo_light.png')
+    else:
+        icon_path = get_ressource_path('legion_logo.png')
+    
     # if use_old_tray_icon() == True:
         # icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
-    # if darkdetect.theme() == 'Dark':
-    #    icon_path = get_ressource_path('legion_logo_dark.png')
-    # elif darkdetect.theme() == 'Light':
-        # icon_path = get_ressource_path('legion_logo_light.png')
-    
+
     icon = QtGui.QIcon(icon_path)
 
     # Main Windows
