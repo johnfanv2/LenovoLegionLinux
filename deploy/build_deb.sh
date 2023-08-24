@@ -6,7 +6,7 @@ BUILD_DIR=/tmp/deb
 
 set -ex
 #Intsall debian packages
-sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python
+sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python python3-darkdetect
 
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
