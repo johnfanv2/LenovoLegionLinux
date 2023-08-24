@@ -1462,11 +1462,15 @@ def main():
     # Resources
     # need to be rewrite to use the old icon
     color_mode = get_color_mode()
+    log.info("Using color mode: %s", color_mode)
     if color_mode == 'dark':
+        log.info("Using icon legion_logo_dark")
         icon_path = get_ressource_path('legion_logo_dark.png')
     elif color_mode == 'light':
+        log.info("Using icon legion_logo_light")
         icon_path = get_ressource_path('legion_logo_light.png')
     else:
+        log.info("Using icon legion_logo")
         icon_path = get_ressource_path('legion_logo.png')
     
     # if use_old_tray_icon() == True:
