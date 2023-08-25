@@ -43,7 +43,6 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 sudo dkms remove -m lenovolegionlinux -v 1.0.0
 
 #Build rpm file
-sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux-dkms-mkrpm.spec
 sudo dkms mkrpm -m lenovolegionlinux -v 1.0.0 --source-only
 
 #Copy rpm to deploy folder
