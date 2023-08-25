@@ -42,8 +42,18 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 ##
 
 #BUILD DKMS RPM
+cd ${REPODIR}/
+
 #Remove DKSMS
-sudo dkms unbuild -m lenovolegionlinux -v 1.0.0
+sudo dkms remove -m lenovolegionlinux -v 1.0.0
+
+# recreate DKMSDIR and copy files
+rm -rf "${DKMSDIR}" || true
+sudo mkdir --verbose ${DKMSDIR}
+sudo cp --recursive * ${DKMSDIR}
+
+#Add dkms again
+sudo dkms add -m lenovolegionlinux -v 1.0.0
 
 #Build rpm file
 sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux-dkms-mkrpm.spec
