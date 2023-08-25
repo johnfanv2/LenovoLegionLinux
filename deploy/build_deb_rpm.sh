@@ -6,7 +6,7 @@ BUILD_DIR=/tmp/pkg
 
 set -ex
 #Intsall debian packages
-sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python alien rpm
+#sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python alien rpm
 
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
@@ -40,7 +40,6 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 #BUILD DKMS RPM
 
 #Readd DKSMS
-sudo dkms unbuild -m lenovolegionlinux -v 1.0.0
 sudo dkms remove -m lenovolegionlinux -v 1.0.0
 sudo dkms add -m lenovolegionlinux -v 1.0.0
 
