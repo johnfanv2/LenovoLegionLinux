@@ -19,7 +19,7 @@ cp --recursive ${REPODIR}/kernel_module/* ${BUILD_DIR}/
 cd ${BUILD_DIR}
 
 # recreate DKMSDIR and copy files
-rm -rf "${DKMSDIR}" || true
+sudo rm -rf "${DKMSDIR}" || true
 sudo mkdir --verbose ${DKMSDIR}
 sudo cp --recursive * ${DKMSDIR}
 
@@ -44,7 +44,7 @@ cd ${REPODIR}/
 sudo dkms remove -m lenovolegionlinux -v 1.0.0
 
 # recreate DKMSDIR and copy files
-rm -rf "${DKMSDIR}" || true
+sudo rm -rf "${DKMSDIR}" || true
 sudo mkdir --verbose ${DKMSDIR}
 sudo cp --recursive * ${DKMSDIR}
 
