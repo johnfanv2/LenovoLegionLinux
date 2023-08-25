@@ -41,6 +41,7 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 
 #Readd DKSMS
 sudo dkms remove -m lenovolegionlinux -v 1.0.0
+sleep 5
 sudo dkms add -m lenovolegionlinux -v 1.0.0
 
 #Build rpm file
