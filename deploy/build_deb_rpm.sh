@@ -6,7 +6,7 @@ BUILD_DIR=/tmp/pkg
 
 set -ex
 #Intsall debian packages
-sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python alien
+sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python alien rpm
 
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
