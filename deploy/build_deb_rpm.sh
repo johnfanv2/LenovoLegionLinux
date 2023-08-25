@@ -37,9 +37,20 @@ sudo dkms mkrpm -m lenovolegionlinux -v 1.0.0 --source-only
 
 #Copy deb to deploy folder
 sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
-sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/rpm/
 cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb
 echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
+##
+
+#BUILD DKMS RPM
+#Remove DKSMS
+sudo dkms unbuild -m lenovolegionlinux -v 1.0.0
+
+#Build rpm file
+sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux-dkms-mkrpm.spec
+sudo dkms mkrpm -m lenovolegionlinux -v 1.0.0 --source-only
+
+#Copy rpm to deploy folder
+sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/rpm/
 ##
 
 ##BUILD PYTHON DEB
