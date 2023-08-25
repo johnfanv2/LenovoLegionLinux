@@ -18,6 +18,8 @@ cp --recursive ${REPODIR}/kernel_module/* ${BUILD_DIR}/
 
 cd ${BUILD_DIR}
 
+# recreate DKMSDIR and copy files
+rm -rf "${DKMSDIR}" || true
 sudo mkdir --verbose ${DKMSDIR}
 sudo cp --recursive * ${DKMSDIR}
 
