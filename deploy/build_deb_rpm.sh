@@ -2,11 +2,11 @@
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 REPODIR="${DIR}/.."
 DKMSDIR=/usr/src/lenovolegionlinux-1.0.0
-BUILD_DIR=/tmp/deb
+BUILD_DIR=/tmp/pkg
 
 set -ex
 #Intsall debian packages
-sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python
+sudo apt-get install debhelper dkms python3-all python3-stdeb dh-python alien
 
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
@@ -31,8 +31,13 @@ sudo dkms build -m lenovolegionlinux -v 1.0.0
 sudo dkms mkdsc -m lenovolegionlinux -v 1.0.0
 sudo dkms mkdeb -m lenovolegionlinux -v 1.0.0
 
+#Build rpm file
+sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux-dkms-mkrpm.spec
+sudo dkms mkrpm -m lenovolegionlinux -v 1.0.0 --source-only
+
 #Copy deb to deploy folder
 sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
+sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/rpm/
 cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb
 echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 ##
@@ -54,3 +59,8 @@ sudo  EDITOR=/bin/true dpkg-source -q --commit . p1
 # Build package
 sudo dpkg-buildpackage -uc -us
 cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
+cp ../python3-legion-linux-1.0.0-2.noarch.rpm ${BUILD_DIR}/python3-legion-linux-1.0.0-1.amd64.rpm
+
+#Convert to RPM
+cd ${BUILD_DIR}
+sudo alien -r  -c -v ./python3-legion-linux_1.0.0-1_amd64.deb
