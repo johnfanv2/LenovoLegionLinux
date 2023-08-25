@@ -31,10 +31,6 @@ sudo dkms build -m lenovolegionlinux -v 1.0.0
 sudo dkms mkdsc -m lenovolegionlinux -v 1.0.0
 sudo dkms mkdeb -m lenovolegionlinux -v 1.0.0
 
-#Build rpm file
-sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux-dkms-mkrpm.spec
-sudo dkms mkrpm -m lenovolegionlinux -v 1.0.0 --source-only
-
 #Copy deb to deploy folder
 sudo ls /var/lib/dkms/lenovolegionlinux/1.0.0/deb/
 cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb
