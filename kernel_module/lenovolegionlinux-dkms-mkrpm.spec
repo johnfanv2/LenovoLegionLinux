@@ -14,8 +14,6 @@ License:	%license
 Release:	1dkms
 BuildArch:	x86_64
 Group:		System/Kernel
-Requires: 	dkms >= 1.95
-BuildRequires: 	dkms
 BuildRoot: 	%{_tmppath}/%{name}-%{version}-%{release}-root/
 
 %description
