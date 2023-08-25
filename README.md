@@ -6,6 +6,7 @@
 [![Join Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
 [![Check Reddit](https://img.shields.io/static/v1?label=Reddit&message=LenovoLegion&color=green)](https://www.reddit.com/r/LenovoLegion/)
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
+[![Unbutu ppa](https://img.shields.io/badge/Ubuntu%2FDebian-LLL_ppa-orange)](https://mrduartept.github.io/LLL-pkg-repo/)
 [![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=aur%20package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=aur%20package%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![GURU Overlay](https://img.shields.io/badge/Gentoo--Overlay-GURU-blueviolet)](https://gitweb.gentoo.org/repo/proj/guru.git/)
