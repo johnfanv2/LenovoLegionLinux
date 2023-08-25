@@ -63,3 +63,4 @@ cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0
 #Convert to RPM
 cd ${BUILD_DIR}
 sudo alien -r  -c -v ./python3-legion-linux_1.0.0-1_amd64.deb
+mv ./python3-legion-linux-1.0.0-2.noarch.rpm ./python3-legion-linux-1.0.0-1.amd64.rpm
