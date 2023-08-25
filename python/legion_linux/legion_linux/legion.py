@@ -156,14 +156,14 @@ class Feature:
 
     def name(self):
         return type(self).__name__
-    
+
     def add_callback(self, callback:Callable[[any], None]):
         self.callbacks.append(callback)
 
     def _notify(self):
         log.info("Notifying subscribers of change")
-        for cb in self.callbacks:
-            cb(self)
+        for func in self.callbacks:
+            func(self)
 
     # pylint: disable=no-self-use
     def exists(self):
@@ -1307,22 +1307,23 @@ class NotifcationSender:
 
 
 class SystemNotificationSender(NotifcationSender):
-    
+
     def _send_notification(self, _, msg):
         if is_root_user():
             # Drop root privileges so we can send notifications
-            # TODO: find a better way
+            # TODOs: find a better way
             # Code by user dvilela on stackoverflow
             # https://stackoverflow.com/a/54718205
-            userID = subprocess.run(['id', '-u', os.environ['SUDO_USER']],
+            user_id = subprocess.run(['id', '-u', os.environ['SUDO_USER']],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             check=True).stdout.decode("utf-8").replace('\n', '')
-            subprocess.run(['sudo', '-u', os.environ['SUDO_USER'], 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{}/bus'.format(userID), 
-                    'notify-send', '-i', 'utilities-terminal', msg, msg],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True)
+            subprocess.run(['sudo', '-u', os.environ['SUDO_USER'],
+                            f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_id}/bus',
+                            'notify-send', '-i', 'utilities-terminal', msg, msg],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=True)
         else:
             with subprocess.Popen(['notify-send', msg]) as _:
                 pass

@@ -791,8 +791,6 @@ static const struct model_config model_dmcn = {
 	.ramio_size = 0x600
 };
 
-
-
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -1069,9 +1067,6 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_dmcn
 	},
-
-	
-
 	{}
 };
 

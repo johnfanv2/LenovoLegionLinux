@@ -23,18 +23,20 @@ from legion_linux.legion import LegionModelFacade, FanCurve, FanCurveEntry, File
 
 
 def get_color_mode():
+    # Try detecting the current color mode (dark/light)
+    # As darkdetect is not a system package, make it work if
+    # it is not installed
     try:
+        # pylint: disable=import-outside-toplevel
         import darkdetect
         if darkdetect.theme() == 'Dark':
             return 'dark'
-        elif darkdetect.theme() == 'Light':
+        if darkdetect.theme() == 'Light':
             return 'light'
-        else:
-            return 'unknown'
-    except Exception as err:
+    except ImportError as err:
         log.error("Error using darkdetect. darkdetect not installed?")
         log.error(str(err))
-        return 'unknown'
+    return 'unknown'
 
 # pylint: disable=too-few-public-methods
 class QtLogHandler(QtCore.QObject):
@@ -96,13 +98,12 @@ class MonitorWorker(QRunnable):
                     log.info(str(msg.msg))
                     self.notification_sender.notify('Legion', msg.msg)
                 elif msg.has_value:
-                    log.info(f"FILTERED: {msg.msg}")
+                    log.info("FILTERED: %s", msg.msg)
                 else:
-                    log.info(f"FILTERED2: {msg.msg}")
+                    log.info("FILTERED2: %s", msg.msg)
             time.sleep(10.0)
 
         log.info("Finishing monitoring thread")
-    
 
 def mark_error(checkbox: QCheckBox):
     checkbox.setStyleSheet(
@@ -612,11 +613,11 @@ class LegionController:
             self.model.app_model.enable_gui_monitoring
         )
         self.model.app_model.enable_gui_monitoring.add_callback(self.on_enable_monitoring_change)
-        
-#        self.use_old_tray_icon = BoolFeatureController(
-#            self.view_automation.use_old_tray_icon_check,
-#            self.model.app_model.use_old_tray_icon
-#        )
+
+        # self.use_old_tray_icon = BoolFeatureController(
+        #     self.view_automation.use_old_tray_icon_check,
+        #     self.model.app_model.use_old_tray_icon
+        # )
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -1176,7 +1177,7 @@ class AutomationTab(QWidget):
             "Open Legion GUI Closed to Tray")
         self.options_layout.addWidget(
             self.open_closed_to_tray_check, 3)
-                
+
         self.enable_gui_monitoring_check = QCheckBox(
             "Enable Monitoring while GUI is Running")
         self.options_layout.addWidget(
@@ -1433,7 +1434,7 @@ def main():
     do_not_excpect_hwmon = True
     controller = LegionController(app, expect_hwmon=not do_not_excpect_hwmon,
                              use_legion_cli_to_write=use_legion_cli_to_write)
-    
+
     # Load savable settings from file if exists
     controller.model.load_settings()
 
@@ -1472,7 +1473,7 @@ def main():
     else:
         log.info("Using icon legion_logo")
         icon_path = get_ressource_path('legion_logo.png')
-    
+
     # if use_old_tray_icon() == True:
         # icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
 
