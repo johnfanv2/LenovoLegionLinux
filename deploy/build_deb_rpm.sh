@@ -58,11 +58,8 @@ sudo  EDITOR=/bin/true dpkg-source -q --commit . p1
 
 # Build package
 sudo dpkg-buildpackage -uc -us
+cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
 
 #Convert to RPM
 cd ${BUILD_DIR}
 sudo alien -r  -c -v ./python3-legion-linux_1.0.0-1_amd64.deb
-
-#Copy files
-cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
-cp ../python3-legion-linux-1.0.0-2.noarch.rpm ${BUILD_DIR}/python3-legion-linux-1.0.0-1.amd64.rpm
