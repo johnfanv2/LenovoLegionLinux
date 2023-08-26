@@ -6,7 +6,6 @@ Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
 Version:      1.0
 Release:      0
-Source0:      %name-%version.tar.bz2
 BuildRoot:    %{_tmppath}/%{name}-%{version}-build
 
 %description
@@ -20,7 +19,6 @@ Group: System/Kernel
 This is one of the subpackages require for LenovoLegionLinux [kernel module/driver]
 
 %prep
-%setup
 set -- *
 mkdir source
 mv "$@" source/
