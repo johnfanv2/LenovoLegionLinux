@@ -66,7 +66,13 @@ sudo  EDITOR=/bin/true dpkg-source -q --commit . p1
 sudo dpkg-buildpackage -uc -us
 cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
 
-#Convert to RPM
+#Build to RPM
 cd ${BUILD_DIR}
-sudo alien -r  -c -v ./python3-legion-linux_1.0.0-1_amd64.deb
-mv ./python3-legion-linux-1.0.0-2.noarch.rpm ./python3-legion-linux-1.0.0-1.amd64.rpm
+mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+cp ${REPODIR}/deploy/lenovolegionlinux.spec rpmbuild/SPECS
+cp -r ${REPODIR}/python/legion_linux lenovolegionlinux-1.0.0
+tar --create --file lenovolegionlinux-1.0.0.tar.gz lenovolegionlinux-1.0.0
+mv lenovolegionlinux-1.0.0.tar.gz rpmbuild/SOURCES
+cd rpmbuild
+rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux-1.0.0
+mv SRPMS/lenovolegionlinux-1.0.0-1.src.rpm ${BUILD_DIR}/
