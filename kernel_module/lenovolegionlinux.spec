@@ -1,9 +1,3 @@
-#
-# lenovolegionlinux.spec
-# Sample KMP spec file
-#
-
-# Following line included for SUSE "build" command; does not affect "rpmbuild"
 # norootforbuild
 
 Name:         LenovoLegionLinux
@@ -15,10 +9,15 @@ Release:      0
 Source0:      %name-%version.tar.bz2
 BuildRoot:    %{_tmppath}/%{name}-%{version}-build
 
-%kernel_module_package
-
 %description
 Driver for controlling Lenovo Legion laptops including fan control and power mode. 
+
+%package KMP
+Summary: LenovoLegionLinux Kernel Module
+Group: System/Kernel
+
+%description KMP
+This is one of the subpackages require for LenovoLegionLinux [kernel module/driver]
 
 %prep
 %setup
@@ -31,15 +30,14 @@ mkdir obj
 for flavor in %flavors_to_build; do
     rm -rf obj/$flavor
     cp -r source obj/$flavor
-    make -C %{kernel_source $flavor} modules M=$PWD/obj/$flavor
+    make -C /usr/src/linux/%_target_cpu/$flavor M=$PWD/obj/$flavor
 done
 
 %install
 export INSTALL_MOD_PATH=$RPM_BUILD_ROOT
-# Following line works for SUSE 11+ and RHEL 6.1+ only, must set INSTALL_MOD_DIR manually for other targets
-export INSTALL_MOD_DIR=%kernel_module_package_moddir %{name}
+export INSTALL_MOD_DIR=updates
 for flavor in %flavors_to_build; do
-    make -C %{kernel_source $flavor} install M=$PWD/obj/$flavor
+    make -C /usr/src/linux/%_target_cpu/$flavor install M=$PWD/obj/$flavor
 done
 
 %clean
