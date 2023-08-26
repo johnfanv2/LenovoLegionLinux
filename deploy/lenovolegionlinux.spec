@@ -1,6 +1,6 @@
 %global python3_pkgversion 3.11
 
-Name:           lenovolegionlinux
+Name:           python-lenovolegionlinux
 Version:        1.0.0
 Release:        1%{?dist}
 Summary:        lenovolegionlinux Python library
