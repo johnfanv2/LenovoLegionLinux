@@ -1,6 +1,6 @@
 # norootforbuild
 
-Name:         LenovoLegionLinux
+Name:         lenovolegionlinux
 License:      GPL
 Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package

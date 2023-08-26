@@ -45,7 +45,7 @@ sudo dkms remove -m lenovolegionlinux -v 1.0.0
 sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux.spec
 
 #Copy rpm to deploy folder
-cp /var/lib/dkms/lenovolegionlinux/1.0.0/rpm/LenovoLegionLinux-1.0-0.src.rpm ${BUILD_DIR}/LenovoLegionLinux-1.0-0.src.rpm
+cp /var/lib/dkms/lenovolegionlinux/1.0.0/rpm/lenovolegionlinux-1.0-0.src.rpm ${BUILD_DIR}/lenovolegionlinux-1.0-0.src.rpm
 ##
 
 ##BUILD PYTHON DEB
