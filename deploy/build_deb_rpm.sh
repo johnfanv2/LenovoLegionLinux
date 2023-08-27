@@ -74,6 +74,6 @@ cp -r ${REPODIR}/python/legion_linux python-lenovolegionlinux-1.0.0
 tar --create --file python-lenovolegionlinux-1.0.0.tar.gz python-lenovolegionlinux-1.0.0 && rm --recursive python-lenovolegionlinux-1.0.0
 mv python-lenovolegionlinux-1.0.0.tar.gz rpmbuild/SOURCES
 cd rpmbuild
-rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux-1.0.0
+rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
 rpmbuild --nodeps --define "_topdir `pwd`" --rebuild SRPMS/python-lenovolegionlinux-1.0.0-1.src.rpm
 mv RPMS/noarch/python-lenovolegionlinux-0.8.0-1.noarch.rpm ${BUILD_DIR}/
