@@ -9,8 +9,6 @@ Version:      _VERSION
 Release:      0
 Source0:      %{dkms_name}-kmod-%{version}-x86_64.tar.gz
 
-Provides:     %{dkms_name}-kmod = %{?epoch:%{epoch}:}%{version}
-Requires:     %{dkms_name}-kmod-common = %{?epoch:%{epoch}:}%{version}
 Requires:     dkms
 
 %description

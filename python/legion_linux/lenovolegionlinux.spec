@@ -24,10 +24,10 @@ See documenation of LenovoLegionLinux
 %setup -n %{name}-%{unmangled_version} -n %{name}-%{unmangled_version}
 
 %build
-python3 setup.py build
+python3 -m build --wheel --no-isolation
 
 %install
-python3 setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
+python3 -m installer --destdir="$RPM_BUILD_ROOT" dist/*.whl
 
 %clean
 rm -rf $RPM_BUILD_ROOT
