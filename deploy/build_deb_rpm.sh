@@ -44,6 +44,7 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 cd ${BUILD_DIR_RPM_DKMS}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 cp -r ${REPODIR}/kernel_module ./lenovolegionlinux-kmod-1.0.0-x86_64
+sudo mv lenovolegionlinux-kmod-1.0.0-x86_64/lenovolegionlinux.spec rpmbuild/SPECS
 tar --create --file lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz lenovolegionlinux-kmod-1.0.0-x86_64 && rm --recursive lenovolegionlinux-kmod-1.0.0-x86_64
 mv lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz rpmbuild/SOURCES
 cd rpmbuild && rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
