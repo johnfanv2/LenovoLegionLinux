@@ -12,6 +12,8 @@ set -ex
 # recreate BUILD_DIR for both deb
 rm -rf "${BUILD_DIR}" || true
 mkdir -p "${BUILD_DIR}"
+rm -rf "${BUILD_DIR_RPM_DKMS}" || true
+mkdir -p "${BUILD_DIR_RPM_DKMS}"
 
 ## BUILD DKMS DEB
 #Setup BUILD_DIR
