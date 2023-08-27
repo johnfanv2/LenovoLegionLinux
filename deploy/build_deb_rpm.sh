@@ -32,7 +32,7 @@ sudo dkms mkdsc -m lenovolegionlinux -v 1.0.0
 sudo dkms mkdeb -m lenovolegionlinux -v 1.0.0
 
 #Copy deb to deploy folder
-cp /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb
+mv /var/lib/dkms/lenovolegionlinux/1.0.0/deb/lenovolegionlinux-dkms_1.0.0_amd64.deb ${BUILD_DIR}
 echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 ##
 
@@ -64,7 +64,7 @@ sudo  EDITOR=/bin/true dpkg-source -q --commit . p1
 
 # Build package
 sudo dpkg-buildpackage -uc -us
-cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0.0-1_amd64.deb
+cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}
 
 #Build to RPM
 cd ${BUILD_DIR}
