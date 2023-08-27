@@ -85,4 +85,3 @@ dkms: all
 	printf "%s\n" "Loading module"
 	modprobe legion_laptop
 	dmesg --ctime | grep legion_laptop
-	bash -c "./issue-warning.sh"
