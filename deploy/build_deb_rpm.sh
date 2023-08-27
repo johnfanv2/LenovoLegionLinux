@@ -31,7 +31,7 @@ cd ${BUILD_DIR}
 sudo rm -rf "${DKMSDIR}" || true
 sudo mkdir --verbose ${DKMSDIR}
 sudo cp --recursive * ${DKMSDIR}
-sed -i "s/DKMS_VERSION/$TAG/g" ${DKMSDIR}/dkms.conf
+sudo sed -i "s/DKMS_VERSION/$TAG/g" ${DKMSDIR}/dkms.conf
 
 #Build dkms
 sudo dkms add -m lenovolegionlinux -v ${TAG}
