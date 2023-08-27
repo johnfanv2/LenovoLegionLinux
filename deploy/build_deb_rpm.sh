@@ -46,7 +46,7 @@ mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 cp -r ${REPODIR}/kernel_module ./lenovolegionlinux-kmod-1.0.0-x86_64
 tar --create --file lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz lenovolegionlinux-kmod-1.0.0-x86_64 && rm --recursive lenovolegionlinux-kmod-1.0.0-x86_64
 mv lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz rpmbuild/SOURCES
-rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
+cd rpmbuild && rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
 
 
 ##BUILD PYTHON DEB
