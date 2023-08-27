@@ -1,53 +1,36 @@
-%global python3_pkgversion 3.11
+%define name python-lenovolegionlinux
+%define version 1.0.0
+%define unmangled_version 1.0.0
+%define release 1
 
-Name:           python-lenovolegionlinux
-Version:        1.0.0
-Release:        1%{?dist}
-Summary:        lenovolegionlinux Python library
+Summary: Control Lenovo Legion laptop
+Name: %{name}
+Version: %{version}
+Release: %{release}
+Source0: %{name}-%{unmangled_version}.tar.gz
+License: UNKNOWN
+Group: Development/Libraries
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+Prefix: %{_prefix}
+BuildArch: noarch
+Vendor: johnfan <johnfan@example.org>
+Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
+Url: https://github.com/johnfanv2/LenovoLegionLinux
 
-License:        Custom License
-URL:            https://github.com/albertosottile/lenovolegionlinux
-Source0:        lenovolegionlinux-1.0.0.tar.gz
-
-BuildArch:      noarch
-BuildRequires:  python%{python3_pkgversion}-devel                     
-
-# Build dependencies needed to be specified manually
-BuildRequires:  python%{python3_pkgversion}-setuptools
-
-
-%global _description %{expand:
-Driver and tools for controlling Lenovo Legion laptops in Linux including fan control and power mode.}
-
-%description %_description
-
-%package -n python%{python3_pkgversion}-lenovolegionlinux                         
-Summary:        %{summary}
-
-%description -n python%{python3_pkgversion}-lenovolegionlinux %_description
-
+%description
+See documenation of LenovoLegionLinux
 
 %prep
-%autosetup -p1 -n lenovolegionlinux-%{version}
-
+%setup -n %{name}-%{unmangled_version} -n %{name}-%{unmangled_version}
 
 %build
-# The macro only supported projects with setup.py
-%py3_build                                                            
-
+python3 setup.py build
 
 %install
-# The macro only supported projects with setup.py
-%py3_install
-install -D -m 0644 %{_sourcedir}/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
-install -D -m 0644 %{_sourcedir}/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
+python3 setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
 
+%clean
+rm -rf $RPM_BUILD_ROOT
 
-%check                                                                
-%{pytest}
-
-
-# Note that there is no %%files section for the unversioned python module
-%files -n python%{python3_pkgversion}-lenovolegionlinux
-%doc README.md
-%license LICENSE
+%files -f INSTALLED_FILES
+%defattr(-,root,root)

@@ -70,9 +70,10 @@ cp ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}/python3-legion-linux_1.0
 cd ${BUILD_DIR}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 cp ${REPODIR}/deploy/lenovolegionlinux.spec rpmbuild/SPECS
-cp -r ${REPODIR}/python/legion_linux lenovolegionlinux-1.0.0
-tar --create --file lenovolegionlinux-1.0.0.tar.gz lenovolegionlinux-1.0.0
-mv lenovolegionlinux-1.0.0.tar.gz rpmbuild/SOURCES
+cp -r ${REPODIR}/python/legion_linux python-lenovolegionlinux-1.0.0
+tar --create --file python-lenovolegionlinux-1.0.0.tar.gz python-lenovolegionlinux-1.0.0 && rm --recursive python-lenovolegionlinux-1.0.0
+mv python-lenovolegionlinux-1.0.0.tar.gz rpmbuild/SOURCES
 cd rpmbuild
-rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
-mv SRPMS/python-lenovolegionlinux-1.0.0-1.src.rpm ${BUILD_DIR}/
+rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux-1.0.0
+rpmbuild --nodeps --define "_topdir `pwd`" --rebuild SRPMS/python-lenovolegionlinux-1.0.0-1.src.rpm
+mv RPMS/noarch/python-lenovolegionlinux-0.8.0-1.noarch.rpm ${BUILD_DIR}/
