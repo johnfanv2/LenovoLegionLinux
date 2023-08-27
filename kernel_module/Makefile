@@ -11,7 +11,6 @@ obj-m += legion-laptop.o
 
 all:
 	$(MAKE) -C $(KSRC) M=$(shell pwd) modules
-	bash -c "./issue-warning.sh"
 
 moduleInContainer:
 	docker run -it --rm -v "$(shell pwd)":/kernel_module -w /kernel_module  -v /usr/src/:/usr/src/  -v /lib/modules/:/lib/modules gcc:12.2.0 bash
@@ -28,13 +27,11 @@ install: all
 	@install --preserve-timestamps -D --mode=644 *.ko $(INSTALLDIR)
 	@depmod --all $(KVER)
 	@printf "%s\n" "Installion finished."
-	bash -c "./issue-warning.sh"
 
 uninstall:
 	@rm -f $(INSTALLDIR)/legion-laptop.ko
 	@depmod --all
 	@printf "%s\n" "Uninstall finished."
-	bash -c "./issue-warning.sh"
 
 install_forcereload:
 	make install
@@ -85,3 +82,4 @@ dkms: all
 	printf "%s\n" "Loading module"
 	modprobe legion_laptop
 	dmesg --ctime | grep legion_laptop
+	bash -c "./issue-warning.sh"
