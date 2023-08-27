@@ -3,6 +3,7 @@ DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 REPODIR="${DIR}/.."
 DKMSDIR=/usr/src/lenovolegionlinux-1.0.0
 BUILD_DIR=/tmp/pkg
+BUILD_DIR_RPM_DKMS=/tmp/rpm_dkms
 
 set -ex
 #Intsall debian packages
@@ -38,15 +39,13 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_1.0.0_amd64.deb"
 
 #BUILD DKMS RPM
 
-#Clean DKSM tree
-sudo dkms remove -m lenovolegionlinux -v 1.0.0
+cd ${BUILD_DIR_RPM_DKMS}
+mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+cp -r ${REPODIR}/kernel_module ./lenovolegionlinux-kmod-1.0.0-x86_64
+tar --create --file lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz lenovolegionlinux-kmod-1.0.0-x86_64 && rm --recursive lenovolegionlinux-kmod-1.0.0-x86_64
+mv lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz rpmbuild/SOURCES
+rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
 
-#Build rpm file
-sudo dkms mkkmp -m lenovolegionlinux -v 1.0.0 --spec lenovolegionlinux.spec
-
-#Copy rpm to deploy folder
-sudo cp /var/lib/dkms/lenovolegionlinux/1.0.0/rpm/lenovolegionlinux-1.0-0.src.rpm ${BUILD_DIR}/lenovolegionlinux-1.0-0.src.rpm
-##
 
 ##BUILD PYTHON DEB
 cd ${REPODIR}/python/legion_linux
@@ -69,8 +68,8 @@ sudo mv ../python3-legion-linux_1.0.0-1_all.deb ${BUILD_DIR}
 #Build to RPM
 cd ${BUILD_DIR}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
-cp ${REPODIR}/deploy/lenovolegionlinux.spec rpmbuild/SPECS
 cp -r ${REPODIR}/python/legion_linux python-lenovolegionlinux-1.0.0
+mv python-lenovolegionlinux-1.0.0/lenovolegionlinux.spec rpmbuild/SPECS
 rm -r python-lenovolegionlinux-1.0.0/legion_linux/extra && cp -r ${REPODIR}/extra python-lenovolegionlinux-1.0.0/legion_linux/extra
 tar --create --file python-lenovolegionlinux-1.0.0.tar.gz python-lenovolegionlinux-1.0.0 && rm --recursive python-lenovolegionlinux-1.0.0
 mv python-lenovolegionlinux-1.0.0.tar.gz rpmbuild/SOURCES

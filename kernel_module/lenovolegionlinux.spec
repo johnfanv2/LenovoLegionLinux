@@ -1,45 +1,41 @@
 # norootforbuild
+%global dkms_name lenovolegionlinux
 
-Name:         lenovolegionlinux
+Name:         dkms-lenovolegionlinux
 License:      GPL
 Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
-Version:      1.0
+Version:      1.0.0
 Release:      0
-BuildRoot:    %{_tmppath}/%{name}-%{version}-build
+Source0:      %{dkms_name}-kmod-%{version}-x86_64.tar.gz
+
+Provides:     %{dkms_name}-kmod = %{?epoch:%{epoch}:}%{version}
+Requires:     %{dkms_name}-kmod-common = %{?epoch:%{epoch}:}%{version}
+Requires:     dkms
 
 %description
-Driver for controlling Lenovo Legion laptops including fan control and power mode. 
-
-%package KMP
-Summary: LenovoLegionLinux Kernel Module
-Group: System/Kernel
-
-%description KMP
-This is one of the subpackages require for LenovoLegionLinux [kernel module/driver]
+Driver for controlling Lenovo Legion laptops including fan control and power mode.
 
 %prep
-set -- *
-mkdir source
-mv "$@" source/
-mkdir obj
-
-%build
-for flavor in %flavors_to_build; do
-    rm -rf obj/$flavor
-    cp -r source obj/$flavor
-    make -C /usr/src/linux/%_target_cpu/$flavor M=$PWD/obj/$flavor
-done
+%autosetup -p0 -n %{dkms_name}-kmod-%{version}-x86_64
 
 %install
-export INSTALL_MOD_PATH=$RPM_BUILD_ROOT
-export INSTALL_MOD_DIR=updates
-for flavor in %flavors_to_build; do
-    make -C /usr/src/linux/%_target_cpu/$flavor install M=$PWD/obj/$flavor
-done
+mkdir -p %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
+cp -fr * %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
 
-%clean
-rm -rf %{buildroot}
+%post
+dkms add -m %{dkms_name} -v %{version} -q || :
+# Rebuild and make available for the currently running kernel:
+dkms build -m %{dkms_name} -v %{version} -q || :
+dkms install -m %{dkms_name} -v %{version} -q --force || :
+
+%preun
+# Remove all versions from DKMS registry:
+dkms remove -m %{dkms_name} -v %{version} -q --all || :
+
+%files
+%{_usrsrc}/%{dkms_name}-%{version}
 
 %changelog
-Intial Release
+* Sat Aug 25 2023 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 1.0.0
+- Intial Release 1.0.0.
