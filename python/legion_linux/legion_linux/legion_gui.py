@@ -316,6 +316,35 @@ class BoolFeatureTrayController:
             log_error(ex)
 
 
+class PresetTrayController:
+    action: List[QAction]
+    model: LegionModelFacade
+    dependent_controllers: List
+
+    def __init__(self, model: LegionModelFacade, actions: List[QAction]):
+        self.actions = actions
+        self.model = model
+        self.dependent_controllers = []
+        self.update_view_from_feature()
+
+    def update_view_from_feature(self):
+        for i, action in enumerate(self.actions):
+            name = list(self.model.fancurve_repo.get_names())[i]
+            action.setText(f"Apply preset {name}")
+            action.setCheckable(False)
+            action.setDisabled(not self.model.fancurve_repo.does_exists_by_name(name))
+
+            # Connect function to set respective preset and
+            # take current value of name into closure
+            def callback(_, pname = name):
+                self.on_action_click(pname)
+            action.triggered.connect(callback)
+
+    def on_action_click(self, name):
+        log.info("Setting preset %s from tray action", name)
+        self.model.fancurve_write_preset_to_hw(name)
+
+
 def set_dependent(controller1, controller2):
     controller1.dependent_controllers.append(controller2)
     controller2.dependent_controllers.append(controller1)
@@ -481,6 +510,7 @@ class LegionController:
     # tray
     batteryconservation_tray_controller: BoolFeatureTrayController
     rapid_charging_tray_controller: BoolFeatureTrayController
+    preset_tray_controller: PresetTrayController
 
     def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
         self.model = LegionModelFacade(
@@ -650,6 +680,16 @@ class LegionController:
         set_dependent(self.batteryconservation_tray_controller,
                       self.rapid_charging_tray_controller)
         self.rapid_charging_tray_controller.update_view_from_feature()
+
+        self.preset_tray_controller = PresetTrayController(self.model,
+            [self.tray.preset1_action,
+             self.tray.preset2_action,
+             self.tray.preset3_action,
+             self.tray.preset4_action,
+             self.tray.preset5_action,
+             self.tray.preset6_action,
+             self.tray.preset7_action,
+             self.tray.preset8_action])
 
     def update_fan_additional_gui(self):
         self.lockfancontroller_controller.update_view_from_feature()
@@ -1407,6 +1447,20 @@ class LegionTray:
         self.menu.addAction(self.batteryconservation_action)
         self.rapid_charging_action = QAction("Rapid Charging")
         self.menu.addAction(self.rapid_charging_action)
+        # ---
+        self.menu.addSeparator()
+        def add_preset_action():
+            act = QAction("Preset")
+            self.menu.addAction(act)
+            return act
+        self.preset1_action = add_preset_action()
+        self.preset2_action = add_preset_action()
+        self.preset3_action = add_preset_action()
+        self.preset4_action = add_preset_action()
+        self.preset5_action = add_preset_action()
+        self.preset6_action = add_preset_action()
+        self.preset7_action = add_preset_action()
+        self.preset8_action = add_preset_action()
         # ---
         self.menu.addSeparator()
         self.star_action = QAction(

@@ -1515,7 +1515,3 @@ class LegionModelFacade:
                 time.sleep(period_s)
         except KeyboardInterrupt:
             print('Monitor Interrupted!')
-
-
-# def start_rpc(legion_facade):
-#     jsonrpyc.RPC(legion_facade)
