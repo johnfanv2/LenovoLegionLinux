@@ -71,6 +71,7 @@ cd ${BUILD_DIR}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 cp ${REPODIR}/deploy/lenovolegionlinux.spec rpmbuild/SPECS
 cp -r ${REPODIR}/python/legion_linux python-lenovolegionlinux-1.0.0
+rm -r python-lenovolegionlinux-1.0.0/legion_linux/extra && cp -r ${REPODIR}/extra python-lenovolegionlinux-1.0.0/legion_linux/extra
 tar --create --file python-lenovolegionlinux-1.0.0.tar.gz python-lenovolegionlinux-1.0.0 && rm --recursive python-lenovolegionlinux-1.0.0
 mv python-lenovolegionlinux-1.0.0.tar.gz rpmbuild/SOURCES
 cd rpmbuild
