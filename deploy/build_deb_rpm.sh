@@ -48,7 +48,7 @@ sudo mv lenovolegionlinux-kmod-1.0.0-x86_64/lenovolegionlinux.spec rpmbuild/SPEC
 tar --create --file lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz lenovolegionlinux-kmod-1.0.0-x86_64 && rm --recursive lenovolegionlinux-kmod-1.0.0-x86_64
 mv lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz rpmbuild/SOURCES
 cd rpmbuild && rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
-rpmbuild --nodeps --define "_topdir `pwd`" --rebuild SRPMS/dkms-lenovolegionlinux-1.0.0-1.src.rpm
+rpmbuild --nodeps --define "_topdir `pwd`" --rebuild SRPMS/dkms-lenovolegionlinux-1.0.0-0.src.rpm
 
 
 ##BUILD PYTHON DEB
