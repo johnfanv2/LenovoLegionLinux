@@ -37,5 +37,5 @@ dkms remove -m %{dkms_name} -v %{version} -q --all || :
 %{_usrsrc}/%{dkms_name}-%{version}
 
 %changelog
-* Sat Aug 25 2023 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 1.0.0
+* Sa Aug 28 2023 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 1.0.0
 - Intial Release 1.0.0.
