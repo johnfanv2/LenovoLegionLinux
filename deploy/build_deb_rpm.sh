@@ -49,10 +49,12 @@ tar --create --file lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz lenovolegionlinux
 mv lenovolegionlinux-kmod-1.0.0-x86_64.tar.gz rpmbuild/SOURCES
 cd rpmbuild && rpmbuild --define "_topdir `pwd`" -bs SPECS/lenovolegionlinux.spec
 rpmbuild --nodeps --define "_topdir `pwd`" --rebuild SRPMS/dkms-lenovolegionlinux-1.0.0-0.src.rpm
+mv RPMS/x86_64/dkms-lenovolegionlinux-1.0.0-0.x86_64.rpm ${BUILD_DIR}/
 
 
 ##BUILD PYTHON DEB
 cd ${REPODIR}/python/legion_linux
+sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 
 # Create package sceleton
 sudo python3 setup.py --command-packages=stdeb.command sdist_dsc

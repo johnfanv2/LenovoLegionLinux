@@ -5,7 +5,7 @@ Name:         dkms-lenovolegionlinux
 License:      GPL
 Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
-Version:      1.0.0
+Version:      _VERSION
 Release:      0
 Source0:      %{dkms_name}-kmod-%{version}-x86_64.tar.gz
 

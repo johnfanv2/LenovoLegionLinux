@@ -1,7 +1,10 @@
 #!/bin/bash
 set -ex
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+TAG="1.0.0"
 cd ${DIR}/../python/legion_linux
+sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 
 # Build and install python package
 python3 -m pip install --upgrade build installer
