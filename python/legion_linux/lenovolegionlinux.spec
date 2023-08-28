@@ -33,31 +33,31 @@ unset RPM_BUILD_ROOT
 mkdir %{buildroot}
 mkdir %{buildroot}/usr
 cd "%{_builddir}/%{name}-%{version}/dist"
-%{__python3} -m pip install --target %{buildroot}%{python3_sitelib} %{srcname}-%{version}-py3-none-any.whl
+%{__python3} -m pip install --target /tmp/rpm/rpmbuild/BUILDROOT/usr/lib/python3.11/site-packages/ %{srcname}-%{version}-py3-none-any.whl
 install -D -m 0644 %{build}/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
 install -D -m 0644 %{build}/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
 %files -n python3-%{srcname}
-%{python3_sitelib}/legion_linux/__init__.py
-%{python3_sitelib}/legion_linux/legion.py
-%{python3_sitelib}/legion_linux/legion_cli.py
-%{python3_sitelib}/legion_linux/legion_gui.py
-%{python3_sitelib}/legion_linux/legion_logo.png
-%{python3_sitelib}/legion_linux/legion_logo_dark.png
-%{python3_sitelib}/legion_linux/legion_logo_light.png
-%{python3_sitelib}/legion_linux/__pycache__/__init__.cpython-311.opt-1.pyc
-%{python3_sitelib}/legion_linux/__pycache__/__init__.cpython-311.pyc 
-%{python3_sitelib}/legion_linux/__pycache__/legion.cpython-311.opt-1.pyc
-%{python3_sitelib}/legion_linux/__pycache__/legion.cpython-311.pyc
-%{python3_sitelib}/legion_linux/__pycache__/legion_cli.cpython-311.opt-1.pyc
-%{python3_sitelib}/legion_linux/__pycache__/legion_cli.cpython-311.pyc
-%{python3_sitelib}/legion_linux/__pycache__/legion_gui.cpython-311.opt-1.pyc
-%{python3_sitelib}/legion_linux/__pycache__/legion_gui.cpython-311.pyc
-%{python3_sitelib}/legion_linux-%{version}.dist-info/INSTALLER
-%{python3_sitelib}/legion_linux-%{version}.dist-info/LICENSE
-%{python3_sitelib}/legion_linux-%{version}.dist-info/METADATA
-%{python3_sitelib}/legion_linux-%{version}.dist-info/RECORD
-%{python3_sitelib}/legion_linux-%{version}.dist-info/REQUESTED
-%{python3_sitelib}/legion_linux-%{version}.dist-info/WHEEL
-%{python3_sitelib}/legion_linux-%{version}.dist-info/direct_url.json
-%{python3_sitelib}/legion_linux-%{version}.dist-info/top_level.txt
+/usr/lib/python3.11/site-packages/legion_linux/__init__.py
+/usr/lib/python3.11/site-packages/legion_linux/legion.py
+/usr/lib/python3.11/site-packages/legion_linux/legion_cli.py
+/usr/lib/python3.11/site-packages/legion_linux/legion_gui.py
+/usr/lib/python3.11/site-packages/legion_linux/legion_logo.png
+/usr/lib/python3.11/site-packages/legion_linux/legion_logo_dark.png
+/usr/lib/python3.11/site-packages/legion_linux/legion_logo_light.png
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/__init__.cpython-311.opt-1.pyc
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/__init__.cpython-311.pyc 
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion.cpython-311.opt-1.pyc
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion.cpython-311.pyc
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_cli.cpython-311.opt-1.pyc
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_cli.cpython-311.pyc
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_gui.cpython-311.opt-1.pyc
+/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_gui.cpython-311.pyc
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/INSTALLER
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/LICENSE
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/METADATA
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/RECORD
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/REQUESTED
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/WHEEL
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/direct_url.json
+/usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/top_level.txt
