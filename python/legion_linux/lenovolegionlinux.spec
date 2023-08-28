@@ -1,3 +1,4 @@
+%define srcname lenovolegionlinux
 %define name python-lenovolegionlinux
 %define version _VERSION
 %define unmangled_version _VERSION
