@@ -17,27 +17,44 @@ Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/johnfanv2/LenovoLegionLinux
 
-Requires:     python-build
-Requires:     python-setuptools
-Requires:     PyQt5
-Requires:     python3-darkdetect
-Requires:     python-pyyaml
-Requires:     python-argcomplete
-
 %description
 See documenation of LenovoLegionLinux
 
 %prep
-%setup -n %{name}-%{unmangled_version} -n %{name}-%{unmangled_version}
+%autosetup -n %{name}-%{unmangled_version} -n %{name}-%{unmangled_version}
 
 %build
-python3 setup.py build
+unset RPM_BUILD_ROOT
+%{__python3} setup.py bdist_wheel
 
 %install
-python3 setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
+[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
+mkdir %{buildroot}
+mkdir %{buildroot}/usr
+cd "%{_builddir}/%{name}-%{version}/dist"
+%{__python3} -m pip install --target %{buildroot}%{python3_sitelib} %{srcname}-%{version}-py3-none-any.whl 
 
-%clean
-rm -rf $RPM_BUILD_ROOT
-
-%files -f INSTALLED_FILES
-%defattr(-,root,root)
+%files -n python3-%{srcname}
+%{python3_sitelib}/legion_linux/__init__.py
+%{python3_sitelib}/legion_linux/legion.py
+%{python3_sitelib}/legion_linux/legion_cli.py
+%{python3_sitelib}/legion_linux/legion_gui.py
+%{python3_sitelib}/legion_linux/legion_logo.png
+%{python3_sitelib}/legion_linux/legion_logo_dark.png
+%{python3_sitelib}/legion_linux/legion_logo_light.png
+%{python3_sitelib}/legion_linux/__pycache__/__init__.cpython-311.opt-1.pyc
+%{python3_sitelib}/legion_linux/__pycache__/__init__.cpython-311.pyc 
+%{python3_sitelib}/legion_linux/__pycache__/legion.cpython-311.opt-1.pyc
+%{python3_sitelib}/legion_linux/__pycache__/legion.cpython-311.pyc
+%{python3_sitelib}/legion_linux/__pycache__/legion_cli.cpython-311.opt-1.pyc
+%{python3_sitelib}/legion_linux/__pycache__/legion_cli.cpython-311.pyc
+%{python3_sitelib}/legion_linux/__pycache__/legion_gui.cpython-311.opt-1.pyc
+%{python3_sitelib}/legion_linux/__pycache__/legion_gui.cpython-311.pyc
+%{python3_sitelib}/legion_linux-%{version}.dist-info/INSTALLER
+%{python3_sitelib}/legion_linux-%{version}.dist-info/LICENSE
+%{python3_sitelib}/legion_linux-%{version}.dist-info/METADATA
+%{python3_sitelib}/legion_linux-%{version}.dist-info/RECORD
+%{python3_sitelib}/legion_linux-%{version}.dist-info/REQUESTED
+%{python3_sitelib}/legion_linux-%{version}.dist-info/WHEEL
+%{python3_sitelib}/legion_linux-%{version}.dist-info/direct_url.json
+%{python3_sitelib}/legion_linux-%{version}.dist-info/top_level.txt
