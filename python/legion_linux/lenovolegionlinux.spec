@@ -25,14 +25,16 @@ See documenation of LenovoLegionLinux
 
 %build
 unset RPM_BUILD_ROOT
-python3 setup.py bdist_wheel
+%{__python3} setup.py bdist_wheel
 
 %install
 [ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
 mkdir %{buildroot}
 mkdir %{buildroot}/usr
 cd "%{_builddir}/%{name}-%{version}/dist"
-python3 -m pip install --target %{buildroot}%{python3_sitelib} %{srcname}-%{version}-py3-none-any.whl 
+%{__python3} -m pip install --target %{buildroot}%{python3_sitelib} %{srcname}-%{version}-py3-none-any.whl
+install -D -m 0644 %{build}/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
+install -D -m 0644 %{build}/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
 %files -n python3-%{srcname}
 %{python3_sitelib}/legion_linux/__init__.py
