@@ -26,16 +26,16 @@ See documenation of LenovoLegionLinux
 
 %build
 unset RPM_BUILD_ROOT
-%{__python3} setup.py bdist_wheel
+python3 setup.py bdist_wheel
 
 %install
 [ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
 mkdir %{buildroot}
 mkdir %{buildroot}/usr
 cd "%{_builddir}/%{name}-%{version}/dist"
-%{__python3} -m pip install --target /tmp/rpm/rpmbuild/BUILDROOT/usr/lib/python3.11/site-packages/ %{srcname}-%{version}-py3-none-any.whl
-install -D -m 0644 %{build}/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
-install -D -m 0644 %{build}/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
+python3 -m pip install --target %{buildroot}/usr/lib/python3.11/site-packages/ legion_linux-py3-none-any.whl
+install -D -m 0644 %{build}/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
+install -D -m 0644 %{build}/legion_linux//extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
 %files -n python3-%{srcname}
 /usr/lib/python3.11/site-packages/legion_linux/__init__.py
@@ -45,13 +45,9 @@ install -D -m 0644 %{build}/extra/service/legion-linux.path %{_unitdir}/legion-l
 /usr/lib/python3.11/site-packages/legion_linux/legion_logo.png
 /usr/lib/python3.11/site-packages/legion_linux/legion_logo_dark.png
 /usr/lib/python3.11/site-packages/legion_linux/legion_logo_light.png
-/usr/lib/python3.11/site-packages/legion_linux/__pycache__/__init__.cpython-311.opt-1.pyc
 /usr/lib/python3.11/site-packages/legion_linux/__pycache__/__init__.cpython-311.pyc 
-/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion.cpython-311.opt-1.pyc
 /usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion.cpython-311.pyc
-/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_cli.cpython-311.opt-1.pyc
 /usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_cli.cpython-311.pyc
-/usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_gui.cpython-311.opt-1.pyc
 /usr/lib/python3.11/site-packages/legion_linux/__pycache__/legion_gui.cpython-311.pyc
 /usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/INSTALLER
 /usr/lib/python3.11/site-packages/legion_linux-%{version}.dist-info/LICENSE
