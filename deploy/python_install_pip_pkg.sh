@@ -1,10 +1,10 @@
 #!/bin/bash
 set -ex
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-REPODIR="${DIR}"
+REPODIR="${DIR}/.."
 TAG="1.0.0"
 
-cd ${REPODIR}/../python/legion_linux
+cd ${REPODIR}/python/legion_linux
 sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 
 # Build and install python package

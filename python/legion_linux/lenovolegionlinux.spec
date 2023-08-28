@@ -17,6 +17,13 @@ Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/johnfanv2/LenovoLegionLinux
 
+Requires:     python-build
+Requires:     python-setuptools
+Requires:     PyQt5
+Requires:     python3-darkdetect
+Requires:     python-pyyaml
+Requires:     python-argcomplete
+
 %description
 See documenation of LenovoLegionLinux
 
