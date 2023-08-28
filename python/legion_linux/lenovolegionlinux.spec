@@ -34,8 +34,9 @@ mkdir %{buildroot}
 mkdir %{buildroot}/usr
 cd "%{_builddir}/%{name}-%{version}/dist"
 python3.11 -m pip install --target %{buildroot}/usr/lib/python3.11/site-packages/ legion_linux-%{version}-py3-none-any.whl
-install -D -m 0644 %{build}/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
-install -D -m 0644 %{build}/legion_linux//extra/service/legion-linux.path %{_unitdir}/legion-linux.path
+
+install -D -m 0644 %{_builddir}/%{name}-%{version}/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
+install -D -m 0644 %{_builddir}/%{name}-%{version}/legion_linux//extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
 %files -n python3-%{srcname}
 /usr/lib/python3.11/site-packages/legion_linux/__init__.py
