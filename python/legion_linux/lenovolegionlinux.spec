@@ -1,7 +1,7 @@
 %define srcname lenovolegionlinux
 %define name python3-lenovolegionlinux
-%define version 1.0.0
-%define unmangled_version 1.0.0
+%define version _VERSION
+%define unmangled_version _VERSION
 %define release 1
 
 Summary: Control Lenovo Legion laptop
