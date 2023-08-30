@@ -2,7 +2,7 @@
 set -ex
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPODIR="${DIR}/.."
-TAG=$(git describe --abbrev=0 | sed 's/[^0-9.]*//g')
+TAG=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
 
 cd ${REPODIR}/python/legion_linux
 sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
