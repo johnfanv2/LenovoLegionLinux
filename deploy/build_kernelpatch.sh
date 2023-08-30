@@ -1,22 +1,33 @@
 #!/bin/bash
 set -ex
+KERNEL_VERSION="6.5"
+KERNEL_VERSION_UNDERSCORE="${KERNEL_VERSION//./_}"
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPODIR="${DIR}/.."
-BUILD_DIR=/tmp/linux
+BUILD_DIR="/tmp/linux${KERNEL_VERSION_UNDERSCORE}"
 TAG=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
 
-# recreate build dir
+echo "Build parameter:"
+echo "KERNEL_VERSION: ${KERNEL_VERSION}"
+echo "KERNEL_VERSION_UNDERSCORE: ${KERNEL_VERSION_UNDERSCORE}"
+echo "DIR: ${DIR}"
+echo "REPODIR: ${REPODIR}"
+echo "BUILD_DIR: ${BUILD_DIR}"
+echo "TAG: ${TAG}"
+
+
+# Recreate build dir
 rm -rf "${BUILD_DIR}" || true
 mkdir -p "${BUILD_DIR}"
 
-# clone
+# Clone
 cd "${BUILD_DIR}"
-git clone --depth 1 --branch v6.5 git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+git clone --depth 1 --branch "v${KERNEL_VERSION}" git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
 cd ${BUILD_DIR}/linux
-git checkout v6.5
+git checkout "v${KERNEL_VERSION}"
 
-cp ${REPODIR}/kernel_module/6_5_patch/Kconfig ${BUILD_DIR}/linux/drivers/platform/x86
-cp ${REPODIR}/kernel_module/6_5_patch/Makefile ${BUILD_DIR}/linux/drivers/platform/x86
+cp ${REPODIR}/kernel_module/${KERNEL_VERSION_UNDERSCORE}_patch/Kconfig ${BUILD_DIR}/linux/drivers/platform/x86
+cp ${REPODIR}/kernel_module/${KERNEL_VERSION_UNDERSCORE}_patch/Makefile ${BUILD_DIR}/linux/drivers/platform/x86
 cp ${REPODIR}/kernel_module/legion-laptop.c ${BUILD_DIR}/linux/drivers/platform/x86
 
 cd ${BUILD_DIR}/linux
@@ -29,16 +40,16 @@ Add extra support for Lenovo Legion laptops.
 "
 git format-patch HEAD~1
 
-## Build
+## Dependencies for building
 sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev
 
-# clean
+# Clean
 make clean && make mrproper
 
-# create config with new module enabled
+# Create config with new module enabled
 make defconfig
 # cp -v /boot/config-$(uname -r) .config
 echo "CONFIG_LEGION_LAPTOP=m" >>.config
 
-# build
+# Build
 make -j 8
