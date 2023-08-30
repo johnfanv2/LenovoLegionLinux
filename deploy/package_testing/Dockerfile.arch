@@ -1,0 +1,35 @@
+ARG BASE_IMAGE=archlinux:latest
+FROM $BASE_IMAGE
+RUN pacman -Syu --noconfirm
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install sudo (used in scripts that are tested)
+RUN pacman -Sy --noconfirm sudo 
+
+# Set timezone (used by pylint) and locale
+ENV LANG=en_US.UTF-8  
+ENV LANGUAGE=en_US:en  
+ENV LC_ALL=en_US.UTF-8
+ENV TZ=US/Central
+RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
+    pacman -Sy --noconfirm tzdata && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+
+RUN pacman -S --needed --noconfirm sudo
+RUN useradd nuser && \
+    passwd -d nuser && \
+    printf 'nuser ALL=(ALL) ALL\n' | tee -a /etc/sudoers
+
+RUN mkdir /opt/LinuxLegionLaptop
+WORKDIR /opt/LinuxLegionLaptop
+
+COPY ./deploy/dependencies/install_test_dependencies_arch.sh ./deploy/dependencies/install_test_dependencies_arch.sh
+RUN deploy/dependencies/install_test_dependencies_arch.sh
+
+# Test: Maybe refactor to run outside of Dockerfile
+COPY deploy deploy
+COPY tests tests
+RUN sudo -u nuser bash -c './deploy/package_testing/download_install_arch_aur.sh'
+RUN ./tests/test_python_installed.sh
