@@ -102,7 +102,6 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
     - name: Build containers and run tests inside them
-    shell: bash
       run: |
         cd deploy/package_testing/Dockerfile.arch
         docker compose build
