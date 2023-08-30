@@ -103,9 +103,9 @@ jobs:
       uses: actions/checkout@v3
     - name: Build containers and run tests inside them
       run: |
-        cd deploy/package_testing/Dockerfile.arch
-        docker compose build
-  release-deb-kernel-patch:
+        ./deploy/package_testing/build_containers.sh
+      shell: bash
+  release-kernel-patch:
     needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
     runs-on: ubuntu-latest
     steps:
