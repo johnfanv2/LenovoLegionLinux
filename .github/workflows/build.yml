@@ -125,6 +125,8 @@ jobs:
       run: |
         tag=$(git describe --tags --abbrev=0)
         echo "tag=$tag" >> $GITHUB_OUTPUT
+        tag_version=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
+        echo "tag_version=$tag_version" >> $GITHUB_OUTPUT
     - name: Create Draft Release
       if: steps.check_if_tagged.outputs.hastag == 1
       id: create_release
@@ -143,8 +145,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v0.1.patch
-        asset_name: 0001-Add-legion-laptop-v0.1.patch
+        asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch
+        asset_name: 0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch
         asset_content_type: text/plain
     - name: Publish Release
       if: steps.check_if_tagged.outputs.hastag == 1
