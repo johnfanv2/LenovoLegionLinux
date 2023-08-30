@@ -1,0 +1,6 @@
+[LLL-pkg-repo]
+name=LLL-pkg-repo
+baseurl=https://mrduartept.github.io/LLL-pkg-repo/fedora/packages
+enabled=1
+gpgcheck=1
+gpgkey=https://mrduartept.github.io/LLL-pkg-repo/fedora/pgp-key.public
