@@ -43,4 +43,4 @@ mv RPMS/noarch/python3-darkdetect-${TAG}-1.noarch.rpm ${BUILD_DIR}/
 rpm -i ${BUILD_DIR}/python3-darkdetect-${TAG}-1.noarch.rpm
 
 #Move to repo
-cp ${BUILD_DIR}/python3-darkdetect-${TAG}-1.noarch.rpm ${REPODIR}/fedora/packages
+cp ${BUILD_DIR}/python3-darkdetect-${TAG}-1.noarch.rpm ${REPODIR}/package_repo/fedora/packages
