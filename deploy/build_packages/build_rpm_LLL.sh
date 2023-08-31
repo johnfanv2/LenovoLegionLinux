@@ -58,8 +58,8 @@ mv RPMS/noarch/python3-lenovolegionlinux-${TAG}-1.noarch.rpm ${BUILD_DIR}/
 rpm -i ${BUILD_DIR}/python3-lenovolegionlinux-${TAG}-1.noarch.rpm
 
 #Move to repo
-cp ${BUILD_DIR}/dkms-lenovolegionlinux-${TAG}-0.x86_64.rpm ${REPODIR}/fedora/packages
-cp ${BUILD_DIR}/python3-lenovolegionlinux-${TAG}-1.noarch.rpm ${REPODIR}/fedora/packages
+cp ${BUILD_DIR}/dkms-lenovolegionlinux-${TAG}-0.x86_64.rpm ${REPODIR}/package_repo/fedora/packages
+cp ${BUILD_DIR}/python3-lenovolegionlinux-${TAG}-1.noarch.rpm ${REPODIR}/package_repo/fedora/packages
 
 #create repo file
 echo "[LLL-pkg-repo]
