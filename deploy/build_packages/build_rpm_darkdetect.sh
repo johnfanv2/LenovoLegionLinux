@@ -20,8 +20,8 @@ mkdir -p "${BUILD_DIR}"
 
 ## BUILD PYTHON RPM
 #Setup BUILD_DIR
-cp --recursive ${REPODIR}/subprojects/darkdetect ${BUILD_DIR}/python3-darkdetect-${TAG}
-cp --recursive ${REPODIR}/subprojects/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/python3-darkdetect-${TAG}
+cp --recursive subprojects/darkdetect ${BUILD_DIR}/python3-darkdetect-${TAG}
+cp --recursive subprojects/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/python3-darkdetect-${TAG}
 
 #Create rpm
 cd ${BUILD_DIR}

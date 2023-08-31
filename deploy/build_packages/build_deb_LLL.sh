@@ -16,7 +16,7 @@ mkdir -p "${BUILD_DIR}"
 
 ## BUILD DKMS DEB
 #Setup BUILD_DIR
-cp --recursive ${REPODIR}/kernel_module/* ${BUILD_DIR}/
+cp --recursive kernel_module/* ${BUILD_DIR}/
 
 cd ${BUILD_DIR}
 

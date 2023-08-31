@@ -20,8 +20,8 @@ mkdir -p "${BUILD_DIR}"
 
 ## BUILD PYTHON DEB
 #Setup BUILD_DIR
-cp --recursive ${REPODIR}/subprojects/darkdetect ${BUILD_DIR}/darkdetect
-cp --recursive ${REPODIR}/subprojects/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/darkdetect
+cp --recursive subprojects/darkdetect ${BUILD_DIR}/darkdetect
+cp --recursive subprojects/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/darkdetect
 
 cd ${BUILD_DIR}/darkdetect
 
