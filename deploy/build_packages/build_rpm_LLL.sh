@@ -9,7 +9,6 @@ set -ex
 #GET TAG (USE THIS WHEN STABLE RELEASE GET OUT)
 cd ${REPODIR}
 TAG=$(git describe --abbrev=0 | sed 's/[^0-9.]*//g')
-git checkout $(git describe --abbrev=0) #checkout tag
 
 #Build folders
 rm -rf "${BUILD_DIR}" || true

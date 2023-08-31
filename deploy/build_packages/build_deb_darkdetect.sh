@@ -11,7 +11,6 @@ sudo pip install --upgrade setuptools build installer #Force recent version of s
 #GET TAG
 cd ${REPODIR}/subprojects/darkdetect
 TAG=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
-git checkout $(git describe --tags --abbrev=0) #checkout tag
 
 # recreate BUILD_DIR
 rm -rf "${BUILD_DIR}" || true

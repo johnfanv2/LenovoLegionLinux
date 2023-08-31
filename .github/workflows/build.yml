@@ -171,19 +171,18 @@ jobs:
       with:
         submodules: recursive
 
-## ADD IF NOT FAIL
-#    - name: Check if tagged
-#      id: check_if_tagged
-#      run: |
-#        otag=$(git tag --points-at HEAD)
-#        echo "Tag is ${otag}"
-#        if [ -z "$otag" ]
-#        then
-#          hastag=0
-#        else
-#          hastag=1
-#        fi
-#        echo "hastag=$hastag" >> $GITHUB_OUTPUT
+    - name: Check if tagged
+      id: check_if_tagged
+      run: |
+        otag=$(git tag --points-at HEAD)
+        echo "Tag is ${otag}"
+        if [ -z "$otag" ]
+        then
+          hastag=0
+        else
+          hastag=1
+        fi
+        echo "hastag=$hastag" >> $GITHUB_OUTPUT
 
     - name: Update submodules
       run: |
@@ -223,7 +222,7 @@ jobs:
       shell: bash
 
     - name: Commit changes
-      #if: steps.check_if_tagged.outputs.hastag == 1
+      if: steps.check_if_tagged.outputs.hastag == 1
       run: |
         git fetch
         git add -A
@@ -253,19 +252,18 @@ jobs:
         path: ./LLL-pkg-repo
         submodules: recursive
 
-## ADD IF NOT FAIL
-#    - name: Check if tagged
-#      id: check_if_tagged
-#      run: |
-#        otag=$(git tag --points-at HEAD)
-#        echo "Tag is ${otag}"
-#        if [ -z "$otag" ]
-#        then
-#          hastag=0
-#        else
-#          hastag=1
-#        fi
-#        echo "hastag=$hastag" >> $GITHUB_OUTPUT
+    - name: Check if tagged
+      id: check_if_tagged
+      run: |
+        otag=$(git tag --points-at HEAD)
+        echo "Tag is ${otag}"
+        if [ -z "$otag" ]
+        then
+          hastag=0
+        else
+          hastag=1
+        fi
+        echo "hastag=$hastag" >> $GITHUB_OUTPUT
 
     - name: Update submodules
       run: |
@@ -308,7 +306,7 @@ jobs:
       shell: bash
 
     - name: Commit changes
-      #if: steps.check_if_tagged.outputs.hastag == 1
+      if: steps.check_if_tagged.outputs.hastag == 1
       run: |
         cd LLL-pkg-repo
         git fetch
