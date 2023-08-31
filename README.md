@@ -43,26 +43,6 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 :boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.** -->
 
-## :package: Available Packages
-
-- Debian/Ubuntu:
-  - Official PPA (TAG version): [here](https://github.com/johnfanv2/LenovoLegionLinux/blob/main/package_repo)
-  - Official PPA (GIT[^1] version): [here](https://mrduartept.github.io/LLL-pkg-repo)
-- Fedora/RHEL Base Distros:
-  - Official PPA (TAG version): [here](https://github.com/johnfanv2/LenovoLegionLinux/blob/main/package_repo)
-  - Official PPA (GIT[^1] version): [here](https://mrduartept.github.io/LLL-pkg-repo)
-- Arch Base Distros:
-    - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
-    - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)[^2]
-- Gentoo Base Distros:
-    - [GURU Overlay](https://gitweb.gentoo.org/repo/proj/guru.git)
-    - [ebuild](https://gpo.zugaina.org/sys-firmware/lenovolegionlinux)
-- [NixOS](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
-
-[^1]: Build with latest commit every day at midnight GMT
-
-[^2]: Only need if are not using CachyOs
-
 ## :rocket: Features
 
 <p align="center">
@@ -100,6 +80,26 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - using standard Linux interfaces makes it is compatible with the command line/file interface or standard GUI tools like psensor
 - compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
   slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
+
+## :package: Available Packages
+
+- Debian/Ubuntu:
+  - Official PPA (TAG version): [here](https://github.com/johnfanv2/LenovoLegionLinux/blob/main/package_repo)
+  - Official PPA (GIT[^1] version): [here](https://mrduartept.github.io/LLL-pkg-repo)
+- Fedora/RHEL Base Distros:
+  - Official PPA (TAG version): [here](https://github.com/johnfanv2/LenovoLegionLinux/blob/main/package_repo)
+  - Official PPA (GIT[^1] version): [here](https://mrduartept.github.io/LLL-pkg-repo)
+- Arch Base Distros:
+    - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
+    - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)[^2]
+- Gentoo Base Distros:
+    - [GURU Overlay](https://gitweb.gentoo.org/repo/proj/guru.git)
+    - [ebuild](https://gpo.zugaina.org/sys-firmware/lenovolegionlinux)
+- [NixOS](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
+
+[^1]: Build with latest commit every day at midnight GMT
+
+[^2]: Only need if are not using CachyOs
 
 ## :pushpin: Confirmed Compatible Models
 
