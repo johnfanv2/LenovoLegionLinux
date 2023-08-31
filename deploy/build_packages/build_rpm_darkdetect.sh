@@ -12,7 +12,6 @@ sudo dnf install rpmdevtools rpm dkms python-devel python-setuptools python-whee
 cd ${REPODIR}/subprojects/darkdetect
 TAG=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
 git checkout $(git describe --tags --abbrev=0) #checkout tag
-cd ${REPODIR}
 
 # recreate BUILD_DIR
 rm -rf "${BUILD_DIR}" || true
@@ -20,8 +19,8 @@ mkdir -p "${BUILD_DIR}"
 
 ## BUILD PYTHON RPM
 #Setup BUILD_DIR
-cp --recursive subprojects/darkdetect ${BUILD_DIR}/python3-darkdetect-${TAG}
-cp --recursive deploy/build_packages/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/python3-darkdetect-${TAG}
+cp --recursive ${REPODIR}/subprojects/darkdetect ${BUILD_DIR}/python3-darkdetect-${TAG}
+cp --recursive ${REPODIR}/deploy/build_packages/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/python3-darkdetect-${TAG}
 
 #Create rpm
 cd ${BUILD_DIR}

@@ -12,7 +12,6 @@ sudo pip install --upgrade setuptools build installer #Force recent version of s
 cd ${REPODIR}/subprojects/darkdetect
 TAG=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
 git checkout $(git describe --tags --abbrev=0) #checkout tag
-cd ${REPODIR}
 
 # recreate BUILD_DIR
 rm -rf "${BUILD_DIR}" || true
@@ -20,8 +19,8 @@ mkdir -p "${BUILD_DIR}"
 
 ## BUILD PYTHON DEB
 #Setup BUILD_DIR
-cp --recursive subprojects/darkdetect ${BUILD_DIR}/darkdetect
-cp --recursive deploy/build_packages/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/darkdetect
+cp --recursive ${REPODIR}/subprojects/darkdetect ${BUILD_DIR}/darkdetect
+cp --recursive ${REPODIR}/deploy/build_packages/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/darkdetect
 
 cd ${BUILD_DIR}/darkdetect
 
