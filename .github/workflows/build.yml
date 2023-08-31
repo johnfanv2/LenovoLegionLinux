@@ -309,7 +309,7 @@ jobs:
     - name: Commit changes
       if: steps.check_if_tagged.outputs.hastag == 1
       run: |
-        cd LLL-pkg-repo
+        cd LLL
         git fetch
         git add -A
         git config user.name github-actions
