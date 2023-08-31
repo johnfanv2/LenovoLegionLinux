@@ -168,6 +168,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
+      with:
+        submodules: recursive
 
 ## ADD IF NOT FAIL
 #    - name: Check if tagged
@@ -247,6 +249,9 @@ jobs:
 
     - name: Clone repo and submodules
       uses: actions/checkout@v3
+      with:
+        path: ./LLL-pkg-repo
+        submodules: recursive
 
 ## ADD IF NOT FAIL
 #    - name: Check if tagged
@@ -264,6 +269,7 @@ jobs:
 
     - name: Update submodules
       run: |
+        cd LLL-pkg-repo
         git submodule update --init
         git pull --recurse-submodules
         git submodule update --remote --recursive
