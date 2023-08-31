@@ -67,4 +67,4 @@ name=LLL-pkg-repo
 baseurl=baseurl=https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/packages
 enabled=1
 gpgcheck=1
-gpgkey=https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/pgp-key.public" >${REPODIR}/fedora/LLL.repo
+gpgkey=https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/pgp-key.public" >${REPODIR}/package_repo/fedora/packages/LLL.repo
