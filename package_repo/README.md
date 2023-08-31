@@ -12,7 +12,7 @@ Debian/Ubuntu:
 ```bash
 sudo apt-get install curl gpg
 sudo curl -s https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/ubuntu/KEY.gpg | gpg --dearmor | sudo tee /usr/share/keyrings/lll-ppa.gpg > /dev/null
-sudo curl -SsL -o /etc/apt/sources.list.d/lll-ppa.list hhttps:/johnfanv2.github.io/LenovoLegionLinux/package_repo/ubuntu/lll-ppa.list
+sudo curl -SsL -o /etc/apt/sources.list.d/lll-ppa.list https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/ubuntu/lll-ppa.list
 sudo apt update
 sudo apt install lenovolegionlinux-dkms python3-darkdetect python3-legion-linux
 ```
