@@ -60,8 +60,9 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - [NixOS](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
 
 Notes:
-[^1] - Build with latest commit every day at midnight GMT
-[^2] - Only need if are not using CachyOs
+[^1]: Build with latest commit every day at midnight GMT
+
+[^2]: Only need if are not using CachyOs
 
 ## :rocket: Features
 
