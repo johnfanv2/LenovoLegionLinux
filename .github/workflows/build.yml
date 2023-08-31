@@ -249,12 +249,13 @@ jobs:
     - name: Clone repo and submodules
       uses: actions/checkout@v3
       with:
-        path: ./LLL-pkg-repo
+        path: ./LLL
         submodules: recursive
 
     - name: Check if tagged
       id: check_if_tagged
       run: |
+        cd LLL
         otag=$(git tag --points-at HEAD)
         echo "Tag is ${otag}"
         if [ -z "$otag" ]
@@ -267,7 +268,7 @@ jobs:
 
     - name: Update submodules
       run: |
-        cd LLL-pkg-repo
+        cd LLL
         git submodule update --init
         git pull --recurse-submodules
         git submodule update --remote --recursive
@@ -275,13 +276,13 @@ jobs:
 
     - name: Build rpm darkdetect
       run: |
-        cd LLL-pkg-repo
+        cd LLL
         ./deploy/build_packages/build_rpm_darkdetect.sh
       shell: bash
 
     - name: Build rpm LenovoLegionLinux
       run: |
-        cd LLL-pkg-repo
+        cd LLL
         ./deploy/build_packages/build_rpm_LLL.sh
       shell: bash
 
