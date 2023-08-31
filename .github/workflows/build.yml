@@ -293,6 +293,7 @@ jobs:
 
     - name: Copy and Generate files - Fedora
       run: |
+        cd LLL
         cd package_repo/fedora
         gpg --armor --export "${{ secrets.GPG_ID }}" > ./pgp-key.public
         sudo rpm --import pgp-key.public
