@@ -4,7 +4,7 @@ KERNEL_VERSION="6.5"
 KERNEL_VERSION_UNDERSCORE="${KERNEL_VERSION//./_}"
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPODIR="${DIR}/.."
-BUILD_DIR="/tmp/linux${KERNEL_VERSION_UNDERSCORE}"
+BUILD_DIR="/tmp/linux"
 TAG=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
 
 echo "Build parameter:"
