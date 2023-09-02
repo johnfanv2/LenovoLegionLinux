@@ -39,4 +39,4 @@ cp ../python3-darkdetect_${TAG}-1_all.deb ${BUILD_DIR}
 sudo apt-get install ${BUILD_DIR}/python3-darkdetect_${TAG}-1_all.deb
 
 #Move to repo
-cp ${BUILD_DIR}/python3-darkdetect_${TAG}-1_all.deb ${REPODIR}/ubuntu
+cp ${BUILD_DIR}/python3-darkdetect_${TAG}-1_all.deb ${REPODIR}/package_repo/ubuntu
