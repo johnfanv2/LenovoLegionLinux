@@ -505,11 +505,14 @@ class LegionController:
     close_to_tray_controller:BoolFeatureController
     open_closed_to_tray:BoolFeatureController
     enable_gui_monitoring_controller:BoolFeatureController
-#    use_old_tray_icon:BoolFeatureController
+    # use_old_tray_icon:BoolFeatureController
 
     # tray
     batteryconservation_tray_controller: BoolFeatureTrayController
     rapid_charging_tray_controller: BoolFeatureTrayController
+    fnlock_tray_controller: BoolFeatureTrayController
+    touchpad_tray_controller: BoolFeatureTrayController
+    always_on_usb_tray_controller: BoolFeatureTrayController
     preset_tray_controller: PresetTrayController
 
     def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
@@ -680,6 +683,22 @@ class LegionController:
         set_dependent(self.batteryconservation_tray_controller,
                       self.rapid_charging_tray_controller)
         self.rapid_charging_tray_controller.update_view_from_feature()
+
+
+        self.fnlock_tray_controller = BoolFeatureTrayController(
+            self.tray.fnlock_action, self.model.fn_lock)
+        set_dependent(self.fnlock_tray_controller, self.fnlock_controller)
+        self.fnlock_tray_controller.update_view_from_feature()
+
+        self.touchpad_tray_controller = BoolFeatureTrayController(
+            self.tray.touchpad_action, self.model.touchpad)
+        set_dependent(self.touchpad_tray_controller, self.touchpad_controller)
+        self.touchpad_tray_controller.update_view_from_feature()
+
+        self.always_on_usb_tray_controller = BoolFeatureTrayController(
+            self.tray.always_on_usb_charging_action, self.model.always_on_usb_charging)
+        set_dependent(self.always_on_usb_tray_controller, self.always_on_usb_controller)
+        self.always_on_usb_tray_controller.update_view_from_feature()
 
         self.preset_tray_controller = PresetTrayController(self.model,
             [self.tray.preset1_action,
@@ -1447,6 +1466,12 @@ class LegionTray:
         self.menu.addAction(self.batteryconservation_action)
         self.rapid_charging_action = QAction("Rapid Charging")
         self.menu.addAction(self.rapid_charging_action)
+        self.fnlock_action = QAction("Fn Lock")
+        self.menu.addAction(self.fnlock_action)
+        self.touchpad_action = QAction("Touchpad Enabled")
+        self.menu.addAction(self.touchpad_action)
+        self.always_on_usb_charging_action = QAction("Always On USB Charging")
+        self.menu.addAction(self.always_on_usb_charging_action)
         # ---
         self.menu.addSeparator()
         def add_preset_action():
