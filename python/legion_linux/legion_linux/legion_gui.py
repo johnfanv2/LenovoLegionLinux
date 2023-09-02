@@ -148,10 +148,14 @@ def open_star_link():
 class EnumFeatureController:
     widget: QComboBox
     feature: FileFeature
+    dependent_controllers: List
+    check_after_set_time: float
 
     def __init__(self, widget: QComboBox, feature: FileFeature):
         self.widget = widget
         self.feature = feature
+        self.dependent_controllers = []
+        self.check_after_set_time = 0.1
         self.widget.currentIndexChanged.connect(self.on_ui_element_click)
 
     def on_ui_element_click(self):
@@ -183,8 +187,13 @@ class EnumFeatureController:
         time.sleep(0.200)
         self.update_view_from_feature()
 
+        if self.dependent_controllers:
+            time.sleep(self.check_after_set_time)
+            for contr in self.dependent_controllers:
+                contr.update_view_from_feature()
+
     def update_view_from_feature(self, k=0, update_items=False):
-        print("update_view_from_feature", k)
+        log.info("update_view_from_feature: %d", k)
         try:
             if self.feature.exists():
                 # possible values -> items
@@ -343,6 +352,76 @@ class PresetTrayController:
     def on_action_click(self, name):
         log.info("Setting preset %s from tray action", name)
         self.model.fancurve_write_preset_to_hw(name)
+
+
+class EnumFeatureTrayController:
+    action: List[QAction]
+    feature: FileFeature
+    dependent_controllers: List
+
+    def __init__(self, feature: FileFeature, actions: List[QAction]):
+        self.actions = actions
+        self.feature = feature
+        self.dependent_controllers = []
+        self.update_view_from_feature(connect=True)
+
+    def update_view_from_feature(self, connect=False):
+        log.info("update_view_from_feature in EnumFeatureTrayController ")
+        try:
+            if self.feature.exists():
+                # possible values -> items
+                values = self.feature.get_values()
+                current_value = self.feature.get()
+                # Update each action for each possible value
+                for i, action in enumerate(self.actions):
+                    if i < len(values):
+                        value = values[i].value
+                        name = values[i].name
+                        action.setVisible(True)
+                        action.setText(f"Set {name}")
+                        action.setCheckable(True)
+                        action.setChecked(value == current_value)
+
+                        if connect:
+                            # Connect function to set respective preset and
+                            # take current value of name into closure
+                            def callback(_, pvalue = value):
+                                self.on_action_click(pvalue)
+                            action.triggered.connect(callback)
+                    else:
+                        # there are more actions than values, so hide it
+                        action.setVisible(False)
+            else:
+                for i, action in enumerate(self.actions):
+                    if i< len(values):
+                        value, name = values[i]
+                        action.setText(f"Set {name}")
+                        action.setCheckable(True)
+                        action.setChecked(False)
+                        action.setDisabled(True)
+                    else:
+                        # there are more actions than values, so hide it
+                        action.setVisible(False)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            log_error(ex)
+
+    def on_action_click(self, value):
+        log.info("Setting value %s from tray action", value)
+        try:
+            if self.feature.exists():
+                self.feature.set(value)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            log_error(ex)
+        time.sleep(0.200)
+        log.info("Update view after setting inEnumFeatureTrayController ")
+        self.update_view_from_feature()
+        if self.dependent_controllers:
+            time.sleep(0.100)
+            for contr in self.dependent_controllers:
+                log.info("Update dependent view %s in EnumFeatureTrayController", str(contr))
+                contr.update_view_from_feature()
 
 
 def set_dependent(controller1, controller2):
@@ -513,6 +592,7 @@ class LegionController:
     fnlock_tray_controller: BoolFeatureTrayController
     touchpad_tray_controller: BoolFeatureTrayController
     always_on_usb_tray_controller: BoolFeatureTrayController
+    power_mode_tray_controller: EnumFeatureTrayController
     preset_tray_controller: PresetTrayController
 
     def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
@@ -699,6 +779,14 @@ class LegionController:
             self.tray.always_on_usb_charging_action, self.model.always_on_usb_charging)
         set_dependent(self.always_on_usb_tray_controller, self.always_on_usb_controller)
         self.always_on_usb_tray_controller.update_view_from_feature()
+
+        self.power_mode_tray_controller = EnumFeatureTrayController(self.model.platform_profile,
+            [self.tray.powermode1_action,
+             self.tray.powermode2_action,
+             self.tray.powermode3_action,
+             self.tray.powermode4_action])
+        set_dependent(self.power_mode_tray_controller, self.power_mode_controller)
+        self.power_mode_tray_controller.update_view_from_feature()
 
         self.preset_tray_controller = PresetTrayController(self.model,
             [self.tray.preset1_action,
@@ -1444,6 +1532,11 @@ class LegionTray:
         self.controller = controller
 
         self.menu = QMenu()
+        def add_action(text):
+            act = QAction(text)
+            self.menu.addAction(act)
+            return act
+
         # title
         self.title = QAction("Legion")
         self.title.setEnabled(False)
@@ -1474,18 +1567,20 @@ class LegionTray:
         self.menu.addAction(self.always_on_usb_charging_action)
         # ---
         self.menu.addSeparator()
-        def add_preset_action():
-            act = QAction("Preset")
-            self.menu.addAction(act)
-            return act
-        self.preset1_action = add_preset_action()
-        self.preset2_action = add_preset_action()
-        self.preset3_action = add_preset_action()
-        self.preset4_action = add_preset_action()
-        self.preset5_action = add_preset_action()
-        self.preset6_action = add_preset_action()
-        self.preset7_action = add_preset_action()
-        self.preset8_action = add_preset_action()
+        self.preset1_action = add_action("preset")
+        self.preset2_action = add_action("preset")
+        self.preset3_action = add_action("preset")
+        self.preset4_action = add_action("preset")
+        self.preset5_action = add_action("preset")
+        self.preset6_action = add_action("preset")
+        self.preset7_action = add_action("preset")
+        self.preset8_action = add_action("preset")
+        # ---
+        self.menu.addSeparator()
+        self.powermode1_action = add_action("powermode")
+        self.powermode2_action = add_action("powermode")
+        self.powermode3_action = add_action("powermode")
+        self.powermode4_action = add_action("powermode")
         # ---
         self.menu.addSeparator()
         self.star_action = QAction(
