@@ -41,6 +41,8 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_${TAG}_amd64.deb"
 ##BUILD PYTHON DEB
 cp -r ${REPODIR}/python/legion_linux ${BUILD_DIR}
 cd ${BUILD_DIR}/legion_linux
+rm legion_linux/extra
+cp -r ${REPODIR}/extra/ legion_linux/
 #Change version according to tag
 sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 #
