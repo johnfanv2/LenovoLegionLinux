@@ -1647,6 +1647,9 @@ def main():
     else:
         log.info("Using icon legion_logo")
         icon_path = get_ressource_path('legion_logo.png')
+    # For now use the color icon unless we can detect the color of the tray bar, e.g.
+    # in ubuntu there is a black tray bar in light and dark theme
+    icon_path = get_ressource_path('legion_logo.png')
 
     # if use_old_tray_icon() == True:
         # icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
