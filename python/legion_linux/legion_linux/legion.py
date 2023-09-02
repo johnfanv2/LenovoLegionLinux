@@ -211,6 +211,31 @@ class BoolSettingFeature(Feature):
     def get(self) -> bool:
         return self.value
 
+class EnumSettingFeature(Feature):
+    def __init__(self, name, value, all_values:List[NamedValue]) -> None:
+        super().__init__()
+        self._name = name
+        self._all_values = all_values
+        self.value = value
+
+    def name(self):
+        return self._name
+
+    def get_values(self) -> List[NamedValue]:
+        return self._all_values
+
+    def set(self, value: str):
+        log.info('Feature %s setting to %s', self.name(), str(value))
+        if value in [ nv.value for nv in self._all_values]:
+            self.value = value
+            self._notify()
+        else:
+            log.error("Setting invalid value %s", value)
+            raise ValueError(f"Invalid value {value}")
+
+    def get(self) -> bool:
+        return self.value
+
 
 class FileFeature(Feature):
     pattern: str
@@ -943,7 +968,8 @@ class ApplicationModel:
     automatic_close: BoolSettingFeature
     close_to_tray: BoolSettingFeature
     open_closed_to_tray: BoolSettingFeature
-    enable_gui_monitoring = BoolSettingFeature
+    enable_gui_monitoring: BoolSettingFeature
+    icon_color_mode: EnumSettingFeature
 
     def __init__(self):
         self.automatic_close = BoolSettingFeature('automatic_close')
@@ -957,6 +983,16 @@ class ApplicationModel:
 
         self.enable_gui_monitoring = BoolSettingFeature('enable_gui_monitoring')
         self.enable_gui_monitoring.set(False)
+
+        icon_color_modes = [
+            NamedValue("always-color", "Always use colorful color scheme"),
+            NamedValue("always-light", "Always use light color scheme"),
+            NamedValue("always-dark", "Always use dark color scheme"),
+            NamedValue("automatic", "Use system color scheme"),
+            NamedValue("automatic-inverted", "Use inverted system color scheme")
+        ]
+        self.icon_color_mode = EnumSettingFeature("icon_color_mode", icon_color_modes[0].value, icon_color_modes)
+        self.icon_color_mode.set(icon_color_modes[0].value)
 
 
 @dataclass
@@ -1332,6 +1368,7 @@ class SystemNotificationSender(NotifcationSender):
 class LegionModelFacade:
     monitors: List[Monitor]
 
+    # pylint: disable=too-many-statements
     def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False, config_dir=DEFAULT_CONFIG_DIR):
         Feature.default_use_legion_cli_to_write = use_legion_cli_to_write
         log.info(get_dmesg())
@@ -1402,6 +1439,7 @@ class LegionModelFacade:
         self.settings_manager.add_feature(self.app_model.close_to_tray)
         self.settings_manager.add_feature(self.app_model.open_closed_to_tray)
         self.settings_manager.add_feature(self.app_model.enable_gui_monitoring)
+        self.settings_manager.add_feature(self.app_model.icon_color_mode)
 
     @staticmethod
     def is_root_user():

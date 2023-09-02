@@ -584,7 +584,7 @@ class LegionController:
     close_to_tray_controller:BoolFeatureController
     open_closed_to_tray:BoolFeatureController
     enable_gui_monitoring_controller:BoolFeatureController
-    # use_old_tray_icon:BoolFeatureController
+    icon_color_mode_controller:EnumFeatureController
 
     # tray
     batteryconservation_tray_controller: BoolFeatureTrayController
@@ -726,11 +726,11 @@ class LegionController:
             self.model.app_model.enable_gui_monitoring
         )
         self.model.app_model.enable_gui_monitoring.add_callback(self.on_enable_monitoring_change)
-
-        # self.use_old_tray_icon = BoolFeatureController(
-        #     self.view_automation.use_old_tray_icon_check,
-        #     self.model.app_model.use_old_tray_icon
-        # )
+        self.icon_color_mode_controller = EnumFeatureController(
+            self.view_automation.icon_color_mode_combobox,
+            self.model.app_model.icon_color_mode
+        )
+        self.icon_color_mode_controller.update_view_from_feature(0, True)
 
         if read_from_hw:
             self.model.read_fancurve_from_hw()
@@ -860,9 +860,9 @@ class LegionController:
         self.lenovo_legion_laptop_support_service_controller.update_view_from_feature()
         self.close_to_tray_controller.update_view_from_feature()
         self.open_closed_to_tray.update_view_from_feature()
-#        self.use_old_tray_icon.update_view_from_feature()
         self.legion_gui_autstart_controller.update_view_from_feature()
         self.enable_gui_monitoring_controller.update_view_from_feature()
+        self.icon_color_mode_controller.update_view_from_feature()
 
     def on_read_fan_curve_from_hw(self):
         self.model.read_fancurve_from_hw()
@@ -1325,15 +1325,18 @@ class AutomationTab(QWidget):
         self.options_layout.addWidget(
             self.open_closed_to_tray_check, 3)
 
+        self.icon_color_mode_label = QLabel(
+            'Icon Color Mode (restart of app required)')
+        self.options_layout.addWidget(
+            self.icon_color_mode_label, 3)
+        self.icon_color_mode_combobox = QComboBox()
+        self.options_layout.addWidget(
+            self.icon_color_mode_combobox, 3)
+
         self.enable_gui_monitoring_check = QCheckBox(
             "Enable Monitoring while GUI is Running")
         self.options_layout.addWidget(
             self.enable_gui_monitoring_check, 3)
-
-#        self.use_old_tray_icon_check = QCheckBox(
-#            "Use App Icon as Tray Icon")
-#        self.options_layout.addWidget(
-#            self.use_old_tray_icon_check, 4)
 
         self.note_label = QLabel(
             'These are Experimental Features.\n To apply and save the Settings Press "Save" or "Save and Quit"')
@@ -1601,6 +1604,48 @@ def get_ressource_path(name):
         os.path.dirname(os.path.realpath(__file__)), name)
     return path
 
+# Disable linter error since this is simplier than refactored into lookup table
+# with less branches
+# pylint: disable=too-many-branches
+def get_icon_path(controller):
+    icon_color = 'color'
+    if controller.model.app_model.icon_color_mode.get() == 'always-color':
+        icon_color = 'color'
+    elif controller.model.app_model.icon_color_mode.get() == 'always-light':
+        icon_color = 'light'
+    elif controller.model.app_model.icon_color_mode.get() == 'always-dark':
+        icon_color = 'dark'
+    elif controller.model.app_model.icon_color_mode.get() == 'automatic':
+        color_mode = get_color_mode()
+        log.info("Using color mode: %s", color_mode)
+        if color_mode == 'dark':
+            icon_color = 'dark'
+        elif color_mode == 'light':
+            icon_color = 'light'
+        else:
+            icon_color = 'color'
+    elif controller.model.app_model.icon_color_mode.get() == 'automatic-inverted':
+        color_mode = get_color_mode()
+        log.info("Using color mode: %s", color_mode)
+        if color_mode == 'dark':
+            icon_color = 'light'
+        elif color_mode == 'light':
+            icon_color = 'dark'
+        else:
+            icon_color = 'color'
+
+    log.info("Using icon_color %s", icon_color)
+    if icon_color == 'dark':
+        log.info("Using icon legion_logo_dark")
+        icon_path = get_ressource_path('legion_logo_dark.png')
+    elif icon_color == 'light':
+        log.info("Using icon legion_logo_light")
+        icon_path = get_ressource_path('legion_logo_light.png')
+    else:
+        log.info("Using icon legion_logo")
+        icon_path = get_ressource_path('legion_logo.png')
+    return icon_path
+
 def main():
     app = QApplication(sys.argv)
 
@@ -1619,8 +1664,6 @@ def main():
         controller.model.app_model.close_to_tray.set(True)
     if '--open_closed_to_tray' in sys.argv:
         controller.model.app_model.open_closed_to_tray.set(True)
-    #    if '--use_old_tray_icon' in sys.argv:
-#        controller.model.app_model.use_old_tray_icon(True)
 
     # Overwrite settings by rules
     if controller.model.is_root_user():
@@ -1635,25 +1678,7 @@ def main():
         controller.model.app_model.close_to_tray.set(False)
 
     # Resources
-    # need to be rewrite to use the old icon
-    color_mode = get_color_mode()
-    log.info("Using color mode: %s", color_mode)
-    if color_mode == 'dark':
-        log.info("Using icon legion_logo_dark")
-        icon_path = get_ressource_path('legion_logo_dark.png')
-    elif color_mode == 'light':
-        log.info("Using icon legion_logo_light")
-        icon_path = get_ressource_path('legion_logo_light.png')
-    else:
-        log.info("Using icon legion_logo")
-        icon_path = get_ressource_path('legion_logo.png')
-    # For now use the color icon unless we can detect the color of the tray bar, e.g.
-    # in ubuntu there is a black tray bar in light and dark theme
-    icon_path = get_ressource_path('legion_logo.png')
-
-    # if use_old_tray_icon() == True:
-        # icon_path = get_ressource_path('legion_logo.png') #Later we can make this a option to enable the old icon
-
+    icon_path = get_icon_path(controller)
     icon = QtGui.QIcon(icon_path)
 
     # Main Windows
