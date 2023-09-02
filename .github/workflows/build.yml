@@ -12,8 +12,6 @@ on:
         - info
         - warning
         - debug
-  pull_request:
-    branches: [ main ]
   push:
     branches: [ main, develop ]
 jobs:

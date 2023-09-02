@@ -39,7 +39,8 @@ echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_${TAG}_amd64.deb"
 ##
 
 ##BUILD PYTHON DEB
-cd ${REPODIR}/python/legion_linux
+cp -r ${REPODIR}/python/legion_linux ${BUILD_DIR}
+cd ${BUILD_DIR}/legion_linux
 #Change version according to tag
 sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 #
@@ -49,8 +50,9 @@ sudo python3 setup.py --command-packages=stdeb.command sdist_dsc
 cd deb_dist/legion-linux-${TAG}
 
 ##Add to debial install
-sudo cp -R ../../../../extra/service/legion-linux.service .
-sudo cp -R ../../../../extra/service/legion-linux.path .
+rm -r ${BUILD_DIR}/legion_linux/legion_linux/extra && sudo cp -r ${REPODIR}/extra ${BUILD_DIR}/legion_linux/legion_linux
+sudo cp -R ${BUILD_DIR}/legion_linux/legion_linux/extra/service/legion-linux.service .
+sudo cp -R ${BUILD_DIR}/legion_linux/legion_linux/extra/service/legion-linux.path .
 echo "legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
 echo "legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
 sudo EDITOR=/bin/true dpkg-source -q --commit . p1
