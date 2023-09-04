@@ -1,4 +1,4 @@
-<img height="50" align="left" src="assets/headerlogo.png" alt="HeaderLogo">
+<img height="50" align="left" src="assets/legion_logo_dark.png" alt="HeaderLogo">
 
 # Lenovo Legion Linux Support
 
