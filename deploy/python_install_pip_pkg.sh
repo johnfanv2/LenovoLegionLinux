@@ -20,7 +20,7 @@ else
 	#cp -r /usr/share/legion_linux /etc/legion_linux
 	cp -r /usr/local/share/legion_linux /etc/legion_linux
 fi
-# Desktop file
+# Desktop files
 # sudo cp legion_linux/legion_gui.desktop /usr/share/applications/
 # sudo cp legion_linux/legion_gui_user.desktop /usr/share/applications/
 # sudo mkdir -p /usr/share/icons/

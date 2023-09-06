@@ -12,14 +12,14 @@
  *  data doesn't match the model AND FIRMWARE.
  *
  *  Support for other hardware of this model is already partially
- *  provided by the module ideapd-laptop.
+ *  provided by the module ideapad-laptop.
  *
  *  The development page for this driver is located at
  *  https://github.com/johnfanv2/LenovoLegionLinux
  *
  *  This driver exports the files:
  *    - /sys/kernel/debug/legion/fancurve (ro)
- *        The fan curve in the form stored in the firmware in an
+ *        The fan curve stored in the firmware in the form of a
  *        human readable table.
  *
  *    - /sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/powermode (rw)
@@ -124,13 +124,13 @@ struct legion_private;
  *    to part of it (first 0xFF bytes?)
  *
  * In later models the firmware directly exposes ACPI methods to
- * set the fan curve direclty, without writing to EC RAM. This
+ * set the fan curve directly, without writing to EC RAM. This
  * is done inside the ACPI method.
  */
 
 /**
- * Offsets for interseting values inside the EC RAM  (0 = start of
- * EC RAM. These might change depending on the software inside of
+ * Offsets for interesting values inside the EC RAM  (0 = start of
+ * EC RAM) These might change depending on the software inside of
  * the EC, which can be updated by a BIOS update from Lenovo.
  */
 // TODO: same order as in initialization
@@ -140,7 +140,7 @@ struct ec_register_offsets {
 	// General Control (GCTRL)
 	// (see EC Interface Registers  and 6.2 Plug and Play Configuration (PNPCFG)) in datasheet
 	// note: these are in two places saved
-	// in EC Interface Registers  and in super io configuraion registers
+	// in EC Interface Registers  and in super io configuration registers
 	// Chip ID
 	u16 ECHIPID1;
 	u16 ECHIPID2;
@@ -173,9 +173,9 @@ struct ec_register_offsets {
 	u16 EXT_POWERMODE;
 	u16 EXT_MINIFANCURVE_ON_COOL;
 	// values
-	// 0x04: enable mini fan curve if very long on cool level
+	// 0x04: enable mini fan curve if left for too long on cool level
 	//      - this might be due to potential temp failure
-	//      - or just because really so cool
+	//      - or just because of really cool temps
 	// 0xA0: disable it
 	u16 EXT_LOCKFANCONTROLLER;
 	u16 EXT_MAXIMUMFANSPEED;
@@ -816,9 +816,9 @@ static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
 	{
-		// modelyear: 2021
-		// generation: 6
-		// name: Legion 5, Legion 5 pro, Legion 7
+		// Release year: 2021
+		// Generation: 6
+		// Name: Legion 5, Legion 5 pro, Legion 7
 		// Family: Legion 5 15ACH6H, ...
 		.ident = "GKCN",
 		.matches = {
@@ -828,7 +828,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2020
+		// Release year: 2020
 		.ident = "EUCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -837,7 +837,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_eucn
 	},
 	{
-		// modelyear: 2020
+		// Release year: 2020
 		.ident = "EFCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -846,7 +846,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2020
+		// Release year: 2020
 		.ident = "FSCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -855,7 +855,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2021
+		// Release year: 2021
 		.ident = "HHCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -864,7 +864,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2022
+		// Release year: 2022
 		.ident = "H1CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -873,7 +873,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2022
+		// Release year: 2022
 		.ident = "J2CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -882,7 +882,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2022
+		// Release year: 2022
 		.ident = "JUCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -891,7 +891,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2022
+		// Release year: 2022
 		.ident = "KFCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -900,7 +900,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_kfcn
 	},
 	{
-		// modelyear: 2021
+		// Release year: 2021
 		.ident = "HACN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -909,7 +909,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_hacn
 	},
 	{
-		// modelyear: 2021
+		// Release year: 2021
 		.ident = "G9CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -918,7 +918,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
-		// modelyear: 2022
+		// Release year: 2022
 		.ident = "K9CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -1226,7 +1226,7 @@ static int wmi_exec_int(const char *guid, u8 instance, u32 method_id,
 {
 	acpi_status status;
 	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
-	// seto to NULL call kfree on NULL if next function call fails
+	// set to NULL and call kfree on NULL if next function call fails
 	union acpi_object *out = NULL;
 	int error = 0;
 
@@ -1303,9 +1303,9 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 // GPU over clock
 #define WMI_METHOD_ID_ISSUPPORTGPUOC 4
 
-//Fan speed
-// only completely implemented only for some models here
-// often implemted also in other class and other method
+// Fan speed
+// only fully implemented for some models here
+// often implemented in other classes and methods too
 // below
 #define WMI_METHOD_ID_GETFAN1SPEED 8
 #define WMI_METHOD_ID_GETFAN2SPEED 9
@@ -1315,8 +1315,8 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 // Does it support CPU overclock?
 #define WMI_METHOD_ID_ISSUPPORTCPUOC 14
 // Temperatures
-// only completely implemented  only for some models here
-// often implemted also in other class and other method
+// only fully implemented for some models here
+// often implemented in other classes and methods too
 // below
 #define WMI_METHOD_ID_GETCPUTEMP 18
 #define WMI_METHOD_ID_GETGPUTEMP 19
@@ -1324,17 +1324,17 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 // two state keyboard light
 #define WMI_METHOD_ID_GETKEYBOARDLIGHT 37
 #define WMI_METHOD_ID_SETKEYBOARDLIGHT 36
-// disable win key
+// toggle win key
 // 0 = win key enabled; 1 = win key disabled
 #define WMI_METHOD_ID_ISSUPPORTDISABLEWINKEY 21
 #define WMI_METHOD_ID_GETWINKEYSTATUS 23
 #define WMI_METHOD_ID_SETWINKEYSTATUS 22
-// disable touchpad
+// toggle touchpad
 //0 = touchpad enabled; 1 = touchpad disabled
 #define WMI_METHOD_ID_ISSUPPORTDISABLETP 24
 #define WMI_METHOD_ID_GETTPSTATUS 26
 #define WMI_METHOD_ID_SETTPSTATUS 25
-// gSync
+// GSync
 #define WMI_METHOD_ID_ISSUPPORTGSYNC 40
 #define WMI_METHOD_ID_GETGSYNCSTATUS 41
 #define WMI_METHOD_ID_SETGSYNCSTATUS 42
@@ -1520,7 +1520,7 @@ static ssize_t ecram_memoryio_init(struct ecram_memoryio *ec_memoryio,
 		ec_memoryio->physical_start = physical_start;
 		ec_memoryio->physical_ec_start = physical_ec_start;
 		ec_memoryio->size = size;
-		pr_info("Succeffuly mapped embedded controller: 0x%llx (in RAM)/0x%llx (in EC) to virtual 0x%p\n",
+		pr_info("Successfully mapped embedded controller: 0x%llx (in RAM)/0x%llx (in EC) to virtual 0x%p\n",
 			ec_memoryio->physical_start,
 			ec_memoryio->physical_ec_start,
 			ec_memoryio->virtual_start);
@@ -1608,10 +1608,10 @@ ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
 // Number of used ports
 #define ECRAM_PORTIO_PORTS_SIZE 2
 // Port used to specify address in EC RAM to read/write
-// 0x4E/0x4F is the usual port for IO super controler
-// 0x2E/0x2F also common (ITE can also be configure to use these)
+// 0x4E/0x4F is the usual port for IO super controller
+// 0x2E/0x2F also common (ITE can also be configured to use these)
 #define ECRAM_PORTIO_ADDR_PORT 0x4E
-// Port to send/receive the value  to write/read
+// Port to send/receive the value to write/read
 #define ECRAM_PORTIO_DATA_PORT 0x4F
 // Name used to request ports
 #define ECRAM_PORTIO_NAME "legion"
@@ -1750,7 +1750,7 @@ static u8 ecram_read(struct ecram *ecram, u16 ecram_offset)
 
 	err = ecram_portio_read(&ecram->portio, ecram_offset, &value);
 	if (err)
-		pr_info("Error reading EC RAM at 0x%x\n", ecram_offset);
+		pr_info("Error reading EC RAM at 0x%x.\n", ecram_offset);
 	return value;
 }
 
@@ -1759,13 +1759,13 @@ static void ecram_write(struct ecram *ecram, u16 ecram_offset, u8 value)
 	int err;
 
 	if (ec_readonly) {
-		pr_info("Skipping writing EC RAM at 0x%x because readonly.\n",
+		pr_info("Skipping writing EC RAM to 0x%x: Read-Only.\n",
 			ecram_offset);
 		return;
 	}
 	err = ecram_portio_write(&ecram->portio, ecram_offset, value);
 	if (err)
-		pr_info("Error writing EC RAM at 0x%x\n", ecram_offset);
+		pr_info("Error writing EC RAM to 0x%x: Read-Only.\n", ecram_offset);
 }
 
 /* =============================== */
@@ -1822,24 +1822,24 @@ struct fancurve_point {
 	u8 rpm1_raw;
 	// rpm2 devided by 100
 	u8 rpm2_raw;
-	// >=2 , <=5 (lower is faster); must be increasing by level
+	// >=2 , <=5 (lower is faster); must increase by level
 	u8 accel;
-	// >=2 , <=5 (lower is faster); must be increasing by level
+	// >=2 , <=5 (lower is faster); must increase by level
 	u8 decel;
 
-	// min must be lower or equal than max
+	// min must be lower than or equal to max
 	// last level max must be 127
-	// <=127 cpu max temp for this level; must be increasing by level
+	// <=127 cpu max temp for this level; must increase by level
 	u8 cpu_max_temp_celsius;
-	// <=127 cpu min temp for this level; must be increasing by level
+	// <=127 cpu min temp for this level; must increase by level
 	u8 cpu_min_temp_celsius;
-	// <=127 gpu min temp for this level; must be increasing by level
+	// <=127 gpu min temp for this level; must increase by level
 	u8 gpu_max_temp_celsius;
-	// <=127 gpu max temp for this level; must be increasing by level
+	// <=127 gpu max temp for this level; must increase by level
 	u8 gpu_min_temp_celsius;
-	// <=127 ic max temp for this level; must be increasing by level
+	// <=127 ic max temp for this level; must increase by level
 	u8 ic_max_temp_celsius;
-	// <=127 ic max temp for this level; must be increasing by level
+	// <=127 ic max temp for this level; must increase by level
 	u8 ic_min_temp_celsius;
 };
 
@@ -1866,7 +1866,7 @@ struct fancurve {
 	struct fancurve_point points[MAXFANCURVESIZE];
 	// number of points used; must be <= MAXFANCURVESIZE
 	size_t size;
-	// the point that at which fans are run currently
+	// the point at which fans are run currently
 	size_t current_point_i;
 };
 
@@ -1995,7 +1995,7 @@ static bool fancurve_set_size(struct fancurve *fancurve, int size,
 	if (!valid)
 		return false;
 	if (init_values && size < fancurve->size) {
-		// fancurve size is decreased, but last etnry alwasy needs 127 temperatures
+		// fancurve size is decreased, but last entry always needs 127 temperatures
 		// Note: size >=1
 		fancurve->points[size - 1].cpu_max_temp_celsius = 127;
 		fancurve->points[size - 1].ic_max_temp_celsius = 127;
@@ -2048,8 +2048,8 @@ struct light {
 /* Global and shared data between */
 /* all calls to this module       */
 /* =============================  */
-// Implemented like ideapad-laptop.c but currenlty still
-// wihtout dynamic memory allocation (instead global _priv)
+// Implemented like ideapad-laptop.c but currently still
+// without dynamic memory allocation (instead global _priv)
 struct legion_private {
 	struct platform_device *platform_device;
 	// TODO: remove or keep? init?
@@ -2057,10 +2057,10 @@ struct legion_private {
 
 	// Method to access ECRAM
 	struct ecram ecram;
-	// Configuration with registers an ECRAM access method
+	// Configuration with registers and ECRAM access method
 	const struct model_config *conf;
 
-	// TODO: maybe refactor an keep only local to each function
+	// TODO: maybe refactor and keep only local to each function
 	// last known fan curve
 	struct fancurve fancurve;
 	// configured fan curve from user space
@@ -2085,7 +2085,7 @@ struct legion_private {
 	struct ecram_memoryio ec_memoryio;
 };
 
-// shared between different drivers: WMI, platform and proteced by mutex
+// shared between different drivers: WMI, platform and protected by mutex
 static struct legion_private *legion_shared;
 static struct legion_private _priv;
 static DEFINE_MUTEX(legion_shared_mutex);
@@ -2186,7 +2186,7 @@ static int set_simple_wmi_attribute(struct legion_private *priv,
 }
 
 /* ============================= */
-/* Sensor values reading/writing */
+/* Sensor value reading/writing */
 /* ============================= */
 
 static int ec_read_sensor_values(struct ecram *ecram,
@@ -2621,7 +2621,7 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 /* Read the fan curve from the EC.
  *
  * In newer models (>=2022) there is an ACPI/WMI to read fan curve as
- * a whole. So read/write fan table as a whole to use
+ * a whole. So read/write fan table as a whole to use the
  * same interface for both cases.
  *
  * It reads all points from EC memory, even if stored fancurve is smaller, so
@@ -2659,7 +2659,7 @@ static int ec_read_fancurve_legion(struct ecram *ecram,
 			ecram, model->registers->EXT_VRM_TEMP_HYST + i);
 	}
 
-	// Do not trust that hardware; It might suddendly report
+	// Do not trust that hardware; It might suddenly report
 	// a larger size, so clamp it.
 	fancurve->size =
 		ecram_read(ecram, model->registers->EXT_FAN_POINTS_SIZE);
@@ -2764,7 +2764,7 @@ static int ec_read_fancurve_ideapad(struct ecram *ecram,
 		point->ic_min_temp_celsius = 0;
 	}
 
-	// Do not trust that hardware; It might suddendly report
+	// Do not trust that hardware; It might suddenly report
 	// a larger size, so clamp it.
 	fancurve->size = FANCURVESIZE_IDEAPDAD;
 	fancurve->current_point_i =
@@ -2783,7 +2783,7 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 	int valr2;
 
 	// add this later: maybe other addresses needed
-	// therefore, fan curve might not be effective immediatley but
+	// therefore, fan curve might not be effective immediately but
 	// only after temp change
 	// Reset fan update counters (try to avoid any race conditions)
 	ecram_write(ecram, 0xC5FE, 0);
@@ -2825,7 +2825,7 @@ static int ec_write_fancurve_ideapad(struct ecram *ecram,
 	}
 
 	// add this later: maybe other addresses needed
-	// therefore, fan curve might not be effective immediatley but
+	// therefore, fan curve might not be effective immediately but
 	// only after temp change
 	// // Reset current fan level to 0, so algorithm in EC
 	// // selects fan curve point again and resetting hysterisis
@@ -2853,7 +2853,7 @@ static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 	case ACCESS_METHOD_WMI3:
 		return wmi_read_fancurve_custom(priv->conf, fancurve);
 	default:
-		pr_info("No access method for fancurve:%d\n",
+		pr_info("No access method for fancurve: %d\n",
 			priv->conf->access_method_fancurve);
 		return -EINVAL;
 	}
@@ -2873,7 +2873,7 @@ static int write_fancurve(struct legion_private *priv,
 	case ACCESS_METHOD_WMI3:
 		return wmi_write_fancurve_custom(priv->conf, fancurve);
 	default:
-		pr_info("No access method for fancurve:%d\n",
+		pr_info("No access method for fancurve: %d\n",
 			priv->conf->access_method_fancurve);
 		return -EINVAL;
 	}
@@ -2896,7 +2896,7 @@ static int ec_read_minifancurve(struct ecram *ecram,
 		*state = false;
 		break;
 	default:
-		pr_info("Unexpected value in MINIFANCURVE register:%d\n",
+		pr_info("Unexpected value in MINIFANCURVE register: %d\n",
 			value);
 		return -1;
 	}
@@ -2940,7 +2940,7 @@ static int ec_read_lockfancontroller(struct ecram *ecram,
 		*state = false;
 		break;
 	default:
-		pr_info("Unexpected value in lockfanspeed register:%d\n",
+		pr_info("Unexpected value in lockfanspeed register: %d\n",
 			value);
 		return -1;
 	}
@@ -2963,7 +2963,7 @@ static int ec_read_fanfullspeed(struct ecram *ecram,
 		*state = false;
 		break;
 	default:
-		pr_info("Unexpected value in maximumfanspeed register:%d\n",
+		pr_info("Unexpected value in maximumfanspeed register: %d\n",
 			value);
 		return -1;
 	}
@@ -3020,7 +3020,7 @@ static ssize_t write_fanfullspeed(struct legion_private *priv, bool state)
 	case ACCESS_METHOD_WMI:
 		return wmi_write_fanfullspeed(priv, state);
 	default:
-		pr_info("No access method for fan full speed:%d\n",
+		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
 		return -EINVAL;
 	}
@@ -3098,7 +3098,7 @@ static ssize_t acpi_read_powermode(struct legion_private *priv, int *powermode)
 	unsigned long acpi_powermode;
 	int err;
 
-	// spmo method not alwasy available
+	// spmo method not always available
 	// \_SB.PCI0.LPC0.EC0.SPMO
 	err = eval_spmo(priv->adev->handle, &acpi_powermode);
 	*powermode = (int)acpi_powermode;
@@ -3145,7 +3145,7 @@ static ssize_t read_powermode(struct legion_private *priv, int *powermode)
 	case ACCESS_METHOD_WMI:
 		return wmi_read_powermode(powermode);
 	default:
-		pr_info("No access method for powermode:%d\n",
+		pr_info("No access method for powermode: %d\n",
 			priv->conf->access_method_powermode);
 		return -EINVAL;
 	}
@@ -3166,7 +3166,7 @@ static ssize_t write_powermode(struct legion_private *priv,
 	case ACCESS_METHOD_WMI:
 		return wmi_write_powermode(value);
 	default:
-		pr_info("No access method for powermode:%d\n",
+		pr_info("No access method for powermode: %d\n",
 			priv->conf->access_method_powermode);
 		return -EINVAL;
 	}
@@ -3203,7 +3203,7 @@ static int acpi_read_rapidcharge(struct acpi_device *adev, bool *state)
 	unsigned long result;
 	int err;
 
-	//also works? what is better?
+	//also works? which one is better?
 	/*
 	 * err = eval_qcho(adev->handle, &result);
 	 * if (err)
@@ -3491,7 +3491,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_printf(s, "WMI light IO port: %d\n",
 		   legion_wmi_light_get(priv, LIGHT_ID_IOPORT, 0, 4));
 
-	seq_printf(s, "WMI light y logo/lid: %d\n",
+	seq_printf(s, "WMI light Y logo/lid: %d\n",
 		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 4));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
@@ -3539,7 +3539,7 @@ static void legion_debugfs_init(struct legion_private *priv)
 	struct dentry *dir;
 
 	// TODO: remove this note
-	// Note: as other kernel modules, do not catch errors here
+	// Note: like other kernel modules, do not catch errors here
 	// because if kernel is build without debugfs this
 	// will return an error but module still has to
 	// work, just without debugfs
@@ -3603,7 +3603,7 @@ static int show_simple_wmi_attribute_from_buffer(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (ressize > ARRAY_SIZE(res)) {
-		pr_info("Buffer to small for WMI result\n");
+		pr_info("Buffer too small for WMI result\n");
 		return -EINVAL;
 	}
 	if (i >= ressize) {
@@ -4350,8 +4350,8 @@ static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 unlock:
 	mutex_unlock(&legion_shared_mutex);
 	// todo; fix that!
-	// problem: we get a event just before the powermode change (from the key?),
-	// so if we notify to early, it will read the old power mode/platform profile
+	// problem: we get an event just before the powermode change (from the key?),
+	// so if we notify too early, it will read the old power mode/platform profile
 	msleep(500);
 	legion_platform_profile_notify();
 }
@@ -4700,11 +4700,11 @@ static ssize_t autopoint_show(struct device *dev,
 	mutex_unlock(&priv->fancurve_mutex);
 
 	if (err) {
-		pr_info("Reading fancurve failed\n");
+		pr_info("Failed to read fancurve\n");
 		return -EOPNOTSUPP;
 	}
 	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
-		pr_info("Reading fancurve failed due to wrong point id: %d\n",
+		pr_info("Failed to read fancurve due to wrong point id: %d\n",
 			point_id);
 		return -EOPNOTSUPP;
 	}
@@ -4744,7 +4744,7 @@ static ssize_t autopoint_show(struct device *dev,
 		value = fancurve.size;
 		break;
 	default:
-		pr_info("Reading fancurve failed due to wrong attribute id: %d\n",
+		pr_info("Failed to read fancurve due to wrong attribute id: %d\n",
 			fancurve_attr_id);
 		return -EOPNOTSUPP;
 	}
@@ -4766,7 +4766,7 @@ static ssize_t autopoint_store(struct device *dev,
 	bool write_fancurve_size = false;
 
 	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
-		pr_info("Reading fancurve failed due to wrong point id: %d\n",
+		pr_info("Failed to read fancurve due to wrong point id: %d\n",
 			point_id);
 		err = -EOPNOTSUPP;
 		goto error;
@@ -4774,7 +4774,7 @@ static ssize_t autopoint_store(struct device *dev,
 
 	err = kstrtoint(buf, 0, &value);
 	if (err) {
-		pr_info("Parse for hwmon store is not succesful: error:%d; point_id: %d; fancurve_attr_id: %d\\n",
+		pr_info("Parsing hwmon store failed: error: %d; point_id: %d; fancurve_attr_id: %d\\n",
 			err, point_id, fancurve_attr_id);
 		goto error;
 	}
@@ -4783,7 +4783,7 @@ static ssize_t autopoint_store(struct device *dev,
 	err = read_fancurve(priv, &fancurve);
 
 	if (err) {
-		pr_info("Reading fancurve failed\n");
+		pr_info("Failed to read fancurve\n");
 		err = -EOPNOTSUPP;
 		goto error_mutex;
 	}
@@ -4824,7 +4824,7 @@ static ssize_t autopoint_store(struct device *dev,
 		write_fancurve_size = true;
 		break;
 	default:
-		pr_info("Writing fancurve failed due to wrong attribute id: %d\n",
+		pr_info("Failed to write fancurve due to wrong attribute id: %d\n",
 			fancurve_attr_id);
 		err = -EOPNOTSUPP;
 		goto error_mutex;
@@ -4839,7 +4839,7 @@ static ssize_t autopoint_store(struct device *dev,
 
 	err = write_fancurve(priv, &fancurve, write_fancurve_size);
 	if (err) {
-		pr_info("Writing fancurve failed for accessing hwmon at point_id: %d\n",
+		pr_info("Failed to write fancurve for accessing hwmon at point_id: %d\n",
 			point_id);
 		err = -EOPNOTSUPP;
 		goto error_mutex;
@@ -5078,7 +5078,7 @@ static ssize_t minifancurve_show(struct device *dev,
 	err = ec_read_minifancurve(&priv->ecram, priv->conf, &value);
 	if (err) {
 		err = -1;
-		pr_info("Reading minifancurve not succesful\n");
+		pr_info("Failed to read minifancurve\n");
 		goto error_unlock;
 	}
 	mutex_unlock(&priv->fancurve_mutex);
@@ -5100,7 +5100,7 @@ static ssize_t minifancurve_store(struct device *dev,
 	err = kstrtoint(buf, 0, &value);
 	if (err) {
 		err = -1;
-		pr_info("Parse for hwmon store is not succesful: error:%d\n",
+		pr_info("Parsing hwmon store failed: error:%d\n",
 			err);
 		goto error;
 	}
@@ -5109,7 +5109,7 @@ static ssize_t minifancurve_store(struct device *dev,
 	err = ec_write_minifancurve(&priv->ecram, priv->conf, value);
 	if (err) {
 		err = -1;
-		pr_info("Writing minifancurve not succesful\n");
+		pr_info("Failed to write minifancurve\n");
 		goto error_unlock;
 	}
 	mutex_unlock(&priv->fancurve_mutex);
@@ -5134,7 +5134,7 @@ static ssize_t pwm1_mode_show(struct device *dev,
 	err = ec_read_fanfullspeed(&priv->ecram, priv->conf, &value);
 	if (err) {
 		err = -1;
-		pr_info("Reading pwm1_mode/maximumfanspeed not succesful\n");
+		pr_info("Failed to pwm1_mode/maximumfanspeed\n");
 		goto error_unlock;
 	}
 	mutex_unlock(&priv->fancurve_mutex);
@@ -5158,7 +5158,7 @@ static ssize_t pwm1_mode_store(struct device *dev,
 	err = kstrtoint(buf, 0, &value);
 	if (err) {
 		err = -1;
-		pr_info("Parse for hwmon store is not succesful: error:%d\n",
+		pr_info("Parsing hwmon store failed: error:%d\n",
 			err);
 		goto error;
 	}
@@ -5169,7 +5169,7 @@ static ssize_t pwm1_mode_store(struct device *dev,
 				    is_maximumfanspeed);
 	if (err) {
 		err = -1;
-		pr_info("Writing pwm1_mode/maximumfanspeed not succesful\n");
+		pr_info("Failed to write pwm1_mode/maximumfanspeed\n");
 		goto error_unlock;
 	}
 	mutex_unlock(&priv->fancurve_mutex);
@@ -5428,7 +5428,7 @@ static int legion_kbd_bl_init(struct legion_private *priv)
 
 	brightness = legion_kbd_bl_brightness_get(priv);
 	if (brightness < 0) {
-		pr_info("Error reading keyboard brighntess\n");
+		pr_info("Error reading keyboard brightness\n");
 		return brightness;
 	}
 
@@ -5516,7 +5516,7 @@ static int legion_light_init(struct legion_private *priv,
 					  light_ins->lower_limit,
 					  light_ins->upper_limit);
 	if (brightness < 0) {
-		pr_info("Error reading brighntess for light: %u\n",
+		pr_info("Error reading brightness for light: %u\n",
 			light_ins->light_id);
 		return brightness;
 	}
@@ -5611,7 +5611,7 @@ static int legion_add(struct platform_device *pdev)
 	if (!(do_load)) {
 		dev_info(
 			&pdev->dev,
-			"Module not useable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.\n");
+			"Module not usable for this laptop because it is not in allowlist. Notify the maintainer if you want to add your device or force load with param force.\n");
 		err = -ENOMEM;
 		goto err_model_mismtach;
 	}
@@ -5622,7 +5622,7 @@ static int legion_add(struct platform_device *pdev)
 	if (!do_load_by_list && do_load) {
 		dev_info(
 			&pdev->dev,
-			"legion_laptop is forced to load and would otherwise be not loaded\n");
+			"legion_laptop is forced to load and would otherwise not be loaded\n");
 	}
 
 	// if forced and no module found, use config for first model
@@ -5677,13 +5677,13 @@ static int legion_add(struct platform_device *pdev)
 			 "Skipped checking embedded controller id\n");
 	}
 
-	dev_info(&pdev->dev, "Creating debugfs inteface\n");
+	dev_info(&pdev->dev, "Creating debugfs interface\n");
 	legion_debugfs_init(priv);
 
-	pr_info("Creating sysfs inteface\n");
+	pr_info("Creating sysfs interface\n");
 	err = legion_sysfs_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating sysfs interface failed: %d\n",
+		dev_info(&pdev->dev, "Failed to create sysfs interface: %d\n",
 			 err);
 		goto err_sysfs_init;
 	}
@@ -5691,7 +5691,7 @@ static int legion_add(struct platform_device *pdev)
 	pr_info("Creating hwmon interface");
 	err = legion_hwmon_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating hwmon interface failed: %d\n",
+		dev_info(&pdev->dev, "Failed to create hwmon interface: %d\n",
 			 err);
 		goto err_hwmon_init;
 	}
@@ -5699,7 +5699,7 @@ static int legion_add(struct platform_device *pdev)
 	pr_info("Creating platform profile support\n");
 	err = legion_platform_profile_init(priv);
 	if (err) {
-		dev_info(&pdev->dev, "Creating platform profile failed: %d\n",
+		dev_info(&pdev->dev, "Failed to create platform profile: %d\n",
 			 err);
 		goto err_platform_profile;
 	}
@@ -5707,7 +5707,7 @@ static int legion_add(struct platform_device *pdev)
 	pr_info("Init WMI driver support\n");
 	err = legion_wmi_init();
 	if (err) {
-		dev_info(&pdev->dev, "Init WMI driver failed: %d\n", err);
+		dev_info(&pdev->dev, "Failed to init WMI driver: %d\n", err);
 		goto err_wmi;
 	}
 
@@ -5716,7 +5716,7 @@ static int legion_add(struct platform_device *pdev)
 	if (err) {
 		dev_info(
 			&pdev->dev,
-			"Init keyboard backlight LED driver failed. Skipping ...\n");
+			"Failed to init keyboard backlight LED driver. Skipping ...\n");
 	}
 
 	pr_info("Init Y-Logo LED driver\n");
@@ -5724,7 +5724,7 @@ static int legion_add(struct platform_device *pdev)
 				"platform::ylogo");
 	if (err) {
 		dev_info(&pdev->dev,
-			 "Init Y-Logo LED driver failed. Skipping ...\n");
+			 "Failed to init Y-Logo LED driver. Skipping ...\n");
 	}
 
 	pr_info("Init IO-Port LED driver\n");
@@ -5732,7 +5732,7 @@ static int legion_add(struct platform_device *pdev)
 				"platform::ioport");
 	if (err) {
 		dev_info(&pdev->dev,
-			 "Init IO-Port LED driver failed. Skipping ...\n");
+			 "Failed to init IO-Port LED driver. Skipping ...\n");
 	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
@@ -5837,7 +5837,7 @@ static int __init legion_init(void)
 {
 	int err;
 
-	pr_info("legion_laptop starts loading\n");
+	pr_info("Loading legion_laptop\n");
 	err = platform_driver_register(&legion_driver);
 	if (err) {
 		pr_info("legion_laptop: platform_driver_register failed\n");

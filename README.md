@@ -99,7 +99,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 [^1]: Build with latest commit every day at midnight GMT
 
-[^2]: Only need if are not using CachyOs
+[^2]: Only need if are not using CachyOS
 
 ## :pushpin: Confirmed Compatible Models
 
@@ -213,7 +213,7 @@ make
 sudo make reloadmodule
 ```
 
-**For further insturctions, problems, and tests see `Initial Usage Testing` below. Do them first before a permanent installation.**
+**For further instructions, problems, and tests see `Initial Usage Testing` below. Do them first before a permanent installation.**
 
 Expected result:
 
@@ -317,7 +317,7 @@ Unexpected result:
 - if you see the following, the driver was not tested for your laptop model; please raise an issue with the maintainer if you think it should be compatible. If you want to try it anyhow with your model use `sudo make forcereloadmodule`
 
 ```text
-[126675.495983] legion PNP0C09:00: Module not useable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.
+[126675.495983] legion PNP0C09:00: Module not usable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.
 [126675.495984] legion PNP0C09:00: legion_laptop not loaded for this device
 [126675.496014] legion: probe of PNP0C09:00 failed with error -12
 ```

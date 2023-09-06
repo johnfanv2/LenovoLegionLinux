@@ -48,7 +48,7 @@ class CLIFeatureCommand:
         if self.exists():
             return True
         print(
-            "Command not available because feature not available or kernel module not loaded.")
+            "Command not available because feature is not available or kernel module is not loaded.")
         return False
 
     def command_status_cli(self, **_) -> int:
@@ -291,12 +291,12 @@ class HybridMode(CLIFeatureCommand):
         return 0
 
     def command_enable(self, **_) -> int:
-        print("Changes will only apply only after a reboot.")
+        print("Changes will only apply after a reboot.")
         self.model.gsync.set(True)
         return 0
 
     def command_disable(self, **_) -> int:
-        print("Changes will only apply only after a reboot.")
+        print("Changes will only apply after a reboot.")
         self.model.gsync.set(False)
         return 0
 
@@ -420,7 +420,7 @@ def create_argparser()->argparse.ArgumentParser:
         func=conservation_apply_mode_for_current_battery_capacity)
 
     monitor_cmd = subcommands.add_parser(
-        'monitor', help='Run monitors with notifciations')
+        'monitor', help='Run monitors with notifications')
     monitor_cmd.add_argument(
         'period', type=int, help='Monitoring period in seconds', default=60)
     monitor_cmd.set_defaults(

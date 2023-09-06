@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#NOTE: The values for the gpu tdp in this script are for 3070 MAX-Q
-#      You can add cpu/apu option per profile the changing the command in CPU_CONTROL_COMMAD variable and addying the RyzenADJ or Undervolt command (read the readme)
+#NOTE: The values for the gpu TDP in this script are for 3070 MAX-Q
+#      You can add cpu/apu options per profile by changing the command in the CPU_CONTROL_COMMAD variable and adding the RyzenADJ or Undervolt command (read the README)
 #      Developer: To test the script just run it from the /extra/service directory using the command "su -c ./fancurve-set"
 
 POWER_PROFILE=$(cat /sys/firmware/acpi/platform_profile)
@@ -17,7 +17,7 @@ if [ "$EUID" -ne 0 ]
 fi
 
 FOLDER=/etc/legion_linux/
-#Pls edit this file for enable GPU TDP
+#Please edit this file to enable GPU TDP
 source $FOLDER/.env
 
 if  [ $AC_ADAPTER == 1 ]; then
