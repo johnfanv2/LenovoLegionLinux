@@ -975,3 +975,9 @@ The software consists of two parts:
   - `legion.py`: model the fan curve and other objects in Python; encapsulate reading and writing to the "files" provided by the above kernel module and         other modules like ideapad_laptop; all access to anything goes through this Python module.
   - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings
   - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings
+
+## Legal Matters
+
+Reference to any Lenovo products, services, processes, or other information and/or use of Lenovo Trademarks does not constitute or imply endorsement, sponsorship, or recommendation thereof by Lenovo.
+
+The use of Lenovo, Lenovo Legion, Legion, Yoga, Lenovo Yoga, Ideapad, Lenovo Ideapad or other trademarks within this website and associated tools and libraries is only to provide a recognisable identifier to users to enable them to associate that these tools will work with Lenovo laptops.
