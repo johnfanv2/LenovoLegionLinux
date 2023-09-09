@@ -1,4 +1,4 @@
-<img height="50" align="left" src="assets/legion_logo_dark.png" alt="HeaderLogo">
+<img height="50" align="left" src="doc/assets/legion_logo_dark.png" alt="HeaderLogo">
 
 # Lenovo Legion Linux Support
 
@@ -46,9 +46,9 @@ It allows you to control features like the fan curve, power mode, power limits, 
 ## :rocket: Features
 
 <p align="center">
-    <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
-    <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
-    <img height="300" style="float: center;" src="assets/powermode.png" alt="powermode">
+    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="psensor">
+    <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="powermode">
 </p>
 
 - [X] light on RAM and CPU and without telemetry
@@ -490,7 +490,7 @@ psensor
 ```
 
 <p align="center">
-    <img height="450" style="float: center;" src="assets/psensor.png" alt="psensor">
+    <img height="450" style="float: center;" src="doc/assets/psensor.png" alt="psensor">
 </p>
 
 ### Changing and Setting your own Fan Curve with the Python GUI
@@ -503,7 +503,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 ```
 
 <p align="center">
-    <img height="450" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="450" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
 </p>
 
 - with `Read from HW` you can read the current fan curve that is saved in the hardware and display it.
@@ -587,7 +587,7 @@ With the GUI, the current power mode can be changed by selecting the mode in the
 In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
 
 <p align="center">
-    <img height="450" style="float: center;" src="assets/powermode.png" alt="psensor">
+    <img height="450" style="float: center;" src="doc/assets/powermode.png" alt="psensor">
 </p>
 Automatic change of power mode can be changed in the settings of the distribution ( in Ubuntu).
 

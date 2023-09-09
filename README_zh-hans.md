@@ -1,4 +1,4 @@
-<img height="50" align="left" src="assets/headerlogo.png" title="HeaderLogo">
+<img height="50" align="left" src="doc/assets/headerlogo.png" title="HeaderLogo">
 
 # 联想Legion Linux支持
 
@@ -31,9 +31,9 @@
 
 ## 🚀 特点
 <p align="center">
-    <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">。
-    <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
-    <img height="300" style="float: center;" src="assets/powermode.png" alt="powermode"> </p
+    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">。
+    <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="psensor">
+    <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="powermode"> </p
 </p>
 
 - [x]对内存和CPU的光照，没有遥测。
