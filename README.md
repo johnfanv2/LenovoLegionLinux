@@ -37,11 +37,11 @@ is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
 It allows you to control features like the fan curve, power mode, power limits, rapid charging, and more. This has been achieved through reverse engineering and disassembling the ACPI firmware, as well as the firmware and memory of the embedded controller (EC).
 
-<!-- :star: **Please star this repository if this is useful or might be useful in the future.**
+:star: **Please star this repository if this is useful or might be useful in the future.**
 
 :star2: **My goal is to merge the driver into the main Linux kernel so it comes automatically with Linux and no recompilation is required after a Linux update**
 
-:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.** -->
+:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
 
 ## :rocket: Features
 
