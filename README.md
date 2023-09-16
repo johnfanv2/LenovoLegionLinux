@@ -1,4 +1,4 @@
-<img height="50" align="left" src="assets/legion_logo_dark.png" alt="HeaderLogo">
+<img height="50" align="left" src="doc/assets/legion_logo_dark.png" alt="HeaderLogo">
 
 # Lenovo Legion Linux Support
 
@@ -37,18 +37,18 @@ is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
 It allows you to control features like the fan curve, power mode, power limits, rapid charging, and more. This has been achieved through reverse engineering and disassembling the ACPI firmware, as well as the firmware and memory of the embedded controller (EC).
 
-<!-- :star: **Please star this repository if this is useful or might be useful in the future.**
+:star: **Please star this repository if this is useful or might be useful in the future.**
 
 :star2: **My goal is to merge the driver into the main Linux kernel so it comes automatically with Linux and no recompilation is required after a Linux update**
 
-:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.** -->
+:boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
 
 ## :rocket: Features
 
 <p align="center">
-    <img height="300" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
-    <img height="300" style="float: center;" src="assets/psensor.png" alt="psensor">
-    <img height="300" style="float: center;" src="assets/powermode.png" alt="powermode">
+    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="psensor">
+    <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="powermode">
 </p>
 
 - [X] light on RAM and CPU and without telemetry
@@ -490,7 +490,7 @@ psensor
 ```
 
 <p align="center">
-    <img height="450" style="float: center;" src="assets/psensor.png" alt="psensor">
+    <img height="450" style="float: center;" src="doc/assets/psensor.png" alt="psensor">
 </p>
 
 ### Changing and Setting your own Fan Curve with the Python GUI
@@ -503,7 +503,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 ```
 
 <p align="center">
-    <img height="450" style="float: center;" src="assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="450" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
 </p>
 
 - with `Read from HW` you can read the current fan curve that is saved in the hardware and display it.
@@ -587,7 +587,7 @@ With the GUI, the current power mode can be changed by selecting the mode in the
 In Ubuntu/Gnome go to `Settings->Power->Power Mode/Power Saving Option` or the applet in the top right.
 
 <p align="center">
-    <img height="450" style="float: center;" src="assets/powermode.png" alt="psensor">
+    <img height="450" style="float: center;" src="doc/assets/powermode.png" alt="psensor">
 </p>
 Automatic change of power mode can be changed in the settings of the distribution ( in Ubuntu).
 
@@ -975,3 +975,9 @@ The software consists of two parts:
   - `legion.py`: model the fan curve and other objects in Python; encapsulate reading and writing to the "files" provided by the above kernel module and         other modules like ideapad_laptop; all access to anything goes through this Python module.
   - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings
   - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings
+
+## Legal Matters
+
+Reference to any Lenovo products, services, processes, or other information and/or use of Lenovo Trademarks does not constitute or imply endorsement, sponsorship, or recommendation thereof by Lenovo.
+
+The use of Lenovo, Lenovo Legion, Legion, Yoga, Lenovo Yoga, Ideapad, Lenovo Ideapad or other trademarks within this website and associated tools and libraries is only to provide a recognisable identifier to users to enable them to associate that these tools will work with Lenovo laptops.
