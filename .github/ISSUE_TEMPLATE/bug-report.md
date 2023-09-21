@@ -7,8 +7,12 @@ assignees: ''
 
 ---
 
-**Problem Descripition**
-???
+**Problem Description**
+<Please describe your problem here>
+Has the bug occurred following steps described in the README?
+What steps did you take?
+What commands did you enter?
+What was the (full) error you received and what command or action did lead to it?
 
 **Model and Debug Info**
 
