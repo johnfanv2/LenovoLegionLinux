@@ -126,7 +126,7 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	// General Control (GCTRL)
 	// (see EC Interface Registers  and 6.2 Plug and Play Configuration (PNPCFG)) in datasheet
 	// note: these are in two places saved
-	// in EC Interface Registers  and in super io configuraion registers
+	// in EC Interface Registers  and in super io configuration registers
 	// Chip ID
 	.ECHIPID1 = 0x2000, // 0x20
 	.ECHIPID2 = 0x2001, // 0x21
@@ -226,9 +226,9 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.FAN2_RPM_MSB = 0xC5E3,
 
 	// values
-	// 0x04: enable mini fan curve if very long on cool level
+	// 0x04: enable mini fan curve if left for too long on cool level
 	//      - this might be due to potential temp failure
-	//      - or just because really so cool
+	//      - or just because of really cool temps
 	// 0xA0: disable it
 	.MINIFANCURVE_ON_COOL = 0xC536,
 
@@ -450,7 +450,7 @@ acpi_status acpi_walk_callback_erax (acpi_handle object,
 }
 
 /**
- * Get the memory mapped start adress of the memory of the embedded controller .
+ * Get the memory mapped start address of the memory of the embedded controller .
 */
 static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_start_addr){
 	struct acpi_buffer buffer = { ACPI_ALLOCATE_BUFFER, NULL };
@@ -461,7 +461,7 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 	int err;
 	unsigned long long erax_addr;
 	struct acpi_device_info *info;
-	// ERAX is a OperationRegion in SystemMemory. It is the start
+	// ERAX is an OperationRegion in SystemMemory. It is the start
 	// of the memory mapped region to access the RAM of the embedded
 	// controller
 
@@ -485,9 +485,9 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 				     acpi_walk_callback_erax,
 				     NULL, NULL, NULL);
 	if (ACPI_FAILURE(status)) {
-		pr_info("acpi_walk_namespace faile.\n");
+		pr_info("acpi_walk_namespace failed.\n");
 	} else {
-		pr_info("acpi_walk_namespace succes\n");
+		pr_info("acpi_walk_namespace success.\n");
 	}
 
 	status = acpi_walk_resources(adev->handle,
@@ -495,7 +495,7 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 	if (ACPI_FAILURE(status)) {
 		pr_info("acpi_walk_resources failed: %d \n", status);
 	} else {
-		pr_info("acpi_walk_resources was succesful\n");
+		pr_info("acpi_walk_resources was successful.\n");
 	}
 
 	struct acpi_gpio_chip *acpi_gpio;
@@ -503,7 +503,7 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 	if (ACPI_FAILURE(status)) {
 		pr_info("acpi_get_data failed.\n");
 	} else {
-		pr_info("acpi_get_data was succesful\n");
+		pr_info("acpi_get_data was succesful.\n");
 	}
 
 	status = acpi_evaluate_integer(erax_handle, "_REG", NULL, &erax_addr);
@@ -572,7 +572,7 @@ static int ideapad_acpi_add(struct acpi_device *adev)
 		return err;
 	}
 
-	pr_info("acpi device and _CFG succesful\n");
+	pr_info("acpi device and _CFG successful.\n");
 	
 	err = legion_acpi_get_ec_start(adev, &start_addr_ec);
 	if(err){
@@ -667,7 +667,7 @@ static int acpi_driver_init(void){
 	pr_info("Register ACPI driver.\n");
 	err = acpi_bus_register_driver(&ideapad_extra_acpi_driver);
 	if (err) {
-		pr_info("Error loading acpi driver\n");
+		pr_info("Error loading acpi driver.\n");
 		goto error_register;
 	}
 

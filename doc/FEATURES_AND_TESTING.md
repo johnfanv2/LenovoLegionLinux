@@ -164,7 +164,7 @@ Returns: integer
 - 1: not enabled
 ```
 
-### Change to Hyrbrid Mode
+### Change to Hybrid Mode
 
 ### Flip to Start
 

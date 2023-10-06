@@ -34,7 +34,7 @@ def get_color_mode():
         if darkdetect.theme() == 'Light':
             return 'light'
     except ImportError as err:
-        log.error("Error using darkdetect. darkdetect not installed?")
+        log.error("Error using darkdetect. Is it installed?")
         log.error(str(err))
     return 'unknown'
 
@@ -1106,8 +1106,8 @@ class FanCurveTab(QWidget):
 
         self.note_label2 = QLabel(
             "Greyed out features are not available. If most features are greyed out, "
-            "the driver is not loaded properly or hwmon directoy not found.\nIf features are marked "
-            "red, an unepxected error accessing the hardware and you should notify the maintainer.")
+            "the driver is not loaded properly or hwmon directory not found.\nIf features are marked "
+            "red, an unexpected error has occured while accessing the hardware and you should notify the maintainer.")
         self.note_label2.setStyleSheet("color: red;")
         self.main_layout.addWidget(self.note_label2, 3)
 
@@ -1167,7 +1167,7 @@ class OtherOptionsTab(QWidget):
             "IO-Port/Rear LEDs light")
         self.options_layout.addWidget(self.ioport_light_check, 5)
 
-        self.hybrid_label = QLabel('Hybrid Mode (somtimtes also GSync):')
+        self.hybrid_label = QLabel('Hybrid Mode (sometimes also GSync):')
         self.hybrid_state_label = QLabel('')
         self.hybrid_activate_button = QPushButton('Activate')
         self.hybrid_deactivate_button = QPushButton('Deactivate')
@@ -1281,7 +1281,7 @@ class OtherOptionsTab(QWidget):
         self.power_layout.addWidget(self.power_write_button, 11, 1)
 
         self.power_note_label = QLabel(
-            "It is recommended to customnize the power settings only in custom mode although "
+            "It is recommended to customize the power settings only in custom mode. Although "
             "it is possible to change them in any mode.")
         self.power_note_label.setStyleSheet("color: red;")
         self.power_all_layout.addWidget(self.power_note_label)
@@ -1300,12 +1300,12 @@ class AutomationTab(QWidget):
         self.options_group.setLayout(self.options_layout)
 
         self.power_profiles_deamon_service_check = QCheckBox(
-            "Power Profiles Deamon Enabled")
+            "Power Profiles Daemon Enabled")
         self.options_layout.addWidget(
             self.power_profiles_deamon_service_check, 0)
 
         self.lenovo_legion_laptop_support_service_check = QCheckBox(
-            "Lenovo Legion Laptop Support Deamon Enabled")
+            "Lenovo Legion Laptop Support Daemon Enabled")
         self.options_layout.addWidget(
             self.lenovo_legion_laptop_support_service_check, 1)
 
@@ -1326,7 +1326,7 @@ class AutomationTab(QWidget):
             self.open_closed_to_tray_check, 3)
 
         self.icon_color_mode_label = QLabel(
-            'Icon Color Mode (restart of app required)')
+            'Icon Color Mode (requires reopening the app)')
         self.options_layout.addWidget(
             self.icon_color_mode_label, 3)
         self.icon_color_mode_combobox = QComboBox()
@@ -1374,7 +1374,7 @@ class AboutTab(QWidget):
     def init_ui(self):
         # pylint: disable=line-too-long
         about_label = QLabel(
-            'Help giving a star to the github repo <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>')
+            'Help by giving a star to the github repo <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>')
         about_label.setOpenExternalLinks(True)
         about_label.setAlignment(Qt.AlignCenter)
         layout = QVBoxLayout()
@@ -1479,7 +1479,7 @@ class MainWindow(QMainWindow):
         msgs = [
             'Show your appreciation for this tool by giving a star on github <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Help by giving a star to the github repository <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
-            'Please give a star on github to support my goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a'
+            'Please give a star on github to support. My goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a'
             'Please give star on github the repository if this is useful or might be useful in the future <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Please give a star on github to show that this it useful to me and the Linux community,<br> so hopefully the driver can be merged to the Linux kernel <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>'
         ]
@@ -1488,7 +1488,7 @@ class MainWindow(QMainWindow):
     def on_start(self):
         if self.show_root_dialog:
             QMessageBox.critical(
-                self, "Error", "Program must be run as root user!")
+                self, "Error", "The program must be run as root!")
 
         if self.controller.model.app_model.open_closed_to_tray.get():
             self.hide_to_tray()

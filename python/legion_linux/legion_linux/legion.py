@@ -204,7 +204,7 @@ class BoolSettingFeature(Feature):
         return self._name
 
     def set(self, value: bool):
-        log.info('Feature %s setting to %d', self.name(), value)
+        log.info('Setting feature %s to %d', self.name(), value)
         self.value = value
         self._notify()
 
@@ -225,7 +225,7 @@ class EnumSettingFeature(Feature):
         return self._all_values
 
     def set(self, value: str):
-        log.info('Feature %s setting to %s', self.name(), str(value))
+        log.info('Setting feature %s to %s', self.name(), str(value))
         if value in [ nv.value for nv in self._all_values]:
             self.value = value
             self._notify()
@@ -248,13 +248,13 @@ class FileFeature(Feature):
         log.info('Feature %s with pattern %s and path %s',
                  self.name(), pattern, self.filename)
         if not self.exists():
-            log.warning('Feature %s exist not. exits: %d',
+            log.warning('Feature %s does not exist. exits: %d',
                         self.name(), self.exists())
 
     def _read_file_str(self, file_path) -> str:
         log.info('Feature %s reading', self.name())
         if not self.exists():
-            log.warning('Feature %s reading from non exisitng', self.name())
+            log.warning('Feature %s reading from non existing', self.name())
         try:
             with open(file_path, "r", encoding=DEFAULT_ENCODING) as filepointer:
                 out = str(filepointer.read()).strip()
@@ -277,7 +277,7 @@ class FileFeature(Feature):
             return
         log.info('Feature %s writing: %s', self.name(), str(value))
         if not self.exists():
-            log.error('Feature %s writing to non exisitng', self.name())
+            log.error('Feature %s writing to non existing', self.name())
         try:
             with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
                 filepointer.write(str(value))
@@ -481,7 +481,7 @@ class GsyncFeature(BoolFileFeature):
 
 
 class AlwaysOnUSBChargingFeature(BoolFileFeature):
-    '''Always on USB Charging of external devices on while laptop is off'''
+    '''Always on USB Charging of external devices while laptop is off'''
 
     def __init__(self):
         super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'usb_charging'))
@@ -645,7 +645,7 @@ class CommandFeature:
         self._exists = False
         log.info('CommandFeature %s: %s', self.name(), self.cmds)
         if not self.exists():
-            log.warning('Feature %s exist not. exits: %d',
+            log.warning('Feature %s does not exist. exits: %d',
                         self.name(), self.exists())
 
     def _exec_cmd(self, cmd, timeout=None) -> Tuple[str, int]:
@@ -917,7 +917,7 @@ class FanCurveIO(Feature):
             return
         try:
             log.info(
-                "Try setting minifancurve by fancurve profile to: %s", str(fan_curve.enable_minifancurve))
+                "Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
         except BaseException as error:
@@ -1134,7 +1134,7 @@ class CustomConservationController:
             return self.battery_conservation.get()
         print(
             "Keeping conservation mode because battery" +
-            f" {battery_cap} is within bounds {self.lower_limit} and {self.upper_limit}")
+            f" {battery_cap} is within bounds of {self.lower_limit} and {self.upper_limit}")
         return self.battery_conservation.get()
 
 
@@ -1381,7 +1381,7 @@ class LegionModelFacade:
         self.lockfancontroller = LockFanController()
         self.rapid_charging = RapidChargingFeature(None)
         self.battery_conservation = BatteryConservation(None)
-        # TOOD: fix this by resolving ciruclar depedency by facade or similar
+        # fix this by resolving circular dependency by facade or similar
         self.rapid_charging.batterconservation_feature = self.battery_conservation
         self.battery_conservation.rapidcharging_feature = self.rapid_charging
         self.maximum_fanspeed = MaximumFanSpeedFeature()
@@ -1519,10 +1519,10 @@ class LegionModelFacade:
             log.info("Loaded settings:\n %s", settings.to_yaml())
             self.settings_manager.apply_settings(settings)
         else:
-            log.info("No settings file exists.")
+            log.info("Settings file does not exist.")
 
     def save_settings(self):
-        log.info("Begin saving settings")
+        log.info("Saving settings...")
         settings = self.settings_manager.get_settings()
         log.info("Settings:\n %s", settings.to_yaml())
         self.settings_manager.save_by_name('settings', settings)

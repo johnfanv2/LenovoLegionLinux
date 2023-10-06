@@ -13,7 +13,7 @@ Main() {
         mkinitcpio -P
     else
         local progname="$(basename "$0")"
-        echo "warning: $progname: cannot perform requested operation because required package(s) are missing."
+        echo "warning: $progname: Cannot perform the requested operation due to missing package(s)."
     fi
 }
 

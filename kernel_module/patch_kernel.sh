@@ -50,7 +50,7 @@ lll_kernel_patching() {
         Accepted verbosity parameters: 1|5|41 (not for dkms)
 
         build
-             Just builds the module.
+             Only builds the module.
         dkms
              Installs via DKMS.
         dkmsrm
@@ -63,7 +63,7 @@ lll_kernel_patching() {
              Uninstalls the patch for the current kernel.
 
         And the values for verbosity:
-             1:  just the last message if it's loaded or nor (default);
+             1:  only the last message (if it's loaded or not) (default);
              5:  last five lines including success (@ARYN-27 default);
              41: all latest messages related to unloading and loading the LLL module.
         "

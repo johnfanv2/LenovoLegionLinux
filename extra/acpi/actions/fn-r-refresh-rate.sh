@@ -1,16 +1,16 @@
 #!/bin/bash
 
-#for apply to fn+r will need to debug this issue: https://github.com/johnfanv2/LenovoLegionLinux/issues/67
+#The following issue needs to be resolved for Fn+R support: https://github.com/johnfanv2/LenovoLegionLinux/issues/67
 
-#Display variable (Display name, refresh rate, resolution) change depeding of your panel or preference
+#Display variable (Display name, refresh rate, resolution) change depending on your panel or preference
 
-laptop_screen=eDP-1 #in X this change with your vbios (clevo vbios is DP-4)
+laptop_screen=eDP-1 #Change according to your vBIOS in X (e.g. DP-4 on Clevo vBIOS)
 resolution=1920x1080
 
 max_hz=165
 min_hz=60
 
-#Enviroment Variable (Check DE) #More DE open a Pull Request [not ask for support do it yourself]
+#Enviroment Variables (Check DE) #Open pull requests for adding more DEs. [Don't open issues for support, do it yourself]
 HYPRLAND_CHECK=$(env | grep XDG_CURRENT_DESKTOP=Hyprland)
 SWAY_CHECK=$(env | grep XDG_CURRENT_DESKTOP=Sway)
 KDE_CHECK=$(env | grep XDG_CURRENT_DESKTOP=KDE)
@@ -33,7 +33,7 @@ cache_file_write () {
     fi
 }
 
-#NOTE: ONLY WORKS ON HYBRID eDP-1IN DGPU MODE ONLY GET THE 165Hz
+#NOTE: ONLY WORKS ON HYBRID eDP-1, IN DGPU MODE ONLY 165Hz IS SUPPORTED
 
 kde_command () {
 # command from this issue: https://github.com/johnfanv2/LenovoLegionLinux/issues/67
