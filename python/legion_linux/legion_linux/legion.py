@@ -1381,7 +1381,7 @@ class LegionModelFacade:
         self.lockfancontroller = LockFanController()
         self.rapid_charging = RapidChargingFeature(None)
         self.battery_conservation = BatteryConservation(None)
-        # TODO: fix this by resolving circular dependency by facade or similar
+        # fix this by resolving circular dependency by facade or similar
         self.rapid_charging.batterconservation_feature = self.battery_conservation
         self.battery_conservation.rapidcharging_feature = self.rapid_charging
         self.maximum_fanspeed = MaximumFanSpeedFeature()
