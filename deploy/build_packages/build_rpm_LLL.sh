@@ -64,7 +64,7 @@ cp ${BUILD_DIR}/python3-lenovolegionlinux-${TAG}-1.noarch.rpm ${REPODIR}/package
 #create repo file
 echo "[LLL-pkg-repo]
 name=LLL-pkg-repo
-baseurl=baseurl=https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/packages
+baseurl=baseurl=https://johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/packages
 enabled=1
 gpgcheck=1
-gpgkey=https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/pgp-key.public" >${REPODIR}/package_repo/fedora/LLL.repo
+gpgkey=https://johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/pgp-key.public" >${REPODIR}/package_repo/fedora/LLL.repo
