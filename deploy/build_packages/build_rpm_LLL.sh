@@ -23,7 +23,7 @@ mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 cp -r ${REPODIR}/kernel_module ./lenovolegionlinux-kmod-${TAG}-x86_64
 
 #Dkms change version
-sudo sed -i "s/_VERSION/${TAG}/g" ./lenovolegionlinux-kmod-${TAG}-x86_64/dkms.conf
+sudo sed -i "s/DKMS_VERSION/${TAG}/g" ./lenovolegionlinux-kmod-${TAG}-x86_64/dkms.conf
 mv lenovolegionlinux-kmod-${TAG}-x86_64/lenovolegionlinux.spec rpmbuild/SPECS
 #Change version according to tag
 sed -i "s/_VERSION/${TAG}/g" rpmbuild/SPECS/lenovolegionlinux.spec

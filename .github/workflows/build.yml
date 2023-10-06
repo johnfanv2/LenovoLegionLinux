@@ -217,7 +217,7 @@ jobs:
         apt-ftparchive release . > Release
         gpg --default-key "${{ secrets.GPG_ID }}" -abs -o - Release > Release.gpg
         gpg --default-key "${{ secrets.GPG_ID }}" --clearsign -o - Release > InRelease
-        echo "deb [signed-by=/usr/share/keyrings/lll-ppa.gpg] https:/johnfanv2.github.io/LenovoLegionLinux/package_repo/ubuntu ./" > lll-ppa.list
+        echo "deb [signed-by=/usr/share/keyrings/lll-ppa.gpg] https://johnfanv2.github.io/LenovoLegionLinux/package_repo/ubuntu ./" > lll-ppa.list
       shell: bash
 
     - name: Commit changes
