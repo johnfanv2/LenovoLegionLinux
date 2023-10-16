@@ -16,7 +16,7 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
-FOLDER=/etc/legion_linux/
+FOLDER=/etc/legion_linux
 #Please edit this file to enable GPU TDP
 source $FOLDER/.env
 
