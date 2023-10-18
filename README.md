@@ -51,28 +51,28 @@ It allows you to control features like the fan curve, power mode, power limits, 
     <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="powermode">
 </p>
 
-- [X] light on RAM and CPU and without telemetry
-- [X] small GUI for fan curve; other features by GUI tools of distribution
-- [X] also fully controllable by scripts or from terminal
-- [X] set a fully featured custom fan curve with up to 10 points
-  - even allows speed below 1600 RPM
-  - set temperature points when the fan speed (level) should change
-  - you can use CPU, GPU and IC temperature to control the fan all at the same it
-  - set the fan speed (RPM) at each level
-  - set minimum temperature for each level that must be fallen below before slowing down the fans again
-  - set acceleration and deceleration for each the fan when the fan speed should increase or decrease
-  - save and load presets for different modes
-- [X] switch power mode (quiet, balanced, performance) with software
-  - changing with `Fn+Q` also possible
-  - now you can do it with software in your normal system settings
-  - depending on your distribution, e.g. you could automatically switch to quiet mode if you are on battery
-  - Allow change to different fan profile depending of the power profile [(Lenovo Legion Laptop Support Daemon)](#lenovo-legion-laptop-support-daemon)
-- [X] monitor fan speeds and temperatures (CPU, GPU, IC) with additional sensors
-- [X] lock and unlock the fan controller and fan speed
-- [X] enable or disable automatic switching to a "mini fan curve" if temperatures are low for a longer time
-- [X] switch battery conservation mode by software; keep battery at around 50% when on AC to prolong battery life
-- [X] toggle fn lock by software; use special function on F1-F12 keys without pressing Fn key
-- [X] enable or disable touchpad by software
+- [X] Light on RAM and CPU and without telemetry
+- [X] Fully controllable using scripts or from the command-line
+- [X] Simple GUI replacement for Lenovo Vantage: Fan curve, FN Lock, Win Key, Touchpad Power, Camera Power, Battery Conservation, Rapid Charging, Charge output from always on USB, Display Overdrive, Y-Logo LED Light, IO-Port LED Light, Hybrid Mode (GSync), CPU and GPU Overclock:
+    - Switch battery conservation mode; keep battery at around 50% when on AC to prolong battery life (https://bugs.kde.org/show_bug.cgi?id=441057)
+    - Toggle Fn lock; Use special function on F1-F12 keys without pressing the Fn key
+    - Enable or disable touchpad
+- [X] Set a fully featured custom fan curve with up to 10 points:
+  - Set temperature points for when the fan speed (level) should change
+  - Use CPU, GPU and IC temperature to control the fan all at the same it
+  - Set the fan speed (RPM) at each level
+  - Even allows speed below 1600 RPM
+  - Set minimum temperature for each level that must be fallen below before slowing down the fans again
+  - Set acceleration and deceleration for each the fan when the fan speed should increase or decrease
+  - Save and load presets for different modes
+- [X] Lock and unlock the fan controller and fan speed
+- [X] Switch power mode (quiet, balanced, performance) using software
+  - Now you can do it using software in your system settings
+  - Changing with `Fn+Q` is also possible
+  - Depending on your desktop environment, you could automatically switch to quiet mode if you are on battery or performance mode when on AC power (e.g. KDE's Energy Saving settings)
+  - Switch between different fan profiles depending on the power profile (See: [Lenovo Legion Laptop Support Daemon](#lenovo-legion-laptop-support-daemon))
+- [X] Monitor fan speeds and temperatures (CPU, GPU, IC) using the now available sensors
+- [X] Enable or disable automatic switching to a "Mini Fan Curve" if temperatures are low for a long time
 
 ## :mega: Overview
 
@@ -115,12 +115,12 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
 - Legion 5 Pro 16ACH6H (AMD 5800H + Nvidia RTX 3070): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
-- Lenovo Legion 5 15ARH05H (BIOS FSCN14WW), Gen 5: sensors, fan curve
+- Lenovo Legion 5 15ARH05H (BIOS FSCN14WW or FSCN26WW), Gen 5: sensors, fan curve, power profile
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve (no minifancurve), power profile
-- Lenovo Legion 5 Pro 16ITH6 (BIOS H1CN52WW (there was an error in CPU temp with H1CN51WW)): sensors, fan curve, power profiles
+- Lenovo Legion 5 Pro 16ITH6 (BIOS H1CN52WW (there was an error in CPU temp with H1CN51WW)): sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6A (BIOS G9CN30WW), all AMD variant: sensors, fan curve (with mini fan curve), power profile
 - Lenovo Legion 5 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion 7i 16ITHG6 (BIOS H1CN35WW): sensors, fan curve, power profile
@@ -809,175 +809,180 @@ If otherwise the fans never stop, you might have set a very low upper temperatur
 models also come with a low temperature limit even on quiet mode, so fans never really turn off. You can just increase the temperature
 limits for the lowest level.
 
-### The fans of the Legion Laptop are loud when idle?
+### The fans are loud when idle.
 
 See above.
 
-### The fans turn on when doing light work like browsing?
+### The fans turn on when doing light work like browsing.
 
-Even when browsing there might be small bursts of work for the CPU. So it gets hot for a short time and the fans turn on. You can
+Even when browsing there might be small bursts of work for the CPU. So it gets hot for a short time and the fans turn on. You can:
 
-- change the fan curve, in particular increase temperature limit and increase acceleration time
-- disable CPU boost mode
-- also see above
+- Change the fan curve, in particular increase temperature limit and increase acceleration time
+- Disable CPU boost mode
+- Also see above
 
-### The reported temperatures do not change or seem wrong?
-
-See above.
-
-### Even under high load the fans are going not fast enough?
+### The reported temperatures do not change or seem wrong.
 
 See above.
 
-### After a BIOS update something, e.g. with the fans, does not work anymore?
+### Even under high load, the fans are not going fast enough.
 
-Maybe there was a problem during the BIOS update. Downgrade to a older version again. Then test it with the old version. Then do the BIOS upgrade again and check with the version.
+See above.
+
+### After a BIOS update something, e.g. the fan controls, does not work anymore?
+
+Maybe there was a problem during the BIOS update. Downgrade to an older version again. Then test it with the old version. Then do the BIOS upgrade again and check with the version.
 
 ### How to do a BIOS upgrade or reset the embedded controller to fix a problem?
 
 The easiest way is to downgrade to a older version and then upgrade to the current version again. Also test it with the old version.
-You can also just try reset the embedded controller with:
+You can also just try reset the embedded controller by:
 
-- shutdown laptop, unplug everything (charger, USB, ...)
-- press AND HOLD power button for 60 seconds; keep holding even if the it turns on
-- after 60 seconds release power button
-- press power button shortly to turn laptop on
+- Shutdown laptop, unplug everything (charger, USB, ...)
+- Press AND hold power button for 60 seconds; keep holding even if it turns on
+- After 60 seconds, release power button
+- Press power button shortly to turn laptop on
 
 ### What does quiet, balanced, or performance mode do?
 
-You can switch the mode by pressing Fn + Q and it will change the mode in the firmware and the color of the LED, even without any driver support (= without Lenovo Legion Linux).
+You can switch the mode by pressing Fn+Q and it will change the mode in the firmware and the color of the LED, even without any driver support (= without this kernel module).
 
-Changing mode without Lenovo Legion Linux is purely implemented in hardware:
+Changing power mode without Lenovo Legion Linux is purely implemented in hardware:
 
-- color of LED changes
-- fan curve in embedded controller changes
-- other purely hardware configs might also change, but I have not observed one
-- ~~as far as I know, power saving or performance of CPU does not change, as this is controlled by kernel or tools like cpupower~~
-- an analysis of the ACPI firmware, which is "stored in hardware", shows that some power options, e.g. the STAPM limit, of the CPU and GPU are changed via ACPI calls. This can be observed by changing power mode with Fn+Q and checking CPU power limits, e.g. with ryzenadj for AMD CPUs. ~~However, no changes to the GPU power limits are observed on NVIDIA GPUs, which might indicate that the integration of ACPI and GPU driver is faulty in Linux~~ On driver 535 GPU power limits on nvidia get change on battery power (40w on quiet e 50w on balance for RTX 3070), on power adapter the power limit are allways set to max on peformance (reported by nvidia-smi), but more power is allow to the gpu on performance or custom mode in demanding GPU tasks.
-- without Lenovo Legion Linux the kernel or other system tools will not know that you have changed the mode
+- The color of LED changes.
+- Fan curve in embedded controller changes.
+- Other purely hardware configs might also change, but I have not observed one.
+- ~~As far as I know, power saving or performance of CPU does not change, as this is controlled by kernel or tools like cpupower~~
+- An analysis of the ACPI firmware, which is "stored in hardware", shows that some power options, e.g. the STAPM limit, of the CPU and GPU are changed via ACPI calls. This can be observed by changing power mode with Fn+Q and checking CPU power limits, e.g. with `ryzenadj` for AMD CPUs. ~~However, no changes to the GPU power limits are observed on NVIDIA GPUs, which might indicate that the integration of ACPI and GPU driver is faulty on Linux~~ On driver 535+, GPU power limits for nvidia changes on battery power (40w on quiet and 50w on balanced for RTX 3070), on power adapter, the power limit are allways set to max on peformance (reported by `nvidia-smi`), but more power is allowed to the GPU on performance or custom mode in demanding GPU tasks. If the GPU power limit on performance mode is stuck on 80W compared to 115W/130W on Windows, you're affected by this bug: [NVIDIA/open-gpu-kernel-modules#483](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/483).
+- Without Lenovo Legion Linux, the kernel or other system tools will not know that you have changed the power mode.
 
-Changing mode with Lenovo Legion Linux:
+Changing power mode **with** Lenovo Legion Linux:
 
-- it changes all of the above
-- additionally the driver in Lenovo Legion Linux makes this information available to the kernel and other services like the Power Profiles daemon; these can, if configured, change the performance of the CPU or GPU
+- It changes all of the above.
+- Additionally the driver in Lenovo Legion Linux makes this information available to the kernel and other services like the Power Profiles daemon; Those can, if configured, change the performance of the CPU or GPU.
 
-In Windows it is similar: Changing the power mode is reported to the system or tools like Vantage which change the power plan.
+On Windows it is similar: Changing the power mode is reported to the system or tools like Vantage which change the power plan.
 
 ### Should I use balanced mode or performance for gaming?
 
-The difference in usable performance (FPS) is minimal. Use performance mode to get the utmost highest performance, otherwise use balanced mode.
+The difference in usable performance (FPS) is minimal. Use performance mode to get the utmost highest performance, otherwise use the balanced mode.
 
 ### One fan runs at full speed all the time. What should I do?
 
-First check that the fan curve is set properly and this is not a misconfiguration. Then check if the temperatures used for fan control (see "new temperatures" above) have low values on idle. If just one fan is on full speed but the other one is controlled according to fan curve, then you
-should reset the BIOS and EC controller.
+First check that the fan curve is set properly and this is **not** a misconfiguration. Then check if the temperatures used for fan control (see: ["new temperatures"](#what-are-the-new-fan-speed-sensors)) have low values on idle. If just one fan is on full speed but the other one is controlled according to fan curve, then you should [reset the BIOS and EC controller](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem).
 
-### What is "advanced thermal optimization" in the BIOS/UEFI?
+### What is "advanced thermal optimization" in the BIOS?
 
-You can change the fan curve and minimal fan speed that are programmed into the hardware
+You can change the fan curve and minimal fan speed that are programmed into the hardware:
 
-- off: turn off fan if cold enough
-- level 1: minimal fan speed level 1
-- level 2: minimal fan speed level 2
-- level 3: minimal fan speed level 3
+- `off`: Turn off the fan if cold enough
+- `level 1`: Minimal fan speed level 1
+- `level 2`: Minimal fan speed level 2
+- `level 3`: Minimal fan speed level 3
 
-also see: https://forums.lenovo.com/t5/Gaming-Laptops/Legion-7-Bios-What-is-advanced-thermal-optimization/m-p/5079357?clickid=xtRyKHRPaxyNR1ay4ywCuSBLUkA1nmX5DzV4UU0&irgwc=1&PID=121977&acid=ww%3Aaffiliate%3Abv0as6&cid=us%3Aaffiliate%3Acxsaam
+Also see: https://forums.lenovo.com/t5/Gaming-Laptops/Legion-7-Bios-What-is-advanced-thermal-optimization/m-p/5079357
 
-### I do not use GNOME (or Ubuntu). How do I get a nice applet for changing the power mode?
+### I don't use GNOME. How do I get a nice widget for changing the power mode?
 
-The power mode can be changed with Fn+Q. Additionally, this driver makes it available to default tools like power-profiles-daemon. A graphical
-GNOME applet uses power-profiles-daemon to change the power mode by software. It is not provided by this tool, but is a standard tool already integrated into GNOME. For KDE there is the graphical tool powerdevil, which also uses power-profiles-daemon internally. If you just want to change it by software and do not need a GUI, you could use the commandline (see README).
+The power mode can be changed using Fn+Q.
 
-Maybe power-profiles-daemon or this applet need to be installed first. To test that it works in principal, you try changing with the CLI, see "Powermode -> Modify with CLI" in the README. If this works, than the rest is just a matter of the (KDE/GNOME/...) applet.
+If you use KDE, the power mode can be changed from the "Battery And Brightness" icon.
 
-### It almost works, but (some) temperature sensor/chaning point in fan control/ (some) fan speed is not working. What should I do?
+If you don't need a GUI, you could [use the commandline](#modify-with-cli).
 
-First, try to reset the embedded controller (see above) or do a BIOS update (even downgrade/upgrade possible) to reset everything.
+For other desktop environments:
+This driver makes power mode changing available to tools like `power-profiles-daemon`.
 
-### It does not work after a Linux (kernel) update?
+First you should try changing from the terminal, see ["Powermode -> Modify with CLI"](#modify-with-cli). If it works, then install `power-profiles-daemon`.
 
-Please recompile/reinstall, see Permanent Install Instructions.
+A graphical GNOME applet uses `power-profiles-daemon` to change the power mode using software. It is not provided by this tool, but is a standard tool already integrated into GNOME.
 
-### My screen is dimmed after a time of inactivity even if I disabled that in Ubuntu. How to fix that?
+For KDE, there is the graphical tool `powerdevil`, which also uses `power-profiles-daemon` internally.
+
+### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
+
+First, try to [reset the embedded controller](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem) OR do a BIOS update/downgrade to reset everything.
+
+### It does not work after a kernel update.
+
+Option 1: Recompile/reinstall the module, see: [Permanent Install Instructions](#permanent-install-instruction).
+Option 2: Use DKMS to automate this process for every kernel update, see: [Installing via DKMS](#installing-via-dkms)
+
+### My screen is dimmed after a time of inactivity even if I disabled that in Ubuntu. How to fix that? (GNOME)
 
 ```bash
 gsettings set org.gnome.settings-daemon.plugins.power idle-brightness 100
 ```
 
-see https://www.reddit.com/r/linuxquestions/comments/utle2w/ubuntu_2204_is_there_a_way_to_disable_screen/
+See: https://old.reddit.com/r/linuxquestions/comments/utle2w/ubuntu_2204_is_there_a_way_to_disable_screen/
 
-### How to power down the dGPU while not in use and use the iGPU for power saving?
+### How to power down the dGPU while not in use and use the iGPU for power saving instead?
 
-This describes **A way** to configure and use it in Ubuntu using XServer. It configures it such that
+This describes _a way_ to configure and use it on Ubuntu using X11. It configures it such that
 everything runs on iGPU if not otherwise selected.
-- Check that Hybrid Mode is configured in the BIOS
-- Check that XServer is used and not Wayland
+- Check that Hybrid Mode is enabled in the BIOS.
+- Check that X11 is used and not Wayland:
 ```bash
-# It should output something like: x11
+# It should output something like: "x11"
 echo $XDG_SESSION_TYPE
 ```
-- Install prime and configure on demand. A restart might be needed
+- Install `prime` and select "on-demand". A restart might be needed:
 ```bash
 sudo prime-select on-demand
 ```
-- Check with `nvidia-smi` that no programs run on the GPU.
+- Check with `nvidia-smi` that no programs run on the dGPU:
 ```bash
 sudo nvidia-smi
 ```
   Note that the one process `0   N/A  N/A  ***  G   /usr/lib/xorg/Xorg   4MiB` is ok. Moreover, note
   that running `nvidia-smi` powers up the GPU for some time.
-- Allow d3cold mode
+- Allow `d3cold` mode:
 ```bash
-# Note: only of the commands is needed; use the path to the device which is the GPU; you probably have
-# to adapt the path
+# Note: Only one of the commands would work; depending on the path to the device which is your GPU
 echo 1 > /sys/devices/pci0000\:00/0000\:00\:01.1/d3cold_allowed 
 echo 1 > /sys/devices/pci0000\:00/0000\:00\:01.0/d3cold_allowed 
 ```
-Check that GPU Runtime D3 status is enabled
+Check that GPU Runtime `D3` status is enabled:
 ```bash
 sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 ```
-- Check the current state of the GPU
+- Check the current state of the GPU:
 ```bash
-# Only one is needed - adapt path to your GPU
-# This should output D3cold
+# Note: Only one of the commands would work; depending on the path to the device which is your GPU
+# It should output "D3cold":
 cat /sys/devices/pci0000\:00/0000\:00\:01.0/power_state
 cat /sys/devices/pci0000\:00/0000\:00\:01.1/power_state 
 ```
-- Run `nvidia-smi`, which power the GPU up for some time. Check the `power_state` again. It should go to `D0` and then go to `D3cold` after some time. Compared to `nvidia-smi` running `cat /sys/devices/pci0000\:00/0000\:00\:01.1/power_state ` does not seem to wake up the GPU.
+- Run `nvidia-smi`, which powers the GPU up for some time. Check the `power_state` again. It should go to `D0` and then go to `D3cold` after some time. Compared to `nvidia-smi`, running `cat /sys/devices/pci0000\:00/0000\:00\:01.1/power_state ` does not seem to wake up the GPU.
 
 
-
-
-
-
-
+```bash
 sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
+```
 
 
 
-
-## :question: Open Questions
+## :question: Unanswered Questions
 
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
-- Can I use quiet mode for gaming?
+- Is "quiet mode" suitable for gaming?
 
 ## :information_desk_person: Overview for Developers
 
 The software consists of two parts:
 
-- kernel module in folder `kernel_module`
-  - accesses embedded controller by writing to its memory
-  - creates new "files" `/sys/kernel/debug/legion/fancurve`, `/sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/powermode` ,
-    `/sys/class/hwmon/X/temp1_input`, `/sys/class/hwmon/X/pwmY_auto_pointZ_pwm`, ... that allow to
+- Kernel module in the `kernel_module` folder:
+  - Accesses the embedded controller by writing to its memory
+  - Creates new "files": `/sys/kernel/debug/legion/fancurve`, `/sys/module/legion_laptop/drivers/platform\:legion/PNP0C09\:00/powermode` ,
+    `/sys/class/hwmon/X/temp1_input`, `/sys/class/hwmon/X/pwmY_auto_pointZ_pwm`, ... that allows to
     read the temperatue sensors, control the fan curve, change power mode etc.
-- python package in `python`
-  - `legion.py`: model the fan curve and other objects in Python; encapsulate reading and writing to the "files" provided by the above kernel module and         other modules like ideapad_laptop; all access to anything goes through this Python module.
-  - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings
-  - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings
+- Python packages in the `python` folder:
+  - `legion.py`: A Python module to modify the fan curve and other settings from Python; Encapsulate reading and writing to the "files" provided by the above kernel module and other modules like `ideapad_laptop`; All changes from `legion_gui.py` and `legion_cli.py` goes through this Python module.
+  - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings.
+  - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings.
 
 ## Legal Matters
 
 Reference to any Lenovo products, services, processes, or other information and/or use of Lenovo Trademarks does not constitute or imply endorsement, sponsorship, or recommendation thereof by Lenovo.
 
-The use of Lenovo, Lenovo Legion, Legion, Yoga, Lenovo Yoga, Ideapad, Lenovo Ideapad or other trademarks within this website and associated tools and libraries is only to provide a recognisable identifier to users to enable them to associate that these tools will work with Lenovo laptops.
+The use of Lenovo®, Lenovo Legion™, Yoga®, IdeaPad® or other trademarks within this website and associated tools and libraries is only to provide a recognisable identifier to users to enable them to associate that these tools will work with Lenovo laptops.
