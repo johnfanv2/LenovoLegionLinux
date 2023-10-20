@@ -570,6 +570,25 @@ static const struct model_config model_m2cn = {
 	.ramio_size = 0x600
 };
 
+static const struct model_config model_m6cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600
+};
+
 static const struct model_config model_k1cn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -1109,6 +1128,24 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_j1cn
 	},
 	{
+		// e.g. Legion Slim 7 16IRH8 (2023) with RTX 4070
+		.ident = "M0CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "M0CN"),
+		},
+		.driver_data = (void *)&model_m0cn
+	},
+  	{
+		// e.g. Legion Slim 7 16IRH8 (2023) AMD Ryzen 7 7840HS with RTX 4060
+		.ident = "M1CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "M1CN"),
+		},
+		.driver_data = (void *)&model_m1cn
+	},
+	{
 		// e.g. Legion Slim 5 16IRH8 (2023) with RTX 4070
 		.ident = "M2CN",
 		.matches = {
@@ -1118,22 +1155,13 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_m2cn
 	},
 	{
-		// e.g. Legion Slim 7 16IRH8 (2023) with RTX 4070
-		.ident = "M0CN",
+		// e.g. Lenovo Yoga Slim 7 gen 8 (2023)
+		.ident = "M6CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-			DMI_MATCH(DMI_BIOS_VERSION, "M0CN"),
+			DMI_MATCH(DMI_BIOS_VERSION, "M6CN"),
 		},
-		.driver_data = (void *)&model_m0cn
-	},
-	{
-		// e.g. Legion Slim 7 16IRH8 (2023) AMD Ryzen 7 7840HS with RTX 4060
-		.ident = "M1CN",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-			DMI_MATCH(DMI_BIOS_VERSION, "M1CN"),
-		},
-		.driver_data = (void *)&model_m1cn
+		.driver_data = (void *)&model_m6cn
 	},
 	{
 		// e.g. Yoga Slim 7-14ARE05
