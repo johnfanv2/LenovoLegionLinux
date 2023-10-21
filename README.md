@@ -14,8 +14,8 @@
 [![Check Reddit](https://img.shields.io/static/v1?label=Reddit&message=LenovoLegion&color=green)](https://www.reddit.com/r/LenovoLegion/)
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 </br>
-[![Unbutu and Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-LLL_PPA-orange)](https://mrduartept.github.io/LLL-pkg-repo/)
-[![RHEL/Fedora PPA](https://img.shields.io/badge/RHEL%2FFedora-LLL_PPA-blue)](https://mrduartept.github.io/LLL-pkg-repo/)
+[![Unbutu and Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-LLL_PPA-orange)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
+[![RHEL/Fedora PPA](https://img.shields.io/badge/RHEL%2FFedora-LLL_PPA-blue)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
 [![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=AUR%20Package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=AUR%20Package%20%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![GURU Overlay](https://img.shields.io/badge/Gentoo_Overlay-GURU-blueviolet)](https://gitweb.gentoo.org/repo/proj/guru.git/)

@@ -1,6 +1,23 @@
-[![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml)
 
-# LenovoLegionLinux package for Ubuntu and Fedora
+<h1 align="left">
+  <a href="https://github.com/johnfanv2/LenovoLegionLinux" target="_blank">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_light.png">
+      <img alt="LenovoLegionLinux" src="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_light.png" height="50" style="max-width: 100%;">
+    </picture>
+  </a>
+    <strong> LenovoLegionLinux package for Ubuntu and Fedora </strong>
+</h1>
+
+[![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml)
+[![Join Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
+[![Check Reddit](https://img.shields.io/static/v1?label=Reddit&message=LenovoLegion&color=green)](https://www.reddit.com/r/LenovoLegion/)
+[![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
+</br>
+[![Unbutu and Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-LLL_PPA-orange)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
+[![RHEL/Fedora PPA](https://img.shields.io/badge/RHEL%2FFedora-LLL_PPA-blue)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
+
 A PPA repository for my packages:
 
 - [LenovoLegionLinux](https://github.com/johnfanv2/LenovoLegionLinux)
