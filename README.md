@@ -1,6 +1,13 @@
-<img height="50" align="left" src="doc/assets/legion_logo_dark.png" alt="HeaderLogo">
-
-# Lenovo Legion Linux Support
+<h1 align="left">
+  <a href="https://github.com/johnfanv2/LenovoLegionLinux" target="_blank">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_light.png">
+      <img alt="LenovoLegionLinux" src="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_light.png" height="50" style="max-width: 100%;">
+    </picture>
+  </a>
+    <strong> Lenovo Legion Linux Support </strong>
+</h1>
 
 [![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml)
 [![Join Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
@@ -43,6 +50,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 :boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
 
+:package: Also package avaiable [here](package_repo)
 ## :rocket: Features
 
 <p align="center">
@@ -131,6 +139,8 @@ Currently fan control is not working for the following models. Other features, p
 
 - Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
+
+- Mostly of Legion gen 8 (2023)
 
 ## :warning: Disclaimer
 
