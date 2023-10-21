@@ -50,7 +50,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 :boom: **Starring shows that this is useful to me and the Linux community so hopefully a merge into the Kernel is possible.**
 
-:package: **Also package avaiable [here](package_repo)**
+:package: **Also package for Ubuntu and Fedora/RHEL avaiable [here](package_repo)**
 ## :rocket: Features
 
 <p align="center">
