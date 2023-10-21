@@ -1136,7 +1136,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_m0cn
 	},
-  {
+	{
 		// e.g. Legion Slim 7 16IRH8 (2023) AMD Ryzen 7 7840HS with RTX 4060
 		.ident = "M1CN",
 		.matches = {
