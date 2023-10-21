@@ -516,7 +516,7 @@ static const struct model_config model_kwcn = {
 static const struct model_config model_m0cn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
-	.embedded_controller_id = 0x8227,
+	.embedded_controller_id = 0x5507,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
 	.has_minifancurve = true,
@@ -1136,7 +1136,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_m0cn
 	},
-  	{
+  {
 		// e.g. Legion Slim 7 16IRH8 (2023) AMD Ryzen 7 7840HS with RTX 4060
 		.ident = "M1CN",
 		.matches = {
