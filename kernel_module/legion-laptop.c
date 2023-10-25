@@ -2087,7 +2087,7 @@ static bool fancurve_set_size(struct fancurve *fancurve, int size,
 	}
 	if (init_values && size > fancurve->size) {
 		// fancurve increased, so new entries need valid values
-		int i;
+		size_t i;
 		int last = fancurve->size > 0 ? fancurve->size - 1 : 0;
 
 		for (i = fancurve->size; i < size; ++i)
@@ -2099,7 +2099,7 @@ static bool fancurve_set_size(struct fancurve *fancurve, int size,
 static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 				      struct seq_file *s)
 {
-	int i;
+	size_t i;
 
 	seq_printf(
 		s,
