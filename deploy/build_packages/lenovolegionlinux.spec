@@ -42,35 +42,32 @@ cd "%{_builddir}/%{name}-%{version}"
 install -D -m 0644 %{_builddir}/%{name}-%{version}/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
 install -D -m 0644 %{_builddir}/%{name}-%{version}/legion_linux//extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
-%files -n python3-%{srcname}
-%{python3_sitelib}/legion_linux/__init__.py
-%{python3_sitelib}/legion_linux/legion.py
-%{python3_sitelib}/legion_linux/legion_cli.py
-%{python3_sitelib}/legion_linux/legion_gui.py
-%{python3_sitelib}/legion_linux/legion_logo.png
-%{python3_sitelib}/legion_linux/legion_logo_dark.png
-%{python3_sitelib}/legion_linux/legion_logo_light.png
-%{python3_sitelib}/legion_linux-%{version}.dist-info/METADATA
-%{python3_sitelib}/legion_linux-%{version}.dist-info/RECORD
-%{python3_sitelib}/legion_linux-%{version}.dist-info/WHEEL
-%{python3_sitelib}/legion_linux-%{version}.dist-info/entry_points.txt
-%{python3_sitelib}/legion_linux-%{version}.dist-info/top_level.txt
-/usr/bin/fancurve-set
-/usr/bin/legion_cli
-/usr/bin/legion_gui
-/usr/share/applications/legion_gui.desktop
-/usr/share/applications/legion_gui_user.desktop
-/usr/share/legion_linux/.env
-/usr/share/legion_linux/balanced-ac.yaml
-/usr/share/legion_linux/balanced-battery.yaml
-/usr/share/legion_linux/balanced-performance-ac.yaml
-/usr/share/legion_linux/balanced-performance-battery.yaml
-/usr/share/legion_linux/performance-ac.yaml
-/usr/share/legion_linux/performance-battery.yaml
-/usr/share/legion_linux/quiet-ac.yaml
-/usr/share/legion_linux/quiet-battery.yaml
-/usr/share/pixmaps/legion_logo.png
-/usr/share/pixmaps/legion_logo_dark.png
-/usr/share/pixmaps/legion_logo_light.png
-/usr/share/polkit-1/actions/legion_cli.policy
-/usr/share/polkit-1/actions/legion_gui.policy
+%files -n python-%{srcname}
+%{python3_sitelib}/legion_linux/*
+%{python3_sitelib}/legion_linux-%{version}.dist-info/*
+%{_bindir}/fancurve-set
+%{_bindir}/legion_cli
+%{_bindir}/legion_gui
+%{_datadir}/applications/legion_gui.desktop
+%{_datadir}/applications/legion_gui_user.desktop
+%{_datadir}/legion_linux/.env
+%{_datadir}/legion_linux/balanced-ac.yaml
+%{_datadir}/legion_linux/balanced-battery.yaml
+%{_datadir}/legion_linux/balanced-performance-ac.yaml
+%{_datadir}/legion_linux/balanced-performance-battery.yaml
+%{_datadir}/legion_linux/performance-ac.yaml
+%{_datadir}/legion_linux/performance-battery.yaml
+%{_datadir}/legion_linux/quiet-ac.yaml
+%{_datadir}/legion_linux/quiet-battery.yaml
+%{_datadir}/pixmaps/legion_logo.png
+%{_datadir}/pixmaps/legion_logo_dark.png
+%{_datadir}/pixmaps/legion_logo_light.png
+%{_datadir}/polkit-1/actions/legion_cli.policy
+%{_datadir}/polkit-1/actions/legion_gui.policy
+
+%post
+echo "Frist install?! Pls copy /usr/share/legion_linux folder to /etc/legion_linux.\n"
+echo "Command: sudo cp /usr/share/legion_linux /etc/legion_linux"
+
+%preun
+echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"

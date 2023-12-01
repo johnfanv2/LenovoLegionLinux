@@ -88,22 +88,15 @@ pip install darkdetect[macos-listener]
 
 %build
 unset RPM_BUILD_ROOT
-python3 setup.py bdist_wheel
+%{python3} setup.py bdist_wheel
 
 %install
 [ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
 mkdir %{buildroot}
 mkdir %{buildroot}/usr
 cd "%{_builddir}/%{name}-%{version}"
-python3 -m installer --destdir="%{buildroot}" dist/*.whl
+%{python3} -m installer --destdir="%{buildroot}" dist/*.whl
 
-%files -n python3-%{srcname}
-%{python3_sitelib}/darkdetect/__init__.py
-%{python3_sitelib}/darkdetect/__main__.py
-%{python3_sitelib}/darkdetect/_dummy.py
-%{python3_sitelib}/_linux_detect.py
-%{python3_sitelib}/darkdetect-%{version}.dist-info/LICENSE
-%{python3_sitelib}/darkdetect-%{version}.dist-info/METADATA
-%{python3_sitelib}/darkdetect-%{version}.dist-info/RECORD
-%{python3_sitelib}/darkdetect-%{version}.dist-info/WHEEL
-%{python3_sitelib}/darkdetect-%{version}.dist-info/top_level.txt
+%files -n python-%{srcname}
+%{python3_sitelib}/darkdetect/*
+%{python3_sitelib}/darkdetect-%{version}.dist-info/*

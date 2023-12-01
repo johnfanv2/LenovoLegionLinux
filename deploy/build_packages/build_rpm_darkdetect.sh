@@ -18,29 +18,29 @@ mkdir -p "${BUILD_DIR}"
 
 ## BUILD PYTHON RPM
 #Setup BUILD_DIR
-cp --recursive ${REPODIR}/subprojects/darkdetect ${BUILD_DIR}/python3-darkdetect-${TAG}
-cp --recursive ${REPODIR}/deploy/build_packages/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/python3-darkdetect-${TAG}
+cp --recursive ${REPODIR}/subprojects/darkdetect ${BUILD_DIR}/python-darkdetect-${TAG}
+cp --recursive ${REPODIR}/deploy/build_packages/{setup.cfg,setup.py,darkdetect.spec} ${BUILD_DIR}/python-darkdetect-${TAG}
 
 #Create rpm
 cd ${BUILD_DIR}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
-mv python3-darkdetect-${TAG}/darkdetect.spec rpmbuild/SPECS
+mv python-darkdetect-${TAG}/darkdetect.spec rpmbuild/SPECS
 #Change version according to tag
-sed -i "s/version = _VERSION/version = ${TAG}/g" python3-darkdetect-${TAG}/setup.cfg
+sed -i "s/version = _VERSION/version = ${TAG}/g" python-darkdetect-${TAG}/setup.cfg
 sed -i "s/%define version _VERSION/%define version ${TAG}/g" rpmbuild/SPECS/darkdetect.spec
 sed -i "s/%define unmangled_version _VERSION/%define unmangled_version ${TAG}/g" rpmbuild/SPECS/darkdetect.spec
 #
-tar --create --file python3-darkdetect-${TAG}.tar.gz python3-darkdetect-${TAG} && rm --recursive python3-darkdetect-${TAG}
-mv python3-darkdetect-${TAG}.tar.gz rpmbuild/SOURCES
+tar --create --file python-darkdetect-${TAG}.tar.gz python-darkdetect-${TAG} && rm --recursive python-darkdetect-${TAG}
+mv python-darkdetect-${TAG}.tar.gz rpmbuild/SOURCES
 cd rpmbuild
 
 #Use distrobox to build rpm on fedora
 sudo rpmbuild --define "_topdir $(pwd)" -bs SPECS/darkdetect.spec
-sudo rpmbuild --define "_topdir $(pwd)" --rebuild SRPMS/python3-darkdetect-${TAG}-1.src.rpm
-mv RPMS/noarch/python3-darkdetect-${TAG}-1.noarch.rpm ${BUILD_DIR}/
+sudo rpmbuild --define "_topdir $(pwd)" --rebuild SRPMS/python-darkdetect-${TAG}-1.src.rpm
+mv RPMS/noarch/python-darkdetect-${TAG}-1.noarch.rpm ${BUILD_DIR}/
 
 #Test Install
-rpm -i ${BUILD_DIR}/python3-darkdetect-${TAG}-1.noarch.rpm
+rpm -i ${BUILD_DIR}/python-darkdetect-${TAG}-1.noarch.rpm
 
 #Move to repo
-cp ${BUILD_DIR}/python3-darkdetect-${TAG}-1.noarch.rpm ${REPODIR}/package_repo/fedora/packages
+cp ${BUILD_DIR}/python-darkdetect-${TAG}-1.noarch.rpm ${REPODIR}/package_repo/fedora/packages
