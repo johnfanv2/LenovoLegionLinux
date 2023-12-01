@@ -1,47 +1,15 @@
 Package: lenovolegionlinux-dkms
-Version: 0.0.6
-Architecture: amd64
-Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
-Installed-Size: 257
-Depends: dkms (>= 1.95)
-Provides: lenovolegionlinux-modules (= 0.0.6)
-Filename: ./lenovolegionlinux-dkms_0.0.6_amd64.deb
-Size: 47148
-MD5sum: c27e52d014a9bfe7e797c2e64928d665
-SHA1: 3a1b4327e150adb5824f9374fa736b53d11a44cb
-SHA256: 929c9644f99002ac58b9ffa0ad505f7ab55cbde14445213fc01346fba709fefb
-Section: misc
-Priority: optional
-Description: lenovolegionlinux driver in DKMS format.
-
-Package: lenovolegionlinux-dkms
-Version: 0.0.8
-Architecture: amd64
-Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
-Installed-Size: 297
-Depends: dkms (>= 1.95)
-Provides: lenovolegionlinux-modules (= 0.0.8)
-Filename: ./lenovolegionlinux-dkms_0.0.8_amd64.deb
-Size: 47606
-MD5sum: 839e03e94b1aa41623b46c1c6c7ad731
-SHA1: fe2a69f4bb82dbd34c69de6b87ef31eea320bf3a
-SHA256: 97e9f3adcf89f41b5a19b333590e9310311de648d08c25c91a24145338d2b7c3
-Section: misc
-Priority: optional
-Description: lenovolegionlinux driver in DKMS format.
-
-Package: lenovolegionlinux-dkms
 Version: 0.0.9
 Architecture: amd64
 Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
-Installed-Size: 297
+Installed-Size: 299
 Depends: dkms (>= 1.95)
 Provides: lenovolegionlinux-modules (= 0.0.9)
 Filename: ./lenovolegionlinux-dkms_0.0.9_amd64.deb
-Size: 47608
-MD5sum: d86d93013210cb66e968885a0f1df35b
-SHA1: 185cd221a27f3ee0ca5fe7eaa266d9038f424e2a
-SHA256: cd842e8f9353d546a4f51fb74b36cbeb08435d0952d764fe1f784d75cb0ab364
+Size: 47326
+MD5sum: b49ca80cacf5a2854760b08c5f15a562
+SHA1: 732d95bb16243ff474ff4275665166a667c96dc5
+SHA256: a4f31da98bf057cb7faf466651de2652d94d87ab4d9f4a214200522a3fcee2fa
 Section: misc
 Priority: optional
 Description: lenovolegionlinux driver in DKMS format.
@@ -54,10 +22,10 @@ Maintainer: None <None>
 Installed-Size: 36
 Depends: python3:any
 Filename: ./python3-darkdetect_0.8.0-1_all.deb
-Size: 7422
-MD5sum: 38251e50ba1785c85379c051a7ca928b
-SHA1: 36c1925f3564afeea03b21ff00dd9d61c122b7af
-SHA256: d85f9b4213ddb9045aa869e8c7d5c6d8ee1d92df7f9f1c98f0e74c193df47460
+Size: 7420
+MD5sum: 894eba0641ee730fc02ce4df63e376cf
+SHA1: b09b0c035ad43ccbe4831dd0573ddff08b6bb02f
+SHA256: f0f745b36445bf5bccd8ccd70f1d42b450b0e1b1e6f5549f5bac0868056e2d5e
 Section: python
 Priority: optional
 Homepage: https://github.com/albertosottile/darkdetect
@@ -85,52 +53,16 @@ Description: Detect OS Dark Mode from Python
 
 Package: python3-legion-linux
 Source: legion-linux
-Version: 0.0.6-1
-Architecture: all
-Maintainer: None <None>
-Installed-Size: 202
-Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
-Filename: ./python3-legion-linux_0.0.6-1_all.deb
-Size: 30376
-MD5sum: 1a28e8bf290ee631ae414e2041c36274
-SHA1: 17825c6d3ed0c85b500a8f8b17e80e1978aa7978
-SHA256: 27a3503a79a7d5a6984cb2e4555d1fd964c2ed68b06eaeacf1ae22aa6170bf4e
-Section: python
-Priority: optional
-Homepage: https://github.com/johnfanv2/LenovoLegionLinux
-Description: Control Lenovo Legion laptop
- See documenation of LenovoLegionLinux
-
-Package: python3-legion-linux
-Source: legion-linux
-Version: 0.0.8-1
-Architecture: all
-Maintainer: None <None>
-Installed-Size: 211
-Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
-Filename: ./python3-legion-linux_0.0.8-1_all.deb
-Size: 31202
-MD5sum: 4fba87d7fcf4327a81167914ca58519d
-SHA1: 25f3e6a30fbe70d91d6021c2701399c332cb8b25
-SHA256: 9a63861ffc8a522aaaf9644bb4b6ed8746964dba7a78eea6c337887396b67e06
-Section: python
-Priority: optional
-Homepage: https://github.com/johnfanv2/LenovoLegionLinux
-Description: Control Lenovo Legion laptop
- See documenation of LenovoLegionLinux
-
-Package: python3-legion-linux
-Source: legion-linux
 Version: 0.0.9-1
 Architecture: all
 Maintainer: None <None>
 Installed-Size: 211
 Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
 Filename: ./python3-legion-linux_0.0.9-1_all.deb
-Size: 31214
-MD5sum: 394046b20f2218e3a9e085669387b3e7
-SHA1: 50488867d9105c2c1340b704b791f03908f59646
-SHA256: 91be5a954f0bc966eefbdb4cad4058e35202a85a588bad0f40b428dd2b128e14
+Size: 31208
+MD5sum: 7aede289094e302d979e4b197edfcc74
+SHA1: 9d627ace40b0b89ac1b601d0352ff8f1964936b5
+SHA256: 340674709c42e2c6dfe1fb89c925544738dab13c91184d3946a72564df0f5d41
 Section: python
 Priority: optional
 Homepage: https://github.com/johnfanv2/LenovoLegionLinux
