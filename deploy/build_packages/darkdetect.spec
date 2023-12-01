@@ -1,28 +1,24 @@
 %global srcname darkdetect
-%define name python3-darkdetect
 %define version _VERSION
-%define unmangled_version _VERSION
-%define release 1
 
 Summary: Detect OS Dark Mode from Python
-Name: %{name}
+Name: python-darkdetect
 Version: %{version}
-Release: %{release}
-Source0: %{name}-%{unmangled_version}.tar.gz
+Release: 1
+Source0: %{name}-%{version}.tar.gz
 License: BSD-3-Clause
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Prefix: %{_prefix}
 BuildArch: noarch
-Vendor: albertosottile <Alberto Sottile <asottile@gmail.com>>
+BuildRequires:  python3-devel
+BuildRequires:  python3-wheel
+Vendor: Alberto Sottile <asottile@gmail.com>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/albertosottile/darkdetect
 
-BuildRequires:  python3-devel
-BuildRequires:  python3-wheel
-
 %description
-# Darkdetect
+# Darkdetect (UNOFFICIAL RPM)
 
 This package allows to detect if the user is using Dark Mode on:
 
@@ -88,7 +84,7 @@ pip install darkdetect[macos-listener]
 
 
 %prep
-%autosetup -n %{name}-%{unmangled_version} -n %{name}-%{unmangled_version}
+%autosetup -n %{name}-%{version} -n %{name}-%{version}
 
 %build
 unset RPM_BUILD_ROOT
@@ -102,26 +98,12 @@ cd "%{_builddir}/%{name}-%{version}"
 python3 -m installer --destdir="%{buildroot}" dist/*.whl
 
 %files -n python3-%{srcname}
-/usr/lib/python3.11/site-packages/darkdetect/__init__.py
-/usr/lib/python3.11/site-packages/darkdetect/__main__.py
-/usr/lib/python3.11/site-packages/darkdetect/_dummy.py
-/usr/lib/python3.11/site-packages/darkdetect/_linux_detect.py
-/usr/lib/python3.11/site-packages/darkdetect/_mac_detect.py
-/usr/lib/python3.11/site-packages/darkdetect/_windows_detect.py
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_linux_detect.cpython-311.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/__init__.cpython-311.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/__main__.cpython-311.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_mac_detect.cpython-311.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_dummy.cpython-311.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_windows_detect.cpython-311.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/__init__.cpython-311.opt-1.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/__main__.cpython-311.opt-1.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_dummy.cpython-311.opt-1.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_linux_detect.cpython-311.opt-1.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_mac_detect.cpython-311.opt-1.pyc
-/usr/lib/python3.11/site-packages/darkdetect/__pycache__/_windows_detect.cpython-311.opt-1.pyc
-/usr/lib/python3.11/site-packages/darkdetect-%{version}.dist-info/LICENSE
-/usr/lib/python3.11/site-packages/darkdetect-%{version}.dist-info/METADATA
-/usr/lib/python3.11/site-packages/darkdetect-%{version}.dist-info/RECORD
-/usr/lib/python3.11/site-packages/darkdetect-%{version}.dist-info/WHEEL
-/usr/lib/python3.11/site-packages/darkdetect-%{version}.dist-info/top_level.txt
+%{python3_sitelib}/darkdetect/__init__.py
+%{python3_sitelib}/darkdetect/__main__.py
+%{python3_sitelib}/darkdetect/_dummy.py
+%{python3_sitelib}/_linux_detect.py
+%{python3_sitelib}/darkdetect-%{version}.dist-info/LICENSE
+%{python3_sitelib}/darkdetect-%{version}.dist-info/METADATA
+%{python3_sitelib}/darkdetect-%{version}.dist-info/RECORD
+%{python3_sitelib}/darkdetect-%{version}.dist-info/WHEEL
+%{python3_sitelib}/darkdetect-%{version}.dist-info/top_level.txt

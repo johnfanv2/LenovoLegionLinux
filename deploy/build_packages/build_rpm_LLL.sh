@@ -20,11 +20,11 @@ mkdir -p "${BUILD_DIR_RPM_DKMS}"
 
 cd ${BUILD_DIR_RPM_DKMS}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
-cp -r ${REPODIR}/kernel_module ./lenovolegionlinux-kmod-${TAG}-x86_64
+cp -r ${REPODIR}/kernel_module lenovolegionlinux-kmod-${TAG}-x86_64
 
 #Dkms change version
 sudo sed -i "s/DKMS_VERSION/${TAG}/g" ./lenovolegionlinux-kmod-${TAG}-x86_64/dkms.conf
-mv lenovolegionlinux-kmod-${TAG}-x86_64/lenovolegionlinux.spec rpmbuild/SPECS
+mv ${REPODIR}/deploy/build_packages/lenovolegionlinux-dkms.spec rpmbuild/SPECS/lenovolegionlinux.spec 
 #Change version according to tag
 sed -i "s/_VERSION/${TAG}/g" rpmbuild/SPECS/lenovolegionlinux.spec
 
@@ -38,7 +38,8 @@ mv RPMS/x86_64/dkms-lenovolegionlinux-${TAG}-0.x86_64.rpm ${BUILD_DIR}/
 cd ${BUILD_DIR}
 mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 cp -r ${REPODIR}/python/legion_linux python3-lenovolegionlinux-${TAG}
-mv python3-lenovolegionlinux-${TAG}/lenovolegionlinux.spec rpmbuild/SPECS
+cp ${REPODIR}/deploy/build_packages/lenovolegionlinux.spec rpmbuild/SPECS
+
 #Change version according to tag
 sed -i "s/version = _VERSION/version = ${TAG}/g" python3-lenovolegionlinux-${TAG}/setup.cfg
 sed -i "s/%define version _VERSION/%define version ${TAG}/g" rpmbuild/SPECS/lenovolegionlinux.spec
