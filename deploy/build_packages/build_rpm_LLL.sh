@@ -24,7 +24,7 @@ cp -r ${REPODIR}/kernel_module lenovolegionlinux-kmod-${TAG}-x86_64
 
 #Dkms change version
 sudo sed -i "s/DKMS_VERSION/${TAG}/g" ./lenovolegionlinux-kmod-${TAG}-x86_64/dkms.conf
-mv ${REPODIR}/deploy/build_packages/lenovolegionlinux-dkms.spec rpmbuild/SPECS/lenovolegionlinux.spec 
+cp ${REPODIR}/deploy/build_packages/lenovolegionlinux-dkms.spec rpmbuild/SPECS/lenovolegionlinux.spec 
 #Change version according to tag
 sed -i "s/_VERSION/${TAG}/g" rpmbuild/SPECS/lenovolegionlinux.spec
 
