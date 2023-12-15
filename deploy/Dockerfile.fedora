@@ -13,6 +13,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Install sudo (used in scripts that are tested)
 RUN dnf -y install sudo
 
+# Install dnf-plugins-core (add fedora copr support)
+RUN dnf -y install dnf-plugins-core
+
 # Set timezone (used by pylint) and locale
 ENV LANG=en_US.UTF-8  
 ENV LANGUAGE=en_US:en  
