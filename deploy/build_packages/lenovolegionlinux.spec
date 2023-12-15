@@ -1,18 +1,20 @@
-%define srcname lenovolegionlinux
-%define version _VERSION
+%define srcname LenovoLegionLinux
+%global libname legion_linux
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
-Version: %{version}
+Version: 0.0.9
 Release: 1
-Source0: %{name}-%{version}.tar.gz
+Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}-prerelease.tar.gz
 License: GPL-2.0
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Prefix: %{_prefix}
 BuildArch: noarch
 BuildRequires:  python3-devel
+BuildRequires:  python3-setuptools
 BuildRequires:  python3-wheel
+BuildRequires:  python3-pip
 Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/johnfanv2/LenovoLegionLinux
@@ -26,25 +28,25 @@ Requires:     python-darkdetect
 See documenation of LenovoLegionLinux
 
 %prep
-%autosetup -n %{name}-%{version} -n %{name}-%{version}
+%autosetup -p1 -n %{srcname}-%{version}-prerelease
+cd python/legion_linux
+sed -i "s/version = _VERSION/version = %{version}/g" setup.cfg
 
 %build
-unset RPM_BUILD_ROOT
-%{python3} setup.py bdist_wheel
+cd python/legion_linux
+%pyproject_wheel
 
 %install
-[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
-mkdir %{buildroot}
-mkdir %{buildroot}/usr
-cd "%{_builddir}/%{name}-%{version}"
-%{python3} -m installer --destdir="%{buildroot}" dist/*.whl
+%pyproject_install
+%pyproject_save_files legion_linux
 
-install -D -m 0644 %{_builddir}/%{name}-%{version}/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
-install -D -m 0644 %{_builddir}/%{name}-%{version}/legion_linux//extra/service/legion-linux.path %{_unitdir}/legion-linux.path
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
 %files -n python-%{srcname}
-%{python3_sitelib}/legion_linux/*
-%{python3_sitelib}/legion_linux-%{version}.dist-info/*
+%doc README.md
+%{python3_sitelib}/%{libname}
+%{python3_sitelib}/%{libname}-%{version}.dist-info
 %{_bindir}/fancurve-set
 %{_bindir}/legion_cli
 %{_bindir}/legion_gui

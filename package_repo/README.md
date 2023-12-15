@@ -7,7 +7,7 @@
       <img alt="LenovoLegionLinux" src="https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/HEAD/doc/assets/legion_logo_dark.svg" height="50" style="max-width: 100%;">
     </picture>
   </a>
-    <strong> LenovoLegionLinux package for Ubuntu and Fedora </strong>
+    <strong> LenovoLegionLinux package for Ubuntu </strong>
 </h1>
 
 [![Build](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/johnfanv2/LenovoLegionLinux/actions/workflows/build.yml)
@@ -16,7 +16,7 @@
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 </br>
 [![Unbutu and Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-LLL_PPA-orange)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
-[![RHEL/Fedora PPA](https://img.shields.io/badge/RHEL%2FFedora-LLL_PPA-blue)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
+[![Fedora Copr](https://img.shields.io/badge/Nobara%2FFedora-fedora_copr-blue)](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
 
 A PPA repository for my packages:
 
@@ -34,11 +34,12 @@ sudo apt update
 sudo apt install lenovolegionlinux-dkms python3-darkdetect python3-legion-linux
 ```
 
-Fedora/rpm base distros:
-
+Fedora packages was moved to copr 
+Remove Fedora repo before using copr:
 ```bash
-sudo curl -s https://johnfanv2.github.io/LenovoLegionLinux/package_repo/fedora/LLL.repo | sudo tee /etc/yum.repos.d/LLL.repo > /dev/null
-sudo dnf config-manager --add-repo /etc/yum.repos.d/LLL.repo
-sudo dnf config-manager --set-enabled LLL-pkg-repo
-sudo dnf install dkms-lenovolegionlinux python-darkdetect python-lenovolegionlinux
+sudo dnf uninstall dkms-lenovolegionlinux python-darkdetect python-lenovolegionlinux
+sudo dnf config-manager --set-disabled LLL-pkg-repo
+rm /etc/yum.repos.d/LLL.repo
 ```
+
+Fedora copr link: https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/
