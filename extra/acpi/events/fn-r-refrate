@@ -1,0 +1,6 @@
+# needs to be implemented in the driver
+# Fn+r button/prog1 PROG1 00000080 00000000 K
+#event=1E3391A1-2C89- 000000e8 00000000
+
+#I can get this action to work properly when I open the app but the polkit doesn't work
+action=/etc/acpi/actions/fn-r-refresh-rate.sh

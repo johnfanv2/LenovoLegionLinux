@@ -1,3 +1,4 @@
 #!/bin/bash
 set -ex
-sudo pacman -S --noconfirm linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml
+sudo pacman -S --disable-download-timeout --noconfirm linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete polkit python-build python-installer python-wheel python-setuptools
+sudo pacman -S --disable-download-timeout --noconfirm dkms openssl mokutil

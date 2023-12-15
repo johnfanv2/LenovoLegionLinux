@@ -1,0 +1,29 @@
+name: Manual actions
+on: 
+  workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
+    - name: Build
+      run: ./tests/test_kernel_build.sh
+      shell: bash
+    - name: Install
+      run: ./tests/test_kernel_install.sh
+      shell: bash
+  test-ci-env:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup upterm session
+      uses: lhotari/action-upterm@v1
+      with:
+        ## limits ssh access and adds the ssh public key for the user which triggered the workflow
+        limit-access-to-actor: true
+        ## limits ssh access and adds the ssh public keys of the listed GitHub users
+        limit-access-to-users: johnfanv2

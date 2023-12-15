@@ -1,0 +1,36 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Date: Mon, 04 Dec 2023 19:33:11 +0000
+MD5Sum:
+ 9db87505c54dde6b5365d5d4dd06ddfe             2634 Packages
+ a2232cb86189196623b3103a9271c91c             1356 Packages.gz
+ 1c225ed0ebc3d8aec76e738f93a7d91b               38 Release
+SHA1:
+ 823f2b8ea6d53376877a82d30c4a8304fb6a02bb             2634 Packages
+ 9b1777f3755cb1021b2f9d974d975d386d298e68             1356 Packages.gz
+ b00845e70bcf7cba3bd4f81ddd1a483d8eb404c0               38 Release
+SHA256:
+ 7f19ac1c7cdda8d7c9f0ba6c82d3ff0f4f16bfa60364e3843fd33deaa032e6eb             2634 Packages
+ b80c8a37c897641506d5b753fa9d063d8157eacd81f81169cc54fe3dc0f5aab2             1356 Packages.gz
+ 7fe51b5d3b556c6c9fad881332b0138b95448ed65a85340f2c12b0d1f9a445db               38 Release
+SHA512:
+ 43943030c3a1cc0da0820e5b0ad365c95ad526f6f29bda882f783e60b2f29710fce37dd031c57a95e47f3f2c1d2a2d5ea694e819c20bf1c5d1e4b457e6b6adcb             2634 Packages
+ 90be9128ba2ce2f9a052a0a277d161cdffebf8b254c2e570c49b2c1ad30be09b34af6039ebb21074ad1cf8beb4950ff44a39b35c79c25ffe50daa6c31d837c38             1356 Packages.gz
+ 77c60354c9a5a19a8c3bc735f3080022c12b79587302fb396472794ef69917f8c9331746b3ff2b11bfd956318300dc98ae90b0e2f6ecd3b91ccd531ec02afb34               38 Release
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEVMtdhasRVShrpPBmBtIAP2//ddMFAmVuKXcACgkQBtIAP2//
+ddP61g/+L4hPT07hTJvuS4cvEBICVyDznY7sc9aGyLCmOtDDsUa4Sx+ih5B5XETw
+xnoPsdpfAQe1sRMEmfVFcnsYsgl/BZTk1Si/G9D3+QqJ+m8veyJXliNf697soEKb
+WN7CNWE2wrQS+2JeEBrVWuxAVvab4zl/GJdFnbJSq2zKDiDi+PCvxrl68/AG84fe
+7lBhsH2lq3ItTnZCIiLM8kV3GUL4rrXjCeMqxd5V0HTeyBkJtKCaTMsSc22xjk12
+nCE3oJLfNCzofAs0GyNSnHvFl7hb/ei+PkWyGUDJJSvp2qYD0hRkWfqj35y0mfVt
+yES88f4NXU+qL2/OxVEicjLomZ0o/+0bKidwNMq9O+j5KnAJ93NS5LssO3TjU/bw
+T6NOi3ZQwifpm7TXzrAWJpnRY2sdeqaBJOQ3Fqkix0RrX0fsgNqNB/KsQAjmnwOG
+9FmqMv3dRbatWczXxK30rweQIM7ilUI8gJ1TIkEQZ2v5m1aXoc+JS+1cxrk1me9i
+2rzfEde7fEELr2W8hRRzP+raO27XIrrTZvh+OTrF63LMSmAb3q9wRQTgPKK6FB/n
+7CEI/t0cGEwirHfMQTWwU+R/QBkI/9xK/rLR7lUDaUQa91xp8Wx1Isy36YlcEbWe
+XX/fxoiZ294dvZiJkj2VDr4ycCOnmXTBcwo0kxzVsojlvjN9MCs=
+=NXoe
+-----END PGP SIGNATURE-----

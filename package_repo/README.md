@@ -34,7 +34,7 @@ sudo apt update
 sudo apt install lenovolegionlinux-dkms python3-darkdetect python3-legion-linux
 ```
 
-Fedora packages was moved to copr 
+Fedora packages was moved to copr
 Remove Fedora repo before using copr:
 ```bash
 sudo dnf uninstall dkms-lenovolegionlinux python-darkdetect python-lenovolegionlinux

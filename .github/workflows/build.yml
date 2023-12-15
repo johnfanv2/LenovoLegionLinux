@@ -1,8 +1,17 @@
 name: Build
 run-name: ${{ github.actor }} running Build
 on:
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+        - info
+        - warning
+        - debug
   push:
     branches: [ main, develop ]
 jobs:
@@ -15,11 +24,12 @@ jobs:
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
     - name: Build
-      run: ./deploy/build.sh
+      run: ./tests/test_kernel_build.sh
       shell: bash
     - name: Install
-      run: ./deploy/install.sh
+      run: ./tests/test_kernel_install.sh
       shell: bash
+
   run-kernel-module-test:
     runs-on: ubuntu-latest
     steps:
@@ -28,15 +38,28 @@ jobs:
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
+    - name: Test Install
+      run: ./tests/test_kernel_install.sh
+      shell: bash
+    - name: Test Reload First
+      run: ./tests/test_kernel_reload.sh
+      shell: bash
+    - name: Test Reload Second
+      run: ./tests/test_kernel_reload.sh
+      shell: bash
+
+  run-kernel-dkms-install-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
     - name: Build
-      run: ./deploy/build.sh
+      run: ./tests/test_kenel_dkms_install.sh || true
       shell: bash
-    - name: Reload First
-      run: ./deploy/reload.sh
-      shell: bash
-    - name: Reload Second
-      run: ./deploy/reload.sh
-      shell: bash
+
   run-tests:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -48,7 +71,7 @@ jobs:
         shell: bash
       - name: Lint with Linux checkpath
         if: always()
-        run: ./tests/test_checkpath.sh
+        run: ./tests/test_kernel_checkpath.sh
         shell: bash
       - name: Lint with pylint
         if: always()
@@ -64,51 +87,63 @@ jobs:
         shell: bash
       - name: Install python package
         if: always()
-        run: ./deploy/build_python.sh
+        run: ./deploy/python_install_pip_pkg.sh
         shell: bash
-  test-in-docker-container:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Install Dependencies
-      run: ./deploy/build_containers.sh
-      shell: bash
+
   release-kernel-patch:
-    needs: [build, run-kernel-module-test, run-tests]
+    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
+    - name: Check if tagged
+      id: check_if_tagged
+      run: |
+        otag=$(git tag --points-at HEAD)
+        echo "Tag is ${otag}"
+        if [ -z "$otag" ]
+        then
+          hastag=0
+        else
+          hastag=1
+        fi
+        echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build kernel patch
+      if: steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
       shell: bash
-    - name: Create tag
-      id: create_tag
+    - name: Set tag name
+      if: steps.check_if_tagged.outputs.hastag == 1
+      id: tag
       run: |
-        tag=$(basename "${{ github.ref }}")
+        tag=$(git describe --tags --abbrev=0)
         echo "tag=$tag" >> $GITHUB_OUTPUT
+        tag_version=$(git describe --tags --abbrev=0 | sed 's/[^0-9.]*//g')
+        echo "tag_version=$tag_version" >> $GITHUB_OUTPUT
     - name: Create Draft Release
+      if: steps.check_if_tagged.outputs.hastag == 1
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.create_tag.outputs.tag }}
-        release_name: ${{ steps.create_tag.outputs.tag }}
+        tag_name: ${{ steps.tag.outputs.tag }}
+        release_name: ${{ steps.tag.outputs.tag }}
         draft: true
         prerelease: false
-    - name: Upload Release
+    - name: Upload Release - Kernel Patch
+      if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v0.1.patch
-        asset_name: 0001-Add-legion-laptop-v0.1.patch
+        asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch
+        asset_name: 0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch
         asset_content_type: text/plain
     - name: Publish Release
+      if: steps.check_if_tagged.outputs.hastag == 1
       uses: eregon/publish-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

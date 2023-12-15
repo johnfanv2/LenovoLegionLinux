@@ -1,0 +1,14 @@
+[Trigger]
+Operation=Install
+Operation=Upgrade
+Operation=Remove
+Type=Package
+Target = linux 
+Target = linux-headers
+Target = linux-zen
+Target = linux-zen-headers
+Target = lenovolegionlinux-dkms-git
+
+[Action]
+When = PostTransaction
+Exec = /usr/bin/LenovoLegionLinux

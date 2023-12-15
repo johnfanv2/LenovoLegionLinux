@@ -1,3 +1,278 @@
+// Full Address list
+struct ec_register_offsets {
+	u16 ECINDAR0;
+	u16 ECINDAR1;
+	u16 ECINDAR2;
+	u16 ECINDAR3;
+	u16 ECINDDR;
+	u16 GPDRA;
+	u16 GPCRA0;
+	u16 GPCRA1;
+	u16 GPCRA2;
+	u16 GPCRA3;
+	u16 GPCRA4;
+	u16 GPCRA5;
+	u16 GPCRA6;
+	u16 GPCRA7;
+	u16 GPOTA;
+	u16 GPDMRA;
+	u16 DCR0;
+	u16 DCR1;
+	u16 DCR2;
+	u16 DCR3;
+	u16 DCR4;
+	u16 DCR5;
+	u16 DCR6;
+	u16 DCR7;
+	u16 CTR2;
+	u16 ECHIPID1;
+	u16 ECHIPID2;
+	u16 ECHIPVER;
+	u16 ECDEBUG;
+	u16 EADDR;
+	u16 EDAT;
+	u16 ECNT;
+	u16 ESTS;
+	u16 FW_VER;
+	u16 FAN_CUR_POINT;
+	u16 FAN_POINTS_SIZE;
+	u16 FAN1_BASE;
+	u16 FAN2_BASE;
+	u16 FAN_ACC_BASE;
+	u16 FAN_DEC_BASE;
+	u16 CPU_TEMP;
+	u16 CPU_TEMP_HYST;
+	u16 GPU_TEMP;
+	u16 GPU_TEMP_HYST;
+	u16 VRM_TEMP;
+	u16 VRM_TEMP_HYST;
+	u16 CPU_TEMP_EN;
+	u16 GPU_TEMP_EN;
+	u16 VRM_TEMP_EN;
+	u16 FAN1_ACC_TIMER;
+	u16 FAN2_ACC_TIMER;
+	u16 FAN1_CUR_ACC;
+	u16 FAN1_CUR_DEC;
+	u16 FAN2_CUR_ACC;
+	u16 FAN2_CUR_DEC;
+	u16 FAN1_RPM_LSB;
+	u16 FAN1_RPM_MSB;
+	u16 FAN2_RPM_LSB;
+	u16 FAN2_RPM_MSB;
+
+	u16 F1TLRR;
+	u16 F1TMRR;
+	u16 F2TLRR;
+	u16 F2TMRR;
+	u16 CTR1;
+	u16 CTR3;
+	u16 FAN1CNF;
+	u16 FAN2CNF;
+
+	// altnerive regsisters
+	// TODO: decide on one version
+	u16 FAN1_TARGET_RPM;
+	u16 FAN2_TARGET_RPM;
+	u16 ALT_CPU_TEMP;
+	u16 ALT_GPU_TEMP;
+	u16 ALT_POWERMODE;
+
+	u16 ALT_FAN1_RPM;
+	u16 ALT_FAN2_RPM;
+	u16 ALT_CPU_TEMP2;
+	u16 ALT_GPU_TEMP2;
+	u16 ALT_IC_TEMP2;
+
+	u16 MINIFANCURVE_ON_COOL;
+	u16 LOCKFANCONTROLLER;
+	u16 MAXIMUMFANSPEED;
+
+	u16 WHITE_KEYBOARD_BACKLIGHT;
+};
+
+
+static const struct ec_register_offsets ec_register_offsets_v0 = {
+	// 6.3 Shared Memory Flash Interface Bridge (SMFI)
+	// "The SMFI provides an HLPC interface between the host bus a
+	// and the M bus. The flash is mapped into the
+	// host memory address space for host accesses. The flash is also
+	// mapped into the EC memory address space for EC accesses"
+	.ECINDAR0 = 0x103B,
+	.ECINDAR1 = 0x103C,
+	.ECINDAR2 = 0x103D,
+	.ECINDAR3 = 0x103E,
+	.ECINDDR = 0x103F,
+
+	// 7.5 General Purpose I/O Port (GPIO)
+	// I/O pins controlled by registers.
+	.GPDRA = 0x1601,
+	// port data, i.e. data to output to pins
+	// or data read from pins
+	.GPCRA0 = 0x1610,
+	// control register for each pin,
+	// set as input, output, ...
+	.GPCRA1 = 0x1611,
+	.GPCRA2 = 0x1612,
+	.GPCRA3 = 0x1613,
+	.GPCRA4 = 0x1614,
+	.GPCRA5 = 0x1615,
+	.GPCRA6 = 0x1616,
+	.GPCRA7 = 0x1617,
+	.GPOTA = 0x1671,
+	.GPDMRA = 0x1661,
+
+	// Super I/O Configuration Registers
+	// 7.15 General Control (GCTRL)
+	// General Control (GCTRL)
+	// (see EC Interface Registers  and 6.2 Plug and Play Configuration (PNPCFG)) in datasheet
+	// note: these are in two places saved
+	// in EC Interface Registers  and in super io configuration registers
+	// Chip ID
+	.ECHIPID1 = 0x2000, // 0x20
+	.ECHIPID2 = 0x2001, // 0x21
+	// Chip Version
+	.ECHIPVER = 0x2002, // 0x22
+	.ECDEBUG = 0x2003, //0x23 SIOCTRL (super io control)
+
+	// External GPIO Controller (EGPC)
+	// 7.16 External GPIO Controller (EGPC)
+	// Communication with an external GPIO chip
+	// (IT8301)
+	// Address
+	.EADDR = 0x2100,
+	// Data
+	.EDAT = 0x2101,
+	// Control
+	.ECNT = 0x2102,
+	// Status
+	.ESTS = 0x2103,
+
+	// FAN/PWM control by ITE
+	// 7.11 PWM
+	// - lower powered ITEs just come with PWM
+	//   control
+	// - higher powered ITEs, e.g. ITE8511, come
+	//   from ITE with a fan control software
+	//   in ROM with 3 (or 4) fan curve points
+	//   called SmartAuto Fan Control
+	// - in Lenovo Legion Laptop the SmartAuto
+	//   is not used, but the fan is controlled
+	//   by a custom program flashed on the ITE
+	//   chip
+
+	// duty cycle of each PWM output
+	.DCR0 = 0x1802,
+	.DCR1 = 0x1803,
+	.DCR2 = 0x1804,
+	.DCR3 = 0x1805,
+	.DCR4 = 0x1806,
+	.DCR5 = 0x1807,
+	.DCR6 = 0x1808,
+	.DCR7 = 0x1809,
+	// FAN1 tachometer (least, most signficant byte)
+	.F1TLRR = 0x181E,
+	.F1TMRR = 0x181F,
+	// FAN1 tachometer (least, most signficant byte)
+	.F2TLRR = 0x1820,
+	.F2TLRR = 0x1821,
+	// cycle time, i.e. clock prescaler for PWM signal
+	.CTR1 = 0x1842,
+	.CTR2 = 0x1842,
+	.CTR3 = 0x1842,
+
+	// bits 7-6 (higest bit)
+	//  00: SmartAuto mode 0 (temperature controlled)
+	//  01: SmartAuto mode 1 (temperaute replaced by a register value)
+	//  10: manual mode
+	// bits: 4-2
+	//  PWM output channel used for ouput (0-7 by 3 bits)
+	.FAN1CNF = 0x1810,
+	// spin up time (duty cycle = 100% for this time when fan stopped)
+	//  00: 0
+	//  01: 250ms
+	//  10: 500ms
+	//  11: 1000ms
+	.FAN2CNF = 0x1811,
+
+	// Lenovo Custom OEM extension
+	// Firmware of ITE can be extended by
+	// custom program using its own "variables"
+	// These are the offsets to these "variables"
+	.FW_VER = 0xC2C7,
+	.FAN_CUR_POINT = 0xC534,
+	.FAN_POINTS_SIZE = 0xC535,
+	.FAN1_BASE = 0xC540,
+	.FAN2_BASE = 0xC550,
+	.FAN_ACC_BASE = 0xC560,
+	.FAN_DEC_BASE = 0xC570,
+	.CPU_TEMP = 0xC580,
+	.CPU_TEMP_HYST = 0xC590,
+	.GPU_TEMP = 0xC5A0,
+	.GPU_TEMP_HYST = 0xC5B0,
+	.VRM_TEMP = 0xC5C0,
+	.VRM_TEMP_HYST = 0xC5D0,
+	.CPU_TEMP_EN = 0xC631,
+	.GPU_TEMP_EN = 0xC632,
+	.VRM_TEMP_EN = 0xC633,
+	.FAN1_ACC_TIMER = 0xC3DA,
+	.FAN2_ACC_TIMER = 0xC3DB,
+	.FAN1_CUR_ACC = 0xC3DC,
+	.FAN1_CUR_DEC = 0xC3DD,
+	.FAN2_CUR_ACC = 0xC3DE,
+	.FAN2_CUR_DEC = 0xC3DF,
+	.FAN1_RPM_LSB = 0xC5E0,
+	.FAN1_RPM_MSB = 0xC5E1,
+	.FAN2_RPM_LSB = 0xC5E2,
+	.FAN2_RPM_MSB = 0xC5E3,
+
+	// values
+	// 0x04: enable mini fan curve if left for too long on cool level
+	//      - this might be due to potential temp failure
+	//      - or just because of really cool temps
+	// 0xA0: disable it
+	.MINIFANCURVE_ON_COOL = 0xC536,
+
+	.LOCKFANCONTROLLER = 0xc4AB,
+
+	.ALT_CPU_TEMP = 0xc538,
+	.ALT_GPU_TEMP = 0xc539,
+	.ALT_POWERMODE = 0xc420,
+
+	.FAN1_TARGET_RPM = 0xc600,
+	.FAN2_TARGET_RPM = 0xc601,
+	.ALT_FAN1_RPM = 0xC406,
+	.ALT_FAN2_RPM = 0xC4FE,
+
+	.ALT_CPU_TEMP2 = 0xC5E6,
+	.ALT_GPU_TEMP2 = 0xC5E7,
+	.ALT_IC_TEMP2 = 0xC5E8,
+
+	//enabled: 0x40
+	//disabled: 0x00
+	.MAXIMUMFANSPEED = 0xBD,
+
+	.WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
+};
+
+
+
+
+//ssize_t ecram_portio_read_low(struct ecram_portio *ec_portio, u8 offset, u8 *value){
+//	mutex_lock(&ec_portio->io_port_mutex);
+//	outb(0x66, 0x80);
+//	outb(offset, ECRAM_PORTIO_DATA_PORT);
+//	*value = inb(ECRAM_PORTIO_DATA_PORT);
+//	mutex_unlock(&ec_portio->io_port_mutex);
+//}
+//ssize_t ecram_portio_write_low(struct ecram_portio *ec_portio, u8 offset, u8 value){
+//	mutex_lock(&ec_portio->io_port_mutex);
+//	outb(0x66, ECRAM_PORTIO_ADDR_PORT);
+//	outb(offset, ECRAM_PORTIO_DATA_PORT);
+//	outb(value, ECRAM_PORTIO_DATA_PORT);
+//	mutex_unlock(&ec_portio->io_port_mutex);
+//}
+
+
 
 /* =================================== */
 /* EC RAM Access with ACPI             */
@@ -175,7 +450,7 @@ acpi_status acpi_walk_callback_erax (acpi_handle object,
 }
 
 /**
- * Get the memory mapped start adress of the memory of the embedded controller .
+ * Get the memory mapped start address of the memory of the embedded controller .
 */
 static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_start_addr){
 	struct acpi_buffer buffer = { ACPI_ALLOCATE_BUFFER, NULL };
@@ -186,7 +461,7 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 	int err;
 	unsigned long long erax_addr;
 	struct acpi_device_info *info;
-	// ERAX is a OperationRegion in SystemMemory. It is the start
+	// ERAX is an OperationRegion in SystemMemory. It is the start
 	// of the memory mapped region to access the RAM of the embedded
 	// controller
 
@@ -210,9 +485,9 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 				     acpi_walk_callback_erax,
 				     NULL, NULL, NULL);
 	if (ACPI_FAILURE(status)) {
-		pr_info("acpi_walk_namespace faile.\n");
+		pr_info("acpi_walk_namespace failed.\n");
 	} else {
-		pr_info("acpi_walk_namespace succes\n");
+		pr_info("acpi_walk_namespace success.\n");
 	}
 
 	status = acpi_walk_resources(adev->handle,
@@ -220,7 +495,7 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 	if (ACPI_FAILURE(status)) {
 		pr_info("acpi_walk_resources failed: %d \n", status);
 	} else {
-		pr_info("acpi_walk_resources was succesful\n");
+		pr_info("acpi_walk_resources was successful.\n");
 	}
 
 	struct acpi_gpio_chip *acpi_gpio;
@@ -228,7 +503,7 @@ static int legion_acpi_get_ec_start(struct acpi_device *adev, phys_addr_t * mm_s
 	if (ACPI_FAILURE(status)) {
 		pr_info("acpi_get_data failed.\n");
 	} else {
-		pr_info("acpi_get_data was succesful\n");
+		pr_info("acpi_get_data was succesful.\n");
 	}
 
 	status = acpi_evaluate_integer(erax_handle, "_REG", NULL, &erax_addr);
@@ -297,7 +572,7 @@ static int ideapad_acpi_add(struct acpi_device *adev)
 		return err;
 	}
 
-	pr_info("acpi device and _CFG succesful\n");
+	pr_info("acpi device and _CFG successful.\n");
 	
 	err = legion_acpi_get_ec_start(adev, &start_addr_ec);
 	if(err){
@@ -392,7 +667,7 @@ static int acpi_driver_init(void){
 	pr_info("Register ACPI driver.\n");
 	err = acpi_bus_register_driver(&ideapad_extra_acpi_driver);
 	if (err) {
-		pr_info("Error loading acpi driver\n");
+		pr_info("Error loading acpi driver.\n");
 		goto error_register;
 	}
 

@@ -1,0 +1,71 @@
+Package: lenovolegionlinux-dkms
+Version: 0.0.9
+Architecture: amd64
+Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
+Installed-Size: 299
+Depends: dkms (>= 1.95)
+Provides: lenovolegionlinux-modules (= 0.0.9)
+Filename: ./lenovolegionlinux-dkms_0.0.9_amd64.deb
+Size: 47296
+MD5sum: d777c2a38e408289be2843a048f73558
+SHA1: 8ca22bbd387ac3814aaa84e997dcdc6ea616fa02
+SHA256: 309cdf4ceb1a43b4395c1967fa72ae77cf827941988ed57bef537e81d4374ef4
+Section: misc
+Priority: optional
+Description: lenovolegionlinux driver in DKMS format.
+
+Package: python3-darkdetect
+Source: darkdetect
+Version: 0.8.0-1
+Architecture: all
+Maintainer: None <None>
+Installed-Size: 36
+Depends: python3:any
+Filename: ./python3-darkdetect_0.8.0-1_all.deb
+Size: 7420
+MD5sum: ae5187cd157eccf1cfec1968d1874738
+SHA1: 5915fdebd9b689435599e6a565863b84012e3b6d
+SHA256: a1da98ab3e1acb9af4d60027afaf336f457298b7471f6cdd3e18681d1978e49a
+Section: python
+Priority: optional
+Homepage: https://github.com/albertosottile/darkdetect
+Description: Detect OS Dark Mode from Python
+ # Darkdetect
+ .
+ This package allows to detect if the user is using Dark Mode on:
+ .
+ - [macOS 10.14+](https://support.apple.com/en-us/HT208976)
+ - [Windows 10 1607+](https://blogs.windows.com/windowsexperience/2016/08/08/windows-10-tip-personalize-your-pc-by-enabling-the-dark-theme/)
+ - Linux with [a dark GTK theme](https://www.gnome-look.org/browse/cat/135/ord/rating/?tag=dark).
+ .
+ The main application of this package is to detect the Dark mode from your GUI Python application (Tkinter/wx/pyqt/qt for python (pyside)/...) and apply the needed adjustments to your interface. Darkdetect is particularly useful if your GUI library **does not** provide a public API for this detection (I am looking at you, Qt). In addition, this package does not depend on other modules or packages that are not already included in standard Python distributions.
+ .
+ .
+ ## Usage
+ .
+ ```
+ import darkdetect
+ .
+ >>> darkdetect.theme()
+ 'Dark'
+ .
+ >>> darkdetect.isDark()
+
+Package: python3-legion-linux
+Source: legion-linux
+Version: 0.0.9-1
+Architecture: all
+Maintainer: None <None>
+Installed-Size: 211
+Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
+Filename: ./python3-legion-linux_0.0.9-1_all.deb
+Size: 31212
+MD5sum: 5fbb0f8ec0451076c3c13e5b92f165b9
+SHA1: aeb2543eed9c55eb6e34ac2bda97eed913d7828f
+SHA256: dc87cebc68ee14d3515bcc84d13573e0dda4203599f120a037c2d62fb5e3ce92
+Section: python
+Priority: optional
+Homepage: https://github.com/johnfanv2/LenovoLegionLinux
+Description: Control Lenovo Legion laptop
+ See documenation of LenovoLegionLinux
+

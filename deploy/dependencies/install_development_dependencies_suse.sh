@@ -2,11 +2,13 @@
 set -ex
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+# refresh, otherwise sometimes we get "digest failure" because mirror/version changed from last time
+sudo zypper refresh 
 
 # Linter
 # Tools for running GUI tests headless
 # install directly from package file because which dependency broken
-sudo rpm -i --nodeps https://download.opensuse.org/repositories/openSUSE:/Factory/standard/noarch/xvfb-run-1.5.2-7.1.noarch.rpm
+sudo rpm -i --nodeps https://download.opensuse.org/repositories/openSUSE:/Factory/standard/noarch/xvfb-run-1.5.2-7.2.noarch.rpm
 # sudo zypper -n install --force --best-effort xvfb-run
 sudo zypper --non-interactive install \
     wget \

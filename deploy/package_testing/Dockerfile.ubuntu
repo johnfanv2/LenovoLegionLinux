@@ -1,0 +1,27 @@
+FROM ubuntu:22.04
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install sudo (used in scripts that are tested)
+RUN apt-get update && \
+    apt-get -y install sudo
+
+# Set timezone (used by pylint) and locale
+ENV LANG=en_US.UTF-8  
+ENV LANGUAGE=en_US:en  
+ENV LC_ALL=en_US.UTF-8    
+RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
+    apt-get -y install locales tzdata && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+
+RUN mkdir /opt/LinuxLegionLaptop
+WORKDIR /opt/LinuxLegionLaptop
+
+COPY ./deploy/dependencies/install_test_dependencies_ubuntu.sh ./deploy/dependencies/install_test_dependencies_ubuntu.sh
+RUN ./deploy/dependencies/install_test_dependencies_ubuntu.sh
+
+# Test: Maybe refactor to run outside of Dockerfile
+COPY deploy deploy
+COPY tests tests
+RUN ./deploy/package_testing/download_install_deb_ppa.sh
+RUN ./tests/test_python_installed.sh

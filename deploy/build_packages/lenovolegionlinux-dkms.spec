@@ -1,4 +1,3 @@
-# norootforbuild
 %define srcname LenovoLegionLinux
 %global dkms_name %{srcname}
 
