@@ -45,6 +45,7 @@ install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_l
 
 %files -n python-%{srcname}
 %doc README.md
+%license LICENSE
 %{python3_sitelib}/%{libname}
 %{python3_sitelib}/%{libname}-%{version}.dist-info
 %{_bindir}/fancurve-set
