@@ -31,5 +31,5 @@ RUN ./deploy/dependencies/install_test_dependencies_fedora.sh
 # Test: Maybe refactor to run outside of Dockerfile
 COPY deploy deploy
 COPY tests tests
-RUN ./deploy/package_testing/download_install_rpm_ppa.sh
-#RUN ./tests/test_python_installed.sh
+RUN ./deploy/package_testing/download_install_fedora_copr.sh
+RUN ./tests/test_python_installed.sh

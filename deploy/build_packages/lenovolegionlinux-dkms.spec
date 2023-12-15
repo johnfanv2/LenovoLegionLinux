@@ -1,13 +1,14 @@
 # norootforbuild
-%global dkms_name lenovolegionlinux
+%define srcname LenovoLegionLinux
+%global dkms_name %{srcname}
 
-Name:         dkms-lenovolegionlinux
-License:      GPL
+Name:         dkms-%{srcname}
+License:      GPL-2.0
 Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
-Version:      _VERSION
+Version:      0.0.9
 Release:      0
-Source0:      %{dkms_name}-kmod-%{version}-x86_64.tar.gz
+Source0:      https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}-prerelease.tar.gz
 
 Requires:     dkms
 
@@ -15,11 +16,11 @@ Requires:     dkms
 Driver for controlling Lenovo Legion laptops including fan control and power mode.
 
 %prep
-%autosetup -p0 -n %{dkms_name}-kmod-%{version}-x86_64
+%autosetup -p1 -n %{srcname}-%{version}-prerelease
 
 %install
 mkdir -p %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
-cp -fr * %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
+cp -fr kernel_module/* %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
 
 %post
 dkms add -m %{dkms_name} -v %{version} -q || :
@@ -32,4 +33,6 @@ dkms install -m %{dkms_name} -v %{version} -q --force || :
 dkms remove -m %{dkms_name} -v %{version} -q --all || :
 
 %files
+%license LICENSE
+%doc README.md
 %{_usrsrc}/%{dkms_name}-%{version}

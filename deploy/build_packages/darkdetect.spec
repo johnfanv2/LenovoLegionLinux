@@ -1,18 +1,21 @@
 %global srcname darkdetect
-%define version _VERSION
+%global libname %{srcname}
+%global pkgname %{srcname}
 
 Summary: Detect OS Dark Mode from Python
-Name: python-darkdetect
-Version: %{version}
+Name: python-%{pkgname}
+Version: 0.8.0
 Release: 1
-Source0: %{name}-%{version}.tar.gz
-License: BSD-3-Clause
+Source0: https://github.com/albertosottile/darkdetect/archive/refs/tags/v%{version}.tar.gz
+Source1: https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/main/deploy/build_packages/setup.cfg
+Source2: https://raw.githubusercontent.com/johnfanv2/LenovoLegionLinux/main/deploy/build_packages/setup.py
+License: Custom
 Group: Development/Libraries
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
-Prefix: %{_prefix}
 BuildArch: noarch
 BuildRequires:  python3-devel
+BuildRequires:  python3-setuptools
 BuildRequires:  python3-wheel
+BuildRequires:  python3-pip
 Vendor: Alberto Sottile <asottile@gmail.com>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/albertosottile/darkdetect
@@ -84,19 +87,19 @@ pip install darkdetect[macos-listener]
 
 
 %prep
-%autosetup -n %{name}-%{version} -n %{name}-%{version}
+%autosetup -p1 -n %{pkgname}-%{version}
+cp %{SOURCE1} %{SOURCE2} .
+sed -i "s/version = _VERSION/version = %{version}/g" setup.cfg
 
 %build
-unset RPM_BUILD_ROOT
-%{python3} setup.py bdist_wheel
+%pyproject_wheel
 
 %install
-[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
-mkdir %{buildroot}
-mkdir %{buildroot}/usr
-cd "%{_builddir}/%{name}-%{version}"
-%{python3} -m installer --destdir="%{buildroot}" dist/*.whl
+%pyproject_install
+%pyproject_save_files darkdetect
 
-%files -n python-%{srcname}
-%{python3_sitelib}/darkdetect/*
-%{python3_sitelib}/darkdetect-%{version}.dist-info/*
+%files -n python-%{pkgname}
+%doc README.md
+%license LICENSE
+%{python3_sitelib}/%{libname}/
+%{python3_sitelib}/%{libname}-%{version}.dist-info
