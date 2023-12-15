@@ -6,6 +6,24 @@
 [![Join Discord](https://img.shields.io/discord/761178912230473768?label=Legion%20Series%20Discord)](https://discord.com/invite/legionseries)
 [![Check Reddit](https://img.shields.io/static/v1?label=Reddit&message=LenovoLegion&color=green)](https://www.reddit.com/r/LenovoLegion/)
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
+</br>
+[![Unbutu and Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-LLL_PPA-orange)](https://github.com/johnfanv2/LenovoLegionLinux/tree/main/package_repo)
+[![Fedora Copr](https://img.shields.io/badge/Nobara%2FFedora-fedora_copr-blue)](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+[![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=AUR%20Package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
+[![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=AUR%20Package%20%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
+[![GURU Overlay](https://img.shields.io/badge/Gentoo_Overlay-GURU-blueviolet)](https://gitweb.gentoo.org/repo/proj/guru.git/)
+[![LLL Package](https://img.shields.io/badge/Live%20Ebuild-sys--firmware%2Flenovolegionlinux-blueviolet)](https://gpo.zugaina.org/sys-firmware/lenovolegionlinux)
+[![NixOS](https://img.shields.io/badge/NixOS--package-lenovo--legion-9cf)](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
+</br>
+[![Nobara](https://img.shields.io/badge/Nobara_Linux-Kernel_Patched-green)](https://nobaraproject.org/)
+[![CachyOS](https://img.shields.io/badge/CachyOS_Linux-Kernel_Patched-green)](https://cachyos.org)
+[![PikaOS](https://img.shields.io/badge/PikaOS_Linux-Kernel_Patched-green)](https://pika-os.com/)
+---
+
+#### Other language versions of this README file:
+
+* [简体中文版简介](README_zh-hans.md)
+>>>>>>> c984ba3 (Migrate Fedora/RHEL packages to Fedora Copr)
 
 ---
 
@@ -55,6 +73,24 @@ It allows to control a few features like fan curve and power mode.
 - compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
     slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
 
+## :package: Available Packages
+
+- Debian/Ubuntu:
+  - Official PPA (TAG version): [here](https://github.com/johnfanv2/LenovoLegionLinux/blob/main/package_repo)
+  - Official PPA (GIT[^1] version): [here](https://mrduartept.github.io/LLL-pkg-repo)
+- Fedora Base Distros:
+  - Official Fedora COPR (TAG version): [here]((https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+- Arch Base Distros:
+    - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
+    - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)[^2]
+- Gentoo Base Distros:
+    - [GURU Overlay](https://gitweb.gentoo.org/repo/proj/guru.git)
+    - [ebuild](https://gpo.zugaina.org/sys-firmware/lenovolegionlinux)
+- [NixOS](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
+
+[^1]: Build with latest commit every day at midnight GMT
+
+[^2]: Only need if are not using CachyOS
 
 ## :pushpin: Confirmed Compatible Models
 Other Lenovo Legion models from 2020 to 2023 probably also work. The following were confirmed.

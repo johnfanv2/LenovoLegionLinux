@@ -114,3 +114,96 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         release_id: ${{ steps.create_release.outputs.id }}
+
+  test-in-docker-container:
+    needs: [build, run-tests]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Build containers and run tests inside them
+      run: ./deploy/build_containers.sh
+      shell: bash
+
+  build-test-commit-debs:
+    needs: [test-in-docker-container]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Check if tagged
+      id: check_if_tagged
+      run: |
+        otag=$(git tag --points-at HEAD)
+        echo "Tag is ${otag}"
+        if [ -z "$otag" ]
+        then
+          hastag=0
+        else
+          hastag=1
+        fi
+        echo "hastag=$hastag" >> $GITHUB_OUTPUT
+
+    - name: Update submodules
+      run: |
+        git submodule update --init
+        git pull --recurse-submodules
+        git submodule update --remote --recursive
+      shell: bash
+
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
+
+    - name: Build deb darkdetect
+      run: ./deploy/build_packages/build_deb_darkdetect.sh
+      shell: bash
+
+    - name: Build pkgs LenovoLegionLinux
+      run: |
+        ./deploy/build_packages/build_deb_LLL.sh
+      shell: bash
+
+    - name: Import GPG key
+      uses: crazy-max/ghaction-import-gpg@v5
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+
+    - name: Copy and Generate files - Ubuntu
+      run: |
+        cd package_repo/ubuntu
+        gpg --armor --export "${{ secrets.GPG_ID }}" > ./KEY.gpg
+        dpkg-scanpackages --multiversion . > Packages
+        gzip -k -f Packages
+        apt-ftparchive release . > Release
+        gpg --default-key "${{ secrets.GPG_ID }}" -abs -o - Release > Release.gpg
+        gpg --default-key "${{ secrets.GPG_ID }}" --clearsign -o - Release > InRelease
+        echo "deb [signed-by=/usr/share/keyrings/lll-ppa.gpg] https://johnfanv2.github.io/LenovoLegionLinux/package_repo/ubuntu ./" > lll-ppa.list
+      shell: bash
+
+    - name: Commit changes
+      if: steps.check_if_tagged.outputs.hastag == 1
+      run: |
+        git fetch
+        git add -A
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        git commit -m "Add new debs"
+        git pull --rebase
+        git push
+      shell: bash
+
+  test-packages:
+    needs: [build-test-commit-debs]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Build containers and run tests inside them
+      run: |
+        ./deploy/package_testing/build_containers.sh
+      shell: bash
