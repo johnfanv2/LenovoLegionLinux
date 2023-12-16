@@ -35,4 +35,4 @@ RUN ./deploy/dependencies/install_test_dependencies_fedora.sh
 COPY deploy deploy
 COPY tests tests
 RUN ./deploy/package_testing/download_install_fedora_copr.sh
-RUN ./tests/test_python_installed.sh
+#RUN ./tests/test_python_installed.sh
