@@ -725,7 +725,7 @@ class PowerProfilesDeamonService(SystemDServiceFeature):
         super().__init__('power-profiles-daemon')
 
 
-class LenovoLegionLaptopSuppoerService(SystemDServiceFeature):
+class LenovoLegionLaptopSupportService(SystemDServiceFeature):
     def __init__(self):
         super().__init__('legion-linux.service legion-linux.path')
 
@@ -1418,7 +1418,7 @@ class LegionModelFacade:
 
         # services
         self.power_profiles_deamon_service = PowerProfilesDeamonService()
-        self.lenovo_legion_laptop_support_service = LenovoLegionLaptopSuppoerService()
+        self.lenovo_legion_laptop_support_service = LenovoLegionLaptopSupportService()
         self.legion_gui_autostart = LegionGUIAutostart()
 
         # monitors
