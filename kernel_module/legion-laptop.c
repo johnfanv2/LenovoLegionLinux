@@ -367,15 +367,15 @@ static const struct ec_register_offsets ec_register_offsets_loq_v0 = {
 	.ECHIPID2 = 0x2001,
 	.ECHIPVER = 0x2002,
 	.ECDEBUG = 0x2003,
-	.EXT_FAN_CUR_POINT = 0xC5a0, 
+	.EXT_FAN_CUR_POINT = 0xC5a0,
 	.EXT_FAN_POINTS_SIZE = 0xC5a0, // constant 0
 	.EXT_FAN1_BASE = 0xC530,
-	.EXT_FAN2_BASE = 0xC530, // same rpm as cpu 
+	.EXT_FAN2_BASE = 0xC530, // same rpm as cpu
 	.EXT_FAN_ACC_BASE = 0xC5a0, // not found yet
 	.EXT_FAN_DEC_BASE = 0xC5a0, // not found yet
-	.EXT_CPU_TEMP = 0xC52F, 
+	.EXT_CPU_TEMP = 0xC52F,
 	.EXT_CPU_TEMP_HYST = 0xC5a0, // not found yet
-	.EXT_GPU_TEMP = 0xC531, 
+	.EXT_GPU_TEMP = 0xC531,
 	.EXT_GPU_TEMP_HYST = 0xC5a0, // not found yet
 	.EXT_VRM_TEMP = 0xC5a0, // not found yet
 	.EXT_VRM_TEMP_HYST = 0xC5a0, // not found yet
@@ -388,7 +388,7 @@ static const struct ec_register_offsets ec_register_offsets_loq_v0 = {
 	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
-	.EXT_POWERMODE = 0xc41D, 
+	.EXT_POWERMODE = 0xc41D,
 	.EXT_FAN1_TARGET_RPM = 0xC5a0, // not found yet
 	.EXT_FAN2_TARGET_RPM = 0xC5a0, // not found yet
 	.EXT_MAXIMUMFANSPEED = 0xC5a0, // not found yet
@@ -3007,7 +3007,7 @@ static int ec_read_fancurve_loq(struct ecram *ecram,
 		point->decel = 0;
 		point->cpu_max_temp_celsius =
 			ecram_read(ecram, model->registers->EXT_CPU_TEMP + (i * struct_offset));
-		point->gpu_max_temp_celsius = 
+		point->gpu_max_temp_celsius =
 			ecram_read(ecram, model->registers->EXT_GPU_TEMP + (i * struct_offset));
 		point->cpu_min_temp_celsius = 0;
 		point->gpu_min_temp_celsius = 0;
@@ -3030,7 +3030,7 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 	size_t i;
 	int valr1;
 	int valr2;
-	size_t struct_offset = 3; // {cpu_temp: u8, rpm: u8, gpu_temp?: u8} 
+	size_t struct_offset = 3; // {cpu_temp: u8, rpm: u8, gpu_temp?: u8}
 
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		const struct fancurve_point *point = &fancurve->points[i];
