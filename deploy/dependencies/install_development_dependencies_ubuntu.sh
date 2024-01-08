@@ -10,7 +10,7 @@ sudo apt-get update
 sudo apt-get -y -qq install \
     wget \
     pylint python3-venv python3-pip \
-    xvfb libxcb-xinerama0
+    xvfb libxcb-xinerama0 libgl1-mesa-glx
 
 sudo pip install pyqt6-tools PyQt6
 
