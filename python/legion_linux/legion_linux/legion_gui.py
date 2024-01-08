@@ -9,11 +9,12 @@ import logging
 import random
 import time
 from typing import List, Optional
-from PyQt5 import QtGui, QtCore
-from PyQt5.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
+from PyQt6 import QtGui, QtCore
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
+from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QAction, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
+    QCheckBox, QSystemTrayIcon, QMenu, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
@@ -927,7 +928,7 @@ class LegionController:
 class FanCurveEntryView():
     def __init__(self, point_id, layout):
         self.point_id_label = QLabel(f'{point_id}')
-        self.point_id_label.setAlignment(Qt.AlignCenter)
+        self.point_id_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.fan_speed1_edit = QLineEdit()
         self.fan_speed2_edit = QLineEdit()
         self.cpu_lower_temp_edit = QLineEdit()
@@ -1376,7 +1377,7 @@ class AboutTab(QWidget):
         about_label = QLabel(
             'Help by giving a star to the github repo <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>')
         about_label.setOpenExternalLinks(True)
-        about_label.setAlignment(Qt.AlignCenter)
+        about_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout = QVBoxLayout()
         layout.addWidget(about_label)
         self.setLayout(layout)
@@ -1472,7 +1473,7 @@ class MainWindow(QMainWindow):
     def set_header_msg(self, text: str):
         self.header_msg.setText(text)
         self.header_msg.setOpenExternalLinks(True)
-        self.header_msg.setAlignment(Qt.AlignCenter)
+        self.header_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def set_random_header_msg(self):
         # pylint: disable=line-too-long
@@ -1697,7 +1698,7 @@ def main():
     main_window.show()
 
     # Run
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
