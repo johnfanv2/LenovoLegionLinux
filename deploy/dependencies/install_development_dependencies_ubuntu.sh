@@ -12,7 +12,7 @@ sudo apt-get -y -qq install \
     pylint python3-venv python3-pip \
     xvfb libxcb-xinerama0
 
-sudo pip install pyqt6-tools
+sudo pip install pyqt6-tools PyQt6
 
 ${DIR}/install_dependencies_ubuntu.sh
 ${DIR}/linux_kernel/install_checkpath.sh
