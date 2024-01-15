@@ -1512,10 +1512,10 @@ class MainWindow(QMainWindow):
         self.close_timer.start(milliseconds)
 
     def bring_to_foreground(self):
-        self.setWindowFlag(QtCore.Qt.Window)
-        self.setWindowFlags(self.windowFlags() & (~QtCore.Qt.Tool))
+        self.setWindowFlag(QtCore.Qt.WindowType.Window)
+        self.setWindowFlags(self.windowFlags() & (~QtCore.Qt.WindowType.Tool))
         self.setWindowState(self.windowState(
-        ) & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+        ) & ~QtCore.Qt.WindowState.WindowMinimized | QtCore.Qt.WindowState.WindowActive)
         self.activateWindow()
         self.show()
 
@@ -1524,7 +1524,7 @@ class MainWindow(QMainWindow):
             # do not hide to tray when running as root because
             # a program run as root cannot usually
             # show a tray icon
-            self.setWindowFlag(QtCore.Qt.Tool)
+            self.setWindowFlag(QtCore.Qt.WindowType.Tool)
             self.hide()
 
 
