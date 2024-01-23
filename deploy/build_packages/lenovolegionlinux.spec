@@ -19,7 +19,7 @@ Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/johnfanv2/LenovoLegionLinux
 
-Requires:     PyQt5
+Requires:     PyQt6
 Requires:     python-yaml
 Requires:     python-argcomplete
 Requires:     python-darkdetect
