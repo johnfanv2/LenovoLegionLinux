@@ -6,7 +6,7 @@ DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 sudo pacman -S --noconfirm --disable-download-timeout wget \
     python3 \
     python-pylint \
-    xorg-server-xvfb libxcb
+    weston xwayland meson
 
 ${DIR}/linux_kernel/install_checkpath.sh
 

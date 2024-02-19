@@ -13,7 +13,7 @@ sudo rpm -i --nodeps https://download.opensuse.org/repositories/openSUSE:/Factor
 sudo zypper --non-interactive install \
     wget \
     python3-pylint \
-    xorg-x11-server-extra libxcb-xinerama0 xauth
+    weston xwayland meson
 
 
 ${DIR}/linux_kernel/install_checkpath.sh

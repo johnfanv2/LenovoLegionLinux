@@ -1,3 +1,3 @@
 #!/bin/bash
 sudo apt-get update
-sudo apt-get install -y xvfb libxcb-xinerama0
+sudo apt-get install -y xwayland weston meson

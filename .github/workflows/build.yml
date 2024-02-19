@@ -38,6 +38,9 @@ jobs:
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
+    - name: Install xwayland-run
+      run: ./deploy/dependencies/install_xwayland-run.sh
+      shell: bash
     - name: Test Install
       run: ./tests/test_kernel_install.sh
       shell: bash

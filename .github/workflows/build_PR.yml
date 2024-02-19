@@ -58,6 +58,9 @@ jobs:
       - name: Install Development Dependencies
         run: ./deploy/dependencies/install_development_dependencies_ubuntu.sh
         shell: bash
+      - name: Install xwayland-run
+        run: ./deploy/dependencies/install_xwayland-run.sh
+        shell: bash
       - name: Lint with Linux checkpath
         if: always()
         run: ./tests/test_kernel_checkpath.sh
