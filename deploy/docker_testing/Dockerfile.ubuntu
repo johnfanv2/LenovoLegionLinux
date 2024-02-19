@@ -15,7 +15,7 @@ RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /
     locale-gen
  
 
-RUN apt-get install -y gcc-11
+RUN apt-get install -y gcc-12
 
 RUN mkdir /opt/LinuxLegionLaptop
 WORKDIR /opt/LinuxLegionLaptop
@@ -25,6 +25,7 @@ RUN deploy/dependencies/install_dependencies_ubuntu-23.04.sh
 
 COPY ./deploy/dependencies ./deploy/dependencies
 RUN deploy/dependencies/install_development_dependencies_ubuntu-23.04.sh
+RUN deploy/dependencies/build_xwayland-ubuntu.sh
 RUN deploy/dependencies/install_xwayland-run.sh
 
 COPY . /opt/LinuxLegionLaptop
@@ -34,6 +35,6 @@ RUN tests/test_kernel_build.sh \
 RUN tests/test_python_cli.sh \
     && tests/test_python_gui.sh
 RUN deploy/python_install_pip_pkg.sh \
-    && tests/test_python_cli.sh \
-    && tests/test_python_gui.sh 
+    && tests/test_python_cli_installed.sh \
+    && tests/test_python_gui_installed.sh 
 #RUN tests/test_python_run_gui_root.sh

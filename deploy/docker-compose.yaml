@@ -1,28 +1,6 @@
 version: "3.9"
 services:
-  legion-arch:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.arch
-  legion-manjaro:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.arch
-      args:
-        - "BASE_IMAGE=manjarolinux/base"
-  legion-fedora:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.fedora
-  # legion-suse:
-  #   build:
-  #     context: ..
-  #     dockerfile: deploy/Dockerfile.suse
-  legion-ubuntu:
+  testing-legion-ubuntu:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.ubuntu
-  ubuntu:
-    image: ubuntu:latest
-    volumes:
-      - "../:/app/LenovoLegionLinux"
