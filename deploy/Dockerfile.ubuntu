@@ -25,6 +25,8 @@ RUN deploy/dependencies/install_dependencies_ubuntu.sh
 
 COPY ./deploy/dependencies ./deploy/dependencies
 RUN deploy/dependencies/install_development_dependencies_ubuntu.sh
+RUN deploy/dependencies/build_xwayland-ubuntu.sh
+RUN deploy/dependencies/install_xwayland-run.sh
 
 COPY . /opt/LinuxLegionLaptop
 

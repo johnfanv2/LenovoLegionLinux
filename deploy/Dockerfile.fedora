@@ -33,6 +33,7 @@ RUN deploy/dependencies/install_dependencies_fedora.sh
 
 COPY ./deploy/dependencies ./deploy/dependencies
 RUN deploy/dependencies/install_development_dependencies_fedora.sh
+RUN deploy/dependencies/install_install_xwayland-run.sh
 
 COPY . /opt/LinuxLegionLaptop
 

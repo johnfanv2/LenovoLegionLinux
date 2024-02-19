@@ -6,7 +6,7 @@ sudo dnf makecache
 # Tools for running GUI tests headless
 sudo dnf -y install wget \
     python3 \
-    xorg-x11-server-Xvfb libxcb
+    weston xwayland meson
 # Linter/Tests (not as package in all rhel variants available!)
 python3 -m pip install pytest pylint
 
