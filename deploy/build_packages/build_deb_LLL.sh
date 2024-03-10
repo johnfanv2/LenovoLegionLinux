@@ -55,6 +55,7 @@ cd deb_dist/legion-linux-${TAG}
 sudo cp -R ${REPODIR}/extra/service/legion-linux.service .
 sudo cp -R ${REPODIR}/extra/service/legion-linux.path .
 echo "legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legion-linux-onresume.service /etc/systemd/system/" | sudo tee -a debian/install
 echo "legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
 sudo EDITOR=/bin/true dpkg-source -q --commit . p1
 

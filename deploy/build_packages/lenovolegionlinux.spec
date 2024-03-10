@@ -41,6 +41,7 @@ cd python/legion_linux
 %pyproject_save_files legion_linux
 
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux-onresume.service
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
 
 %files -n python-%{srcname}
