@@ -1,0 +1,13 @@
+[Unit]
+Description=Restart legion-linux on resume
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStop=/usr/bin/systemctl restart legion-linux.service
+TimeoutStopSec=infinity
+
+[Install]
+WantedBy=sleep.target
