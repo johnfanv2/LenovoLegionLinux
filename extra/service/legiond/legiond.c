@@ -26,14 +26,14 @@ void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
 
 int main()
 {
-  // calculate delay
+	// calculate delay
 	long delay_s = (int)delay;
 	long delay_ns = (int)((delay - (int)delay) * 1000000000);
 
-  // not blocking output
+	// not blocking output
 	setbuf(stdout, NULL);
 
-  // init timer
+	// init timer
 	timer_t timerid;
 	struct itimerspec its;
 
@@ -45,12 +45,12 @@ int main()
 
 	timer_create(CLOCK_REALTIME, &sev, &timerid);
 
-  // remove socket before create it
+	// remove socket before create it
 	if (access(socket_path, F_OK) != -1) {
 		remove(socket_path);
 	}
 
-  // init socket
+	// init socket
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
@@ -66,7 +66,7 @@ int main()
 	// run fancurve-set on startup
 	timer_handler();
 
-  // listen
+	// listen
 	while (1) {
 		int clientfd = accept(fd, NULL, NULL);
 		char ret[20];
@@ -74,7 +74,7 @@ int main()
 		recv(clientfd, ret, sizeof(ret), 0);
 		printf("cmd: \"%s\" received\n", ret);
 		if (ret[0] == 'A') {
-      // delayed means user use legiond-cli fanset with a parameter
+			// delayed means user use legiond-cli fanset with a parameter
 			if (delayed) {
 				printf("extend delay\n");
 				set_timer(&its, delayed, 0, timerid);

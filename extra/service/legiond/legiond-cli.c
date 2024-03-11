@@ -2,7 +2,7 @@
 
 int main(int argc, char *argv[])
 {
-  // init socket
+	// init socket
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 			if (argc > 2) {
 				int delay;
 				sscanf(argv[2], "%d", &delay);
-        // for example "A3" means 3 seconds delay
+				// for example "A3" means 3 seconds delay
 				sprintf(request, "A%d", delay);
 			}
 		};
