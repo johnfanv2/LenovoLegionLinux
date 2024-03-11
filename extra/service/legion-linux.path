@@ -1,6 +1,0 @@
-[Path]
-Unit=legion-linux.service
-PathModified=/sys/firmware/acpi/platform_profile
-
-[Install]
-WantedBy=default.target
