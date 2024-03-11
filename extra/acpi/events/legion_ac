@@ -1,0 +1,2 @@
+event=ac_adapter*
+action=/usr/bin/legiond-cli fanset 3

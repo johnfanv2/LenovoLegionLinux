@@ -1,0 +1,8 @@
+[Unit]
+Description=legiond daemon
+
+[Service]
+ExecStart=/usr/bin/legiond
+
+[Install]
+WantedBy=multi-user.target
