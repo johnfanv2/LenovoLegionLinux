@@ -23,6 +23,7 @@ Requires:     PyQt6
 Requires:     python-yaml
 Requires:     python-argcomplete
 Requires:     python-darkdetect
+Requires:     acpid
 
 %description
 See documenation of LenovoLegionLinux
@@ -35,15 +36,17 @@ sed -i "s/version = _VERSION/version = %{version}/g" setup.cfg
 %build
 cd python/legion_linux
 %pyproject_wheel
+cd extra/extra/service/legiond
+make
 
 %install
 %pyproject_install
 %pyproject_save_files legion_linux
 
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.service %{_unitdir}/legion-linux-onresume.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-linux.path %{_unitdir}/legion-linux.path
-
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-onresume.service %{_unitdir}/legiond-onresume.service
+install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond-cli %{_bindir}/legiond_cli
+install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond %{_bindir}/legiond
 %files -n python-%{srcname}
 %doc README.md
 %license LICENSE

@@ -38,6 +38,10 @@ sudo mv /var/lib/dkms/lenovolegionlinux/${TAG}/deb/lenovolegionlinux-dkms_${TAG}
 echo "Dkms deb located at ${BUILD_DIR}/lenovolegionlinux-dkms_${TAG}_amd64.deb"
 ##
 
+##BUILD Legiond before deb
+cd ${REPODIR}/extra/service/legiond
+make
+
 ##BUILD PYTHON DEB
 cp -r ${REPODIR}/python/legion_linux ${BUILD_DIR}
 cd ${BUILD_DIR}/legion_linux
@@ -52,11 +56,14 @@ sudo python3 setup.py --command-packages=stdeb.command sdist_dsc
 cd deb_dist/legion-linux-${TAG}
 
 ##Add to debial install
-sudo cp -R ${REPODIR}/extra/service/legion-linux.service .
-sudo cp -R ${REPODIR}/extra/service/legion-linux.path .
-echo "legion-linux.service /etc/systemd/system/" | sudo tee -a debian/install
-echo "legion-linux-onresume.service /etc/systemd/system/" | sudo tee -a debian/install
-echo "legion-linux.path /lib/systemd/system/" | sudo tee -a debian/install
+sudo cp -R ${REPODIR}/extra/service/legiond.service .
+sudo cp -R ${REPODIR}/extra/service/legiond-onresume.path .
+sudo cp -R ${REPODIR}/extra/service/legiond/legiond .
+sudo cp -R ${REPODIR}/extra/service/legiond/legiond-cli .
+echo "legiond.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legiond-onresume.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legiond /usr/bin/legiond" | sudo tee -a debian/install
+echo "legiond-cli /usr/bin/legiond_cli" | sudo tee -a debian/install
 sudo EDITOR=/bin/true dpkg-source -q --commit . p1
 
 # Build package
