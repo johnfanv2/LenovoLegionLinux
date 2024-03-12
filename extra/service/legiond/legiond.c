@@ -1,6 +1,21 @@
 #include "public.h"
 
 int delayed = 0;
+int fd;
+
+void clear_socket()
+{
+	if (access(socket_path, F_OK) != -1) {
+		remove(socket_path);
+	}
+}
+
+void term_handler(int signum)
+{
+	close(fd);
+	clear_socket();
+	exit(0);
+}
 
 void timer_handler()
 {
@@ -27,9 +42,7 @@ void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
 int main()
 {
 	// remove socket before create it
-	if (access(socket_path, F_OK) != -1) {
-		remove(socket_path);
-	}
+	clear_socket();
 
 	// calculate delay
 	long delay_s = (int)delay;
@@ -51,7 +64,7 @@ int main()
 	timer_create(CLOCK_REALTIME, &sev, &timerid);
 
 	// init socket
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
 	strcpy(addr.sun_path, socket_path);
@@ -65,6 +78,12 @@ int main()
 
 	// run fancurve-set on startup
 	set_timer(&its, delay, 0, timerid);
+
+	// setup SIGTERM handler
+	struct sigaction action;
+	memset(&action, 0, sizeof(action));
+	action.sa_handler = term_handler;
+	sigaction(SIGTERM, &action, NULL);
 
 	// listen
 	while (1) {
@@ -93,7 +112,4 @@ int main()
 		}
 		close(clientfd);
 	}
-
-	close(fd);
-	exit(0);
 }

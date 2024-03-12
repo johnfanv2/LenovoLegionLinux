@@ -2,6 +2,11 @@
 
 int main(int argc, char *argv[])
 {
+	if (access(socket_path, F_OK) == -1) {
+		printf("socket not found\n");
+		exit(1);
+	}
+
 	// init socket
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un addr;
