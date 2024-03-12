@@ -3,8 +3,8 @@
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
-Version: 0.0.9
-Release: 1
+Version: 0.0.10
+Release: 0
 Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}-prerelease.tar.gz
 License: GPL-2.0
 Group: Development/Libraries
