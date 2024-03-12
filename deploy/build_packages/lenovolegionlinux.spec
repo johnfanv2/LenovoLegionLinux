@@ -37,7 +37,7 @@ sed -i "s/version = _VERSION/version = %{version}/g" setup.cfg
 %build
 cd python/legion_linux
 %pyproject_wheel
-cd extra/service/legiond
+cd legion_linux/extra/service/legiond
 make
 
 %install
