@@ -1,9 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=User LenovoLegionLinux
-Icon=/usr/share/pixmaps/legion_logo.png
-Exec=legion_gui --use_legion_cli_to_write
-Comment=Control Lenovo Legion Laptops
-Categories=System
-Terminal=false
