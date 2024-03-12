@@ -26,6 +26,11 @@ void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
 
 int main()
 {
+	// remove socket before create it
+	if (access(socket_path, F_OK) != -1) {
+		remove(socket_path);
+	}
+
 	// calculate delay
 	long delay_s = (int)delay;
 	long delay_ns = (int)((delay - (int)delay) * 1000000000);
@@ -45,11 +50,6 @@ int main()
 
 	timer_create(CLOCK_REALTIME, &sev, &timerid);
 
-	// remove socket before create it
-	if (access(socket_path, F_OK) != -1) {
-		remove(socket_path);
-	}
-
 	// init socket
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un addr;
@@ -64,7 +64,7 @@ int main()
 	listen(fd, 5);
 
 	// run fancurve-set on startup
-	timer_handler();
+	set_timer(&its, delay, 0, timerid);
 
 	// listen
 	while (1) {
