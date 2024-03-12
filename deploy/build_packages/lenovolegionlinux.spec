@@ -15,6 +15,7 @@ BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
 BuildRequires:  python3-wheel
 BuildRequires:  python3-pip
+BuildRequires: systemd-rpm-macros
 Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/johnfanv2/LenovoLegionLinux
@@ -44,7 +45,7 @@ make
 %pyproject_save_files legion_linux
 
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legion-onresume.service %{_unitdir}/legiond-onresume.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{_unitdir}/legiond-onresume.service
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond-cli %{_bindir}/legiond_cli
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond %{_bindir}/legiond
 %files -n python-%{srcname}

@@ -57,7 +57,7 @@ cd deb_dist/legion-linux-${TAG}
 
 ##Add to debial install
 sudo cp -R ${REPODIR}/extra/service/legiond.service .
-sudo cp -R ${REPODIR}/extra/service/legiond-onresume.path .
+sudo cp -R ${REPODIR}/extra/service/legiond-onresume.service .
 sudo cp -R ${REPODIR}/extra/service/legiond/legiond .
 sudo cp -R ${REPODIR}/extra/service/legiond/legiond-cli .
 echo "legiond.service /etc/systemd/system/" | sudo tee -a debian/install
