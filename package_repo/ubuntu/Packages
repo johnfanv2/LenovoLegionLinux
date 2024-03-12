@@ -2,14 +2,14 @@ Package: lenovolegionlinux-dkms
 Version: 0.0.9
 Architecture: amd64
 Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
-Installed-Size: 299
+Installed-Size: 303
 Depends: dkms (>= 1.95)
 Provides: lenovolegionlinux-modules (= 0.0.9)
 Filename: ./lenovolegionlinux-dkms_0.0.9_amd64.deb
-Size: 47296
-MD5sum: d777c2a38e408289be2843a048f73558
-SHA1: 8ca22bbd387ac3814aaa84e997dcdc6ea616fa02
-SHA256: 309cdf4ceb1a43b4395c1967fa72ae77cf827941988ed57bef537e81d4374ef4
+Size: 47592
+MD5sum: 7ef0a9df81cd7b9d72a7c854a7d85a96
+SHA1: 635b0362ca9e37c10e6c6cd4beec339392a55b5e
+SHA256: 106070e250b2d1fc639f6b30054033f8b69c965ac71e8b0345935be0261601e5
 Section: misc
 Priority: optional
 Description: lenovolegionlinux driver in DKMS format.
@@ -22,10 +22,10 @@ Maintainer: None <None>
 Installed-Size: 36
 Depends: python3:any
 Filename: ./python3-darkdetect_0.8.0-1_all.deb
-Size: 7420
-MD5sum: ae5187cd157eccf1cfec1968d1874738
-SHA1: 5915fdebd9b689435599e6a565863b84012e3b6d
-SHA256: a1da98ab3e1acb9af4d60027afaf336f457298b7471f6cdd3e18681d1978e49a
+Size: 7416
+MD5sum: 4fd482f79c27528c09f9c8594ae4e094
+SHA1: 6c74ec46f35ae64ab0368728386d22531266953b
+SHA256: a8483f9edb58558cac48935396131065bdb14ef21c1cfb6904ce52e8a45ad83c
 Section: python
 Priority: optional
 Homepage: https://github.com/albertosottile/darkdetect
@@ -56,13 +56,13 @@ Source: legion-linux
 Version: 0.0.9-1
 Architecture: all
 Maintainer: None <None>
-Installed-Size: 211
+Installed-Size: 243
 Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
 Filename: ./python3-legion-linux_0.0.9-1_all.deb
-Size: 31212
-MD5sum: 5fbb0f8ec0451076c3c13e5b92f165b9
-SHA1: aeb2543eed9c55eb6e34ac2bda97eed913d7828f
-SHA256: dc87cebc68ee14d3515bcc84d13573e0dda4203599f120a037c2d62fb5e3ce92
+Size: 36530
+MD5sum: f1b5671291b4b8a32836f89b9d256c5a
+SHA1: 303a6dae14277c7ec65a3e6184c8e700ef8c6769
+SHA256: 486ff1ce9d62f4851943a553ed4eb04160e69827977b9809efb483e66e12014c
 Section: python
 Priority: optional
 Homepage: https://github.com/johnfanv2/LenovoLegionLinux
