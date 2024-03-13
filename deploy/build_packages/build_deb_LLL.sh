@@ -61,7 +61,7 @@ sudo cp -R ${REPODIR}/extra/service/legiond-onresume.service .
 sudo mv ${REPODIR}/extra/service/legiond/legiond .
 sudo mv ${REPODIR}/extra/service/legiond/legiond-cli .
 sudo cp -R ${REPODIR}/extra/acpi/events/legion_ac .
-sudo cp -R ${REPODIR}extra/acpi/events/legion_ppd .
+sudo cp -R ${REPODIR}/extra/acpi/events/legion_ppd .
 echo "legiond.service /etc/systemd/system/" | sudo tee -a debian/install
 echo "legiond-onresume.service /etc/systemd/system/" | sudo tee -a debian/install
 echo "legiond /usr/bin/legiond" | sudo tee -a debian/install
