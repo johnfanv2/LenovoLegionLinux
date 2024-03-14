@@ -11,7 +11,7 @@ import time
 from typing import List, Optional
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QIcon, QPixmap, QAction, QGuiApplication
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
@@ -1648,6 +1648,10 @@ def get_icon_path(controller):
     return icon_path
 
 def main():
+    # Set the desktop file name
+    # This make the window icon appear on wayland
+    QGuiApplication.setDesktopFileName("legion_gui.desktop")
+
     app = QApplication(sys.argv)
 
     use_legion_cli_to_write = '--use_legion_cli_to_write' in sys.argv
@@ -1681,6 +1685,11 @@ def main():
     # Resources
     icon_path = get_icon_path(controller)
     icon = QtGui.QIcon(icon_path)
+    # Set tray icon to the window icon
+    # Can't be use since tray icon is a svg 
+    # Only support png and ico
+    # (maybe if PyQT6 introduce svg support)
+    #QGuiApplication.setWindowIcon(icon)
 
     # Main Windows
     main_window = MainWindow(controller, icon)
