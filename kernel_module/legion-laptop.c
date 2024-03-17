@@ -1045,6 +1045,14 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_fccn
 	},
+		// e.g. IdeaPad Gaming 3 15ARH05 (8K21)
+		.ident = "HACN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "HACN"),
+		},
+		.driver_data = (void *)&model_fccn
+	},
 	{
 		// e.g. Ideapad Gaming 3 15ACH6
 		.ident = "H3CN",
