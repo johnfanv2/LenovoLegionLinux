@@ -922,6 +922,26 @@ static const struct model_config model_lzcn = {
 	.ramio_size = 0x600
 };
 
+// Legion Go
+static const struct model_config model_go = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0300,
+	.ramio_size = 0x700
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -1251,6 +1271,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "LZCN"),
 		},
 		.driver_data = (void *)&model_lzcn
+	},
+	{
+		// e.g. Legion Go
+		.ident = "N3CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "N3CN"),
+		},
+		.driver_data = (void *)&model_go
 	},
 	{}
 };
@@ -1621,6 +1650,13 @@ enum OtherMethodFeature {
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
 	OtherMethodFeature_TEMP_GPU = 0x05050000,
+
+	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
+};
+
+struct other_method_val {
+	u32 param;
+	u32 val;
 };
 
 static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
@@ -1637,6 +1673,22 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 			     WMI_METHOD_ID_GET_FEATURE_VALUE, &params, &res);
 	if (!error)
 		*value = res;
+	return error;
+}
+
+static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id,
+					  int value)
+{
+	struct acpi_buffer params;
+	int error;
+	unsigned long res;
+	struct other_method_val param = {
+		.param=feature_id,
+		.val=value
+	};
+
+	error = wmi_exec_arg(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
+			     WMI_METHOD_ID_SET_FEATURE_VALUE, &param, sizeof(param));
 	return error;
 }
 
@@ -3226,6 +3278,22 @@ static ssize_t wmi_write_fanfullspeed(struct legion_private *priv, bool state)
 					1, state);
 }
 
+static ssize_t wmi_read_fanfullspeed_other(struct legion_private *priv,
+					   bool *fullspeed)
+{
+	int res;
+	int err = wmi_other_method_get_value(OtherMethodFeature_FAN_FULLSPEED, &res);
+
+	if (!err)
+		*fullspeed = res ? 1 : 0;
+	return err;
+}
+
+static ssize_t wmi_write_fanfullspeed_other(struct legion_private *priv, bool val)
+{
+	return wmi_other_method_set_value(OtherMethodFeature_FAN_FULLSPEED, (int) val);
+}
+
 static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
 	// TODO: use enums or function pointers?
@@ -3234,6 +3302,8 @@ static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 		return ec_read_fanfullspeed(&priv->ecram, priv->conf, state);
 	case ACCESS_METHOD_WMI:
 		return wmi_read_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi_read_fanfullspeed_other(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
@@ -3251,6 +3321,8 @@ static ssize_t write_fanfullspeed(struct legion_private *priv, bool state)
 		return res;
 	case ACCESS_METHOD_WMI:
 		return wmi_write_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi_write_fanfullspeed_other(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
