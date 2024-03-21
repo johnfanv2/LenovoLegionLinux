@@ -1393,7 +1393,7 @@ err:
 //}
 
 static int wmi_exec_ints(const char *guid, u8 instance, u32 method_id,
-			 const struct acpi_buffer *params, u8 *res,
+			 const struct acpi_buffer *params, void *res,
 			 size_t ressize)
 {
 	acpi_status status;
@@ -1460,7 +1460,7 @@ static int wmi_exec_noarg_int(const char *guid, u8 instance, u32 method_id,
 }
 
 static int wmi_exec_noarg_ints(const char *guid, u8 instance, u32 method_id,
-			       u8 *res, size_t ressize)
+			       void *res, size_t ressize)
 {
 	struct acpi_buffer params;
 
@@ -1687,9 +1687,7 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id,
 					  int value)
 {
-	struct acpi_buffer params;
 	int error;
-	unsigned long res;
 	struct other_method_val param = {
 		.param=feature_id,
 		.val=value
@@ -2748,10 +2746,23 @@ struct WMIFanTable {
 	u16 FSS7;
 	u16 FSS8;
 	u16 FSS9;
+	u8 FSSNULL;
+	u32 FTLE;
+	u16 FST0;
+	u16 FST1;
+	u16 FST2;
+	u16 FST3;
+	u16 FST4;
+	u16 FST5;
+	u16 FST6;
+	u16 FST7;
+	u16 FST8;
+	u16 FST9;
+	u8 FSTNULL;
 } __packed;
 
 struct WMIFanTableRead {
-	u32 FSFL;
+	u32 FSTL;
 	u32 FSS0;
 	u32 FSS1;
 	u32 FSS2;
@@ -2762,40 +2773,50 @@ struct WMIFanTableRead {
 	u32 FSS7;
 	u32 FSS8;
 	u32 FSS9;
-	u32 FSSA;
+	// Ignored for now
+	u32 FTLE;
+	u32 FST0;
+	u32 FST1;
+	u32 FST2;
+	u32 FST3;
+	u32 FST4;
+	u32 FST5;
+	u32 FST6;
+	u32 FST7;
+	u32 FST8;
+	u32 FST9;
 } __packed;
 
 static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 					struct fancurve *fancurve)
 {
-	u8 buffer[88];
+	struct WMIFanTableRead fantable;
 	int err;
 
-	// The output buffer from the ACPI call is 88 bytes and larger
-	// than the returned object
-	pr_info("Size of object: %lu\n", sizeof(struct WMIFanTableRead));
-	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
-				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
-				  sizeof(buffer));
+	struct acpi_buffer params;
+	u32 fanid = 0;
+	params.length = sizeof(fanid);
+	params.pointer = &fanid;
+
+	err = wmi_exec_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
+			    WMI_METHOD_ID_FAN_GET_TABLE, &params, &fantable,
+			    sizeof(fantable));
 	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi buffer",
-		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
-		       true);
+		       DUMP_PREFIX_ADDRESS, 16, 1, &fantable,
+		       sizeof(fantable), true);
 	if (!err) {
-		struct WMIFanTableRead *fantable =
-			(struct WMIFanTableRead *)&buffer[0];
 		fancurve->current_point_i = 0;
-		fancurve->size = 10;
-		fancurve->points[0].rpm1_raw = fantable->FSS0;
-		fancurve->points[1].rpm1_raw = fantable->FSS1;
-		fancurve->points[2].rpm1_raw = fantable->FSS2;
-		fancurve->points[3].rpm1_raw = fantable->FSS3;
-		fancurve->points[4].rpm1_raw = fantable->FSS4;
-		fancurve->points[5].rpm1_raw = fantable->FSS5;
-		fancurve->points[6].rpm1_raw = fantable->FSS6;
-		fancurve->points[7].rpm1_raw = fantable->FSS7;
-		fancurve->points[8].rpm1_raw = fantable->FSS8;
-		fancurve->points[9].rpm1_raw = fantable->FSS9;
-		//fancurve->points[10].rpm1_raw = fantable->FSSA;
+		fancurve->size = fantable.FSTL;
+		fancurve->points[0].rpm1_raw = fantable.FSS0;
+		fancurve->points[1].rpm1_raw = fantable.FSS1;
+		fancurve->points[2].rpm1_raw = fantable.FSS2;
+		fancurve->points[3].rpm1_raw = fantable.FSS3;
+		fancurve->points[4].rpm1_raw = fantable.FSS4;
+		fancurve->points[5].rpm1_raw = fantable.FSS5;
+		fancurve->points[6].rpm1_raw = fantable.FSS6;
+		fancurve->points[7].rpm1_raw = fantable.FSS7;
+		fancurve->points[8].rpm1_raw = fantable.FSS8;
+		fancurve->points[9].rpm1_raw = fantable.FSS9;
 	}
 	return err;
 }
@@ -2803,42 +2824,40 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 					 const struct fancurve *fancurve)
 {
-	u8 buffer[0x20];
+	struct WMIFanTable fan;
+	fan.FSTL = 10;
+	fan.FSS0 = fancurve->points[0].rpm1_raw;
+	fan.FSS1 = fancurve->points[1].rpm1_raw;
+	fan.FSS2 = fancurve->points[2].rpm1_raw;
+	fan.FSS3 = fancurve->points[3].rpm1_raw;
+	fan.FSS4 = fancurve->points[4].rpm1_raw;
+	fan.FSS5 = fancurve->points[5].rpm1_raw;
+	fan.FSS6 = fancurve->points[6].rpm1_raw;
+	fan.FSS7 = fancurve->points[7].rpm1_raw;
+	fan.FSS8 = fancurve->points[8].rpm1_raw;
+	fan.FSS9 = fancurve->points[9].rpm1_raw;
+	fan.FSSNULL = 0;
+	// TODO: These should be variable and may be set on later models
+	// on Legion Go, they are hardcoded
+	fan.FTLE = 10;
+	fan.FST0 = 10;
+	fan.FST1 = 20;
+	fan.FST2 = 30;
+	fan.FST3 = 40;
+	fan.FST4 = 50;
+	fan.FST5 = 60;
+	fan.FST6 = 70;
+	fan.FST7 = 80;
+	fan.FST8 = 90;
+	fan.FST9 = 100;
+	fan.FSTNULL = 0;
 	int err;
 
-	// The buffer is read like this in ACPI firmware
-	//
-	// CreateByteField (Arg2, Zero, FSTM)
-	// CreateByteField (Arg2, One, FSID)
-	// CreateDWordField (Arg2, 0x02, FSTL)
-	// CreateByteField (Arg2, 0x06, FSS0)
-	// CreateByteField (Arg2, 0x08, FSS1)
-	// CreateByteField (Arg2, 0x0A, FSS2)
-	// CreateByteField (Arg2, 0x0C, FSS3)
-	// CreateByteField (Arg2, 0x0E, FSS4)
-	// CreateByteField (Arg2, 0x10, FSS5)
-	// CreateByteField (Arg2, 0x12, FSS6)
-	// CreateByteField (Arg2, 0x14, FSS7)
-	// CreateByteField (Arg2, 0x16, FSS8)
-	// CreateByteField (Arg2, 0x18, FSS9)
-
-	memset(buffer, 0, sizeof(buffer));
-	buffer[0x06] = fancurve->points[0].rpm1_raw;
-	buffer[0x08] = fancurve->points[1].rpm1_raw;
-	buffer[0x0A] = fancurve->points[2].rpm1_raw;
-	buffer[0x0C] = fancurve->points[3].rpm1_raw;
-	buffer[0x0E] = fancurve->points[4].rpm1_raw;
-	buffer[0x10] = fancurve->points[5].rpm1_raw;
-	buffer[0x12] = fancurve->points[6].rpm1_raw;
-	buffer[0x14] = fancurve->points[7].rpm1_raw;
-	buffer[0x16] = fancurve->points[8].rpm1_raw;
-	buffer[0x18] = fancurve->points[9].rpm1_raw;
-
 	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi write buffer",
-		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
+		       DUMP_PREFIX_ADDRESS, 16, 1, &fan, sizeof(fan),
 		       true);
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
-			   WMI_METHOD_ID_FAN_SET_TABLE, buffer, sizeof(buffer));
+			   WMI_METHOD_ID_FAN_SET_TABLE, &fan, sizeof(fan));
 	return err;
 }
 
@@ -5642,6 +5661,34 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
 };
 
+static struct attribute *fancurve_hwmon_attributes_legion_go[] = {
+	&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr,
+	// These should be read only if the driver is properly implemented
+	// and either fail to set or noop
+	// &sensor_dev_attr_pwm1_auto_point1_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point2_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point3_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point4_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point5_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point6_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point7_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point8_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point9_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point10_temp.dev_attr.attr,
+	//
+	&sensor_dev_attr_auto_points_size.dev_attr.attr,
+	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
+};
+
 static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 				       struct attribute *attr, int idx)
 {
@@ -5673,12 +5720,17 @@ static const struct attribute_group legion_hwmon_fancurve_group = {
 	.is_visible = legion_hwmon_is_visible,
 };
 
+static const struct attribute_group legion_go_hwmon_fancurve_group = {
+	.attrs = fancurve_hwmon_attributes_legion_go,
+	.is_visible = legion_hwmon_is_visible,
+};
+
 static const struct attribute_group *legion_hwmon_groups[] = {
 	&legion_hwmon_sensor_group, &legion_hwmon_fancurve_group, NULL
 };
 
 static const struct attribute_group *legion_hwmon_groups_legion_go[] = {
-	&legion_go_hwmon_sensor_group, &legion_hwmon_fancurve_group, NULL
+	&legion_go_hwmon_sensor_group, &legion_go_hwmon_fancurve_group, NULL
 };
 
 static ssize_t legion_hwmon_init(struct legion_private *priv, bool legion_go)
