@@ -929,7 +929,7 @@ static const struct model_config model_go = {
 	.embedded_controller_id = 0x8227,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
@@ -1430,15 +1430,19 @@ static int wmi_exec_int(const char *guid, u8 instance, u32 method_id,
 		goto err;
 	}
 
-	if (out->type != ACPI_TYPE_INTEGER) {
+	if (out->type == ACPI_TYPE_BUFFER && out->buffer.length == 4) {
+		// Legion go fan spped is a buffer
+		*res = *((u64 *)out->buffer.pointer);
+		error = 0;
+	} else if (out->type != ACPI_TYPE_INTEGER) {
 		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d\n",
 			guid, method_id, ACPI_TYPE_INTEGER, out->type);
 		error = -AE_ERROR;
 		goto err;
+	} else {
+		*res = out->integer.value;
+		error = 0;
 	}
-
-	*res = out->integer.value;
-	error = 0;
 
 err:
 	kfree(out);
