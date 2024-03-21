@@ -1654,6 +1654,10 @@ enum OtherMethodFeature {
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
 	OtherMethodFeature_TEMP_GPU = 0x05050000,
+	
+	OtherMethodFeature_TEMP_CHTS = 0x05080000,
+	OtherMethodFeature_TEMP_CRTS = 0x050A0000,
+	OtherMethodFeature_TEMP_CTTS = 0x050B0000,
 
 	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
 };
@@ -2021,7 +2025,10 @@ enum SENSOR_ATTR {
 	SENSOR_FAN1_RPM_ID = 4,
 	SENSOR_FAN2_RPM_ID = 5,
 	SENSOR_FAN1_TARGET_RPM_ID = 6,
-	SENSOR_FAN2_TARGET_RPM_ID = 7
+	SENSOR_FAN2_TARGET_RPM_ID = 7,
+	SENSOR_TEMP_CHTS_ID = 8,
+	SENSOR_TEMP_CRTS_ID = 9,
+	SENSOR_TEMP_CTTS_ID = 10,
 };
 
 /* ============================= */
@@ -2651,10 +2658,16 @@ static ssize_t wmi_read_temperature_other(int sensor_id, int *temperature)
 	enum OtherMethodFeature featured_id;
 	int res;
 
-	if (sensor_id == 0)
+	if (sensor_id == SENSOR_CPU_TEMP_ID)
 		featured_id = OtherMethodFeature_TEMP_CPU;
-	else if (sensor_id == 1)
+	else if (sensor_id == SENSOR_GPU_TEMP_ID)
 		featured_id = OtherMethodFeature_TEMP_GPU;
+	else if (sensor_id == SENSOR_TEMP_CHTS_ID)
+		featured_id = OtherMethodFeature_TEMP_CHTS;
+	else if (sensor_id == SENSOR_TEMP_CRTS_ID)
+		featured_id = OtherMethodFeature_TEMP_CRTS;
+	else if (sensor_id == SENSOR_TEMP_CTTS_ID)
+		featured_id = OtherMethodFeature_TEMP_CTTS;
 	else {
 		// TODO: use all correct error codes
 		return -EEXIST;
@@ -4887,22 +4900,31 @@ static ssize_t sensor_label_show(struct device *dev,
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		label = "CPU Temperature\n";
+		label = "CPU\n";
 		break;
 	case SENSOR_GPU_TEMP_ID:
-		label = "GPU Temperature\n";
+		label = "GPU\n";
+		break;
+	case SENSOR_TEMP_CHTS_ID:
+		label = "CHTS\n";
+		break;
+	case SENSOR_TEMP_CRTS_ID:
+		label = "CRTS\n";
+		break;
+	case SENSOR_TEMP_CTTS_ID:
+		label = "CTTS\n";
 		break;
 	case SENSOR_IC_TEMP_ID:
-		label = "IC Temperature\n";
+		label = "IC\n";
 		break;
 	case SENSOR_FAN1_RPM_ID:
-		label = "Fan 1\n";
+		label = "Fan\n";
 		break;
 	case SENSOR_FAN2_RPM_ID:
 		label = "Fan 2\n";
 		break;
 	case SENSOR_FAN1_TARGET_RPM_ID:
-		label = "Fan 1 Target\n";
+		label = "Fan Target\n";
 		break;
 	case SENSOR_FAN2_TARGET_RPM_ID:
 		label = "Fan 2 Target\n";
@@ -4926,11 +4948,11 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		err = read_temperature(priv, 0, &outval);
-		outval *= 1000;
-		break;
 	case SENSOR_GPU_TEMP_ID:
-		err = read_temperature(priv, 1, &outval);
+	case SENSOR_TEMP_CHTS_ID:
+	case SENSOR_TEMP_CRTS_ID:
+	case SENSOR_TEMP_CTTS_ID:
+		err = read_temperature(priv, sensor_id, &outval);
 		outval *= 1000;
 		break;
 	case SENSOR_IC_TEMP_ID:
@@ -4970,6 +4992,14 @@ static SENSOR_DEVICE_ATTR_RO(temp2_input, sensor, SENSOR_GPU_TEMP_ID);
 static SENSOR_DEVICE_ATTR_RO(temp2_label, sensor_label, SENSOR_GPU_TEMP_ID);
 static SENSOR_DEVICE_ATTR_RO(temp3_input, sensor, SENSOR_IC_TEMP_ID);
 static SENSOR_DEVICE_ATTR_RO(temp3_label, sensor_label, SENSOR_IC_TEMP_ID);
+
+static SENSOR_DEVICE_ATTR_RO(temp_chts_input, sensor, SENSOR_TEMP_CHTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_chts_label, sensor_label, SENSOR_TEMP_CHTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_crts_input, sensor, SENSOR_TEMP_CRTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_crts_label, sensor_label, SENSOR_TEMP_CRTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_ctts_input, sensor, SENSOR_TEMP_CTTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_ctts_label, sensor_label, SENSOR_TEMP_CTTS_ID);
+
 static SENSOR_DEVICE_ATTR_RO(fan1_input, sensor, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan1_label, sensor_label, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_input, sensor, SENSOR_FAN2_RPM_ID);
@@ -4990,6 +5020,20 @@ static struct attribute *sensor_hwmon_attributes[] = {
 	&sensor_dev_attr_fan2_label.dev_attr.attr,
 	&sensor_dev_attr_fan1_target.dev_attr.attr,
 	&sensor_dev_attr_fan2_target.dev_attr.attr,
+	NULL
+};
+
+static struct attribute *sensor_hwmon_attributes_legion_go[] = {
+	&sensor_dev_attr_temp1_input.dev_attr.attr,
+	&sensor_dev_attr_temp1_label.dev_attr.attr,
+	&sensor_dev_attr_temp_chts_input.dev_attr.attr,
+	&sensor_dev_attr_temp_chts_label.dev_attr.attr,
+	&sensor_dev_attr_temp_crts_input.dev_attr.attr,
+	&sensor_dev_attr_temp_crts_label.dev_attr.attr,
+	&sensor_dev_attr_temp_ctts_input.dev_attr.attr,
+	&sensor_dev_attr_temp_ctts_label.dev_attr.attr,
+	&sensor_dev_attr_fan1_input.dev_attr.attr,
+	&sensor_dev_attr_fan1_label.dev_attr.attr,
 	NULL
 };
 
@@ -5619,6 +5663,11 @@ static const struct attribute_group legion_hwmon_sensor_group = {
 	.is_visible = NULL
 };
 
+static const struct attribute_group legion_go_hwmon_sensor_group = {
+	.attrs = sensor_hwmon_attributes_legion_go,
+	.is_visible = NULL
+};
+
 static const struct attribute_group legion_hwmon_fancurve_group = {
 	.attrs = fancurve_hwmon_attributes,
 	.is_visible = legion_hwmon_is_visible,
@@ -5628,7 +5677,11 @@ static const struct attribute_group *legion_hwmon_groups[] = {
 	&legion_hwmon_sensor_group, &legion_hwmon_fancurve_group, NULL
 };
 
-static ssize_t legion_hwmon_init(struct legion_private *priv)
+static const struct attribute_group *legion_hwmon_groups_legion_go[] = {
+	&legion_go_hwmon_sensor_group, &legion_hwmon_fancurve_group, NULL
+};
+
+static ssize_t legion_hwmon_init(struct legion_private *priv, bool legion_go)
 {
 	//TODO: use hwmon_device_register_with_groups or
 	// hwmon_device_register_with_info (latter means all hwmon functions have to be
@@ -5638,7 +5691,7 @@ static ssize_t legion_hwmon_init(struct legion_private *priv)
 	// some laptop drivers use this, some
 	struct device *hwmon_dev = hwmon_device_register_with_groups(
 		&priv->platform_device->dev, "legion_hwmon", priv,
-		legion_hwmon_groups);
+		legion_go ? legion_hwmon_groups_legion_go : legion_hwmon_groups);
 	if (IS_ERR_OR_NULL(hwmon_dev)) {
 		pr_err("hwmon_device_register failed!\n");
 		return PTR_ERR(hwmon_dev);
@@ -5938,6 +5991,7 @@ static int legion_add(struct platform_device *pdev)
 		dmi_sys = &optimistic_allowlist[0];
 	dev_info(&pdev->dev, "Using configuration for system: %s\n",
 		 dmi_sys->ident);
+	bool legion_go = strncmp(dmi_sys->ident, "N3CN", 4) == 0;
 
 	priv->conf = dmi_sys->driver_data;
 
@@ -5997,7 +6051,7 @@ static int legion_add(struct platform_device *pdev)
 	}
 
 	pr_info("Creating hwmon interface");
-	err = legion_hwmon_init(priv);
+	err = legion_hwmon_init(priv, legion_go);
 	if (err) {
 		dev_info(&pdev->dev, "Failed to create hwmon interface: %d\n",
 			 err);
@@ -6019,28 +6073,30 @@ static int legion_add(struct platform_device *pdev)
 		goto err_wmi;
 	}
 
-	pr_info("Init keyboard backlight LED driver\n");
-	err = legion_kbd_bl_init(priv);
-	if (err) {
-		dev_info(
-			&pdev->dev,
-			"Failed to init keyboard backlight LED driver. Skipping ...\n");
-	}
+	if (!legion_go) {
+		pr_info("Init keyboard backlight LED driver\n");
+		err = legion_kbd_bl_init(priv);
+		if (err) {
+			dev_info(
+				&pdev->dev,
+				"Failed to init keyboard backlight LED driver. Skipping ...\n");
+		}
 
-	pr_info("Init Y-Logo LED driver\n");
-	err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
-				"platform::ylogo");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init Y-Logo LED driver. Skipping ...\n");
-	}
+		pr_info("Init Y-Logo LED driver\n");
+		err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
+					"platform::ylogo");
+		if (err) {
+			dev_info(&pdev->dev,
+				"Failed to init Y-Logo LED driver. Skipping ...\n");
+		}
 
-	pr_info("Init IO-Port LED driver\n");
-	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
-				"platform::ioport");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init IO-Port LED driver. Skipping ...\n");
+		pr_info("Init IO-Port LED driver\n");
+		err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
+					"platform::ioport");
+		if (err) {
+			dev_info(&pdev->dev,
+				"Failed to init IO-Port LED driver. Skipping ...\n");
+		}
 	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
