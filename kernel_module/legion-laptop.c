@@ -5690,7 +5690,7 @@ static ssize_t legion_hwmon_init(struct legion_private *priv, bool legion_go)
 	// TODO: Use devm_hwmon_device_register_with_groups ?
 	// some laptop drivers use this, some
 	struct device *hwmon_dev = hwmon_device_register_with_groups(
-		&priv->platform_device->dev, "legion_hwmon", priv,
+		&priv->platform_device->dev, "legion", priv,
 		legion_go ? legion_hwmon_groups_legion_go : legion_hwmon_groups);
 	if (IS_ERR_OR_NULL(hwmon_dev)) {
 		pr_err("hwmon_device_register failed!\n");
