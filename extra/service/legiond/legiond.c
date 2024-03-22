@@ -1,6 +1,7 @@
 #include "public.h"
 
 int delayed = 0;
+bool triggered = false;
 int fd;
 
 void clear_socket()
@@ -20,13 +21,17 @@ void term_handler(int signum)
 void timer_handler()
 {
 	int result = system("/usr/bin/fancurve-set");
+
 	if (result == -1) {
 		printf("failed to start fancurve-set\n");
 	} else {
 		printf("fancurve-set started\n");
 	}
+
 	if (delayed)
 		delayed = 0;
+
+	triggered = true;
 }
 
 void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
@@ -94,6 +99,7 @@ int main()
 		printf("cmd: \"%s\" received\n", ret);
 		if (ret[0] == 'A') {
 			// delayed means user use legiond-cli fanset with a parameter
+			triggered = false;
 			if (delayed) {
 				printf("extend delay\n");
 				set_timer(&its, delayed, 0, timerid);
@@ -106,6 +112,14 @@ int main()
 				sscanf(ret, "A%d", &delay);
 				set_timer(&its, delay, 0, timerid);
 				delayed = delay;
+			}
+		} else if (ret[0] == 'B') {
+			int result = system("/usr/bin/fancurve-set cpu_only");
+
+			if (result == -1) {
+				printf("failed to apply cpu-set\n");
+			} else {
+				printf("cpu-set applied\n");
 			}
 		} else {
 			printf("do nothing\n");

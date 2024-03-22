@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 	}
 	char request[20] = "";
 
-	if (argc > 1)
+	if (argc > 1) {
 		if (strcmp(argv[1], "fanset") == 0) {
 			sprintf(request, "A0"); // A means fanset
 			// 0 means reset
@@ -28,7 +28,10 @@ int main(int argc, char *argv[])
 				// for example "A3" means 3 seconds delay
 				sprintf(request, "A%d", delay);
 			}
-		};
+		} else if (strcmp(argv[1], "cpuset") == 0) {
+			sprintf(request, "B"); // B means cpuset
+		}
+	}
 	send(fd, request, strlen(request), 0);
 	close(fd);
 }

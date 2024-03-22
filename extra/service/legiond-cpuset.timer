@@ -1,0 +1,10 @@
+[Unit]
+Description=Reapply legiond-cpuset
+
+[Timer]
+Unit=legiond-cpuset.service
+OnBootSec=3min
+OnUnitActiveSec=30
+
+[Install]
+WantedBy=multi-user.target
