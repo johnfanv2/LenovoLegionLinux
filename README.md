@@ -708,7 +708,9 @@ This systemd service also have extras features that can be activated by editing 
     - GPU_TDP_AC_P - Custom GPU TDP for performance mode on charger
   - Note: The default values in the .env file are from RTX 3070
 
-NOTE: We also have acpi action and event inside the extra folder but are in develoment and testing (use at your own risk).
+NOTE: ~We also have acpi action and event inside the extra folder but are in develoment and testing (use at your own risk).~
+We migrate to `legiond` daemon and this daemon depend on some acpi event, so make sure enable `acpid.service`.
+If your CPU tweaks often get reset to default, enable `legiond-cpuset.timer` to override it.
 
 ### Lock and Unlock the Fan Controller and Fan Speed
 
