@@ -727,7 +727,7 @@ class PowerProfilesDeamonService(SystemDServiceFeature):
 
 class LenovoLegionLaptopSupportService(SystemDServiceFeature):
     def __init__(self):
-        super().__init__('legiond.service legiond-onresume.service')
+        super().__init__('legiond.service legiond-onresume.service legiond-cpuset.service legiond-cpuset.timer')
 
 
 class FanCurveIO(Feature):

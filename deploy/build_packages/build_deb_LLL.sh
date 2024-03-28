@@ -58,6 +58,8 @@ cd deb_dist/legion-linux-${TAG}
 ##Add to debial install
 sudo cp -R ${REPODIR}/extra/service/legiond.service .
 sudo cp -R ${REPODIR}/extra/service/legiond-onresume.service .
+sudo cp -R ${REPODIR}/extra/service/legiond-cpuset.service .
+sudo cp -R ${REPODIR}/extra/service/legiond-cpuset.timer .
 sudo mv ${REPODIR}/extra/service/legiond/legiond .
 sudo mv ${REPODIR}/extra/service/legiond/legiond-cli .
 sudo cp -R ${REPODIR}/extra/acpi/events/legion_ac .
