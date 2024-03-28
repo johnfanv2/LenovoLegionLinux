@@ -64,6 +64,8 @@ sudo cp -R ${REPODIR}/extra/acpi/events/legion_ac .
 sudo cp -R ${REPODIR}/extra/acpi/events/legion_ppd .
 echo "legiond.service /etc/systemd/system/" | sudo tee -a debian/install
 echo "legiond-onresume.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legiond-cpuset.service /etc/systemd/system/" | sudo tee -a debian/install
+echo "legiond-cpuset.timer /etc/systemd/system/" | sudo tee -a debian/install
 echo "legiond /usr/bin/legiond" | sudo tee -a debian/install
 echo "legiond-cli /usr/bin/legiond_cli" | sudo tee -a debian/install
 echo "legion_ac /etc/acpi/events/legion_ac" | sudo tee -a debian/install
