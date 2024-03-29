@@ -1338,8 +1338,10 @@ static int acpi_process_buffer_to_ints(const char *id_name, int id_nr,
 		error = -AE_ERROR;
 		goto err;
 	}
-	pr_info("ACPI result for %s:%d: ACPI buffer length: %u\n", id_name,
-		id_nr, out->buffer.length);
+
+// Reduced verbosity (only printing when ACPI result have bad parameters)
+//	pr_info("ACPI result for %s:%d: ACPI buffer length: %u\n", id_name,
+//		id_nr, out->buffer.length);
 
 	for (i = 0; i < ressize; ++i)
 		res[i] = out->buffer.pointer[i];
@@ -2833,9 +2835,6 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 				    bool write_size)
 {
 	size_t i;
-
-	//TODO: remove again
-	pr_info("Set fancurve\n");
 
 	// Reset fan update counters (try to avoid any race conditions)
 	ecram_write(ecram, 0xC5FE, 0);
