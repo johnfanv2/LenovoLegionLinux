@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
 from PyQt6.QtGui import QAction, QGuiApplication
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
+    QCheckBox, QSystemTrayIcon, QMenu, QScrollArea, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
@@ -1424,6 +1424,10 @@ class MainWindow(QMainWindow):
         self.controller = controller
         self.controller.main_window = self
 
+        # Set a Minium Size to the window
+        # Scroll Area make window small square by default
+        self.setMinimumSize(1250, 1000)
+
         # window layout
         self.setWindowTitle("LenovoLegionLinux")
         self.icon = icon
@@ -1460,7 +1464,15 @@ class MainWindow(QMainWindow):
         # use main layout for main window
         self.main_widget = QWidget()
         self.main_widget.setLayout(self.main_layout)
-        self.setCentralWidget(self.main_widget)
+        
+        #Scroll Area and Properties
+        self.scroll = QScrollArea()
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.main_widget)
+
+        #Set Scroll as Main Widget
+        self.setCentralWidget(self.scroll)
 
         # display of root warning message
         self.show_root_dialog = False
@@ -1686,7 +1698,7 @@ def main():
     icon_path = get_icon_path(controller)
     icon = QtGui.QIcon(icon_path)
     # Set tray icon to the window icon
-    # Can't be use since tray icon is a svg 
+    # Can't be use since tray icon is a svg
     # Only support png and ico
     # (maybe if PyQT6 introduce svg support)
     #QGuiApplication.setWindowIcon(icon)
