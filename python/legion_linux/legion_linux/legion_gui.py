@@ -11,7 +11,7 @@ import time
 from typing import List, Optional
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
-from PyQt6.QtGui import QIcon, QPixmap, QAction, QGuiApplication
+from PyQt6.QtGui import QAction, QGuiApplication
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
     QCheckBox, QSystemTrayIcon, QMenu, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
