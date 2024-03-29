@@ -1,4 +1,20 @@
 Package: lenovolegionlinux-dkms
+Version: 0.0.12
+Architecture: amd64
+Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
+Installed-Size: 303
+Depends: dkms (>= 1.95)
+Provides: lenovolegionlinux-modules (= 0.0.12)
+Filename: ./lenovolegionlinux-dkms_0.0.12_amd64.deb
+Size: 47662
+MD5sum: a29d1a32a1a3bc04424225b7c0708785
+SHA1: 94aaacc68523c313cd7b3920dfe7f194010c2817
+SHA256: 3a434d68c3fca2b3d1952c8f1092325e73c14d76a6d407be12a0ab50d73dd1df
+Section: misc
+Priority: optional
+Description: lenovolegionlinux driver in DKMS format.
+
+Package: lenovolegionlinux-dkms
 Version: 0.0.9
 Architecture: amd64
 Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
@@ -22,10 +38,10 @@ Maintainer: None <None>
 Installed-Size: 36
 Depends: python3:any
 Filename: ./python3-darkdetect_0.8.0-1_all.deb
-Size: 7426
-MD5sum: a005a53478077a9caf598b2f61730cba
-SHA1: 7f21e345dfc4d9b6ef0beb125b89f93cf824263f
-SHA256: 529f4de452f08c0fc53381a892ae46b33b2c0dc7b2808a5f10552fd6831d5e63
+Size: 7414
+MD5sum: 0d5787d551d222dd3a980bb6e18570e1
+SHA1: 39a1ba37c3866981f628fe817e6d92e7bd784de1
+SHA256: c9d132cacf05a3bd269b8a45b72b4f333c77400a700cb5b59b2d11919499671a
 Section: python
 Priority: optional
 Homepage: https://github.com/albertosottile/darkdetect
@@ -50,6 +66,24 @@ Description: Detect OS Dark Mode from Python
  'Dark'
  .
  >>> darkdetect.isDark()
+
+Package: python3-legion-linux
+Source: legion-linux
+Version: 0.0.12-1
+Architecture: all
+Maintainer: None <None>
+Installed-Size: 252
+Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
+Filename: ./python3-legion-linux_0.0.12-1_all.deb
+Size: 37070
+MD5sum: 8030a66d2e56f61e4bc9e39bccfc0b03
+SHA1: 7bee0fc5462d841cd31221653e378cd825012847
+SHA256: 94ea945779643d9b7d076d7da4eefa68a497bac283f3d452d0909466b8af19a9
+Section: python
+Priority: optional
+Homepage: https://github.com/johnfanv2/LenovoLegionLinux
+Description: Control Lenovo Legion laptop
+ See documenation of LenovoLegionLinux
 
 Package: python3-legion-linux
 Source: legion-linux
