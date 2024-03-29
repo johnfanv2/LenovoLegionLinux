@@ -1464,10 +1464,11 @@ class MainWindow(QMainWindow):
         # use main layout for main window
         self.main_widget = QWidget()
         self.main_widget.setLayout(self.main_layout)
-        
+ 
         #Scroll Area and Properties
         self.scroll = QScrollArea()
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.scroll.setWidgetResizable(True)
         self.scroll.setWidget(self.main_widget)
 
