@@ -1063,9 +1063,9 @@ class FanCurveTab(QWidget):
         self.layout.addWidget(self.ic_upper_temp_label, 8, 0)
         self.layout.addWidget(self.accel_label, 9, 0)
         self.layout.addWidget(self.decel_label, 10, 0)
-        self.layout.addWidget(self.minfancurve_check, 11, 0)
-        self.layout.addWidget(self.lockfancontroller_check, 12, 0)
-        self.layout.addWidget(self.maximumfanspeed_check, 13, 0)
+        self.layout.addWidget(self.minfancurve_check, 11, 0, 1, 10)
+        self.layout.addWidget(self.lockfancontroller_check, 12, 0, 1, 10)
+        self.layout.addWidget(self.maximumfanspeed_check, 13, 0, 1, 10)
         for i in range(1, 11):
             self.create_fancurve_entry_view(self.layout, i)
         self.fancurve_group.setLayout(self.layout)
@@ -1110,6 +1110,7 @@ class FanCurveTab(QWidget):
             "the driver is not loaded properly or hwmon directory not found.\nIf features are marked "
             "red, an unexpected error has occured while accessing the hardware and you should notify the maintainer.")
         self.note_label2.setStyleSheet("color: red;")
+        self.note_label2.setWordWrap(True)
         self.main_layout.addWidget(self.note_label2, 3)
 
         self.setLayout(self.main_layout)
@@ -1285,6 +1286,7 @@ class OtherOptionsTab(QWidget):
             "It is recommended to customize the power settings only in custom mode. Although "
             "it is possible to change them in any mode.")
         self.power_note_label.setStyleSheet("color: red;")
+        self.power_note_label.setWordWrap(True)
         self.power_all_layout.addWidget(self.power_note_label)
 
 
@@ -1391,18 +1393,19 @@ class Tabs(QTabWidget):
         self.controller.tabs = self
 
         # setup tabs
-        self.fan_curve_tab = FanCurveTab(controller)
-        self.other_options_tab = OtherOptionsTab(controller)
-        self.automation_tab = AutomationTab(controller)
-        self.log_tab = LogTab(controller)
-        self.about_tab = AboutTab(controller)
+        self.tabs = (
+            ("Fan Curve", FanCurveTab(controller)),
+            ("Other Options", OtherOptionsTab(controller)),
+            ("Automation", AutomationTab(controller)),
+            ("Log", LogTab(controller)),
+            ("About", AboutTab(controller))
+        )
 
-        # tabs
-        self.addTab(self.fan_curve_tab, "Fan Curve")
-        self.addTab(self.other_options_tab, "Other Options")
-        self.addTab(self.automation_tab, "Automation")
-        self.addTab(self.log_tab, "Log")
-        self.addTab(self.about_tab, "About")
+        for tab_name, tab in self.tabs:
+            area = QScrollArea()
+            area.setWidget(tab)
+            area.setWidgetResizable(True)
+            self.addTab(area, tab_name)
 
 
 class QClickLabel(QLabel):
@@ -1424,9 +1427,8 @@ class MainWindow(QMainWindow):
         self.controller = controller
         self.controller.main_window = self
 
-        # Set a Minium Size to the window
-        # Scroll Area make window small square by default
-        self.setMinimumSize(1250, 1000)
+        # Set a minium width to the window
+        self.setMinimumWidth(800)
 
         # window layout
         self.setWindowTitle("LenovoLegionLinux")
@@ -1458,22 +1460,15 @@ class MainWindow(QMainWindow):
         # main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.header_msg)
-        self.main_layout.addWidget(self.tabs)
+        self.main_layout.addWidget(self.tabs, 1)
         self.main_layout.addLayout(self.button_layout)
 
         # use main layout for main window
         self.main_widget = QWidget()
         self.main_widget.setLayout(self.main_layout)
 
-        #Scroll Area and Properties
-        self.scroll = QScrollArea()
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setWidget(self.main_widget)
-
-        #Set Scroll as Main Widget
-        self.setCentralWidget(self.scroll)
+        # set main widget
+        self.setCentralWidget(self.main_widget)
 
         # display of root warning message
         self.show_root_dialog = False
@@ -1717,7 +1712,7 @@ def main():
     # Start Windows
     if controller.model.app_model.automatic_close.get():
         main_window.close_after(3000)
-    main_window.show()
+    main_window.showMaximized()
 
     # Run
     sys.exit(app.exec())
