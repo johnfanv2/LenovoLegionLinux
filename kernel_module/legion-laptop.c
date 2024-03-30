@@ -33,7 +33,7 @@
  *        have to be reconfigured if needed.
  *
  *  It implements the usual hwmon interface to monitor fan speed and temmperature
- *  and allows to set the fan curve inside the firware.
+ *  and allows to set the fan curve inside the firmware.
  *
  *    - /sys/class/hwmon/X/fan1_input or /sys/class/hwmon/X/fan2_input  (ro)
  *        Current fan speed of fan1/fan2.
