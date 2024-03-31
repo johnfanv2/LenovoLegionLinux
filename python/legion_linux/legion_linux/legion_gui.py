@@ -1428,7 +1428,7 @@ class MainWindow(QMainWindow):
         self.controller.main_window = self
 
         # Set a minium width to the window
-        self.setMinimumWidth(800)
+        self.setMinimumSize(1250, 725)
 
         # window layout
         self.setWindowTitle("LenovoLegionLinux")
@@ -1712,7 +1712,7 @@ def main():
     # Start Windows
     if controller.model.app_model.automatic_close.get():
         main_window.close_after(3000)
-    main_window.showMaximized()
+    main_window.show()
 
     # Run
     sys.exit(app.exec())
