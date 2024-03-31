@@ -1,6 +1,6 @@
 #!/bin/bash
 set -ex
-KERNEL_VERSION="6.5"
+KERNEL_VERSION="6.8"
 KERNEL_VERSION_UNDERSCORE="${KERNEL_VERSION//./_}"
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPODIR="${DIR}/.."
