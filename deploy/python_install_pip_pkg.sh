@@ -37,7 +37,7 @@ else
 	python3 -m installer --destdir="/" dist/*.whl
 	#Create config folder (not overwrite)
 	mkdir -p /etc/legion_linux
-	cp -r --update=none /usr/share/legion_linux/* /etc/legion_linux
+	cp -r --no-clobber /usr/share/legion_linux/* /etc/legion_linux
 fi
 
 echo "Done"
