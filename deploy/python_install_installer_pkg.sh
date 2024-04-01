@@ -34,8 +34,8 @@ if [ "$EUID" -ne 0 ]; then
 	exit
 else
 	python3 -m installer --destdir="/" dist/*.whl
-	#Create config folder (not overwrite old folder)
-	#cp -r /usr/share/legion_linux /etc/legion_linux
+	#Create config folder (not overwrite)
+	cp -r --update=none /usr/share/legion_linux/* /etc/legion_linux
 fi
 
 echo "Done"
