@@ -712,6 +712,8 @@ NOTE: ~We also have acpi action and event inside the extra folder but are in dev
 `legiond.service` depends on `acpid.service` and if you enable `legiond.service`, `acpid.service` should be started automatically.
 If your CPU tweaks often get reset to default, enable `legiond-cpuset.timer` to override it.
 
+See [README.org](extra/service/legiond/README.org)
+
 ### Lock and Unlock the Fan Controller and Fan Speed
 
 You can lock the current fan speed. If it is locked, the fan speed will stays constant and does not react to temperature changes. You might want to lock the fan at a high speed during a game. I would not recommend keeping it locked all the time. If your fan controller gets locked accidentally, e.g. by Windows tools, you can unlock it. A locked fan controller might be the reason for a non-working fan control. If the fan controller is locked, the additional temperature sensors are not updated anymore and also stay constant.
