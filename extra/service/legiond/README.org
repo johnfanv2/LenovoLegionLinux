@@ -1,0 +1,38 @@
+#+title: Legiond
+* Why legiond
+~legiond~ daemon is made to solve the following problems:
+** ~legion_cli~ being triggered multiple times in a short period
+We used to use path to trigger the fancurve-set script,
+which could result in reaching systemd limits.
+
+We don't have to trigger it every time, just need to make sure it gets triggered last time.
+** Unpersistent cpu tweaks
+We observed that after running for a while, ~undervolt~ and ~ryzenadj~ tweaks to the cpu may not work.
+
+To solve that, We introduce a ~systemd.timer~ to run cpu tweaks every 30s.
+Because we use ~legiond-cli~, if a ~fancurve-set~ task is to start, it will refresh the timer of ~legiond~.
+This prevent unThis avoids non-essential fancurve-sets being run.
+** Power state change on resume prevent ~fancurve-set~ from setting correct fancurve
+Now we use a ~3s~ delay to make sure it works fine.
+Every power-state/power-profile change will reset the timer.
+* How it works
+~legiond~ is divided into two parts, ~legiond~ and ~legiond-cli~.
+~legiond~ is running as a ~systemd.service~, ~legiond-cli~ is a bridge between ~legiond-cpuset.service~ and ~legiond-resume.service~ with ~legiond.service~.
+
+~legiond-cli~ send request to ~legiond~ via [[https://en.wikipedia.org/wiki/Unix_domain_socket][Unix domain socket]].
+
+When the power-state or power-profile changed, ~acpid.service~ send a request to ~legiond~ via ~legiond-cli~.
+~legiond~ will call ~fancurve-set~ script after a variable delay(depend on ~legiond-cli~ arguments).
+* Configuration
+#+begin_src shell
+sudo cp /usr/share/legion_linux/{*.yaml,.env} /etc/legion_linux/
+#+end_src
+
+Edit fancurve profile ~.yaml~ to fit your needs.
+
+Modify ~/etc/legion_linux/.env~ with your favorate editor.
+
+Enable ~systemd.service~:
+#+begin_src shell
+systemctl enable --now legiond.service legiond-onresume.service legiond-cpuset.timer
+#+end_src
