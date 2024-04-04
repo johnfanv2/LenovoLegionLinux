@@ -9,6 +9,9 @@
 #define P_BAT_BP 5
 #define P_AC_P 6
 
+#define P_ERROR_PROFILE -1
+#define P_ERROR_AC -2
+
 #define ac_path "/sys/class/power_supply/ADP0/online"
 #define profile_path "/sys/firmware/acpi/platform_profile"
 

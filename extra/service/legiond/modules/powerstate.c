@@ -9,12 +9,18 @@ extern int get_powerstate()
 	FILE *fp;
 	fp = fopen(ac_path, "r");
 	int state;
-	fscanf(fp, "%d", &state);
+	if (fscanf(fp, "%d", &state)!=1){
+		printf("failed to get AC status\n");
+		return P_ERROR_AC;
+	}
 	fclose(fp);
 
 	fp = fopen(profile_path, "r");
 	char profile[30];
-	fscanf(fp, "%s", profile);
+	if	(fscanf(fp, "%s", profile)!=1){
+		printf("failed to get power_profile\n");
+		return P_ERROR_PROFILE;
+	}
 	fclose(fp);
 	if (MATCH(profile, "quiet")) {
 		if (state) {
