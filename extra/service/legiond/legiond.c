@@ -1,4 +1,9 @@
 #include "public.h"
+#include "modules/parseconf.h"
+#include "modules/setapply.h"
+#include "modules/powerstate.h"
+
+LEGIOND_CONFIG config;
 
 int delayed = 0;
 bool triggered = false;
@@ -20,18 +25,14 @@ void term_handler(int signum)
 
 void timer_handler()
 {
-	int result = system("/usr/bin/fancurve-set");
-
-	if (result == -1) {
-		printf("failed to start fancurve-set\n");
-	} else {
-		printf("fancurve-set started\n");
-	}
+	printf("---set_all start---\n");
+	set_all(get_powerstate(), &config);
 
 	if (delayed)
 		delayed = 0;
 
 	triggered = true;
+	printf("---set_all end----\n");
 }
 
 void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
@@ -48,6 +49,8 @@ int main()
 {
 	// remove socket before create it
 	clear_socket();
+
+	parseconf(&config);
 
 	// calculate delay
 	long delay_s = (int)delay;
@@ -113,14 +116,10 @@ int main()
 				set_timer(&its, delay, 0, timerid);
 				delayed = delay;
 			}
-		} else if (ret[0] == 'B') {
-			int result = system("/usr/bin/fancurve-set cpu_only");
-
-			if (result == -1) {
-				printf("failed to apply cpu-set\n");
-			} else {
-				printf("cpu-set applied\n");
-			}
+		} else if (ret[0] == 'B' && triggered == true) {
+			printf("---set_cpu start---\n");
+			set_cpu(get_powerstate(), &config);
+			printf("---set_cpu end-----\n");
 		} else {
 			printf("do nothing\n");
 		}

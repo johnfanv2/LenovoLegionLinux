@@ -1,7 +1,7 @@
-CFLAGS ?= -Wall -O2
+CFLAGS ?= -Wall -O2 -linih
 
 TARGET1 = legiond
-SOURCE1 = $(TARGET1).c
+SOURCE1 = $(TARGET1).c modules/*.c
 TARGET2 = legiond-cli
 SOURCE2 = $(TARGET2).c
 
