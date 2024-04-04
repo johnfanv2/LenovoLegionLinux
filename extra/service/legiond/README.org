@@ -11,7 +11,7 @@ We observed that after running for a while, ~undervolt~ and ~ryzenadj~ tweaks to
 
 To solve that, We introduce a ~systemd.timer~ to run cpu tweaks every 30s.
 Because we use ~legiond-cli~, if a ~fancurve-set~ task is to start, it will refresh the timer of ~legiond~.
-This prevent unThis avoids non-essential fancurve-sets being run.
+This avoids non-essential ~fancurve-set~ being run.
 ** Power state change on resume prevent ~fancurve-set~ from setting correct fancurve
 Now we use a ~3s~ delay to make sure it works fine.
 Every power-state/power-profile change will reset the timer.
