@@ -15,6 +15,7 @@ extern int get_powerstate()
 	fp = fopen(profile_path, "r");
 	char profile[30];
 	fscanf(fp, "%s", profile);
+	fclose(fp);
 	if (MATCH(profile, "quiet")) {
 		if (state) {
 			return P_AC_Q;
