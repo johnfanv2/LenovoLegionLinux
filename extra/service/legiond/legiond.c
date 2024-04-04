@@ -101,7 +101,7 @@ int main()
 		recv(clientfd, ret, sizeof(ret), 0);
 		printf("cmd: \"%s\" received\n", ret);
 		if (ret[0] == 'A') {
-			// delayed means user use legiond-cli fanset with a parameter
+			// delayed means user use legiond-ctl fanset with a parameter
 			triggered = false;
 			if (delayed) {
 				printf("extend delay\n");
@@ -120,6 +120,10 @@ int main()
 			printf("---set_cpu start---\n");
 			set_cpu(get_powerstate(), &config);
 			printf("---set_cpu end-----\n");
+		} else if (ret[0] == 'R') {
+			printf("---config reload start---\n");
+			parseconf(&config);
+			printf("---config reload end-----\n");
 		} else {
 			printf("do nothing\n");
 		}

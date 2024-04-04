@@ -3,4 +3,4 @@ Description=set legion cpu
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/legiond-cli cpuset
+ExecStart=/usr/bin/legiond-ctl cpuset

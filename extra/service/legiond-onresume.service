@@ -1,12 +1,12 @@
 [Unit]
-Description=Start legiond-cli fanset on resume
+Description=Start legiond-ctl fanset on resume
 Before=sleep.target
 StopWhenUnneeded=yes
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStop=/usr/bin/legiond-cli fanset 3
+ExecStop=/usr/bin/legiond-ctl fanset 3
 TimeoutStopSec=infinity
 
 [Install]
