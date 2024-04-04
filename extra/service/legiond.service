@@ -5,6 +5,7 @@ After=acpid.service
 
 [Service]
 ExecStart=/usr/bin/legiond
+ExecReload=/usr/bin/legiond-ctl reload
 
 [Install]
 WantedBy=multi-user.target

@@ -30,6 +30,8 @@ int main(int argc, char *argv[])
 			}
 		} else if (strcmp(argv[1], "cpuset") == 0) {
 			sprintf(request, "B"); // B means cpuset
+		} else if (strcmp(argv[1], "reload") == 0) {
+			sprintf(request, "R"); // R means reload config
 		}
 	}
 	send(fd, request, strlen(request), 0);
