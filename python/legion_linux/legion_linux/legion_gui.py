@@ -1345,6 +1345,13 @@ class AutomationTab(QWidget):
             'These are Experimental Features.\n To apply and save the Settings Press "Save" or "Save and Quit"')
         self.options_layout.addWidget(self.note_label, 4)
 
+        self.note_openrc_label = QLabel(
+            "OpenRC service are available but need to be enable manually!\n"
+            "They are install automatically on gentoo base distro!\n"
+            "To get the files go to extra/service in the repo.\n"
+        )
+        self.options_layout.addWidget(self.note_openrc_label, 4)
+
         self.note_label2 = QLabel("")
 
         self.main_layout = QVBoxLayout()
