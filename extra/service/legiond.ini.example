@@ -1,0 +1,33 @@
+[main]
+# enable fancurve-control
+fan_control=true
+# enable cpu_control
+cpu_control=false
+# set nvidia to enable nvidia support
+# set radeon to enable amdgpu support
+# set false to disable gpu_control
+gpu_control=false
+
+[gpu_control]
+tdp_bat_q=55
+tdp_ac_q=80
+
+tdp_bat_b=55
+tdp_ac_b=125
+
+tdp_bat_bp=80
+tdp_ac_bp=140
+
+tdp_ac_p=140
+
+[cpu_control]
+bat_q=ryzenadj --tctl-temp=50
+ac_q=ryzenadj --tctl-temp=50
+
+bat_b=ryzenadj --tctl-temp=60
+ac_b=ryzenadj --tctl-temp=60
+
+bat_bp=ryzenadj --tctl-temp=70
+ac_bp=ryzenadj --tctl-temp=70
+
+ac_p=ryzenadj --tctl-temp=85
