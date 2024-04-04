@@ -50,7 +50,7 @@ install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_l
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{_unitdir}/legiond-onresume.service
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond-cpuset.service
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond-cpuset.timer
-install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond-cli %{_bindir}/legiond_cli
+install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{_bindir}/legiond-ctl
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/service/legiond/legiond %{_bindir}/legiond
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/acpi/events/legion-ppd /etc/acpi/events/legion-ppd
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}-prerelease/python/legion_linux/legion_linux/extra/acpi/events/legion-ac /etc/acpi/events/legion_ac
