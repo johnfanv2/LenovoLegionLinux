@@ -109,7 +109,7 @@ extern int set_gpu(int power_state, LEGIOND_CONFIG *config)
 {
 	if (strcmp(config->gpu_control, "false") == 0) {
 		printf("gpu_control is set to false\n");
-		printf("skip cpu_control\n");
+		printf("skip gpu_control\n");
 		return 0;
 	}
 	char cmd[100];
