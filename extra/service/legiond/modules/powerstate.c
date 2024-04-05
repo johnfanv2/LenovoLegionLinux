@@ -4,12 +4,12 @@
 
 #define MATCH(a, b) strcmp(a, b) == 0
 
-extern int get_powerstate()
+extern POWER_STATE get_powerstate()
 {
 	FILE *fp;
 	fp = fopen(ac_path, "r");
 	int state;
-	if (fscanf(fp, "%d", &state)!=1){
+	if (fscanf(fp, "%d", &state) != 1) {
 		printf("failed to get AC status\n");
 		return P_ERROR_AC;
 	}
@@ -17,7 +17,7 @@ extern int get_powerstate()
 
 	fp = fopen(profile_path, "r");
 	char profile[30];
-	if	(fscanf(fp, "%s", profile)!=1){
+	if (fscanf(fp, "%s", profile) != 1) {
 		printf("failed to get power_profile\n");
 		return P_ERROR_PROFILE;
 	}
