@@ -4,4 +4,4 @@
 
 command="/usr/sbin/legion-cpuset"
 command_background=true
-pidfile="/run/legiond.pid"
+pidfile="/run/legiond-cpuset.pid"
