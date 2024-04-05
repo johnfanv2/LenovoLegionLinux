@@ -36,3 +36,7 @@ Enable ~systemd.service~:
 #+begin_src shell
 systemctl enable --now legiond.service legiond-onresume.service legiond-cpuset.timer
 #+end_src
+* ~TODO~
+- [X] fancurve control
+- [X] cpu control
+- [ ] freshrate control
