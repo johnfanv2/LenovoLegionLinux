@@ -4,6 +4,9 @@ REPODIR="${DIR}/../.."
 BUILD_DIR=/tmp/deb
 set -ex
 
+#TODO: improve this with docker files
+sudo apt-get install libinih
+
 #GET TAG (USE THIS WHEN STABLE RELEASE GET OUT)
 cd ${REPODIR}
 TAG=$(git describe --abbrev=0 | sed 's/[^0-9.]*//g')
