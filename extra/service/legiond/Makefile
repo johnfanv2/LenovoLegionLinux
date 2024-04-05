@@ -1,4 +1,5 @@
-CFLAGS ?= -Wall -O2 -linih
+CFLAGS ?= -O2
+CFLAGS += -Wall -linih
 
 TARGET1 = legiond
 SOURCE1 = $(TARGET1).c modules/*.c
