@@ -2,6 +2,17 @@
 # Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-command="/usr/bin/legiond-ctl reload"
+command="/usr/bin/legiond"
 command_background=true
 pidfile="/run/legiond.pid"
+extra_started_commands="reload"
+
+depend() {
+    need acpid
+}
+
+reload() {
+    ebegin "reloading legiond configuration"
+    /usr/bin/legiond-ctl reload
+    eend $?
+}
