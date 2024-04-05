@@ -5,7 +5,7 @@ BUILD_DIR=/tmp/deb
 set -ex
 
 #TODO: improve this with docker files
-sudo apt-get install libinih
+sudo apt-get install libinih-dev
 
 #GET TAG (USE THIS WHEN STABLE RELEASE GET OUT)
 cd ${REPODIR}
