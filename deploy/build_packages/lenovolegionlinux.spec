@@ -17,6 +17,7 @@ BuildRequires:  python3-wheel
 BuildRequires:  python3-pip
 BuildRequires:  make
 BuildRequires:  gcc
+BuildRequires:  inih
 BuildRequires:  systemd-rpm-macros
 Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
