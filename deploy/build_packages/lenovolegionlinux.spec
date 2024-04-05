@@ -5,7 +5,7 @@ Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
 Version: 0.0.14
 Release: 0
-Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}-prerelease.tar.gz
+Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 License: GPL-2.0
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
@@ -33,7 +33,7 @@ Requires:     acpid
 See documenation of LenovoLegionLinux
 
 %prep
-%autosetup -p1 -n %{srcname}-%{version}-prerelease
+%autosetup -p1 -n %{srcname}-%{version}
 cd python/legion_linux
 sed -i "s/version = _VERSION/version = %{version}/g" setup.cfg
 

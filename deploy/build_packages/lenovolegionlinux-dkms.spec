@@ -8,7 +8,7 @@ Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
 Version:      0.0.14
 Release:      0
-Source0:      https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}-prerelease.tar.gz
+Source0:      https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 
 Requires:     dkms
 
@@ -16,7 +16,7 @@ Requires:     dkms
 Driver for controlling Lenovo Legion laptops including fan control and power mode.
 
 %prep
-%autosetup -p1 -n %{srcname}-%{version}-prerelease
+%autosetup -p1 -n %{srcname}-%{version}
 
 %install
 mkdir -p %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
