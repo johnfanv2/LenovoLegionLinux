@@ -3,7 +3,7 @@
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
-Version: 0.0.14
+Version: 0.0.15
 Release: 0
 Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 License: GPL-2.0
@@ -16,8 +16,9 @@ BuildRequires:  python3-setuptools
 BuildRequires:  python3-wheel
 BuildRequires:  python3-pip
 BuildRequires:  make
+BuildRequires:  clang
 BuildRequires:  gcc
-BuildRequires:  inih
+BuildRequires:  inih-cpp
 BuildRequires:  systemd-rpm-macros
 Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>

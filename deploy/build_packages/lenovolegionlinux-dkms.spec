@@ -6,7 +6,7 @@ Name:         dkms-%{srcname}
 License:      GPL-2.0
 Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
-Version:      0.0.14
+Version:      0.0.15
 Release:      0
 Source0:      https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 
