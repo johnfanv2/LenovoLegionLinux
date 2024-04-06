@@ -31,6 +31,22 @@ Priority: optional
 Description: lenovolegionlinux driver in DKMS format.
 
 Package: lenovolegionlinux-dkms
+Version: 0.0.15
+Architecture: amd64
+Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
+Installed-Size: 263
+Depends: dkms (>= 1.95)
+Provides: lenovolegionlinux-modules (= 0.0.15)
+Filename: ./lenovolegionlinux-dkms_0.0.15_amd64.deb
+Size: 46920
+MD5sum: 8ee26e1dd416c8f55a3299b5a1714e8e
+SHA1: 251da580eec315e347517d8623577c35830ae680
+SHA256: a82de2ea4ae817a1ef0a2ddc47b32b0a2ee771a27abdf350e8b515eea03f5fb3
+Section: misc
+Priority: optional
+Description: lenovolegionlinux driver in DKMS format.
+
+Package: lenovolegionlinux-dkms
 Version: 0.0.9
 Architecture: amd64
 Maintainer: Dynamic Kernel Modules Support Team <pkg-dkms-maint@lists.alioth.debian.org>
@@ -54,10 +70,10 @@ Maintainer: None <None>
 Installed-Size: 36
 Depends: python3:any
 Filename: ./python3-darkdetect_0.8.0-1_all.deb
-Size: 7422
-MD5sum: 9ec99c667561a29cdb962103acdc947e
-SHA1: 6fe6530857e1979e72eb69eb341d62ed112b39c3
-SHA256: 6ba7974e2d73c8882c5a910cf1fe63cdd223873e2467d2c34843f46430dc0544
+Size: 7424
+MD5sum: 0046e2d6ad59ec4fae1afe574de43bae
+SHA1: 18953cd470efe05ff52aa88ca481d71b26737806
+SHA256: bb95faa4bd2f808fe815afc242174c92281dac0398f6480f474cf70e3b4e9024
 Section: python
 Priority: optional
 Homepage: https://github.com/albertosottile/darkdetect
@@ -113,6 +129,24 @@ Size: 37026
 MD5sum: 84ae9c7650037b7801b473f88da10846
 SHA1: b34ee4af7da2ded975134b2d0d017ed32c2f304e
 SHA256: 70c983918ac58c2fa1430b65b10efa7e66126731713b52ce26cace8489bda1d7
+Section: python
+Priority: optional
+Homepage: https://github.com/johnfanv2/LenovoLegionLinux
+Description: Control Lenovo Legion laptop
+ See documenation of LenovoLegionLinux
+
+Package: python3-legion-linux
+Source: legion-linux
+Version: 0.0.15-1
+Architecture: all
+Maintainer: None <None>
+Installed-Size: 253
+Depends: python3-argcomplete, python3-darkdetect, python3-pyqt5, python3-yaml, python3:any
+Filename: ./python3-legion-linux_0.0.15-1_all.deb
+Size: 38226
+MD5sum: 7e0f25cd39b4cd172c76632117be6d64
+SHA1: 9e074ba2be19a0f1f6d330e22997a807cb0656b6
+SHA256: ce873700d4c63be2b8921abaa28cae84823fed7a2d270b35d7c7fb74f52b936e
 Section: python
 Priority: optional
 Homepage: https://github.com/johnfanv2/LenovoLegionLinux
