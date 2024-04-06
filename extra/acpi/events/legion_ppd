@@ -1,2 +1,2 @@
 event=D320289E-8FEA- 000000e7 00000000
-action=/usr/bin/legiond-cli fanset
+action=/usr/bin/legiond-ctl fanset
