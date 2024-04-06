@@ -1,2 +1,2 @@
 event=ac_adapter*
-action=/usr/bin/legiond-cli fanset 3
+action=/usr/bin/legiond-ctl fanset 3
