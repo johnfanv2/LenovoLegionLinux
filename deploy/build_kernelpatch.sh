@@ -15,6 +15,9 @@ echo "REPODIR: ${REPODIR}"
 echo "BUILD_DIR: ${BUILD_DIR}"
 echo "TAG: ${TAG}"
 
+# Install the current clang and llvm
+sudo apt-get update
+sudo apt-get install clang-format clang-tidy clang-tools clang clangd libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 liblldb-dev libllvm-ocaml-dev libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm python3-clang
 
 # Recreate build dir
 rm -rf "${BUILD_DIR}" || true
@@ -44,12 +47,12 @@ git format-patch HEAD~1
 sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev
 
 # Clean
-make clean && make mrproper
+make clean && make LLVM=1 IAS=1 mrproper
 
 # Create config with new module enabled
-make defconfig
+make LLVM=1 IAS=1 defconfig
 # cp -v /boot/config-$(uname -r) .config
 echo "CONFIG_LEGION_LAPTOP=m" >>.config
 
 # Build
-make -j 8
+make LLVM=1 IAS=1 -j 8
