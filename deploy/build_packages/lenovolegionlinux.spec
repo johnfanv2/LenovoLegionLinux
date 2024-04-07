@@ -18,7 +18,7 @@ BuildRequires:  python3-pip
 BuildRequires:  make
 BuildRequires:  clang
 BuildRequires:  gcc
-BuildRequires:  inih-cpp
+BuildRequires:  inih-devel
 BuildRequires:  systemd-rpm-macros
 Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
