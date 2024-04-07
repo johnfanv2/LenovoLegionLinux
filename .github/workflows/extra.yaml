@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
@@ -28,7 +28,7 @@ jobs:
   test-ci-env:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Setup upterm session
       uses: lhotari/action-upterm@v1
       with:
@@ -40,7 +40,7 @@ jobs:
   release-kernel-patch:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Build kernel patch

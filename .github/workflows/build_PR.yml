@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install Dependencies
       run: ./deploy/dependencies/install_dependencies_ubuntu.sh
       shell: bash
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Install Development Dependencies
         run: ./deploy/dependencies/install_development_dependencies_ubuntu.sh
         shell: bash
@@ -85,8 +85,8 @@ jobs:
     outputs:
       output1: ${{ steps.filter.outputs.workflows }}
     steps:
-    - uses: actions/checkout@v2
-    - uses: dorny/paths-filter@v2
+    - uses: actions/checkout@v4
+    - uses: dorny/paths-filter@v3
       id: filter
       with:
         filters: |
@@ -97,7 +97,7 @@ jobs:
     needs: [check-kernel-module-change]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Build kernel patch
@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Build containers and run tests inside them
       run: ./deploy/build_containers.sh
       shell: bash
