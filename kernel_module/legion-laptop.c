@@ -1724,7 +1724,7 @@ static ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
  * Return status because of commong signature for alle
  * methods to access EC RAM.
  */
-ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
+static ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
 			     u16 ec_offset, u8 value)
 {
 	if (ec_offset < ec_memoryio->physical_ec_start) {
@@ -3275,7 +3275,7 @@ enum legion_wmi_powermode {
 	LEGION_WMI_POWERMODE_CUSTOM = 255
 };
 
-enum legion_wmi_powermode ec_to_wmi_powermode(int ec_mode)
+static enum legion_wmi_powermode ec_to_wmi_powermode(int ec_mode)
 {
 	switch (ec_mode) {
 	case LEGION_EC_POWERMODE_QUIET:
@@ -3291,7 +3291,7 @@ enum legion_wmi_powermode ec_to_wmi_powermode(int ec_mode)
 	}
 }
 
-enum legion_ec_powermode wmi_to_ec_powermode(enum legion_wmi_powermode wmi_mode)
+static enum legion_ec_powermode wmi_to_ec_powermode(enum legion_wmi_powermode wmi_mode)
 {
 	switch (wmi_mode) {
 	case LEGION_WMI_POWERMODE_QUIET:
