@@ -1,15 +1,7 @@
 name: Manual actions
 on: 
-  workflow_dispatch:
-    inputs:
-      BUILD_KERNEL_PATCH:
-        description: 'Test build kernel patch'
-        required: true
-        default: 'true'
-        type: choice
-        options:
-        - true
-        - false
+  workflow_dispatch
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,14 +28,3 @@ jobs:
         limit-access-to-actor: true
         ## limits ssh access and adds the ssh public keys of the listed GitHub users
         limit-access-to-users: johnfanv2
-  # Use to test kernel patch build if needed
-  release-kernel-patch:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.BUILD_KERNEL_PATCH == 'true' }}
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Build kernel patch
-      run: ./deploy/build_kernelpatch.sh
-      shell: bash

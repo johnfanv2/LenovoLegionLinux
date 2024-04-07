@@ -1,0 +1,112 @@
+name: Manual Build Test
+run-name: ${{ github.actor }} running Build PR
+on:
+  workflow_dispatch:
+    inputs:
+      BUILD_KERNEL_PATCH:
+        description: 'Test build kernel patch'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+        - true
+        - false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
+    - name: Build
+      run: ./tests/test_kernel_build.sh
+      shell: bash
+    - name: Install
+      run: ./tests/test_kernel_install.sh
+      shell: bash
+
+  run-kernel-module-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
+    - name: Test Install
+      run: ./tests/test_kernel_install.sh
+      shell: bash
+    - name: Test Reload First
+      run: ./tests/test_kernel_reload.sh
+      shell: bash
+    - name: Test Reload Second
+      run: ./tests/test_kernel_reload.sh
+      shell: bash
+
+  run-kernel-dkms-install-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      shell: bash
+    - name: Build
+      run: ./tests/test_kenel_dkms_install.sh || true
+      shell: bash
+
+  run-tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+      - name: Install Development Dependencies
+        run: ./deploy/dependencies/install_development_dependencies_ubuntu.sh
+        shell: bash
+      - name: Lint with Linux checkpath
+        if: always()
+        run: ./tests/test_kernel_checkpath.sh
+        shell: bash
+      - name: Lint with pylint
+        if: always()
+        run: ./tests/test_python.sh
+        shell: bash
+      - name: Test python CLI
+        if: always()
+        run: ./tests/test_python_cli.sh
+        shell: bash
+          #- name: Test python GUI
+          #if: always()
+          #run: ./tests/test_python_gui.sh
+          #shell: bash
+      - name: Install python package
+        if: always()
+        run: ./deploy/python_install_pip_pkg.sh
+        shell: bash
+
+  # Use to test kernel patch build if needed
+  release-kernel-patch:
+    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.BUILD_KERNEL_PATCH == 'true' }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Build kernel patch
+      run: ./deploy/build_kernelpatch.sh
+      shell: bash
+
+  test-in-docker-container:
+    needs: [build, run-tests]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Build containers and run tests inside them
+      run: ./deploy/build_containers.sh
+      shell: bash
