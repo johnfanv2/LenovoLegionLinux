@@ -39,11 +39,11 @@ jobs:
   # Use to test kernel patch build if needed
   release-kernel-patch:
     runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.BUILD_KERNEL_PATCH }} == 'true'
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Build kernel patch
-      if: ${{ github.event.inputs.BUILD_KERNEL_PATCH }} == 'true'
       run: ./deploy/build_kernelpatch.sh
       shell: bash
