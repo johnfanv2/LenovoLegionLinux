@@ -1,5 +1,5 @@
 name: Manual Build Test
-run-name: ${{ github.actor }} running Build PR
+run-name: ${{ github.actor }} running Manual Build Test
 on:
   workflow_dispatch:
     inputs:
