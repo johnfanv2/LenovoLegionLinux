@@ -664,9 +664,10 @@ If the laptop stays cool for a longer time, it will enable the "mini fan curve",
 
 With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the box `Minifancurve if cold` and pressing `Apply to HW`.
 
-### Lenovo Legion Laptop Support Daemon
+### Lenovo Legion Laptop Support Daemon(legiond)
 
-The LLL Daemon is only supported in Systemd (if you what to add OpenRC support you can open a Pull Request) to install you need to run the [systemd_install.sh](extra/systemd_install.sh) unside the extra folder.
+The LLL Daemon is supported in Systemd and OpenRC(Experimental).
+If you install LLL manually(not throngh the package manager), you may need to run the [systemd_install.sh](extra/systemd_install.sh) unside the extra folder.
 
 This Daemon allow to chnage automatically bettwen fan profiles set in the gui depending of the power mode and if the laptop is or not plug in:
 These are the profiles avaiable:
@@ -685,31 +686,30 @@ Exemple profiles are [here](extra/service/profiles) can also be set via the gui 
 3 - Set all the profiles
 4 - Go to the `Automation` tab and enable the option `Lenovo Legion Laptop Support Daemon Enable`
 
-This systemd service also have extras features that can be activated by editing [.env](extra/service/.env) located /etc/legion_linux/.env:
+This systemd service also have extras features that can be activated by editing [legiond.ini](extra/service/legiond.ini) located /etc/legion_linux/legiond.ini:
 
-- CPU_CONTROL - activate use of RyzenADJ on AMD or undervolt on Intel to chnage make custom cpu setting for each power mode (pls edit the command inside $() after reading the readme for each project)
-  - CPU_CC_BAT_BP - Custom Cpu setting for custom mode on battery
-  - CPU_CC_AC_BP - Custom Cpu setting for custom mode on charger
-  - CPU_CC_BAT_Q - Custom Cpu setting for quiet mode on battery
-  - CPU_CC_AC_Q - Custom Cpu setting for quiet mode on charger
-  - CPU_CC_BAT_B - Custom Cpu setting for balance mode on battery
-  - CPU_CC_AC_B - Custom Cpu setting for balance mode on charger
-  - CPU_CC_AC_P - Custom Cpu setting for performance mode on charger
-- GPU TDP Control:
-  - TEAM_GREEN=1 - use ```nvidia-smi -pl``` command to chnage the TDP of the GPU (only work on driver 525 and lower)
-  - TEAM_RED=1 - use ```rocm-smi --setpoweroverdrive``` command to chnage the TDP of the GPU
+- cpu_control - activate use of RyzenADJ on AMD or undervolt on Intel to make custom cpu setting for each power mode
+  - bat_bp - Custom Cpu setting for custom mode on battery
+  - ac_bp - Custom Cpu setting for custom mode on charger
+  - bat_q - Custom Cpu setting for quiet mode on battery
+  - ac_q - Custom Cpu setting for quiet mode on charger
+  - bat_b - Custom Cpu setting for balance mode on battery
+  - ac_b - Custom Cpu setting for balance mode on charger
+  - ac_p - Custom Cpu setting for performance mode on charger
+- gpu_control:
+  - nvidia - use ```nvidia-smi -pl``` command to change the TDP of the GPU (only work on driver 525 and lower)
+  - radeon - use ```rocm-smi --setpoweroverdrive``` command to change the TDP of the GPU
 
-    - GPU_TDP_BAT_BP - Custom GPU TDP for custom mode on battery
-    - GPU_TDP_AC_BP - Custom GPU TDP for custom mode on charger
-    - GPU_TDP_BAT_Q - Custom GPU TDP for quiet mode on battery
-    - GPU_TDP_AC_Q - Custom GPU TDP for quiet mode on charger
-    - GPU_TDP_BAT_B - Custom GPU TDP for balance mode on battery
-    - GPU_TDP_AC_B - Custom GPU TDP for balance mode on charger
-    - GPU_TDP_AC_P - Custom GPU TDP for performance mode on charger
+    - tdp_bat_bp - Custom GPU TDP for custom mode on battery
+    - tdp_ac_bp - Custom GPU TDP for custom mode on charger
+    - tdp_bat_q - Custom GPU TDP for quiet mode on battery
+    - tdp_ac_q - Custom GPU TDP for quiet mode on charger
+    - tdp_bat_b - Custom GPU TDP for balance mode on battery
+    - tdp_ac_b - Custom GPU TDP for balance mode on charger
+    - tdp_ac_p - Custom GPU TDP for performance mode on charger
   - Note: The default values in the .env file are from RTX 3070
 
-NOTE: ~We also have acpi action and event inside the extra folder but are in develoment and testing (use at your own risk).~
-`legiond.service` depends on `acpid.service` and if you enable `legiond.service`, `acpid.service` should be started automatically.
+NOTE: `legiond.service` depends on `acpid.service` and if you enable `legiond.service`, `acpid.service` should be started automatically.
 If your CPU tweaks often get reset to default, enable `legiond-cpuset.timer` to override it.
 
 See [README.org](extra/service/legiond/README.org)
