@@ -1,6 +1,6 @@
 name: Manual actions
 on: 
-  workflow_dispatch
+  workflow_dispatch:
     inputs:
       BUILD_KERNEL_PATCH:
         description: 'Test build kernel patch'
