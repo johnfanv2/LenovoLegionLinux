@@ -25,7 +25,7 @@ When the power-state or power-profile changed, ~acpid.service~ send a request to
 ~legiond~ will call a series of utils after a variable delay(depend on ~legiond-ctl~ arguments).
 * Configuration
 #+begin_src shell
-sudo cp /usr/share/legion_linux/{*.yaml,.env} /etc/legion_linux/
+sudo cp /usr/share/legion_linux/{*.yaml,legiond.ini} /etc/legion_linux/
 #+end_src
 
 Edit fancurve profile ~.yaml~ to fit your needs.
