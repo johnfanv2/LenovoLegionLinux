@@ -91,6 +91,7 @@ jobs:
         shell: bash
 
   check-kernel-module-change:
+    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
     runs-on: ubuntu-latest
     outputs:
       output1: ${{ steps.filter.outputs.workflows }}
@@ -104,7 +105,7 @@ jobs:
             - 'kernel_module/*'
 
   release-kernel-patch:
-    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
+    needs: [check-kernel-module-change]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -123,7 +124,7 @@ jobs:
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build kernel patch
-      if: steps.filter.outputs.workflows == 'true' || steps.check_if_tagged.outputs.hastag == 1
+      if: steps.check-kernel-module-change.workflows == 'true' || steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
       shell: bash
     - name: Set tag name
