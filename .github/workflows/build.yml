@@ -90,6 +90,19 @@ jobs:
         run: ./deploy/python_install_pip_pkg.sh
         shell: bash
 
+  check-kernel-module-change:
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{ steps.filter.outputs.workflows }}
+    steps:
+    - uses: actions/checkout@v2
+    - uses: dorny/paths-filter@v2
+      id: filter
+      with:
+        filters: |
+          workflows:
+            - 'kernel_module/*'
+
   release-kernel-patch:
     needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
     runs-on: ubuntu-latest
@@ -110,7 +123,7 @@ jobs:
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build kernel patch
-      if: steps.check_if_tagged.outputs.hastag == 1
+      if: steps.filter.outputs.workflows == 'true' || steps.check_if_tagged.outputs.hastag == 1
       run: ./deploy/build_kernelpatch.sh
       shell: bash
     - name: Set tag name
