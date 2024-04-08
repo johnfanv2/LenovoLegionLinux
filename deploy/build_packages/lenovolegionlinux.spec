@@ -91,10 +91,10 @@ rm -rf %{buildroot}/usr/lib/debug
 %{_sysconfdir}/acpi/events/legion_ac
 %{_bindir}/legiond
 %{_bindir}/legiond-ctl
-%{_unitdir}legiond-cpuset.service
-%{_unitdir}legiond-cpuset.timer
-%{_unitdir}legiond-onresume.service
-%{_unitdir}legiond.service
+%{_unitdir}/legiond-cpuset.service
+%{_unitdir}/legiond-cpuset.timer
+%{_unitdir}/legiond-onresume.service
+%{_unitdir}/legiond.service
 
 %exclude /usr/lib/debug
 
