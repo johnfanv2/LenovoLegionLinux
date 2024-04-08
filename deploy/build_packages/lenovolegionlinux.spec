@@ -59,8 +59,8 @@ install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond %{buildroot}%{_bindir}/legiond
 
 mkdir -p %{buildroot}/etc/acpi/events/
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion-ppd %{buildroot}/etc/acpi/events/legion-ppd
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion-ac %{buildroot}/etc/acpi/events/legion_ac
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ppd %{buildroot}/etc/acpi/events/legion-ppd
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ac %{buildroot}/etc/acpi/events/legion_ac
 
 %files -n python-%{srcname}
 %doc README.md
