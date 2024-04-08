@@ -59,8 +59,11 @@ install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond %{buildroot}%{_bindir}/legiond
 
 mkdir -p %{buildroot}/etc/acpi/events/
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ppd %{buildroot}/etc/acpi/events/legion-ppd
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ac %{buildroot}/etc/acpi/events/legion_ac
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ppd %{buildroot}%{_sysconfdir}/acpi/events/legion-ppd
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ac %{buildroot}%{_sysconfdir}/acpi/events/legion_ac
+
+# Remove debug files
+rm -rf %{buildroot}/usr/lib/debug
 
 %files -n python-%{srcname}
 %doc README.md
@@ -84,6 +87,16 @@ install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion
 %{_datadir}/pixmaps/legion_logo_light.png
 %{_datadir}/polkit-1/actions/legion_cli.policy
 %{_datadir}/polkit-1/actions/legion_gui.policy
+%{_sysconfdir}/acpi/events/legion-ppd
+%{_sysconfdir}/acpi/events/legion_ac
+%{_bindir}/legiond
+%{_bindir}/legiond-ctl
+%{_unitdir}/systemd/system/legiond-cpuset.service
+%{_unitdir}/systemd/system/legiond-cpuset.timer
+%{_unitdir}/systemd/system/legiond-onresume.service
+%{_unitdir}/systemd/system/legiond.service
+
+%exclude /usr/lib/debug
 
 %post
 echo "Frist install?! Pls copy /usr/share/legion_linux folder to /etc/legion_linux.\n"
