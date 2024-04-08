@@ -93,3 +93,7 @@ echo "Command: sudo cp /usr/share/legion_linux /etc/legion_linux"
 
 %preun
 echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
+
+%changelog
+* Apr 8 2024 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.15
+- Various fix to the gui and migrate to legiond daemon
