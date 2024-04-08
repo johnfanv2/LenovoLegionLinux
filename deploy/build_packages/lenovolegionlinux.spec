@@ -48,14 +48,20 @@ make
 %pyproject_install
 %pyproject_save_files legion_linux
 
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{_unitdir}/legiond-onresume.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond-cpuset.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{_unitdir}/legiond-cpuset.timer
-install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{_bindir}/legiond-ctl
+mkdir -p %{buildroot}%{_unitdir}
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{buildroot}%{_unitdir}/legiond-onresume.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.timer
+
+mkdir -p %{buildroot}%{_bindir}
+install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{buildroot}%%{_bindir}/legiond-ctl
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond %{_bindir}/legiond
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion-ppd /etc/acpi/events/legion-ppd
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion-ac /etc/acpi/events/legion_ac
+
+mkdir -p %{buildroot}/etc/acpi/events/
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion-ppd %{buildroot}/etc/acpi/events/legion-ppd
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion-ac %{buildroot}/etc/acpi/events/legion_ac
+
 %files -n python-%{srcname}
 %doc README.md
 %license LICENSE
