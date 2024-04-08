@@ -1,3 +1,5 @@
+CC ?= clang
+
 CFLAGS ?= -O2
 CFLAGS += -Wall -linih
 
