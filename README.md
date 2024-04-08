@@ -78,7 +78,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
   - Now you can do it using software in your system settings
   - Changing with `Fn+Q` is also possible
   - Depending on your desktop environment, you could automatically switch to quiet mode if you are on battery or performance mode when on AC power (e.g. KDE's Energy Saving settings)
-  - Switch between different fan profiles depending on the power profile (See: [Lenovo Legion Laptop Support Daemon](#lenovo-legion-laptop-support-daemon))
+  - Switch between different fan profiles depending on the power profile (See: [Lenovo Legion Laptop Support Daemon](#lenovo-legion-laptop-support-daemonlegiond))
 - [X] Monitor fan speeds and temperatures (CPU, GPU, IC) using the now available sensors
 - [X] Enable or disable automatic switching to a "Mini Fan Curve" if temperatures are low for a long time
 
