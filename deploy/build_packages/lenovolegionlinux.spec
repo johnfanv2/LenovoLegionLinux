@@ -67,12 +67,10 @@ install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion
 %license LICENSE
 %{python3_sitelib}/%{libname}
 %{python3_sitelib}/%{libname}-%{version}.dist-info
-%{_bindir}/fancurve-set
 %{_bindir}/legion_cli
 %{_bindir}/legion_gui
 %{_datadir}/applications/legion_gui.desktop
-%{_datadir}/applications/legion_gui_user.desktop
-%{_datadir}/legion_linux/.env
+%{_datadir}/legion_linux/legiond.ini
 %{_datadir}/legion_linux/balanced-ac.yaml
 %{_datadir}/legion_linux/balanced-battery.yaml
 %{_datadir}/legion_linux/balanced-performance-ac.yaml
@@ -95,5 +93,5 @@ echo "Command: sudo cp /usr/share/legion_linux /etc/legion_linux"
 echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
 
 %changelog
-* Apr 8 2024 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.15
+* Mon Apr 8 2024 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.15
 - Various fix to the gui and migrate to legiond daemon
