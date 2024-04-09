@@ -76,9 +76,8 @@ int main()
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
 	strcpy(addr.sun_path, socket_path);
-	int ret = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
 
-	if (ret == -1) {
+	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		exit(1);
 	}
 
