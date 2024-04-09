@@ -2,6 +2,11 @@
 
 int main(int argc, char *argv[])
 {
+	if (getuid() != 0){
+		printf("require root privileges\n");
+		exit(3);
+	}
+
 	if (access(socket_path, F_OK) == -1) {
 		printf("socket not found\n");
 		exit(1);
