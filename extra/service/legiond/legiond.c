@@ -122,6 +122,7 @@ int main()
 		} else if (ret[0] == 'R') {
 			printf("---config reload start---\n");
 			parseconf(&config);
+			set_all(get_powerstate(), &config);
 			printf("---config reload end-----\n");
 		} else {
 			printf("do nothing\n");

@@ -6,7 +6,7 @@
 extern int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (config->cpu_control == 0) {
-		printf("cpu_control is set to 0\n");
+		printf("cpu_control is set to false\n");
 		printf("skip cpu_control\n");
 		return 0;
 	}
@@ -57,7 +57,7 @@ extern int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 extern int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (config->fan_control == 0) {
-		printf("fan_control is set to 0\n");
+		printf("fan_control is set to false\n");
 		printf("skip fan_control\n");
 		return 0;
 	}
