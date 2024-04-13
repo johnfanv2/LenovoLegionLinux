@@ -758,7 +758,7 @@ static const struct model_config model_fccn = {
 
 static const struct model_config model_h3cn = {
 	//0xFE0B0800
-	.registers = &ec_register_offsets_v1,
+	.registers = &ec_register_offsets_ideapad_v0,
 	.check_embedded_controller_id = false,
 	.embedded_controller_id = 0x8227,
 	.memoryio_physical_ec_start = 0xC400,
@@ -1052,7 +1052,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "H4CN"),
 		},
-		.driver_data = (void *)&model_fccn
+		.driver_data = (void *)&model_h3cn
 	},
 	{
 		// e.g. Ideapad Gaming 3 15ACH6
