@@ -5,6 +5,8 @@
 
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
 
+static bool reload = false;
+
 static int handler(void *user, const char *section, const char *name,
 		   const char *value)
 {
@@ -58,51 +60,34 @@ static int handler(void *user, const char *section, const char *name,
 
 static void reset(const char *p)
 {
-	if (p) {
+	if (p && reload) {
 		free((char *)p);
 	}
+	p = NULL;
 }
 
 static void init_config(LEGIOND_CONFIG *config)
 {
-	static bool reload = false;
 	config->fan_control = false;
 	config->cpu_control = false;
-	if (reload) {
-		reset(config->gpu_control);
-		reset(config->cpu_ac_q);
-		reset(config->cpu_bat_q);
-		reset(config->cpu_ac_b);
-		reset(config->cpu_bat_b);
-		reset(config->cpu_ac_bp);
-		reset(config->cpu_bat_bp);
-		reset(config->cpu_ac_p);
-		reset(config->gpu_tdp_ac_q);
-		reset(config->gpu_tdp_bat_q);
-		reset(config->gpu_tdp_ac_b);
-		reset(config->gpu_tdp_bat_b);
-		reset(config->gpu_tdp_ac_bp);
-		reset(config->gpu_tdp_bat_bp);
-		reset(config->gpu_tdp_ac_p);
-	} else {
-		reload = true;
-	}
+	reset(config->gpu_control);
+	reset(config->cpu_ac_q);
+	reset(config->cpu_bat_q);
+	reset(config->cpu_ac_b);
+	reset(config->cpu_bat_b);
+	reset(config->cpu_ac_bp);
+	reset(config->cpu_bat_bp);
+	reset(config->cpu_ac_p);
+	reset(config->gpu_tdp_ac_q);
+	reset(config->gpu_tdp_bat_q);
+	reset(config->gpu_tdp_ac_b);
+	reset(config->gpu_tdp_bat_b);
+	reset(config->gpu_tdp_ac_bp);
+	reset(config->gpu_tdp_bat_bp);
+	reset(config->gpu_tdp_ac_p);
 
-	config->gpu_control = NULL;
-	config->cpu_ac_q = NULL;
-	config->cpu_bat_q = NULL;
-	config->cpu_ac_b = NULL;
-	config->cpu_bat_b = NULL;
-	config->cpu_ac_bp = NULL;
-	config->cpu_bat_bp = NULL;
-	config->cpu_ac_p = NULL;
-	config->gpu_tdp_ac_q = NULL;
-	config->gpu_tdp_bat_q = NULL;
-	config->gpu_tdp_ac_b = NULL;
-	config->gpu_tdp_bat_b = NULL;
-	config->gpu_tdp_ac_bp = NULL;
-	config->gpu_tdp_bat_bp = NULL;
-	config->gpu_tdp_ac_p = NULL;
+	if (!reload)
+		reload = true;
 }
 
 extern int parseconf(LEGIOND_CONFIG *config)
