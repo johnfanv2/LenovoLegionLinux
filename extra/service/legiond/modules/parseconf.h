@@ -25,6 +25,6 @@ typedef struct _LEGIOND_CONFIG {
 	const char *gpu_tdp_ac_p;
 } LEGIOND_CONFIG;
 
-extern int parseconf(LEGIOND_CONFIG *config);
+int parseconf(LEGIOND_CONFIG *config);
 
 #endif // PARSECONF_H_

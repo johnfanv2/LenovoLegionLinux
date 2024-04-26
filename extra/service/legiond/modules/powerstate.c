@@ -35,7 +35,7 @@ static POWER_STATE get_ppdstate()
 	return -1;
 }
 
-extern POWER_STATE get_powerstate()
+POWER_STATE get_powerstate()
 {
 	static bool use_ppd = false;
 	static bool reload = false;

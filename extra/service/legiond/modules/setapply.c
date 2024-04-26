@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
+int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (config->cpu_control == 0) {
 		printf("cpu_control is set to false\n");
@@ -54,7 +54,7 @@ extern int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	return result;
 }
 
-extern int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
+int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (config->fan_control == 0) {
 		printf("fan_control is set to false\n");
@@ -105,7 +105,7 @@ extern int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	return result;
 }
 
-extern int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
+int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (strcmp(config->gpu_control, "false") == 0) {
 		printf("gpu_control is set to false\n");
@@ -161,7 +161,7 @@ extern int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	return result;
 }
 
-extern int set_all(POWER_STATE power_state, LEGIOND_CONFIG *config)
+int set_all(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	set_fancurve(power_state, config);
 	set_cpu(power_state, config);

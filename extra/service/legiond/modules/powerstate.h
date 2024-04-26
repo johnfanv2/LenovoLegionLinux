@@ -17,6 +17,6 @@ typedef enum _POWER_STATE {
 #define ac_path "/sys/class/power_supply/ADP0/online"
 #define profile_path "/sys/firmware/acpi/platform_profile"
 
-extern POWER_STATE get_powerstate();
+POWER_STATE get_powerstate();
 
 #endif // POWERSTATE_H_

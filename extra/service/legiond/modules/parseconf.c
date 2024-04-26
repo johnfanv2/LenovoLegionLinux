@@ -90,7 +90,7 @@ static void init_config(LEGIOND_CONFIG *config)
 		reload = true;
 }
 
-extern int parseconf(LEGIOND_CONFIG *config)
+int parseconf(LEGIOND_CONFIG *config)
 {
 	init_config(config);
 	if (ini_parse(config_path, handler, config)) {
