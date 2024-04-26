@@ -38,12 +38,12 @@ static POWER_STATE get_ppdstate()
 POWER_STATE get_powerstate()
 {
 	static bool use_ppd = false;
-	static bool reload = false;
+	static bool initialize = false;
 	POWER_STATE power_state = -1;
 	FILE *fp;
 
-	if (!reload) {
-		reload = true;
+	if (!initialize) {
+		initialize = true;
 		if (access(profile_path, F_OK)) {
 			use_ppd = true;
 		}

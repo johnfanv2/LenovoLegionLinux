@@ -2,6 +2,7 @@
 #include "modules/parseconf.h"
 #include "modules/setapply.h"
 #include "modules/powerstate.h"
+#include "modules/output.h"
 
 LEGIOND_CONFIG config;
 
@@ -25,14 +26,14 @@ void term_handler(int signum)
 
 void timer_handler()
 {
-	printf("---set_all start---\n");
+	pretty("set_all start");
 	set_all(get_powerstate(), &config);
 
 	if (delayed)
 		delayed = 0;
 
 	triggered = true;
-	printf("---set_all end----\n");
+	pretty("set_all end");
 }
 
 void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
@@ -116,14 +117,14 @@ int main()
 				delayed = delay;
 			}
 		} else if (ret[0] == 'B' && triggered == true) {
-			printf("---set_cpu start---\n");
+			pretty("set_cpu start");
 			set_cpu(get_powerstate(), &config);
-			printf("---set_cpu end-----\n");
+			pretty("set_cpu end");
 		} else if (ret[0] == 'R') {
-			printf("---config reload start---\n");
+			pretty("config reload start");
 			parseconf(&config);
 			set_all(get_powerstate(), &config);
-			printf("---config reload end-----\n");
+			pretty("config reload end");
 		} else {
 			printf("do nothing\n");
 		}
