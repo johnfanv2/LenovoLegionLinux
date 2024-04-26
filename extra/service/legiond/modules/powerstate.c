@@ -1,47 +1,86 @@
 #include "powerstate.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
+#include <unistd.h>
 
 #define MATCH(a, b) strcmp(a, b) == 0
 
+static POWER_STATE get_ppdstate()
+{
+	char *cmd = "powerprofilesctl get";
+	char result[50] = { 0 };
+	FILE *fp = NULL;
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		printf("failed to run powerprofilesctl\n");
+	}
+
+	if (!fread(result, sizeof(char), sizeof(result), fp)) {
+		printf("failed to parse powerprofile\n");
+		return -2;
+	}
+	pclose(fp);
+
+	result[strlen(result) - 1] = 0;
+
+	if (MATCH(result, "performance")) {
+		return P_AC_P;
+	} else if (MATCH(result, "balanced")) {
+		return P_AC_B;
+	} else if (MATCH(result, "power-saver")) {
+		return P_AC_Q;
+	}
+
+	return -1;
+}
+
 extern POWER_STATE get_powerstate()
 {
+	static bool use_ppd = false;
+	static bool reload = false;
+	POWER_STATE power_state = -1;
 	FILE *fp;
+
+	if (!reload) {
+		reload = true;
+		if (access(profile_path, F_OK)) {
+			use_ppd = true;
+		}
+	}
+
 	fp = fopen(ac_path, "r");
-	int state;
-	if (fscanf(fp, "%d", &state) != 1) {
+	int ac_state;
+	if (fscanf(fp, "%d", &ac_state) != 1) {
 		printf("failed to get AC status\n");
 		return P_ERROR_AC;
 	}
 	fclose(fp);
 
-	fp = fopen(profile_path, "r");
-	char profile[30];
-	if (fscanf(fp, "%s", profile) != 1) {
-		printf("failed to get power_profile\n");
-		return P_ERROR_PROFILE;
+	if (use_ppd) {
+		power_state = get_ppdstate();
+	} else {
+		fp = fopen(profile_path, "r");
+		char profile[30];
+		if (fscanf(fp, "%s", profile) != 1) {
+			printf("failed to get power_profile\n");
+			return P_ERROR_PROFILE;
+		}
+		fclose(fp);
+		if (MATCH(profile, "quiet")) {
+			power_state = P_AC_Q;
+		} else if (MATCH(profile, "balanced")) {
+			power_state = P_AC_B;
+		} else if (MATCH(profile, "balanced-performance")) {
+			power_state = P_AC_BP;
+		} else if (MATCH(profile, "performance")) {
+			power_state = P_AC_P;
+		}
 	}
-	fclose(fp);
-	if (MATCH(profile, "quiet")) {
-		if (state) {
-			return P_AC_Q;
-		} else {
-			return P_BAT_Q;
-		}
-	} else if (MATCH(profile, "balanced")) {
-		if (state) {
-			return P_AC_B;
-		} else {
-			return P_BAT_B;
-		}
-	} else if (MATCH(profile, "balanced-performance")) {
-		if (state) {
-			return P_AC_BP;
-		} else {
-			return P_BAT_BP;
-		}
-	} else if (MATCH(profile, "performance")) {
-		return P_AC_P;
+
+	if (!ac_state && power_state != -1) {
+		power_state++;
 	}
-	return -1;
+
+	return power_state;
 }

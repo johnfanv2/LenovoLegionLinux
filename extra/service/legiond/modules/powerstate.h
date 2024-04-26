@@ -2,13 +2,13 @@
 #define POWERSTATE_H_
 
 typedef enum _POWER_STATE {
-	P_AC_Q,
-	P_BAT_Q,
-	P_AC_B,
-	P_BAT_B,
-	P_AC_BP,
-	P_BAT_BP,
-	P_AC_P
+	P_AC_Q = 0,
+	P_BAT_Q = 1,
+	P_AC_B = 2,
+	P_BAT_B = 3,
+	P_AC_BP = 4,
+	P_BAT_BP = 5,
+	P_AC_P = 6
 } POWER_STATE;
 
 #define P_ERROR_PROFILE -1
