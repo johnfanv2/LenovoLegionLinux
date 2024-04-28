@@ -670,10 +670,14 @@ static const struct model_config model_nscn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.access_method_keyboard = ACCESS_METHOD_WMI,
+	// not implemented (properly) in WMI, RGB conrolled by USB
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	// accessing fan speed is not implemented in ACPI
+	// a variable in the operation region (or not found)
+	// and not per WMI (methods returns constant 0)
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
