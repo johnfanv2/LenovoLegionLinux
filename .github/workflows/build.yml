@@ -204,17 +204,8 @@ jobs:
         git submodule update --remote --recursive
       shell: bash
 
-    - name: Install Dependencies
-      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
-      shell: bash
-
-    - name: Build deb darkdetect
-      run: ./deploy/build_packages/build_deb_darkdetect.sh
-      shell: bash
-
-    - name: Build pkgs LenovoLegionLinux
-      run: |
-        ./deploy/build_packages/build_deb_LLL.sh
+    - name: Build debs
+      run: ./deploy/build_packages/build_deb_containers.sh
       shell: bash
 
     - name: Import GPG key
