@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install sudo (used in scripts that are tested)
@@ -15,7 +15,7 @@ RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /
     locale-gen
  
 
-RUN apt-get install -y gcc-12
+RUN apt-get install -y gcc
 
 RUN mkdir /opt/LinuxLegionLaptop
 WORKDIR /opt/LinuxLegionLaptop

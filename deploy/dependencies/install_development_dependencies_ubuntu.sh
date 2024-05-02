@@ -9,10 +9,8 @@ sudo apt-get update
 # Tools for running GUI tests headless
 sudo apt-get -y -qq install \
     wget \
-    pylint python3-venv python3-pip \
-    xvfb libxcb-xinerama0 libgl1-mesa-glx
-
-sudo pip install pyqt6-tools PyQt6
+    pylint python3-venv python3-pip python3-pyqt6 \
+    pyqt6-dev-tools xvfb libxcb-xinerama0 libgl1-mesa-glx
 
 ${DIR}/install_dependencies_ubuntu.sh
 ${DIR}/linux_kernel/install_checkpath.sh
