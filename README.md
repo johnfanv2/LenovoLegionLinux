@@ -92,8 +92,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 ## :package: Available Packages
 
 - Debian/Ubuntu:
-  - Official PPA (TAG version): [here](https://github.com/johnfanv2/LenovoLegionLinux/blob/main/package_repo)
-  - Official PPA (GIT[^1] version): [here](https://mrduartept.github.io/LLL-pkg-repo)
+  - Debian repo (for now): [here](https://tracker.debian.org/pkg/lenovolegionlinux)
 - Fedora/RHEL Base Distros:
     - Official Fedora COPR (TAG version): [here]((https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
 - Arch Base Distros:
