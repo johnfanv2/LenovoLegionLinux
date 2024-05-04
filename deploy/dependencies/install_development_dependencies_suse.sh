@@ -12,7 +12,7 @@ sudo rpm -i --nodeps https://download.opensuse.org/repositories/openSUSE:/Factor
 # sudo zypper -n install --force --best-effort xvfb-run
 sudo zypper --non-interactive install \
     wget \
-    python3-pylint \
+    python3-pylint python3-installer python3-build \
     xorg-x11-server-extra libxcb-xinerama0 xauth
 
 
