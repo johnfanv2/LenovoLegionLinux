@@ -23,5 +23,5 @@ RUN ./deploy/dependencies/install_test_dependencies_ubuntu.sh
 # Test: Maybe refactor to run outside of Dockerfile
 COPY deploy deploy
 COPY tests tests
-RUN ./deploy/package_testing/download_install_deb_ppa.sh
+RUN ./deploy/package_testing/download_install_debian.sh
 #RUN ./tests/test_python_installed.sh
