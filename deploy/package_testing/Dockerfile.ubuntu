@@ -17,8 +17,9 @@ RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /
 RUN mkdir /opt/LinuxLegionLaptop
 WORKDIR /opt/LinuxLegionLaptop
 
-COPY ./deploy/dependencies/install_test_dependencies_ubuntu.sh ./deploy/dependencies/install_test_dependencies_ubuntu.sh
-RUN ./deploy/dependencies/install_test_dependencies_ubuntu.sh
+COPY ./deploy/dependencies/install_test_dependencies_ubuntu.sh ./deploy/dependencies/install_test_dependencies_ubuntu.sh .deploy/dependencies/install_development_dependencies_ubuntu.sh
+RUN .deploy/dependencies/install_development_dependencies_ubuntu.sh
+ ./deploy/dependencies/install_test_dependencies_ubuntu.sh ./
 
 # Test: Maybe refactor to run outside of Dockerfile
 COPY deploy deploy
