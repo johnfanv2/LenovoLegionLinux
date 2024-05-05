@@ -9,8 +9,10 @@ Main() {
         dracut-rebuild
     elif [[ "$installed" =~ dracut ]] ; then
         dracut -f --regenerate-all --uefi
-    #elif [[ "$installed" =~ mkinitcpio ]] ; then
-    #    mkinitcpio -P
+    elif [[ "$installed" =~ mkinitcpio ]] ; then
+        # Pevents mkinitcpio of run twices
+        # mkinitcpio -P
+        echo "Using mkinitcpio arch linux hook"
     else
         local progname="$(basename "$0")"
         echo "warning: $progname: Cannot perform the requested operation due to missing package(s)."
