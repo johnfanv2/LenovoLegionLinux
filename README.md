@@ -94,7 +94,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Debian/Ubuntu:
   - Debian repo (for now): [here](https://tracker.debian.org/pkg/lenovolegionlinux)
 - Fedora/RHEL Base Distros:
-    - Official Fedora COPR (TAG version): [here]((https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+    - Official Fedora COPR: [here](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
 - Arch Base Distros:
     - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
     - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)[^2]
