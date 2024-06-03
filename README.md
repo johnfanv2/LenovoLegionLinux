@@ -62,7 +62,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - [X] Light on RAM and CPU and without telemetry
 - [X] Fully controllable using scripts or from the command-line
 - [X] Simple GUI replacement for Lenovo Vantage: Fan curve, FN Lock, Win Key, Touchpad Power, Camera Power, Battery Conservation, Rapid Charging, Charge output from always on USB, Display Overdrive, Y-Logo LED Light, IO-Port LED Light, Hybrid Mode (GSync), CPU and GPU Overclock:
-    - Switch battery conservation mode; keep battery at around 50% when on AC to prolong battery life (https://bugs.kde.org/show_bug.cgi?id=441057)
+    - Switch battery conservation mode; keep battery at 60% when on AC to prolong battery life (https://bugs.kde.org/show_bug.cgi?id=441057)
     - Toggle Fn lock; Use special function on F1-F12 keys without pressing the Fn key
     - Enable or disable touchpad
 - [X] Set a fully featured custom fan curve with up to 10 points:
