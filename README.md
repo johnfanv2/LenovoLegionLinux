@@ -784,6 +784,11 @@ Thank you for your contribution for the Linux support:
 
 Also please tell me if it works or does not work on your laptop.
 
+### Tools that are based on LenovoLegionLinux
+#### Plasma Vantage
+PlasmaVantage is a Plasma Widget for KDE. It is an alternative GUI for the LenovoLegionLinux kernel module. It is availabe in the [KDE stroe](https://store.kde.org/p/2150610/) or with source [here](https://gitlab.com/Scias/plasmavantage).
+
+
 ## :interrobang: Frequency Asked Questions
 
 ### What are the new temperatures?
