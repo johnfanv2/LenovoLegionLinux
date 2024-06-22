@@ -3,7 +3,7 @@
 Model name:         **modelname**\
 CPU model:          **cpumodel**\
 GPU model:          **gpumodel**\
-Keyboard backlight: **kbbacklight**\
+Keyboard backlight: **kbbacklight**
 
 <details>
 <summary>

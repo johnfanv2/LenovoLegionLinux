@@ -10,6 +10,11 @@ cp $template $result
 cpu_model=$(lscpu -e=MODELNAME | head -2 | tail -1)
 echo "$(awk -v cpu_model="$cpu_model" '{gsub(/cpumodel/,cpu_model,$0); print $0}'  $result)" > $result
 
+# gpu model
+gpu_model=$(glxinfo | grep "OpenGL renderer string" | cut -d : -f 2)
+gpu_model=$(sed 's/^[ ]*//' <<< $gpu_model)
+echo "$(awk -v gpu_model="$gpu_model" '{gsub(/gpumodel/,gpu_model,$0); print $0}'  $result)" > $result
+
 # system
 sysinfo=$(dmidecode -t system)
 sysinfo=$(awk '!/UUID/' <<< $sysinfo)
