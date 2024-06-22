@@ -31,7 +31,7 @@ else
 
   # Compress wmi entries
   compressed_wmi_entries="./wmi-entries.tar.gz"
-  tar -czvf $compressed_wmi_entries $fwts_file
+  tar -czvf $compressed_wmi_entries $fwts_file >> /dev/null
 
   # Modify md file for files
   echo "$(awk '{gsub(/wmi_entries/,"Insert WMI entries here"); print}'  $result)" > $result
@@ -43,7 +43,7 @@ if ! command -v iasl >/dev/null; then
   echo iasl was not found. Skipping reading and disassembling of ACPI tables. Please install acpica-tools or if it is already installed add it to \$PATH in order to use this feature.
 else
   # Create directory for tables
-  acpi_table_loc="acpi_re"
+  acpi_table_loc="./acpi_re"
   mkdir -p "$acpi_table_loc"
   cd "$acpi_table_loc"
 
@@ -51,12 +51,12 @@ else
   cp --no-preserve=mode /sys/firmware/acpi/tables/*SDT* ./
   
   # Disassemble tables
-  iasl -e "$acpi_table_loc/SSDT*" -d DSDT
+  iasl -n -e SSDT* -d DSDT &>/dev/null
   
   # Compress tables
   cd ..
   compressed_acpi_tables="./acpi-tables.tar.gz"
-  tar -czxf "$compressed_acpi_tables" "$acpi_table_loc"
+  tar -czvf "$compressed_acpi_tables" "$acpi_table_loc" >> /dev/null
   
   # Modify md file for files
   echo "$(awk '{gsub(/acpi_tables/,"Insert compressed ACPI tables here",$0); print $0}'  $result)" > "$result"
