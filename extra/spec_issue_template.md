@@ -1,5 +1,9 @@
 ## **Model and Debug Info**
 
+Model name:         **modelname**\
+CPU model:          **cpumodel**\
+GPU model:          **gpumodel**\
+Keyboard backlight: **kbbacklight**\
 
 <details>
 <summary>

@@ -6,6 +6,10 @@ template="./spec_issue_template.md"
 result="./specs.md"
 cp $template $result
 
+# cpu model
+cpu_model=$(lscpu -e=MODELNAME | head -2 | tail -1)
+echo "$(awk -v cpu_model="$cpu_model" '{gsub(/cpumodel/,cpu_model,$0); print $0}'  $result)" > $result
+
 # system
 sysinfo=$(dmidecode -t system)
 sysinfo=$(awk '!/UUID/' <<< $sysinfo)
