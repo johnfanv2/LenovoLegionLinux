@@ -6,6 +6,11 @@ template="./spec_issue_template.md"
 result="./specs.md"
 cp $template $result
 
+# model name
+model_name=$(dmidecode | grep -A3 '^System Information' | grep Version | cut -d : -f 2)
+model_name=$(sed 's/^[ ]*//' <<< $model_name)
+echo "$(awk -v model_name="$model_name" '{gsub(/modelname/,model_name,$0); print $0}'  $result)" > $result
+
 # cpu model
 cpu_model=$(lscpu -e=MODELNAME | head -2 | tail -1)
 echo "$(awk -v cpu_model="$cpu_model" '{gsub(/cpumodel/,cpu_model,$0); print $0}'  $result)" > $result
