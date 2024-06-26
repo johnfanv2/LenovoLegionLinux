@@ -964,6 +964,26 @@ static const struct model_config model_lzcn = {
 	.ramio_size = 0x600
 };
 
+// Legion Go
+static const struct model_config model_go = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0300,
+	.ramio_size = 0x700
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -1312,6 +1332,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		},
 		.driver_data = (void *)&model_lzcn
 	},
+	{
+		// e.g. Legion Go
+		.ident = "N3CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "N3CN"),
+		},
+		.driver_data = (void *)&model_go
+	},
 	{}
 };
 
@@ -1426,7 +1455,7 @@ err:
 //}
 
 static int wmi_exec_ints(const char *guid, u8 instance, u32 method_id,
-			 const struct acpi_buffer *params, u8 *res,
+			 const struct acpi_buffer *params, void *res,
 			 size_t ressize)
 {
 	acpi_status status;
@@ -1463,15 +1492,19 @@ static int wmi_exec_int(const char *guid, u8 instance, u32 method_id,
 		goto err;
 	}
 
-	if (out->type != ACPI_TYPE_INTEGER) {
+	if (out->type == ACPI_TYPE_BUFFER && out->buffer.length == 4) {
+		// Legion go fan spped is a buffer
+		*res = *((u64 *)out->buffer.pointer);
+		error = 0;
+	} else if (out->type != ACPI_TYPE_INTEGER) {
 		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d\n",
 			guid, method_id, ACPI_TYPE_INTEGER, out->type);
 		error = -AE_ERROR;
 		goto err;
+	} else {
+		*res = out->integer.value;
+		error = 0;
 	}
-
-	*res = out->integer.value;
-	error = 0;
 
 err:
 	kfree(out);
@@ -1489,7 +1522,7 @@ static int wmi_exec_noarg_int(const char *guid, u8 instance, u32 method_id,
 }
 
 static int wmi_exec_noarg_ints(const char *guid, u8 instance, u32 method_id,
-			       u8 *res, size_t ressize)
+			       void *res, size_t ressize)
 {
 	struct acpi_buffer params;
 
@@ -1683,6 +1716,17 @@ enum OtherMethodFeature {
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
 	OtherMethodFeature_TEMP_GPU = 0x05050000,
+	
+	OtherMethodFeature_TEMP_CHTS = 0x05080000,
+	OtherMethodFeature_TEMP_CRTS = 0x050A0000,
+	OtherMethodFeature_TEMP_CTTS = 0x050B0000,
+
+	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
+};
+
+struct other_method_val {
+	u32 param;
+	u32 val;
 };
 
 static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
@@ -1699,6 +1743,20 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 			     WMI_METHOD_ID_GET_FEATURE_VALUE, &params, &res);
 	if (!error)
 		*value = res;
+	return error;
+}
+
+static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id,
+					  int value)
+{
+	int error;
+	struct other_method_val param = {
+		.param=feature_id,
+		.val=value
+	};
+
+	error = wmi_exec_arg(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
+			     WMI_METHOD_ID_SET_FEATURE_VALUE, &param, sizeof(param));
 	return error;
 }
 
@@ -2027,7 +2085,10 @@ enum SENSOR_ATTR {
 	SENSOR_FAN1_RPM_ID = 4,
 	SENSOR_FAN2_RPM_ID = 5,
 	SENSOR_FAN1_TARGET_RPM_ID = 6,
-	SENSOR_FAN2_TARGET_RPM_ID = 7
+	SENSOR_FAN2_TARGET_RPM_ID = 7,
+	SENSOR_TEMP_CHTS_ID = 8,
+	SENSOR_TEMP_CRTS_ID = 9,
+	SENSOR_TEMP_CTTS_ID = 10,
 };
 
 /* ============================= */
@@ -2657,10 +2718,16 @@ static ssize_t wmi_read_temperature_other(int sensor_id, int *temperature)
 	enum OtherMethodFeature featured_id;
 	int res;
 
-	if (sensor_id == 0)
+	if (sensor_id == SENSOR_CPU_TEMP_ID)
 		featured_id = OtherMethodFeature_TEMP_CPU;
-	else if (sensor_id == 1)
+	else if (sensor_id == SENSOR_GPU_TEMP_ID)
 		featured_id = OtherMethodFeature_TEMP_GPU;
+	else if (sensor_id == SENSOR_TEMP_CHTS_ID)
+		featured_id = OtherMethodFeature_TEMP_CHTS;
+	else if (sensor_id == SENSOR_TEMP_CRTS_ID)
+		featured_id = OtherMethodFeature_TEMP_CRTS;
+	else if (sensor_id == SENSOR_TEMP_CTTS_ID)
+		featured_id = OtherMethodFeature_TEMP_CTTS;
 	else {
 		// TODO: use all correct error codes
 		return -EEXIST;
@@ -2741,10 +2808,23 @@ struct WMIFanTable {
 	u16 FSS7;
 	u16 FSS8;
 	u16 FSS9;
+	u8 FSSNULL;
+	u32 FTLE;
+	u16 FST0;
+	u16 FST1;
+	u16 FST2;
+	u16 FST3;
+	u16 FST4;
+	u16 FST5;
+	u16 FST6;
+	u16 FST7;
+	u16 FST8;
+	u16 FST9;
+	u8 FSTNULL;
 } __packed;
 
 struct WMIFanTableRead {
-	u32 FSFL;
+	u32 FSTL;
 	u32 FSS0;
 	u32 FSS1;
 	u32 FSS2;
@@ -2755,40 +2835,50 @@ struct WMIFanTableRead {
 	u32 FSS7;
 	u32 FSS8;
 	u32 FSS9;
-	u32 FSSA;
+	// Ignored for now
+	u32 FTLE;
+	u32 FST0;
+	u32 FST1;
+	u32 FST2;
+	u32 FST3;
+	u32 FST4;
+	u32 FST5;
+	u32 FST6;
+	u32 FST7;
+	u32 FST8;
+	u32 FST9;
 } __packed;
 
 static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 					struct fancurve *fancurve)
 {
-	u8 buffer[88];
+	struct WMIFanTableRead fantable;
 	int err;
 
-	// The output buffer from the ACPI call is 88 bytes and larger
-	// than the returned object
-	pr_info("Size of object: %lu\n", sizeof(struct WMIFanTableRead));
-	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
-				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
-				  sizeof(buffer));
+	struct acpi_buffer params;
+	u32 fanid = 0;
+	params.length = sizeof(fanid);
+	params.pointer = &fanid;
+
+	err = wmi_exec_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
+			    WMI_METHOD_ID_FAN_GET_TABLE, &params, &fantable,
+			    sizeof(fantable));
 	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi buffer",
-		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
-		       true);
+		       DUMP_PREFIX_ADDRESS, 16, 1, &fantable,
+		       sizeof(fantable), true);
 	if (!err) {
-		struct WMIFanTableRead *fantable =
-			(struct WMIFanTableRead *)&buffer[0];
 		fancurve->current_point_i = 0;
-		fancurve->size = 10;
-		fancurve->points[0].rpm1_raw = fantable->FSS0;
-		fancurve->points[1].rpm1_raw = fantable->FSS1;
-		fancurve->points[2].rpm1_raw = fantable->FSS2;
-		fancurve->points[3].rpm1_raw = fantable->FSS3;
-		fancurve->points[4].rpm1_raw = fantable->FSS4;
-		fancurve->points[5].rpm1_raw = fantable->FSS5;
-		fancurve->points[6].rpm1_raw = fantable->FSS6;
-		fancurve->points[7].rpm1_raw = fantable->FSS7;
-		fancurve->points[8].rpm1_raw = fantable->FSS8;
-		fancurve->points[9].rpm1_raw = fantable->FSS9;
-		//fancurve->points[10].rpm1_raw = fantable->FSSA;
+		fancurve->size = fantable.FSTL;
+		fancurve->points[0].rpm1_raw = fantable.FSS0;
+		fancurve->points[1].rpm1_raw = fantable.FSS1;
+		fancurve->points[2].rpm1_raw = fantable.FSS2;
+		fancurve->points[3].rpm1_raw = fantable.FSS3;
+		fancurve->points[4].rpm1_raw = fantable.FSS4;
+		fancurve->points[5].rpm1_raw = fantable.FSS5;
+		fancurve->points[6].rpm1_raw = fantable.FSS6;
+		fancurve->points[7].rpm1_raw = fantable.FSS7;
+		fancurve->points[8].rpm1_raw = fantable.FSS8;
+		fancurve->points[9].rpm1_raw = fantable.FSS9;
 	}
 	return err;
 }
@@ -2796,42 +2886,40 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 					 const struct fancurve *fancurve)
 {
-	u8 buffer[0x20];
+	struct WMIFanTable fan;
+	fan.FSTL = 10;
+	fan.FSS0 = fancurve->points[0].rpm1_raw;
+	fan.FSS1 = fancurve->points[1].rpm1_raw;
+	fan.FSS2 = fancurve->points[2].rpm1_raw;
+	fan.FSS3 = fancurve->points[3].rpm1_raw;
+	fan.FSS4 = fancurve->points[4].rpm1_raw;
+	fan.FSS5 = fancurve->points[5].rpm1_raw;
+	fan.FSS6 = fancurve->points[6].rpm1_raw;
+	fan.FSS7 = fancurve->points[7].rpm1_raw;
+	fan.FSS8 = fancurve->points[8].rpm1_raw;
+	fan.FSS9 = fancurve->points[9].rpm1_raw;
+	fan.FSSNULL = 0;
+	// TODO: These should be variable and may be set on later models
+	// on Legion Go, they are hardcoded
+	fan.FTLE = 10;
+	fan.FST0 = 10;
+	fan.FST1 = 20;
+	fan.FST2 = 30;
+	fan.FST3 = 40;
+	fan.FST4 = 50;
+	fan.FST5 = 60;
+	fan.FST6 = 70;
+	fan.FST7 = 80;
+	fan.FST8 = 90;
+	fan.FST9 = 100;
+	fan.FSTNULL = 0;
 	int err;
 
-	// The buffer is read like this in ACPI firmware
-	//
-	// CreateByteField (Arg2, Zero, FSTM)
-	// CreateByteField (Arg2, One, FSID)
-	// CreateDWordField (Arg2, 0x02, FSTL)
-	// CreateByteField (Arg2, 0x06, FSS0)
-	// CreateByteField (Arg2, 0x08, FSS1)
-	// CreateByteField (Arg2, 0x0A, FSS2)
-	// CreateByteField (Arg2, 0x0C, FSS3)
-	// CreateByteField (Arg2, 0x0E, FSS4)
-	// CreateByteField (Arg2, 0x10, FSS5)
-	// CreateByteField (Arg2, 0x12, FSS6)
-	// CreateByteField (Arg2, 0x14, FSS7)
-	// CreateByteField (Arg2, 0x16, FSS8)
-	// CreateByteField (Arg2, 0x18, FSS9)
-
-	memset(buffer, 0, sizeof(buffer));
-	buffer[0x06] = fancurve->points[0].rpm1_raw;
-	buffer[0x08] = fancurve->points[1].rpm1_raw;
-	buffer[0x0A] = fancurve->points[2].rpm1_raw;
-	buffer[0x0C] = fancurve->points[3].rpm1_raw;
-	buffer[0x0E] = fancurve->points[4].rpm1_raw;
-	buffer[0x10] = fancurve->points[5].rpm1_raw;
-	buffer[0x12] = fancurve->points[6].rpm1_raw;
-	buffer[0x14] = fancurve->points[7].rpm1_raw;
-	buffer[0x16] = fancurve->points[8].rpm1_raw;
-	buffer[0x18] = fancurve->points[9].rpm1_raw;
-
 	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi write buffer",
-		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
+		       DUMP_PREFIX_ADDRESS, 16, 1, &fan, sizeof(fan),
 		       true);
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
-			   WMI_METHOD_ID_FAN_SET_TABLE, buffer, sizeof(buffer));
+			   WMI_METHOD_ID_FAN_SET_TABLE, &fan, sizeof(fan));
 	return err;
 }
 
@@ -3285,6 +3373,22 @@ static ssize_t wmi_write_fanfullspeed(struct legion_private *priv, bool state)
 					1, state);
 }
 
+static ssize_t wmi_read_fanfullspeed_other(struct legion_private *priv,
+					   bool *fullspeed)
+{
+	int res;
+	int err = wmi_other_method_get_value(OtherMethodFeature_FAN_FULLSPEED, &res);
+
+	if (!err)
+		*fullspeed = res ? 1 : 0;
+	return err;
+}
+
+static ssize_t wmi_write_fanfullspeed_other(struct legion_private *priv, bool val)
+{
+	return wmi_other_method_set_value(OtherMethodFeature_FAN_FULLSPEED, (int) val);
+}
+
 static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
 	// TODO: use enums or function pointers?
@@ -3293,6 +3397,8 @@ static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 		return ec_read_fanfullspeed(&priv->ecram, priv->conf, state);
 	case ACCESS_METHOD_WMI:
 		return wmi_read_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi_read_fanfullspeed_other(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
@@ -3310,6 +3416,8 @@ static ssize_t write_fanfullspeed(struct legion_private *priv, bool state)
 		return res;
 	case ACCESS_METHOD_WMI:
 		return wmi_write_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi_write_fanfullspeed_other(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
@@ -4870,22 +4978,31 @@ static ssize_t sensor_label_show(struct device *dev,
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		label = "CPU Temperature\n";
+		label = "CPU\n";
 		break;
 	case SENSOR_GPU_TEMP_ID:
-		label = "GPU Temperature\n";
+		label = "GPU\n";
+		break;
+	case SENSOR_TEMP_CHTS_ID:
+		label = "CHTS\n";
+		break;
+	case SENSOR_TEMP_CRTS_ID:
+		label = "CRTS\n";
+		break;
+	case SENSOR_TEMP_CTTS_ID:
+		label = "CTTS\n";
 		break;
 	case SENSOR_IC_TEMP_ID:
-		label = "IC Temperature\n";
+		label = "IC\n";
 		break;
 	case SENSOR_FAN1_RPM_ID:
-		label = "Fan 1\n";
+		label = "Fan\n";
 		break;
 	case SENSOR_FAN2_RPM_ID:
 		label = "Fan 2\n";
 		break;
 	case SENSOR_FAN1_TARGET_RPM_ID:
-		label = "Fan 1 Target\n";
+		label = "Fan Target\n";
 		break;
 	case SENSOR_FAN2_TARGET_RPM_ID:
 		label = "Fan 2 Target\n";
@@ -4909,11 +5026,11 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		err = read_temperature(priv, 0, &outval);
-		outval *= 1000;
-		break;
 	case SENSOR_GPU_TEMP_ID:
-		err = read_temperature(priv, 1, &outval);
+	case SENSOR_TEMP_CHTS_ID:
+	case SENSOR_TEMP_CRTS_ID:
+	case SENSOR_TEMP_CTTS_ID:
+		err = read_temperature(priv, sensor_id, &outval);
 		outval *= 1000;
 		break;
 	case SENSOR_IC_TEMP_ID:
@@ -4953,6 +5070,14 @@ static SENSOR_DEVICE_ATTR_RO(temp2_input, sensor, SENSOR_GPU_TEMP_ID);
 static SENSOR_DEVICE_ATTR_RO(temp2_label, sensor_label, SENSOR_GPU_TEMP_ID);
 static SENSOR_DEVICE_ATTR_RO(temp3_input, sensor, SENSOR_IC_TEMP_ID);
 static SENSOR_DEVICE_ATTR_RO(temp3_label, sensor_label, SENSOR_IC_TEMP_ID);
+
+static SENSOR_DEVICE_ATTR_RO(temp_chts_input, sensor, SENSOR_TEMP_CHTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_chts_label, sensor_label, SENSOR_TEMP_CHTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_crts_input, sensor, SENSOR_TEMP_CRTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_crts_label, sensor_label, SENSOR_TEMP_CRTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_ctts_input, sensor, SENSOR_TEMP_CTTS_ID);
+static SENSOR_DEVICE_ATTR_RO(temp_ctts_label, sensor_label, SENSOR_TEMP_CTTS_ID);
+
 static SENSOR_DEVICE_ATTR_RO(fan1_input, sensor, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan1_label, sensor_label, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_input, sensor, SENSOR_FAN2_RPM_ID);
@@ -4973,6 +5098,20 @@ static struct attribute *sensor_hwmon_attributes[] = {
 	&sensor_dev_attr_fan2_label.dev_attr.attr,
 	&sensor_dev_attr_fan1_target.dev_attr.attr,
 	&sensor_dev_attr_fan2_target.dev_attr.attr,
+	NULL
+};
+
+static struct attribute *sensor_hwmon_attributes_legion_go[] = {
+	&sensor_dev_attr_temp1_input.dev_attr.attr,
+	&sensor_dev_attr_temp1_label.dev_attr.attr,
+	&sensor_dev_attr_temp_chts_input.dev_attr.attr,
+	&sensor_dev_attr_temp_chts_label.dev_attr.attr,
+	&sensor_dev_attr_temp_crts_input.dev_attr.attr,
+	&sensor_dev_attr_temp_crts_label.dev_attr.attr,
+	&sensor_dev_attr_temp_ctts_input.dev_attr.attr,
+	&sensor_dev_attr_temp_ctts_label.dev_attr.attr,
+	&sensor_dev_attr_fan1_input.dev_attr.attr,
+	&sensor_dev_attr_fan1_label.dev_attr.attr,
 	NULL
 };
 
@@ -5581,6 +5720,34 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
 };
 
+static struct attribute *fancurve_hwmon_attributes_legion_go[] = {
+	&sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point3_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point4_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point5_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point6_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr,
+	&sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr,
+	// These should be read only if the driver is properly implemented
+	// and either fail to set or noop
+	// &sensor_dev_attr_pwm1_auto_point1_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point2_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point3_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point4_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point5_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point6_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point7_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point8_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point9_temp.dev_attr.attr,
+	// &sensor_dev_attr_pwm1_auto_point10_temp.dev_attr.attr,
+	//
+	&sensor_dev_attr_auto_points_size.dev_attr.attr,
+	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
+};
+
 static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 				       struct attribute *attr, int idx)
 {
@@ -5602,8 +5769,18 @@ static const struct attribute_group legion_hwmon_sensor_group = {
 	.is_visible = NULL
 };
 
+static const struct attribute_group legion_go_hwmon_sensor_group = {
+	.attrs = sensor_hwmon_attributes_legion_go,
+	.is_visible = NULL
+};
+
 static const struct attribute_group legion_hwmon_fancurve_group = {
 	.attrs = fancurve_hwmon_attributes,
+	.is_visible = legion_hwmon_is_visible,
+};
+
+static const struct attribute_group legion_go_hwmon_fancurve_group = {
+	.attrs = fancurve_hwmon_attributes_legion_go,
 	.is_visible = legion_hwmon_is_visible,
 };
 
@@ -5611,7 +5788,11 @@ static const struct attribute_group *legion_hwmon_groups[] = {
 	&legion_hwmon_sensor_group, &legion_hwmon_fancurve_group, NULL
 };
 
-static ssize_t legion_hwmon_init(struct legion_private *priv)
+static const struct attribute_group *legion_hwmon_groups_legion_go[] = {
+	&legion_go_hwmon_sensor_group, &legion_go_hwmon_fancurve_group, NULL
+};
+
+static ssize_t legion_hwmon_init(struct legion_private *priv, bool legion_go)
 {
 	//TODO: use hwmon_device_register_with_groups or
 	// hwmon_device_register_with_info (latter means all hwmon functions have to be
@@ -5620,8 +5801,8 @@ static ssize_t legion_hwmon_init(struct legion_private *priv)
 	// TODO: Use devm_hwmon_device_register_with_groups ?
 	// some laptop drivers use this, some
 	struct device *hwmon_dev = hwmon_device_register_with_groups(
-		&priv->platform_device->dev, "legion_hwmon", priv,
-		legion_hwmon_groups);
+		&priv->platform_device->dev, "legion", priv,
+		legion_go ? legion_hwmon_groups_legion_go : legion_hwmon_groups);
 	if (IS_ERR_OR_NULL(hwmon_dev)) {
 		pr_err("hwmon_device_register failed!\n");
 		return PTR_ERR(hwmon_dev);
@@ -5921,6 +6102,7 @@ static int legion_add(struct platform_device *pdev)
 		dmi_sys = &optimistic_allowlist[0];
 	dev_info(&pdev->dev, "Using configuration for system: %s\n",
 		 dmi_sys->ident);
+	bool legion_go = strncmp(dmi_sys->ident, "N3CN", 4) == 0;
 
 	priv->conf = dmi_sys->driver_data;
 
@@ -5980,7 +6162,7 @@ static int legion_add(struct platform_device *pdev)
 	}
 
 	pr_info("Creating hwmon interface");
-	err = legion_hwmon_init(priv);
+	err = legion_hwmon_init(priv, legion_go);
 	if (err) {
 		dev_info(&pdev->dev, "Failed to create hwmon interface: %d\n",
 			 err);
@@ -6002,28 +6184,30 @@ static int legion_add(struct platform_device *pdev)
 		goto err_wmi;
 	}
 
-	pr_info("Init keyboard backlight LED driver\n");
-	err = legion_kbd_bl_init(priv);
-	if (err) {
-		dev_info(
-			&pdev->dev,
-			"Failed to init keyboard backlight LED driver. Skipping ...\n");
-	}
+	if (!legion_go) {
+		pr_info("Init keyboard backlight LED driver\n");
+		err = legion_kbd_bl_init(priv);
+		if (err) {
+			dev_info(
+				&pdev->dev,
+				"Failed to init keyboard backlight LED driver. Skipping ...\n");
+		}
 
-	pr_info("Init Y-Logo LED driver\n");
-	err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
-				"platform::ylogo");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init Y-Logo LED driver. Skipping ...\n");
-	}
+		pr_info("Init Y-Logo LED driver\n");
+		err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
+					"platform::ylogo");
+		if (err) {
+			dev_info(&pdev->dev,
+				"Failed to init Y-Logo LED driver. Skipping ...\n");
+		}
 
-	pr_info("Init IO-Port LED driver\n");
-	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
-				"platform::ioport");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init IO-Port LED driver. Skipping ...\n");
+		pr_info("Init IO-Port LED driver\n");
+		err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
+					"platform::ioport");
+		if (err) {
+			dev_info(&pdev->dev,
+				"Failed to init IO-Port LED driver. Skipping ...\n");
+		}
 	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
