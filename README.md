@@ -167,7 +167,7 @@ You will need to install the following to download and build it. If there is an 
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt5 python3-yaml python3-venv python3-pip python3-argcomplete python3-darkdetect
+sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt6 python3-yaml python3-venv python3-pip python3-argcomplete python3-darkdetect
 # Install the following for installation with DKMS
 sudo apt-get install dkms openssl mokutil
 ```
@@ -175,7 +175,7 @@ sudo apt-get install dkms openssl mokutil
 **RHEL/CentOS/RockyLinux/Fedora/AlmaLinux**
 
 ```bash
-sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors PyQt5 python3-yaml python3-pip python3-argcomplete python3-darkdetect
+sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors python3-PyQt6 python3-yaml python3-pip python3-argcomplete python3-darkdetect
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
 # Install the following for installation with DKMS
@@ -197,7 +197,7 @@ sudo zypper install dkms openssl mokutil
 **Arch/Manjaro/EndeavourOS**
 
 ```bash
-sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt5 python-yaml python-argcomplete python-darkdetect
+sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect
 # Install the following for installation with DKMS
 sudo pacman -S dkms openssl mokutil
 ```
