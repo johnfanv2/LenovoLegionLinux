@@ -10,7 +10,10 @@ LEGIOND_CONFIG config;
 
 int delayed = 0;
 bool triggered = false;
-int fd;
+int fd, client_fd, inotify_fd, maxfd;
+fd_set readfds;
+char buffer[BUF_LEN], ret[20];
+struct inotify_event *event = NULL;
 
 void clear_socket()
 {
@@ -48,37 +51,10 @@ void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
 	timer_settime(timerid, 0, its, NULL);
 }
 
-void* fancurve_change()
-{
-	char buffer[BUF_LEN];
-	struct inotify_event *event = NULL;
-
-	while(1) {
-		int inotify_fd = inotify_init();
-		inotify_add_watch(inotify_fd, profile_path, IN_MODIFY);
-		inotify_add_watch(inotify_fd, ac_path, IN_MODIFY);
-
-		int lengh = read(inotify_fd, buffer, BUF_LEN);
-		char* p = buffer;
-		while(p < buffer + lengh) {
-			event = (struct inotify_event*)p;
-			if (event->mask & IN_MODIFY) {
-				pretty("set_fancurve start");
-				set_fancurve(get_powerstate(), &config);
-				pretty("set_fancurve end");
-			}
-			p += sizeof(struct inotify_event) + event->len;
-		}
-		close(inotify_fd);
-	}
-	return NULL;
-}
-
 int main()
 {
 	// remove socket before create it
 	clear_socket();
-
 
 	parseconf(&config);
 
@@ -122,47 +98,72 @@ int main()
 	action.sa_handler = term_handler;
 	sigaction(SIGTERM, &action, NULL);
 
-	// powerprofile thread	
-	pthread_t thread_id;
-	pthread_create(&thread_id, NULL, fancurve_change, NULL);
+	// inotify power-state/power-profile watcher
+	inotify_fd = inotify_init();
+	inotify_add_watch(inotify_fd, profile_path, IN_MODIFY);
+	inotify_add_watch(inotify_fd, ac_path, IN_MODIFY);
 	
 	// listen
 	while (1) {
-		int clientfd = accept(fd, NULL, NULL);
-		char ret[20];
-		memset(ret, 0, sizeof(ret));
-		recv(clientfd, ret, sizeof(ret), 0);
+		FD_ZERO(&readfds);
+        FD_SET(fd, &readfds);
+        FD_SET(inotify_fd, &readfds);
 
-		printf("cmd: \"%s\" received\n", ret);
-		if (ret[0] == 'A') {
-			// delayed means user use legiond-ctl fanset with a parameter
-			triggered = false;
-			if (delayed) {
-				printf("extend delay\n");
-				set_timer(&its, delayed, 0, timerid);
-			} else if (ret[1] == '0') {
-				printf("reset timer\n");
-				set_timer(&its, delay_s, delay_ns, timerid);
+		maxfd = (fd > inotify_fd) ? fd : inotify_fd;
+
+		select(maxfd + 1, &readfds, NULL, NULL, NULL);
+
+		if (FD_ISSET(fd, &readfds)) {
+			client_fd = accept(fd, NULL, NULL);
+			memset(ret, 0, sizeof(ret));
+			recv(client_fd, ret, sizeof(ret), 0);
+			printf("cmd: \"%s\" received\n", ret);
+			close(client_fd);
+
+			if (ret[0] == 'A') {
+				// delayed means user use legiond-ctl fanset with a parameter
+				triggered = false;
+				if (delayed) {
+					printf("extend delay\n");
+					set_timer(&its, delayed, 0, timerid);
+				} else if (ret[1] == '0') {
+					printf("reset timer\n");
+					set_timer(&its, delay_s, delay_ns, timerid);
+				} else {
+					printf("reset timer with delay\n");
+					int delay;
+					sscanf(ret, "A%d", &delay);
+					set_timer(&its, delay, 0, timerid);
+					delayed = delay;
+				}
+			} else if (ret[0] == 'B' && triggered == true) {
+				pretty("set_cpu start");
+				set_cpu(get_powerstate(), &config);
+				pretty("set_cpu end");
+			} else if (ret[0] == 'R') {
+				pretty("config reload start");
+				parseconf(&config);
+				set_all(get_powerstate(), &config);
+				pretty("config reload end");
 			} else {
-				printf("reset timer with delay\n");
-				int delay;
-				sscanf(ret, "A%d", &delay);
-				set_timer(&its, delay, 0, timerid);
-				delayed = delay;
+				printf("do nothing\n");
 			}
-		} else if (ret[0] == 'B' && triggered == true) {
-			pretty("set_cpu start");
-			set_cpu(get_powerstate(), &config);
-			pretty("set_cpu end");
-		} else if (ret[0] == 'R') {
-			pretty("config reload start");
-			parseconf(&config);
-			set_all(get_powerstate(), &config);
-			pretty("config reload end");
-		} else {
-			printf("do nothing\n");
 		}
 
-		close(clientfd);
+		if (FD_ISSET(inotify_fd, &readfds)) {
+			int lengh = read(inotify_fd, buffer, BUF_LEN);
+			char* p = buffer;
+			while(p < buffer + lengh) {
+				event = (struct inotify_event*)p;
+				if (event->mask & IN_MODIFY) {
+					pretty("power-state/power-profile change");
+					pretty("config reload start");
+					parseconf(&config);
+					set_all(get_powerstate(), &config);
+					pretty("config reload end");
+				}
+				p += sizeof(struct inotify_event) + event->len;
+			}
+		}
 	}
 }
