@@ -65,16 +65,25 @@ obj-$(CONFIG_LENOVO_YMC)	+= lenovo-ymc.o
 obj-$(CONFIG_SENSORS_HDAPS)	+= hdaps.o
 obj-$(CONFIG_THINKPAD_ACPI)	+= thinkpad_acpi.o
 obj-$(CONFIG_THINKPAD_LMI)	+= think-lmi.o
-obj-$(CONFIG_LEGION_LAPTOP)	+= legion-laptop.o
+obj-$(CONFIG_LEGION_LAPTOP)     += legion-laptop.o
 obj-$(CONFIG_YOGABOOK)		+= lenovo-yogabook.o
+obj-$(CONFIG_YT2_1380)		+= lenovo-yoga-tab2-pro-1380-fastcharger.o
+obj-$(CONFIG_LENOVO_WMI_CAMERA)	+= lenovo-wmi-camera.o
 
 # Intel
 obj-y				+= intel/
+
+# Microsoft
+obj-$(CONFIG_ACPI_QUICKSTART)  += quickstart.o
+
+# MeeGoPad
+obj-$(CONFIG_MEEGOPAD_ANX7428)	+= meegopad_anx7428.o
 
 # MSI
 obj-$(CONFIG_MSI_EC)		+= msi-ec.o
 obj-$(CONFIG_MSI_LAPTOP)	+= msi-laptop.o
 obj-$(CONFIG_MSI_WMI)		+= msi-wmi.o
+obj-$(CONFIG_MSI_WMI_PLATFORM)	+= msi-wmi-platform.o
 
 # OLPC
 obj-$(CONFIG_XO15_EBOOK)	+= xo15-ebook.o
@@ -136,6 +145,9 @@ obj-$(CONFIG_X86_INTEL_LPSS)		+= pmc_atom.o
 
 # Siemens Simatic Industrial PCs
 obj-$(CONFIG_SIEMENS_SIMATIC_IPC)	+= siemens/
+
+# Silicom
+obj-$(CONFIG_SILICOM_PLATFORM)		+= silicom-platform.o
 
 # Winmate
 obj-$(CONFIG_WINMATE_FM07_KEYS)		+= winmate-fm07-keys.o

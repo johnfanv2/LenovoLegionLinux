@@ -1,6 +1,6 @@
 #!/bin/bash
 set -ex
-KERNEL_VERSION="6.8"
+KERNEL_VERSION="6.10"
 KERNEL_VERSION_UNDERSCORE="${KERNEL_VERSION//./_}"
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPODIR="${DIR}/.."
@@ -14,10 +14,6 @@ echo "DIR: ${DIR}"
 echo "REPODIR: ${REPODIR}"
 echo "BUILD_DIR: ${BUILD_DIR}"
 echo "TAG: ${TAG}"
-
-# Install the current clang and llvm
-sudo apt-get update
-sudo apt-get install clang-format clang-tidy clang-tools clang clangd libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 liblldb-dev libllvm-ocaml-dev libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm python3-clang
 
 # Recreate build dir
 rm -rf "${BUILD_DIR}" || true
@@ -47,12 +43,12 @@ git format-patch HEAD~1
 sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev
 
 # Clean
-make clean && make LLVM=1 IAS=1 mrproper
+make clean && make mrproper
 
 # Create config with new module enabled
-make LLVM=1 IAS=1 defconfig
+make defconfig
 # cp -v /boot/config-$(uname -r) .config
 echo "CONFIG_LEGION_LAPTOP=m" >>.config
 
 # Build
-make LLVM=1 IAS=1 -j 8
+make -j 8
