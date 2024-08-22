@@ -28,7 +28,6 @@ Requires:     PyQt6
 Requires:     python-yaml
 Requires:     python-argcomplete
 Requires:     python-darkdetect
-Requires:     acpid
 
 %description
 See documenation of LenovoLegionLinux
@@ -58,10 +57,6 @@ mkdir -p %{buildroot}%{_bindir}
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{buildroot}%{_bindir}/legiond-ctl
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond %{buildroot}%{_bindir}/legiond
 
-mkdir -p %{buildroot}/etc/acpi/events/
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ppd %{buildroot}%{_sysconfdir}/acpi/events/legion-ppd
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/acpi/events/legion_ac %{buildroot}%{_sysconfdir}/acpi/events/legion_ac
-
 # Remove debug files
 rm -rf %{buildroot}/usr/lib/debug
 
@@ -87,8 +82,6 @@ rm -rf %{buildroot}/usr/lib/debug
 %{_datadir}/pixmaps/legion_logo_light.png
 %{_datadir}/polkit-1/actions/legion_cli.policy
 %{_datadir}/polkit-1/actions/legion_gui.policy
-%{_sysconfdir}/acpi/events/legion-ppd
-%{_sysconfdir}/acpi/events/legion_ac
 %{_bindir}/legiond
 %{_bindir}/legiond-ctl
 %{_unitdir}/legiond-cpuset.service
