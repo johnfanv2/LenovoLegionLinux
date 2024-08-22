@@ -4,6 +4,8 @@
 #include "modules/powerstate.h"
 #include "modules/output.h"
 
+#define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
+
 LEGIOND_CONFIG config;
 
 int delayed = 0;
@@ -46,10 +48,37 @@ void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
 	timer_settime(timerid, 0, its, NULL);
 }
 
+void* fancurve_change()
+{
+	char buffer[BUF_LEN];
+	struct inotify_event *event = NULL;
+
+	while(1) {
+		int inotify_fd = inotify_init();
+		inotify_add_watch(inotify_fd, profile_path, IN_MODIFY);
+		inotify_add_watch(inotify_fd, ac_path, IN_MODIFY);
+
+		int lengh = read(inotify_fd, buffer, BUF_LEN);
+		char* p = buffer;
+		while(p < buffer + lengh) {
+			event = (struct inotify_event*)p;
+			if (event->mask & IN_MODIFY) {
+				pretty("set_fancurve start");
+				set_fancurve(get_powerstate(), &config);
+				pretty("set_fancurve end");
+			}
+			p += sizeof(struct inotify_event) + event->len;
+		}
+		close(inotify_fd);
+	}
+	return NULL;
+}
+
 int main()
 {
 	// remove socket before create it
 	clear_socket();
+
 
 	parseconf(&config);
 
@@ -93,12 +122,17 @@ int main()
 	action.sa_handler = term_handler;
 	sigaction(SIGTERM, &action, NULL);
 
+	// powerprofile thread	
+	pthread_t thread_id;
+	pthread_create(&thread_id, NULL, fancurve_change, NULL);
+	
 	// listen
 	while (1) {
 		int clientfd = accept(fd, NULL, NULL);
 		char ret[20];
 		memset(ret, 0, sizeof(ret));
 		recv(clientfd, ret, sizeof(ret), 0);
+
 		printf("cmd: \"%s\" received\n", ret);
 		if (ret[0] == 'A') {
 			// delayed means user use legiond-ctl fanset with a parameter
@@ -128,6 +162,7 @@ int main()
 		} else {
 			printf("do nothing\n");
 		}
+
 		close(clientfd);
 	}
 }

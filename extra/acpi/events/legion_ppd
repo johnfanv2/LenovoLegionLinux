@@ -1,2 +1,0 @@
-event=wmi PNP0C14:01 000000e7 00000000
-action=/usr/bin/legiond-ctl fanset

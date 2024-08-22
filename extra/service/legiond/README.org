@@ -21,8 +21,8 @@ Every power-state/power-profile change will reset the timer.
 
 ~legiond-cli~ send request to ~legiond~ via [[https://en.wikipedia.org/wiki/Unix_domain_socket][Unix domain socket]].
 
-When the power-state or power-profile changed, ~acpid.service~ send a request to ~legiond~ via ~legiond-ctl~.
-~legiond~ will call a series of utils after a variable delay(depend on ~legiond-ctl~ arguments).
+~legiond~ also check if power-state or power-profile change and automatically load the appropriated fan curve
+
 * Configuration
 #+begin_src shell
 sudo cp /usr/share/legion_linux/{*.yaml,legiond.ini} /etc/legion_linux/
