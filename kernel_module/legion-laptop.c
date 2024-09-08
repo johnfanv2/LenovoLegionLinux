@@ -6084,7 +6084,7 @@ err_model_mismtach:
 	return err;
 }
 
-static int legion_remove(struct platform_device *pdev)
+static void legion_remove(struct platform_device *pdev)
 {
 	struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 
@@ -6112,7 +6112,6 @@ static int legion_remove(struct platform_device *pdev)
 	legion_shared_exit(priv);
 
 	pr_info("Legion platform unloaded\n");
-	return 0;
 }
 
 static int legion_resume(struct platform_device *pdev)
@@ -6144,7 +6143,7 @@ MODULE_DEVICE_TABLE(acpi, legion_device_ids);
 
 static struct platform_driver legion_driver = {
 	.probe = legion_add,
-	.remove = legion_remove,
+	.remove_new = legion_remove,
 	.resume = legion_resume,
 	.driver = {
 		.name   = "legion",
