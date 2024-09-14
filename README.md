@@ -23,7 +23,6 @@
 [![NixOS](https://img.shields.io/badge/NixOS--package-lenovo--legion-9cf)](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
 </br>
 [![Nobara](https://img.shields.io/badge/Nobara_Linux-Kernel_Patched-green)](https://nobaraproject.org/)
-[![CachyOS](https://img.shields.io/badge/CachyOS_Linux-Kernel_Patched-green)](https://cachyos.org)
 [![PikaOS](https://img.shields.io/badge/PikaOS_Linux-Kernel_Patched-green)](https://pika-os.com/)
 ---
 
@@ -96,15 +95,13 @@ It allows you to control features like the fan curve, power mode, power limits, 
     - Official Fedora COPR: [here](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
 - Arch Base Distros:
     - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
-    - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)[^2]
+    - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 - Gentoo Base Distros:
     - [GURU Overlay](https://gitweb.gentoo.org/repo/proj/guru.git)
     - [ebuild](https://gpo.zugaina.org/sys-firmware/lenovolegionlinux)
 - [NixOS](https://search.nixos.org/packages?channel=unstable&from=0&size=50&sort=relevance&type=packages&query=lenovo-legion)
 
 [^1]: Build with latest commit every day at midnight GMT
-
-[^2]: Only need if are not using CachyOS
 
 ## :pushpin: Confirmed Compatible Models
 
