@@ -263,6 +263,7 @@ sudo make uninstall
 You must first install the package to with DKMS. See Requirements section.
 
 ```
+sudo mkdir -p /usr/src/LenovoLegionLinux-1.0.0
 sudo cp ./kernel_module/* /usr/src/LenovoLegionLinux-1.0.0 -r
 sudo dkms add -m LenovoLegionLinux -v 1.0.0
 sudo dkms build -m LenovoLegionLinux -v 1.0.0
