@@ -97,8 +97,9 @@ MODULE_PARM_DESC(
 	enable_platformprofile,
 	"Enable the platform profile sysfs API to read and write the power mode.");
 
+// TODO: remove this?
 #define LEGIONFEATURES \
-	"fancurve powermode platformprofile platformprofilenotify minifancurve"
+	"fancurve powermode platformprofile platformprofilenotify minifancurve fancurve_pmw_speed fancurve_rpm_speed"
 
 //Size of fancurve stored in embedded controller
 #define MAXFANCURVESIZE 10
@@ -2153,7 +2154,7 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 		return false;
 	}
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
-		pr_err("Point id %d or fan id %d not valid", point_id, fan_id);
+		pr_err("Setting point id %d, fan id %d not valid for fancurve with size %ld", point_id, fan_id, fancurve->size);
 		return false;
 	}
 	speed = fan_id == 0 ? &fancurve->points[point_id].speed1 :
@@ -2180,24 +2181,24 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 				   int point_id, int fan_id, int *value)
 {
-	const u8 *speed;
+	int speed;
 
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
-		pr_err("Point id %d or fan id %d not valid", point_id, fan_id);
+		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld", point_id, fan_id, fancurve->size);
 		return false;
 	}
-	speed = fan_id == 0 ? &fancurve->points[point_id].speed1 :
-			      &fancurve->points[point_id].speed2;
+	speed = fan_id == 0 ? fancurve->points[point_id].speed1 :
+			      fancurve->points[point_id].speed2;
 
 	switch (fancurve->fan_speed_unit) {
 	case FAN_SPEED_UNIT_PERCENT:
-		*value = *speed * 255 / 100;
+		*value = speed * 255 / 100;
 		return true;
 	case FAN_SPEED_UNIT_PWM:
-		*value = *speed;
+		*value = speed;
 		return true;
 	case FAN_SPEED_UNIT_RPM_HUNDRED:
-		*value = *speed * 255 * 100 / MAX_RPM;
+		*value = speed * 255 * 100 / MAX_RPM;
 		return true;
 	default:
 		pr_info("No method to get for fan_speed_unit %d.",
@@ -2320,15 +2321,26 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 {
 	int i;
 
+	seq_printf(s, "Fan curve current point id: %ld\n", fancurve->current_point_i);
+	seq_printf(s, "Fan curve points size: %ld\n", fancurve->size);
+
 	seq_printf(
 		s,
-		"speed1|speed2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp\n");
+		"u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp\n");
 	for (i = 0; i < fancurve->size; ++i) {
+		int speed_pwm1 = -1;
+		int speed_pwm2 = -1;
 		const struct fancurve_point *point = &fancurve->points[i];
 
+		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm1);
+		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm2);
+
 		seq_printf(s,
-			   "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
-			   point->speed1, point->speed2, point->accel,
+			   "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
+			   fancurve->fan_speed_unit,
+			   point->speed1, point->speed2,
+			   speed_pwm1, speed_pwm2,
+			   point->accel,
 			   point->decel, point->cpu_min_temp_celsius,
 			   point->cpu_max_temp_celsius,
 			   point->gpu_min_temp_celsius,
@@ -3233,6 +3245,7 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 {
 	// TODO: use enums or function pointers?
+	pr_info("Reading fancurve"); // TODO: remove that
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
 		return ec_read_fancurve_legion(&priv->ecram, priv->conf,
@@ -3909,11 +3922,9 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 				   &is_maximumfanspeed);
 	seq_file_print_with_error(s, "fanfullspeed EC", err,
 				  is_maximumfanspeed);
+	seq_printf(s, "Max speed for fancurve: %d\n", MAX_RPM);
 
 	read_fancurve(priv, &priv->fancurve);
-	seq_printf(s, "EC fan curve current point id: %ld\n",
-		   priv->fancurve.current_point_i);
-	seq_printf(s, "EC fan curve points size: %ld\n", priv->fancurve.size);
 
 	seq_puts(s, "Current fan curve in hardware:\n");
 	fancurve_print_seqfile(&priv->fancurve, s);
