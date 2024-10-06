@@ -2154,7 +2154,8 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 		return false;
 	}
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
-		pr_err("Setting point id %d, fan id %d not valid for fancurve with size %ld", point_id, fan_id, fancurve->size);
+		pr_err("Setting point id %d, fan id %d not valid for fancurve with size %ld",
+		       point_id, fan_id, fancurve->size);
 		return false;
 	}
 	speed = fan_id == 0 ? &fancurve->points[point_id].speed1 :
@@ -2183,22 +2184,31 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 {
 	int speed;
 
+	pr_info("%s 1 point id=%d, fancurve=%p, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
+		__func__, point_id, (void*) fancurve, fancurve->fan_speed_unit, fancurve->size);
+
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
-		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld", point_id, fan_id, fancurve->size);
+		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld",
+		       point_id, fan_id, fancurve->size);
 		return false;
 	}
+	pr_info("%s 2", __func__);
+
 	speed = fan_id == 0 ? fancurve->points[point_id].speed1 :
 			      fancurve->points[point_id].speed2;
 
 	switch (fancurve->fan_speed_unit) {
 	case FAN_SPEED_UNIT_PERCENT:
 		*value = speed * 255 / 100;
+		pr_info("%s 3a", __func__);
 		return true;
 	case FAN_SPEED_UNIT_PWM:
 		*value = speed;
+		pr_info("%s 3b", __func__);
 		return true;
 	case FAN_SPEED_UNIT_RPM_HUNDRED:
 		*value = speed * 255 * 100 / MAX_RPM;
+		pr_info("%s 3c", __func__);
 		return true;
 	default:
 		pr_info("No method to get for fan_speed_unit %d.",
@@ -2321,7 +2331,8 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 {
 	int i;
 
-	seq_printf(s, "Fan curve current point id: %ld\n", fancurve->current_point_i);
+	seq_printf(s, "Fan curve current point id: %ld\n",
+		   fancurve->current_point_i);
 	seq_printf(s, "Fan curve points size: %ld\n", fancurve->size);
 
 	seq_printf(
@@ -2335,18 +2346,16 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm1);
 		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm2);
 
-		seq_printf(s,
-			   "%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
-			   fancurve->fan_speed_unit,
-			   point->speed1, point->speed2,
-			   speed_pwm1, speed_pwm2,
-			   point->accel,
-			   point->decel, point->cpu_min_temp_celsius,
-			   point->cpu_max_temp_celsius,
-			   point->gpu_min_temp_celsius,
-			   point->gpu_max_temp_celsius,
-			   point->ic_min_temp_celsius,
-			   point->ic_max_temp_celsius);
+		seq_printf(
+			s,
+			"%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
+			fancurve->fan_speed_unit, point->speed1, point->speed2,
+			speed_pwm1, speed_pwm2, point->accel, point->decel,
+			point->cpu_min_temp_celsius,
+			point->cpu_max_temp_celsius,
+			point->gpu_min_temp_celsius,
+			point->gpu_max_temp_celsius, point->ic_min_temp_celsius,
+			point->ic_max_temp_celsius);
 	}
 	return 0;
 }
@@ -5108,9 +5117,17 @@ static ssize_t autopoint_show(struct device *dev,
 	int fancurve_attr_id = to_sensor_dev_attr_2(devattr)->nr;
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 
+	pr_info("%s 1 point id=%d, fancurve_attr_id id=%d, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
+		__func__, point_id, fancurve_attr_id,
+		fancurve.fan_speed_unit, fancurve.size);
+
 	mutex_lock(&priv->fancurve_mutex);
 	err = read_fancurve(priv, &fancurve);
 	mutex_unlock(&priv->fancurve_mutex);
+
+	pr_info("%s 2 point id=%d, fancurve_attr_id id=%d, err=%d, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
+		__func__, point_id, fancurve_attr_id, err,
+		fancurve.fan_speed_unit, fancurve.size);
 
 	if (err) {
 		pr_info("Failed to read fancurve\n");
@@ -5124,10 +5141,16 @@ static ssize_t autopoint_show(struct device *dev,
 
 	switch (fancurve_attr_id) {
 	case FANCURVE_ATTR_PWM1:
+		pr_info("%s ->3a pwm1 point id=%d, fancurve_attr_id id=%d",
+			__func__, point_id, fancurve_attr_id);
 		fancurve_get_speed_pwm(&fancurve, point_id, 0, &value);
+		pr_info("%s ->3a2", __func__);
 		break;
 	case FANCURVE_ATTR_PWM2:
+		pr_info("%s ->3b pwm2 point id=%d, fancurve_attr_id id=%d",
+			__func__, point_id, fancurve_attr_id);
 		fancurve_get_speed_pwm(&fancurve, point_id, 1, &value);
+		pr_info("%s ->3b2", __func__);
 		break;
 	case FANCURVE_ATTR_CPU_TEMP:
 		value = fancurve.points[point_id].cpu_max_temp_celsius;
@@ -5161,7 +5184,7 @@ static ssize_t autopoint_show(struct device *dev,
 			fancurve_attr_id);
 		return -EOPNOTSUPP;
 	}
-
+	pr_info("%s 4 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", __func__);
 	return sprintf(buf, "%d\n", value);
 }
 
