@@ -2154,9 +2154,11 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 		return false;
 	}
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
-		pr_err("Setting point id %d, fan id %d not valid for fancurve with size %ld",
+		pr_warn("Reading point id %d, fan id %d not valid for fancurve with size %ld. Returning speed as 0.",
 		       point_id, fan_id, fancurve->size);
-		return false;
+		// When fancurve is smaller (quiet or balanced) return speed as 0
+		// This failing to apply the fancurve
+		speed = 0;
 	}
 	speed = fan_id == 0 ? &fancurve->points[point_id].speed1 :
 			      &fancurve->points[point_id].speed2;
@@ -2188,14 +2190,18 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 		__func__, point_id, (void*) fancurve, fancurve->fan_speed_unit, fancurve->size);
 
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
-		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld",
+		pr_warn("Reading point id %d, fan id %d not valid for fancurve with size %ld. Returning speed as 0.",
 		       point_id, fan_id, fancurve->size);
-		return false;
-	}
+		// When fancurve is smaller (quiet or balanced) return speed as 0
+		// This pervents negative number
+		speed = 0;
+		
+	}else {
 	pr_info("%s 2", __func__);
 
 	speed = fan_id == 0 ? fancurve->points[point_id].speed1 :
 			      fancurve->points[point_id].speed2;
+	}
 
 	switch (fancurve->fan_speed_unit) {
 	case FAN_SPEED_UNIT_PERCENT:
@@ -2212,7 +2218,7 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 		return true;
 	default:
 		pr_info("No method to get for fan_speed_unit %d.",
-			fancurve->fan_speed_unit);
+		fancurve->fan_speed_unit);
 		return false;
 	}
 	return false;
