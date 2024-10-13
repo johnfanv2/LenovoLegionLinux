@@ -42,8 +42,8 @@ def get_dmesg(only_tail=False, filter_log=True):
 
 @dataclass(order=True)
 class FanCurveEntry:
-    fan1_speed: float # fan speed in rpm
-    fan2_speed: float # fan speed in rpm
+    fan1_speed: int # fan speed in rpm
+    fan2_speed: int # fan speed in rpm
     cpu_lower_temp: int
     cpu_upper_temp: int
     gpu_lower_temp: int
@@ -813,10 +813,10 @@ class FanCurveIO(Feature):
         self._write_file(file_path, value)
 
     def set_fan_1_speed_rpm(self, point_id, value):
-        return self.set_fan_1_speed_pwm(point_id, round(value/self.get_fan_1_max_rpm()*255.0))
+        return self.set_fan_1_speed_pwm(point_id, round(value/self.get_fan_1_max_rpm()*255))
 
     def set_fan_2_speed_rpm(self, point_id, value):
-        return self.set_fan_2_speed_pwm(point_id, round(value/self.get_fan_2_max_rpm()*255.0))
+        return self.set_fan_2_speed_pwm(point_id, round(value/self.get_fan_2_max_rpm()*255))
 
     def set_lower_cpu_temperature(self, point_id, value):
         point_id = self._validate_point_id(point_id)
@@ -869,10 +869,10 @@ class FanCurveIO(Feature):
         return self._read_file(file_path)
 
     def get_fan_1_speed_rpm(self, point_id):
-        return round(self.get_fan_1_speed_pwm(point_id)/255.0*self.get_fan_1_max_rpm(), ndigits=2)
+        return round(self.get_fan_1_speed_pwm(point_id)/255*self.get_fan_1_max_rpm())
 
     def get_fan_2_speed_rpm(self, point_id):
-        return round(self.get_fan_2_speed_pwm(point_id)/255.0*self.get_fan_2_max_rpm(), ndigits=2)
+        return round(self.get_fan_2_speed_pwm(point_id)/255*self.get_fan_2_max_rpm())
 
     def get_lower_cpu_temperature(self, point_id):
         point_id = self._validate_point_id(point_id)
