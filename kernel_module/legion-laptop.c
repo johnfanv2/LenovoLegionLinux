@@ -2185,7 +2185,7 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 	int speed;
 
 	pr_info("%s 1 point id=%d, fancurve=%p, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
-		__func__, point_id, (void*) fancurve, fancurve->fan_speed_unit, fancurve->size);
+		__func__, point_id, (void *) fancurve, fancurve->fan_speed_unit, fancurve->size);
 
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
 		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld",
@@ -5116,6 +5116,7 @@ static ssize_t autopoint_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 	int fancurve_attr_id = to_sensor_dev_attr_2(devattr)->nr;
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
+	bool ok = true;
 
 	pr_info("%s 1 point id=%d, fancurve_attr_id id=%d, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
 		__func__, point_id, fancurve_attr_id,
@@ -5143,14 +5144,14 @@ static ssize_t autopoint_show(struct device *dev,
 	case FANCURVE_ATTR_PWM1:
 		pr_info("%s ->3a pwm1 point id=%d, fancurve_attr_id id=%d",
 			__func__, point_id, fancurve_attr_id);
-		fancurve_get_speed_pwm(&fancurve, point_id, 0, &value);
-		pr_info("%s ->3a2", __func__);
+		ok = fancurve_get_speed_pwm(&fancurve, point_id, 0, &value);
+		pr_info("%s ok: %d->3a2", __func__, ok);
 		break;
 	case FANCURVE_ATTR_PWM2:
 		pr_info("%s ->3b pwm2 point id=%d, fancurve_attr_id id=%d",
 			__func__, point_id, fancurve_attr_id);
-		fancurve_get_speed_pwm(&fancurve, point_id, 1, &value);
-		pr_info("%s ->3b2", __func__);
+		ok = fancurve_get_speed_pwm(&fancurve, point_id, 1, &value);
+		pr_info("%s ok: %d->3b2", __func__, ok);
 		break;
 	case FANCURVE_ATTR_CPU_TEMP:
 		value = fancurve.points[point_id].cpu_max_temp_celsius;
@@ -5184,7 +5185,11 @@ static ssize_t autopoint_show(struct device *dev,
 			fancurve_attr_id);
 		return -EOPNOTSUPP;
 	}
-	pr_info("%s 4 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", __func__);
+	if (!ok) {
+		pr_info("%s 4a: error!", __func__);
+		value = 0;
+	}
+	pr_info("%s 4b XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", __func__);
 	return sprintf(buf, "%d\n", value);
 }
 
