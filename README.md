@@ -768,7 +768,7 @@ Thank you for your work on Windows tools that were the basis of the Linux suppor
   and creating the Windows tool [LegionFanControl](https://github.com/0x1F9F1/LegionFanControl)
 * [ViRb3](https://github.com/ViRb3), for creating [Lenovo Controller](https://github.com/ViRb3/LenovoController), which was used as a base
   for [LenovoLegionToolkit]
-* [Luke Cama](https://www.legionfancontrol.com/), for his closed-source tool [LegionFanControl](https://www.legionfancontrol.com/) that controls older laptops with directly with the embedded controller
+* [Luke Cama](https://www.legionfancontrol.com/), for his closed-source tool [LegionFanControl](https://www.legionfancontrol.com/) that controls older laptops by directly interacting with the embedded controller
 * David Woodhouse, for his work on the ideapad Linux driver [ideapad-laptop](https://github.com/torvalds/linux/blob/0ec5a38bf8499f403f81cb81a0e3a60887d1993c/drivers/platform/x86/ideapad-laptop.c), which was a heavy inspiration for this Linux driver
 
 ### Contributors to Lenovo Legion Laptop Support
