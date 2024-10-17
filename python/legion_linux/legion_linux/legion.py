@@ -42,8 +42,8 @@ def get_dmesg(only_tail=False, filter_log=True):
 
 @dataclass(order=True)
 class FanCurveEntry:
-    fan1_speed: int
-    fan2_speed: int
+    fan1_speed: float # fan speed in rpm
+    fan2_speed: float # fan speed in rpm
     cpu_lower_temp: int
     cpu_upper_temp: int
     gpu_lower_temp: int
@@ -743,6 +743,8 @@ class FanCurveIO(Feature):
     pwm1_accel = "pwm1_auto_point{}_accel"
     pwm1_decel = "pwm1_auto_point{}_decel"
     minifancurve = "minifancurve"
+    fan1_max = "fan1_max"
+    fan2_max = "fan2_max"
 
     encoding = DEFAULT_ENCODING
 
@@ -791,16 +793,30 @@ class FanCurveIO(Feature):
     def _write_file_or(file_path, value):
         if os.path.exists(file_path):
             FanCurveIO._write_file(file_path, value)
+    
+    def get_fan_1_max_rpm(self):
+        file_path = self.hwmon_path + self.fan1_max
+        return int(self._read_file(file_path))
 
-    def set_fan_1_speed(self, point_id, value):
+    def get_fan_2_max_rpm(self):
+        file_path = self.hwmon_path + self.fan2_max
+        return int(self._read_file(file_path))
+
+    def set_fan_1_speed_pwm(self, point_id, value):
         point_id = self._validate_point_id(point_id)
         file_path = self.hwmon_path + self.pwm1_fan_speed.format(point_id)
         self._write_file(file_path, value)
 
-    def set_fan_2_speed(self, point_id, value):
+    def set_fan_2_speed_pwm(self, point_id, value):
         point_id = self._validate_point_id(point_id)
         file_path = self.hwmon_path + self.pwm2_fan_speed.format(point_id)
         self._write_file(file_path, value)
+
+    def set_fan_1_speed_rpm(self, point_id, value):
+        return self.set_fan_1_speed_pwm(point_id, round(value/self.get_fan_1_max_rpm()*255.0))
+
+    def set_fan_2_speed_rpm(self, point_id, value):
+        return self.set_fan_2_speed_pwm(point_id, round(value/self.get_fan_2_max_rpm()*255.0))
 
     def set_lower_cpu_temperature(self, point_id, value):
         point_id = self._validate_point_id(point_id)
@@ -842,15 +858,21 @@ class FanCurveIO(Feature):
         file_path = self.hwmon_path + self.pwm1_decel.format(point_id)
         self._write_file(file_path, value)
 
-    def get_fan_1_speed(self, point_id):
+    def get_fan_1_speed_pwm(self, point_id):
         point_id = self._validate_point_id(point_id)
         file_path = self.hwmon_path + self.pwm1_fan_speed.format(point_id)
         return self._read_file(file_path)
 
-    def get_fan_2_speed(self, point_id):
+    def get_fan_2_speed_pwm(self, point_id):
         point_id = self._validate_point_id(point_id)
         file_path = self.hwmon_path + self.pwm2_fan_speed.format(point_id)
         return self._read_file(file_path)
+
+    def get_fan_1_speed_rpm(self, point_id):
+        return round(self.get_fan_1_speed_pwm(point_id)/255.0*self.get_fan_1_max_rpm(), ndigits=2)
+
+    def get_fan_2_speed_rpm(self, point_id):
+        return round(self.get_fan_2_speed_pwm(point_id)/255.0*self.get_fan_2_max_rpm(), ndigits=2)
 
     def get_lower_cpu_temperature(self, point_id):
         point_id = self._validate_point_id(point_id)
@@ -924,8 +946,8 @@ class FanCurveIO(Feature):
             log.error(str(error))
         for index, entry in enumerate(fan_curve.entries):
             point_id = index + 1
-            self.set_fan_1_speed(point_id, entry.fan1_speed)
-            self.set_fan_2_speed(point_id, entry.fan2_speed)
+            self.set_fan_1_speed_rpm(point_id, entry.fan1_speed)
+            self.set_fan_2_speed_rpm(point_id, entry.fan2_speed)
             self.set_lower_cpu_temperature(point_id, entry.cpu_lower_temp)
             self.set_upper_cpu_temperature(point_id, entry.cpu_upper_temp)
             self.set_lower_gpu_temperature(point_id, entry.gpu_lower_temp)
@@ -939,8 +961,8 @@ class FanCurveIO(Feature):
         """Reads a fan curve object from the file system"""
         entries = []
         for point_id in range(1, 11):
-            fan1_speed = self.get_fan_1_speed(point_id)
-            fan2_speed = self.get_fan_2_speed(point_id)
+            fan1_speed = self.get_fan_1_speed_rpm(point_id)
+            fan2_speed = self.get_fan_2_speed_rpm(point_id)
             cpu_lower_temp = self.get_lower_cpu_temperature(point_id)
             cpu_upper_temp = self.get_upper_cpu_temperature(point_id)
             gpu_lower_temp = self.get_lower_gpu_temperature(point_id)
