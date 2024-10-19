@@ -977,8 +977,8 @@ class FanCurveEntryView():
         self.decel_edit.setDisabled(value)
 
     def get(self) -> FanCurveEntry:
-        fan1_speed = int(self.fan_speed1_edit.text())
-        fan2_speed = int(self.fan_speed2_edit.text())
+        fan1_speed = float(self.fan_speed1_edit.text())
+        fan2_speed = float(self.fan_speed2_edit.text())
         cpu_lower_temp = int(self.cpu_lower_temp_edit.text())
         cpu_upper_temp = int(self.cpu_upper_temp_edit.text())
         gpu_lower_temp = int(self.gpu_lower_temp_edit.text())

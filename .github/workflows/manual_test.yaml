@@ -14,12 +14,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Install Dependencies
-      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      run: ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh
       shell: bash
     - name: Build
       run: ./tests/test_kernel_build.sh
@@ -29,12 +29,12 @@ jobs:
       shell: bash
 
   run-kernel-module-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Install Dependencies
-      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      run: ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh
       shell: bash
     - name: Test Install
       run: ./tests/test_kernel_install.sh
@@ -47,12 +47,12 @@ jobs:
       shell: bash
 
   run-kernel-dkms-install-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Install Dependencies
-      run: ./deploy/dependencies/install_dependencies_ubuntu.sh
+      run: ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh
       shell: bash
     - name: Build
       run: ./tests/test_kenel_dkms_install.sh || true
@@ -60,12 +60,12 @@ jobs:
 
   run-tests:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
       - name: Install Development Dependencies
-        run: ./deploy/dependencies/install_development_dependencies_ubuntu.sh
+        run: ./deploy/dependencies/install_development_dependencies_ubuntu_24_04.sh
         shell: bash
       - name: Lint with Linux checkpath
         if: always()
@@ -91,7 +91,7 @@ jobs:
   # Use to test kernel patch build if needed
   release-kernel-patch:
     needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.inputs.BUILD_KERNEL_PATCH == 'true' }}
     steps:
     - uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
 
   test-in-docker-container:
     needs: [build, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4

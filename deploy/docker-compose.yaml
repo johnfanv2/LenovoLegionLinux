@@ -18,10 +18,14 @@ services:
   #   build:
   #     context: ..
   #     dockerfile: deploy/Dockerfile.suse
-  legion-ubuntu:
+  # legion-ubuntu-22-04:
+  #   build:
+  #     context: ..
+  #     dockerfile: deploy/Dockerfile.ubuntu.22.04
+  legion-ubuntu-24-04:
     build:
       context: ..
-      dockerfile: deploy/Dockerfile.ubuntu
+      dockerfile: deploy/Dockerfile.ubuntu.24.04
   ubuntu:
     image: ubuntu:latest
     volumes:

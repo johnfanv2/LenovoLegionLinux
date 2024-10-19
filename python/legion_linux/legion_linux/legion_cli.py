@@ -66,19 +66,15 @@ class CLIFeatureCommand:
             return self.command_disable()
         return -10
 
-    # pylint: disable=no-self-use
     def exists(self) -> bool:
         return False
 
-    # pylint: disable=no-self-use
     def command_status(self, **_) -> int:
         return 0
 
-    # pylint: disable=no-self-use
     def command_enable(self, **_) -> int:
         return -1
 
-    # pylint: disable=no-self-use
     def command_disable(self, **_) -> int:
         return -1
 
