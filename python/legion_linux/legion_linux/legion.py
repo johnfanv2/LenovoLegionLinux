@@ -752,7 +752,7 @@ class FanCurveIO(Feature):
         super().__init__()
         self.hwmon_path = self._find_hwmon_dir()
         if (not self.hwmon_path) and expect_hwmon:
-            raise Exception("hwmon dir not found")
+            raise FileNotFoundError("hwmon dir not found")
 
     def exists(self):
         if self.hwmon_path is not None:
@@ -793,7 +793,7 @@ class FanCurveIO(Feature):
     def _write_file_or(file_path, value):
         if os.path.exists(file_path):
             FanCurveIO._write_file(file_path, value)
-    
+
     def get_fan_1_max_rpm(self):
         file_path = self.hwmon_path + self.fan1_max
         return int(self._read_file(file_path))
