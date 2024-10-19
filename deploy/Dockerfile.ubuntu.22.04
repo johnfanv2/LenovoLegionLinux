@@ -1,0 +1,38 @@
+FROM ubuntu:22.04
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install sudo (used in scripts that are tested)
+RUN apt-get update && \
+    apt-get -y install sudo
+
+# Set timezone (used by pylint) and locale
+ENV LANG=en_US.UTF-8  
+ENV LANGUAGE=en_US:en  
+ENV LC_ALL=en_US.UTF-8    
+RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
+    apt-get -y install locales tzdata && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+ 
+
+RUN apt-get install -y gcc-12
+
+RUN mkdir /opt/LinuxLegionLaptop
+WORKDIR /opt/LinuxLegionLaptop
+
+COPY ./deploy/dependencies/install_dependencies_ubuntu_22_04.sh ./deploy/dependencies/install_dependencies_ubuntu_22_04.sh
+RUN ./deploy/dependencies/install_dependencies_ubuntu_22_04.sh
+
+COPY ./deploy/dependencies ./deploy/dependencies
+RUN ./deploy/dependencies/install_development_dependencies_ubuntu_22_04.sh
+
+COPY . /opt/LinuxLegionLaptop
+
+RUN tests/test_kernel_build.sh \
+     && tests/test_kernel_install.sh
+RUN tests/test_python_cli.sh
+#    && tests/test_python_gui.sh
+RUN deploy/python_install_pip_pkg.sh \
+    && tests/test_python_cli_installed.sh
+#    && tests/test_python_gui_installed.sh 
+#RUN tests/test_python_run_gui_root.sh
