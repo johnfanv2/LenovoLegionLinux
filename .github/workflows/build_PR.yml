@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
       shell: bash
 
   run-kernel-module-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
       shell: bash
 
   run-kernel-dkms-install-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
 
   run-tests:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
 
   check-kernel-module-change:
     needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       output1: ${{ steps.filter.outputs.workflows }}
     steps:
@@ -95,7 +95,7 @@ jobs:
 
   release-kernel-patch:
     needs: [check-kernel-module-change]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
       with:
@@ -107,7 +107,7 @@ jobs:
 
   test-in-docker-container:
     needs: [build, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4

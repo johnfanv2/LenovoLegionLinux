@@ -14,7 +14,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       shell: bash
 
   run-kernel-module-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
       shell: bash
 
   run-kernel-dkms-install-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -60,7 +60,7 @@ jobs:
 
   run-tests:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -91,7 +91,7 @@ jobs:
   # Use to test kernel patch build if needed
   release-kernel-patch:
     needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.inputs.BUILD_KERNEL_PATCH == 'true' }}
     steps:
     - uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
 
   test-in-docker-container:
     needs: [build, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout
       uses: actions/checkout@v4
