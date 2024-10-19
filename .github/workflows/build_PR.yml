@@ -56,7 +56,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
       - name: Install Development Dependencies
-        run: ./deploy/dependencies/install_development_dependencies_ubuntu.sh
+        run: ./deploy/dependencies/install_development_dependencies_ubuntu_24_04.sh
         shell: bash
       - name: Lint with Linux checkpath
         if: always()
