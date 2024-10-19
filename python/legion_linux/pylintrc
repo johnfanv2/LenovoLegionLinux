@@ -2,7 +2,7 @@
 init-hook='import sys; sys.path.append("python/legion_linux")'
 
 [MESSAGES CONTROL]
-disable=missing-docstring,no-self-use,too-many-arguments,too-many-locals, import-error, duplicate-code, missing-module-docstring, too-many-instance-attributes, too-many-public-methods, no-name-in-module
+disable=missing-docstring,too-many-arguments,too-many-locals, import-error, duplicate-code, missing-module-docstring, too-many-instance-attributes, too-many-public-methods, no-name-in-module
 
 [FORMAT]
 max-line-length=120

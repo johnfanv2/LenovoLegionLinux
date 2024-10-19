@@ -165,11 +165,9 @@ class Feature:
         for func in self.callbacks:
             func(self)
 
-    # pylint: disable=no-self-use
     def exists(self):
         return True
 
-    # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
         return []
 
@@ -299,7 +297,6 @@ class FileFeature(Feature):
                 return matches[0]
         return None
 
-    # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
         return []
 
@@ -667,7 +664,6 @@ class CommandFeature:
     def name(self):
         return type(self).__name__
 
-    # pylint: disable=no-self-use
     def get_values(self) -> List[NamedValue]:
         return []
 
@@ -1050,7 +1046,6 @@ class SettingsManager(Feature):
             settings.setting_entries[name] = value
         return settings
 
-    # pylint: disable=no-self-use
     def apply_settings(self, preset: Settings):
         for name, value in preset.setting_entries.items():
             log.error("Try seting %s from preset to %s", name, value)
