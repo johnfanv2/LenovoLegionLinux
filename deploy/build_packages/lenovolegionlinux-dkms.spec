@@ -36,3 +36,7 @@ dkms remove -m %{dkms_name} -v %{version} -q --all || :
 %license LICENSE
 %doc README.md
 %{_usrsrc}/%{dkms_name}-%{version}
+
+%changelog
+* Thu Aug 22 2024 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.18-0
+- 0.0.18 release of LenovoLegionLinux DKMS module.
