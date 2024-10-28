@@ -1,6 +1,7 @@
 # norootforbuild
 %define srcname LenovoLegionLinux
 %global dkms_name %{srcname}
+%global debug_package %{nil}
 
 Name:         dkms-%{srcname}
 License:      GPL-2.0
