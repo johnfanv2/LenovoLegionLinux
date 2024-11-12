@@ -16,6 +16,7 @@ What was the (full) error you received and what command or action did lead to it
 
 **Model and Debug Info**
 
+Installation type: ??? (via github, via package manager, used dkms, ...)
 Distribution: ??? (including version, e.g. Ubuntu 24.04)
 Model name: ???
 CPU model: ??? (e.g. AMD Ryzen 7 5800H)

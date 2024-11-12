@@ -18,6 +18,7 @@ A clear and concise description of any alternative solutions or features you've 
 
 **Model and Debug Info**
 
+Installation type: ??? (via github, via package manager, used dkms, ...)
 Distribution: ??? (including version, e.g. Ubuntu 24.04)
 Model name: ???
 CPU model: ??? (e.g. AMD Ryzen 7 5800H)
