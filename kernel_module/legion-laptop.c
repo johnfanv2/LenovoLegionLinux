@@ -2878,7 +2878,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
 				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
 				  sizeof(buffer));
-	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi buffer",
+	print_hex_dump(KERN_DEBUG, "legion_laptop fan table wmi buffer",
 		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
 		       true);
 	if (!err) {
@@ -2936,7 +2936,7 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	buffer[0x16] = fancurve->points[8].speed1;
 	buffer[0x18] = fancurve->points[9].speed1;
 
-	print_hex_dump(KERN_INFO, "legion_laptop fan table wmi write buffer",
+	print_hex_dump(KERN_DEBUG, "legion_laptop fan table wmi write buffer",
 		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
 		       true);
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
