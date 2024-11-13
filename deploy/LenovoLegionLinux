@@ -8,7 +8,7 @@ Main() {
     elif [[ "$installed" =~ eos-dracut ]] ; then
         dracut-rebuild
     elif [[ "$installed" =~ dracut ]] ; then
-        dracut -f --regenerate-all --uefi
+        dracut-rebuild
     elif [[ "$installed" =~ mkinitcpio ]] ; then
         # Pevents mkinitcpio of run twices
         # mkinitcpio -P
