@@ -12,6 +12,9 @@ POWER_STATE get_powerstate()
 	FILE *fp;
 
 	fp = fopen(ac_path, "r");
+	if (fp == NULL)
+		fp = fopen(ac_path_alt, "r");
+
 	int ac_state;
 	if (fscanf(fp, "%d", &ac_state) != 1) {
 		printf("failed to get AC status\n");
