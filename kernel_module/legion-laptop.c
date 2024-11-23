@@ -370,14 +370,14 @@ static const struct ec_register_offsets ec_register_offsets_loq_v0 = {
 	.ECDEBUG = 0x2003,
 	.EXT_FAN_CUR_POINT = 0xC5a0,
 	.EXT_FAN_POINTS_SIZE = 0xC5a0, // constant 0
-	.EXT_FAN1_BASE = 0xC530,
-	.EXT_FAN2_BASE = 0xC530, // same rpm as cpu
+	.EXT_FAN1_BASE = 0xc507,
+	.EXT_FAN2_BASE = 0xc507, // same rpm as cpu
 	.EXT_FAN_ACC_BASE = 0xC5a0, // not found yet
 	.EXT_FAN_DEC_BASE = 0xC5a0, // not found yet
-	.EXT_CPU_TEMP = 0xC52F,
-	.EXT_CPU_TEMP_HYST = 0xC5a0, // not found yet
-	.EXT_GPU_TEMP = 0xC531,
-	.EXT_GPU_TEMP_HYST = 0xC5a0, // not found yet
+	.EXT_CPU_TEMP = 0xC4A8,
+	.EXT_CPU_TEMP_HYST = 0xC4b1, 
+	.EXT_GPU_TEMP = 0xC4A9,
+	.EXT_GPU_TEMP_HYST = 0xC4b5, 
 	.EXT_VRM_TEMP = 0xC5a0, // not found yet
 	.EXT_VRM_TEMP_HYST = 0xC5a0, // not found yet
 	.EXT_FAN1_RPM_LSB = 0xC5a0, // not found yet
@@ -3172,28 +3172,24 @@ static int ec_read_fancurve_loq(struct ecram *ecram,
 				struct fancurve *fancurve)
 {
 	size_t i = 0;
-	size_t struct_offset = 3; // {cpu_temp: u8, rpm: u8, gpu_temp?: u8}
-
+	size_t struct_offset = 3; // {cpu_temp min: u8, cpu temp max: u8, rpm: u8}
 	fancurve->fan_speed_unit = FAN_SPEED_UNIT_RPM_HUNDRED;
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		struct fancurve_point *point = &fancurve->points[i];
 
 		point->speed1 =
-			ecram_read(ecram, model->registers->EXT_FAN1_BASE +
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE + 2 +
 						  (i * struct_offset));
-		point->speed2 =
-			ecram_read(ecram, model->registers->EXT_FAN2_BASE +
-						  (i * struct_offset));
-
+		point->speed2 = 0;
 		point->accel = 0;
 		point->decel = 0;
 		point->cpu_max_temp_celsius =
-			ecram_read(ecram, model->registers->EXT_CPU_TEMP +
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE + 1 +
 						  (i * struct_offset));
-		point->gpu_max_temp_celsius =
-			ecram_read(ecram, model->registers->EXT_GPU_TEMP +
-						  (i * struct_offset));
-		point->cpu_min_temp_celsius = 0;
+		point->gpu_max_temp_celsius = 0;
+		point->cpu_min_temp_celsius = 
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE +
+						  (i * struct_offset));;
 		point->gpu_min_temp_celsius = 0;
 		point->ic_max_temp_celsius = 0;
 		point->ic_min_temp_celsius = 0;
@@ -3214,38 +3210,54 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 	size_t i;
 	int valr1;
 	int valr2;
+	int valr3;
 	size_t struct_offset = 3; // {cpu_temp: u8, rpm: u8, gpu_temp?: u8}
+	size_t offset_2nd_range = 10;
 
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		const struct fancurve_point *point = &fancurve->points[i];
 
 		ecram_write(ecram,
-			    model->registers->EXT_FAN1_BASE +
-				    (i * struct_offset),
+			    model->registers->EXT_FAN1_BASE + 2 +
+							(i * struct_offset),
 			    point->speed1);
-		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE +
-						  (i * struct_offset));
-		ecram_write(ecram,
-			    model->registers->EXT_FAN2_BASE +
-				    (i * struct_offset),
-			    point->speed2);
-		valr2 = ecram_read(ecram, model->registers->EXT_FAN2_BASE +
-						  (i * struct_offset));
-		pr_info("Writing fan1: %d; reading fan1: %d\n", point->speed1,
-			valr1);
-		pr_info("Writing fan2: %d; reading fan2: %d\n", point->speed2,
-			valr2);
+		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE + 2 +
+						   (i * struct_offset));
 
+		ecram_write(ecram,
+			    model->registers->EXT_FAN1_BASE + 1 +
+							(i * struct_offset),
+ 			    point->cpu_max_temp_celsius);
+		valr2 = ecram_read(ecram, model->registers->EXT_FAN1_BASE + 1 +
+						   (i * struct_offset));
+
+		ecram_write(ecram,
+			    model->registers->EXT_FAN1_BASE +
+						(i * struct_offset),
+			    point->cpu_min_temp_celsius);
+		valr3 = ecram_read(ecram, model->registers->EXT_FAN1_BASE +
+						  (i * struct_offset));
+		pr_info("Writing fan1 speed1: %d; reading fan1 speed1: %d\n", point->speed1,
+			valr1);
+		pr_info("Writing fan1 max cpu temp: %d; reading fan1 max cpu temp: %d\n", point->cpu_max_temp_celsius,
+			valr2);
+		pr_info("Writing fan1 min cpu temp: %d; reading fan1 min cpu temp: %d\n", point->cpu_min_temp_celsius,
+			valr3);
+
+		// write to memory and repeat 10 bytes later again
+		 ecram_write(ecram,
+			    model->registers->EXT_FAN1_BASE + 2 +
+				    (i * struct_offset) + (FANCURVESIZE_LOQ * struct_offset) + offset_2nd_range,
+			    point->speed1);
 		// write to memory and repeat 8 bytes later again
 		ecram_write(ecram,
-			    model->registers->EXT_CPU_TEMP +
-				    (i * struct_offset),
+			    model->registers->EXT_FAN1_BASE + 1 +
+				    (i * struct_offset) + (FANCURVESIZE_LOQ * struct_offset) + offset_2nd_range,
 			    point->cpu_max_temp_celsius);
-		// write to memory and repeat 8 bytes later again
 		ecram_write(ecram,
-			    model->registers->EXT_GPU_TEMP +
-				    (i * struct_offset),
-			    point->gpu_max_temp_celsius);
+			    model->registers->EXT_FAN1_BASE +
+				    (i * struct_offset) + (FANCURVESIZE_LOQ * struct_offset) + offset_2nd_range,
+			    point->cpu_min_temp_celsius);
 	}
 
 	return 0;
