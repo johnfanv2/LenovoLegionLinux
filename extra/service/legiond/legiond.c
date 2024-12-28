@@ -159,7 +159,8 @@ int main()
 					pretty("power-state/power-profile change");
 					pretty("config reload start");
 					parseconf(&config);
-					set_all(get_powerstate(), &config);
+					// as we used to use A3 in acpid cfg
+					set_timer(&its, 3, 0, timerid);
 					pretty("config reload end");
 				}
 				p += sizeof(struct inotify_event) + event->len;
