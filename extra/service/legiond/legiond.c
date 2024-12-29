@@ -161,10 +161,8 @@ int main()
 				event = (struct inotify_event *)p;
 				if (event->mask & IN_MODIFY) {
 					pretty("power-state/power-profile change");
-					pretty("config reload start");
 					// as we used to use A3 in acpid cfg
 					set_timer(&its, 3, 0, timerid);
-					pretty("config reload end");
 				}
 				p += sizeof(struct inotify_event) + event->len;
 			}
