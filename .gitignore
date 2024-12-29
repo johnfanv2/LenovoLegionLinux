@@ -69,4 +69,4 @@ dist/
 # Legiond
 extra/service/legiond/legiond
 extra/service/legiond/legiond-ctl
-.ccls-cache
+extra/service/legiond/.cache/clangd
