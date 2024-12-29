@@ -31,6 +31,9 @@ void term_handler(int signum)
 
 void timer_handler()
 {
+	pretty("config reload start");
+	parseconf(&config);
+	pretty("config reload end");
 	pretty("set_all start");
 	set_all(get_powerstate(), &config);
 
@@ -159,7 +162,6 @@ int main()
 				if (event->mask & IN_MODIFY) {
 					pretty("power-state/power-profile change");
 					pretty("config reload start");
-					parseconf(&config);
 					// as we used to use A3 in acpid cfg
 					set_timer(&its, 3, 0, timerid);
 					pretty("config reload end");
