@@ -3,18 +3,22 @@ CC ?= clang
 CFLAGS ?= -O2
 CFLAGS += -Wall -linih
 
-TARGET1 = legiond
-SOURCE1 = $(TARGET1).c modules/*.c
-TARGET2 = legiond-ctl
-SOURCE2 = $(TARGET2).c
+SRC = $(wildcard modules/*.c)
+OBJ = $(SRC:.c=.o)
 
-all: $(TARGET1) $(TARGET2)
+TARGET = legiond legiond-ctl
+all: $(TARGET)
 
-$(TARGET1): $(SOURCE1)
-	$(CC) $(CFLAGS) -o $@ $^
+legiond: $(OBJ) legiond.o
+	$(CC) $(CFLAGS) $(OBJ) legiond.o -o legiond
 
-$(TARGET2): $(SOURCE2)
-	$(CC) $(CFLAGS) -o $@ $^
+legiond-ctl: legiond-ctl.o
+	$(CC) $(CFLAGS) legiond-ctl.o -o legiond-ctl
+
+%.o : %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(TARGET1) $(TARGET2)
+	rm -f $(OBJ) $(TARGET) legiond.o legiond-ctl.o
+
+.PHONY: all clean
