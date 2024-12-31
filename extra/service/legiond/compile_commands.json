@@ -2,85 +2,85 @@
   {
     "arguments": [
       "/usr/bin/cc",
-      "-c",
       "-O2",
       "-Wall",
-      "-o",
-      "legiond",
-      "legiond.c"
-    ],
-    "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
-    "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond.c",
-    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond"
-  },
-  {
-    "arguments": [
-      "/usr/bin/cc",
       "-c",
-      "-O2",
-      "-Wall",
       "-o",
-      "legiond",
+      "modules/output.o",
       "modules/output.c"
     ],
     "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
     "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/output.c",
-    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond"
+    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/output.o"
   },
   {
     "arguments": [
       "/usr/bin/cc",
-      "-c",
       "-O2",
       "-Wall",
+      "-c",
       "-o",
-      "legiond",
+      "modules/parseconf.o",
       "modules/parseconf.c"
     ],
     "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
     "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/parseconf.c",
-    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond"
+    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/parseconf.o"
   },
   {
     "arguments": [
       "/usr/bin/cc",
-      "-c",
       "-O2",
       "-Wall",
+      "-c",
       "-o",
-      "legiond",
+      "modules/powerstate.o",
       "modules/powerstate.c"
     ],
     "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
     "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/powerstate.c",
-    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond"
+    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/powerstate.o"
   },
   {
     "arguments": [
       "/usr/bin/cc",
-      "-c",
       "-O2",
       "-Wall",
+      "-c",
       "-o",
-      "legiond",
+      "modules/setapply.o",
       "modules/setapply.c"
     ],
     "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
     "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/setapply.c",
-    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond"
+    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/modules/setapply.o"
   },
   {
     "arguments": [
       "/usr/bin/cc",
-      "-c",
       "-O2",
       "-Wall",
+      "-c",
       "-o",
-      "legiond-ctl",
+      "legiond.o",
+      "legiond.c"
+    ],
+    "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
+    "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond.c",
+    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-O2",
+      "-Wall",
+      "-c",
+      "-o",
+      "legiond-ctl.o",
       "legiond-ctl.c"
     ],
     "directory": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond",
     "file": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond-ctl.c",
-    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond-ctl"
+    "output": "/home/ston/Workspaces/LenovoLegionLinux/extra/service/legiond/legiond-ctl.o"
   }
 ]
