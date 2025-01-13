@@ -350,22 +350,28 @@ EC Chip Version: 2a4
 fan curve current point id: 0 
 fan curve points size: 8 
 Current fan curve in UEFI
-rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
-0 0 2 2 0 48 0 59 0 41
-1700 1900 2 2 45 54 55 59 39 44
-1900 2000 2 2 51 58 55 59 42 50
-2200 2100 2 2 55 62 55 59 46 127
-2300 2400 2 2 59 71 55 59 127 127
-2600 2700 2 2 68 76 55 64 127 127
-2900 3000 2 2 72 81 60 68 127 127
-3500 3500 2 2 78 127 65 127 127 127
+u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
+3        0       0       0       0       3       3       0       50      0       50      0       30
+3        11      11      28      28      3       3       50      55      50      55      30      40
+3        13      13      33      33      3       3       55      60      55      60      40      50
+3        20      20      51      51      3       3       60      65      60      65      50      55
+3        22      22      56      56      3       3       65      70      65      70      55      127
+3        24      24      61      61      3       3       70      75      70      75      127     127
+3        28      28      71      71      2       2       75      80      75      80      127     127
+3        33      33      84      84      2       2       80      88      80      88      127     127
+3        40      40      102     102     2       2       88      90      88      90      127     127
+3        44      44      112     112     2       2       90      127     90      127     127     127
+
 ```
 
 The fan curve is displayed as a table with the following columns:
 
 ```text
-rpm1: speed in rpm for fan1 at this point
-rpm2: speed in rpm for fan1 at this point
+u(speed_of_unit): unit for the speed (1- Percentage, 2-PWM, 3-RPM)
+speed1[u]: speed in rpm divided by 100 for fan1 at this point
+speed2[u]: speed in rpm divided by 100 for fan2 at this point
+speed1[pwm]: speed in pwm (0-255) for fan1 at this point
+speed2[pwm]: speed in pwm (0-255) for fan2 at this point
 acceleration: acceleration time (higher = slower)
 deceleration: deceleration time (higher = slower)
 cpu_min_temp: CPU temperature must go below this before leaving this point
@@ -373,9 +379,10 @@ cpu_max_temp: if CPU temperature is above this value, go to next point
 gpu_min_temp: GPU temp must go below this before leaving this level
 gpu_max_temp: if GPU temperature is above this value, go to next point 
 ic_min_temp: IC temp must go below this before leaving this level
-ic_max_temp: if IC temperature above this value, go to next point 
+ic_max_temp: if IC temperature above this value, go to next point
 
 All temperatures are in degree Celsius.
+127 is the max temperature
 ```
 
 **Note**: This is just a debug output. The fan curve is configured as usual using the standard `hwmon` interface.
@@ -432,14 +439,14 @@ Unexpected output:
 # Get root
 sudo su
 # As root enter
-# 2. point, 1. fan
-echo 1500 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point2_pwm
-# 2. point, 2.fan
-echo 1600 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point2_pwm
-# 3. point, 1. fan
-echo 1700 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point3_pwm
-# 3. point, 2.fan
-echo 1800 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point3_pwm
+# 2. point, 1. fan (around 1500 rpm in pwm)
+echo 38 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point2_pwm
+# 2. point, 2.fan (around 1600 rpm in pwm)
+echo 40 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point2_pwm
+# 3. point, 1. fan (around 1700 rpm in pwm)
+echo 43 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point3_pwm
+# 3. point, 2.fan (around 1800 rpm in pwm)
+echo 45 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point3_pwm
 
 
 # Read the current fancurve and check if changes were made
@@ -452,15 +459,18 @@ Expected:
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
 
 ```
-rpm1|rpm2|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
-XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-1500 1600 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-1700 1800 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
-XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
+u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             15        16        38          40          XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             17        18        43          45          XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+XXXX             XXXX      XXXX      XXXX        XXXX        XXXX         XXXX         XXXX         XXXX         XXXX         XXXX         XXXX        XXXX
+
 ```
 
 **If you want to reset your fan curve, just toggle with Ctrl+Q or Fn+Q the power mode or restart and everything is gone.**
