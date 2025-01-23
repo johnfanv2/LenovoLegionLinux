@@ -74,6 +74,7 @@
 #include <linux/platform_profile.h>
 #include <linux/types.h>
 #include <linux/wmi.h>
+#include <linux/version.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("johnfan");
@@ -6266,7 +6267,11 @@ MODULE_DEVICE_TABLE(acpi, legion_device_ids);
 
 static struct platform_driver legion_driver = {
 	.probe = legion_add,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 	.remove_new = legion_remove,
+#else
+	.remove = legion_remove,
+#endif
 	.resume = legion_resume,
 	.driver = {
 		.name   = "legion",
