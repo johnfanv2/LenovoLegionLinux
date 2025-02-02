@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
 from PyQt6.QtGui import QAction, QGuiApplication
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QScrollArea, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout
+    QCheckBox, QSystemTrayIcon, QMenu, QScrollArea, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout, QFileDialog
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
@@ -1186,6 +1186,44 @@ class OtherOptionsTab(QWidget):
         self.main_layout.addWidget(self.power_group, 1)
         self.main_layout.addStretch()
         self.setLayout(self.main_layout)
+
+        self.bootlogo_group = QGroupBox("Boot Logo")
+        self.bootlogo_layout = QVBoxLayout()
+        self.bootlogo_group.setLayout(self.bootlogo_layout)
+        self.bootlogo_checkbox = QCheckBox("Enable Boot Logo")
+        self.bootlogo_checkbox.clicked.connect(self.on_bootlogo_toggled)
+        self.bootlogo_layout.addWidget(self.bootlogo_checkbox)
+        self.select_image_btn = QPushButton("Select Image")
+        self.select_image_btn.clicked.connect(self.on_select_image)
+        self.bootlogo_layout.addWidget(self.select_image_btn)
+        self.main_layout.addWidget(self.bootlogo_group)
+        self.update_bootlogo_view()
+
+    def update_bootlogo_view(self):
+        is_on, w, h = self.controller.model.get_boot_logo_status()
+        self.bootlogo_checkbox.setChecked(is_on)
+
+    def on_bootlogo_toggled(self):
+        if self.bootlogo_checkbox.isChecked():
+            self.on_select_image()
+        else:
+            try:
+                self.controller.model.restore_boot_logo()
+                QMessageBox.information(self, "Success", "Boot Logo restored.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Restore failed: {e}")
+            self.update_bootlogo_view()
+
+    def on_select_image(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.jpg *.bmp)")
+        if path:
+            try:
+                self.controller.model.enable_boot_logo(path)
+                QMessageBox.information(self, "Success", f"Boot Logo enabled with {path}.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Enable failed: {e}")
+                self.bootlogo_checkbox.setChecked(False)
+            self.update_bootlogo_view()
 
     def init_power_ui(self):
         # pylint: disable=too-many-statements

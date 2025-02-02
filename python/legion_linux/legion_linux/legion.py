@@ -9,6 +9,11 @@ from pathlib import Path
 import logging
 import subprocess
 import yaml
+import sys
+import struct
+import zlib
+from datetime import datetime
+from PIL import Image
 # import jsonrpyc
 # import inotify.adapters
 
@@ -20,6 +25,8 @@ DEFAULT_ENCODING = "utf8"
 DEFAULT_CONFIG_DIR = "/etc/legion_linux"
 LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
+LBLDVC_FILE = "/sys/firmware/efi/efivars/LBLDVC-871455d1-5576-4fb8-9865-af0824463c9f"
+LBLDESP_FILE = "/sys/firmware/efi/efivars/LBLDESP-871455d0-5576-4fb8-9865-af0824463b9e"
 
 
 def is_root_user():
@@ -1457,6 +1464,104 @@ class LegionModelFacade:
         self.settings_manager.add_feature(self.app_model.open_closed_to_tray)
         self.settings_manager.add_feature(self.app_model.enable_gui_monitoring)
         self.settings_manager.add_feature(self.app_model.icon_color_mode)
+
+    def _replace_efi_file(self, original_file, new_file):
+        subprocess.run(["chattr", "-i", original_file])
+        subprocess.run(["cp", new_file, original_file])
+        subprocess.run(["chattr", "+i", original_file])
+
+    def _backup_file(self, file_path, timestamp):
+        base_name = os.path.basename(file_path)
+        tmp_path = os.path.join("/tmp", base_name)
+        shutil.copy(file_path, tmp_path)
+
+        backup_path = os.path.join("/tmp", f"{base_name}_{timestamp}.bak")
+        shutil.copy(file_path, backup_path)
+        log.info(f"Backup of {base_name} created: {backup_path}")
+        return tmp_path, backup_path
+
+    def _calculate_crc32(self, file_path, length=512):
+        with open(file_path, 'rb') as file:
+            data = file.read(length)
+        return zlib.crc32(data) & 0xFFFFFFFF
+
+    def _read_file(self, file_path):
+        with open(file_path, 'rb') as f:
+            return f.read()
+
+    def _check_image_dimensions_and_format(self, image_path, expected_width, expected_height):
+        with Image.open(image_path) as img:
+            img_width, img_height = img.size
+            img_format = img.format.lower()
+            if (expected_width != 0 and img_width != expected_width) or \
+               (expected_height != 0 and img_height != expected_height):
+                raise ValueError(
+                    f"Image dimensions do not match: expect {expected_width}x{expected_height}, "
+                    f"got {img_width}x{img_height}."
+                )
+            if img_format not in ['jpeg', 'png', 'bmp']:
+                raise ValueError(
+                    f"Image format '{img_format.upper()}' is not supported (only JPG/PNG/BMP)."
+                )
+            return img_width, img_height, img_format
+
+    def get_boot_logo_status(self):
+        data = self._read_file(LBLDESP_FILE)
+        if len(data) < 13:
+            log.warning("LBLDESP data is unexpectedly short.")
+            return False, 0, 0
+
+        fifth_byte = data[4]
+        width = int.from_bytes(data[5:9], byteorder='little')
+        height = int.from_bytes(data[9:13], byteorder='little')
+        is_on = (fifth_byte == 0x01)
+        return is_on, width, height
+
+    def enable_boot_logo(self, image_path):
+        is_on, expected_width, expected_height = self.get_boot_logo_status()
+        log.info(f"Current LBLDESP is ON={is_on}, required size={expected_width}x{expected_height}")
+        img_w, img_h, img_fmt = self._check_image_dimensions_and_format(image_path, expected_width, expected_height)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        tmp_lbldvc, _ = self._backup_file(LBLDVC_FILE, timestamp)
+        image_checksum = self._calculate_crc32(image_path, 512)
+        with open(tmp_lbldvc, "r+b") as f:
+            f.seek(8)
+            f.write(struct.pack('<I', image_checksum))
+        tmp_lbldesp, _ = self._backup_file(LBLDESP_FILE, timestamp)
+        with open(tmp_lbldesp, "r+b") as f:
+            f.seek(4)
+            f.write(b'\x01')
+        self._replace_efi_file(LBLDVC_FILE, tmp_lbldvc)
+        self._replace_efi_file(LBLDESP_FILE, tmp_lbldesp)
+        self.boot_dir = "/boot"
+        self.logo_dir = "/EFI/Lenovo/Logo"
+        os.remove(tmp_lbldvc)
+        os.remove(tmp_lbldesp)
+        log.info("Boot logo has been enabled successfully in EFIVars.")
+        full_logo_dir = os.path.join(self.boot_dir, self.logo_dir.lstrip("/"))
+        if os.path.exists(full_logo_dir):
+            for filename in os.listdir(full_logo_dir):
+                file_path = os.path.join(full_logo_dir, filename)
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+        os.makedirs(full_logo_dir, exist_ok=True)
+        dest_filename = f"mylogo_{img_w}x{img_h}.{img_fmt}"
+        dest_path = os.path.join(full_logo_dir, dest_filename)
+        subprocess.run(["cp", image_path, dest_path])
+        log.info(f"Image copied to {dest_path}")
+
+    def restore_boot_logo(self):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        tmp_lbldesp, _ = self._backup_file(LBLDESP_FILE, timestamp)
+        with open(tmp_lbldesp, "r+b") as f:
+            f.seek(4)
+            f.write(b'\x00')
+
+        self._replace_efi_file(LBLDESP_FILE, tmp_lbldesp)
+        os.remove(tmp_lbldesp)
+        log.info("Boot logo has been restored in EFIVars.")
 
     @staticmethod
     def is_root_user():
