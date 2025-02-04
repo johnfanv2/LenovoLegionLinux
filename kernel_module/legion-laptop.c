@@ -2186,7 +2186,8 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 	int speed;
 
 	pr_info("%s 1 point id=%d, fancurve=%p, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
-		__func__, point_id, (void *) fancurve, fancurve->fan_speed_unit, fancurve->size);
+		__func__, point_id, (void *)fancurve, fancurve->fan_speed_unit,
+		fancurve->size);
 
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
 		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld",
@@ -5120,8 +5121,8 @@ static ssize_t autopoint_show(struct device *dev,
 	bool ok = true;
 
 	pr_info("%s 1 point id=%d, fancurve_attr_id id=%d, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
-		__func__, point_id, fancurve_attr_id,
-		fancurve.fan_speed_unit, fancurve.size);
+		__func__, point_id, fancurve_attr_id, fancurve.fan_speed_unit,
+		fancurve.size);
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = read_fancurve(priv, &fancurve);
@@ -6267,10 +6268,10 @@ MODULE_DEVICE_TABLE(acpi, legion_device_ids);
 
 static struct platform_driver legion_driver = {
 	.probe = legion_add,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
-	.remove_new = legion_remove,
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
 	.remove = legion_remove,
+#else
+	.remove_new = legion_remove,
 #endif
 	.resume = legion_resume,
 	.driver = {
