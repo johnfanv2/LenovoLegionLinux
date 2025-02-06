@@ -430,7 +430,41 @@ def create_argparser()->argparse.ArgumentParser:
         'values', type=str, help='Value of feature', nargs='+')
     set_feature_cmd.set_defaults(
         func=set_feature)
+
+    bootlogo_parser = subcommands.add_parser('boot-logo', help="Custom Boot Logo")
+    bootlogo_sub = bootlogo_parser.add_subparsers(dest='bootlogo_cmd')
+    enable_parser = bootlogo_sub.add_parser('enable', help='Set Boot Logo')
+    enable_parser.add_argument('image_path', type=str, help='Path to the image to be used')
+    enable_parser.set_defaults(func=lambda legion, **kw: boot_logo_enable(legion, **kw))
+    restore_parser = bootlogo_sub.add_parser('restore', help='Restore modified boot logo')
+    restore_parser.set_defaults(func=lambda legion, **kw: boot_logo_restore(legion, **kw))
+    status_parser = bootlogo_sub.add_parser('status', help='View status')
+    status_parser.set_defaults(func=lambda legion, **kw: boot_logo_status(legion, **kw))
+
     return parser, subcommands
+
+def boot_logo_enable(legion: LegionModelFacade, image_path: str, **kwargs) -> int:
+    try:
+        legion.enable_boot_logo(image_path)
+        print("Boot Logo enabled.")
+        return 0
+    except Exception as e:
+        print(f"Error enabling Boot Logo: {e}")
+        return 1
+
+def boot_logo_restore(legion: LegionModelFacade, **kwargs) -> int:
+    try:
+        legion.restore_boot_logo()
+        print("Boot Logo restored.")
+        return 0
+    except Exception as e:
+        print(f"Error restoring boot logo: {e}")
+        return 1
+
+def boot_logo_status(legion: LegionModelFacade, **kwargs) -> int:
+    is_on, w, h = legion.get_boot_logo_status()
+    print(f"Current Boot Logo status: {'ON' if is_on else 'OFF'}; Required image dimensions: {w} x {h}")
+    return 0
 
 def main():
     parser, subcommands = create_argparser()
