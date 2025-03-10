@@ -2408,7 +2408,11 @@ struct legion_private {
 	//interfaces
 	struct dentry *debugfs_dir;
 	struct device *hwmon_dev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	struct device *ppdev;
+#else
 	struct platform_profile_handler platform_profile_handler;
+#endif
 
 	struct light kbd_bl;
 	struct light ylogo_light;
@@ -4637,7 +4641,11 @@ static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 	return sysfs_emit(buf, "%d\n", power_mode);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+static void legion_platform_profile_notify(struct device *dev);
+#else
 static void legion_platform_profile_notify(void);
+#endif
 
 static ssize_t powermode_store(struct device *dev,
 			       struct device_attribute *attr, const char *buf,
@@ -4662,7 +4670,11 @@ static ssize_t powermode_store(struct device *dev,
 	// readback done after notifying returns correct value, otherwise
 	// the notified reader will read old value
 	msleep(500);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	legion_platform_profile_notify(priv->ppdev);
+#else
 	legion_platform_profile_notify();
+#endif
 
 	return count;
 }
@@ -4780,7 +4792,11 @@ unlock:
 	// problem: we get an event just before the powermode change (from the key?),
 	// so if we notify too early, it will read the old power mode/platform profile
 	msleep(500);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	legion_platform_profile_notify(priv->ppdev);
+#else
 	legion_platform_profile_notify();
+#endif
 }
 
 static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
@@ -4880,22 +4896,38 @@ static void legion_wmi_exit(void)
 /* Platform profile               */
 /* ============================   */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+static void legion_platform_profile_notify(struct device *dev)
+#else
 static void legion_platform_profile_notify(void)
+#endif
 {
 	if (!enable_platformprofile)
 		pr_info("Skipping platform_profile_notify because enable_platformprofile is false\n");
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	platform_profile_notify(dev);
+#else
 	platform_profile_notify();
+#endif
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+static int legion_platform_profile_get(struct device *dev,
+				       enum platform_profile_option *profile)
+#else
 static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 				       enum platform_profile_option *profile)
+#endif
 {
 	int powermode;
 	struct legion_private *priv;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	priv = dev_get_drvdata(dev);
+#else
 	priv = container_of(pprof, struct legion_private,
 			    platform_profile_handler);
+#endif
 	read_powermode(priv, &powermode);
 
 	switch (powermode) {
@@ -4917,14 +4949,23 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+static int legion_platform_profile_set(struct device *dev,
+				       enum platform_profile_option profile)
+#else
 static int legion_platform_profile_set(struct platform_profile_handler *pprof,
 				       enum platform_profile_option profile)
+#endif
 {
 	int powermode;
 	struct legion_private *priv;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	priv = dev_get_drvdata(dev);
+#else
 	priv = container_of(pprof, struct legion_private,
 			    platform_profile_handler);
+#endif
 
 	switch (profile) {
 	case PLATFORM_PROFILE_BALANCED:
@@ -4946,8 +4987,34 @@ static int legion_platform_profile_set(struct platform_profile_handler *pprof,
 	return write_powermode(priv, powermode);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+static bool conf_has_custom_powermode;
+static enum access_method conf_access_method_powermode;
+
+static int legion_platform_profile_probe(void *drvdata, unsigned long *choices)
+{
+	set_bit(PLATFORM_PROFILE_QUIET, choices);
+	set_bit(PLATFORM_PROFILE_BALANCED, choices);
+	set_bit(PLATFORM_PROFILE_PERFORMANCE, choices);
+	if (conf_has_custom_powermode && conf_access_method_powermode == ACCESS_METHOD_WMI) {
+		set_bit(PLATFORM_PROFILE_BALANCED_PERFORMANCE, choices);
+	}
+
+	return 0;
+}
+
+static const struct platform_profile_ops legion_platform_profile_ops = {
+	.probe = legion_platform_profile_probe,
+	.profile_get = legion_platform_profile_get,
+	.profile_set = legion_platform_profile_set,
+};
+#endif
+
 static int legion_platform_profile_init(struct legion_private *priv)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	struct device *dev = &priv->platform_device->dev;
+#endif
 	int err;
 
 	if (!enable_platformprofile) {
@@ -4955,6 +5022,10 @@ static int legion_platform_profile_init(struct legion_private *priv)
 		return 0;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	conf_has_custom_powermode = priv->conf->has_custom_powermode;
+	conf_access_method_powermode = priv->conf->access_method_powermode;
+#else
 	priv->platform_profile_handler.profile_get =
 		legion_platform_profile_get;
 	priv->platform_profile_handler.profile_set =
@@ -4970,10 +5041,17 @@ static int legion_platform_profile_init(struct legion_private *priv)
 		set_bit(PLATFORM_PROFILE_BALANCED_PERFORMANCE,
 			priv->platform_profile_handler.choices);
 	}
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	priv->ppdev = devm_platform_profile_register(dev, "lenovo-legion", priv, &legion_platform_profile_ops);
+	if (IS_ERR(priv->ppdev))
+		return PTR_ERR(priv->ppdev);
+#else
 	err = platform_profile_register(&priv->platform_profile_handler);
 	if (err)
 		return err;
+#endif
 
 	return 0;
 }
@@ -4985,7 +5063,9 @@ static void legion_platform_profile_exit(struct legion_private *priv)
 		return;
 	}
 	pr_info("Unloading legion platform profile\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 	platform_profile_remove();
+#endif
 	pr_info("Unloading legion platform profile done\n");
 }
 
