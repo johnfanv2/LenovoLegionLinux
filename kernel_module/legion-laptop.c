@@ -1326,6 +1326,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_khcn
 	},
 	{
+		// e.g. Yoga Slim 7 ProX 14ARH7
+		.ident = "JVCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "JVCN"),
+		},
+		.driver_data = (void *)&model_khcn
+	},
+	{
 		// e.g. LOQ 15IRH8
 		.ident = "LZCN",
 		.matches = {
