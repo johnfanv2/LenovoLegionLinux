@@ -1466,9 +1466,9 @@ class LegionModelFacade:
         self.settings_manager.add_feature(self.app_model.icon_color_mode)
 
     def _replace_efi_file(self, original_file, new_file):
-        subprocess.run(["chattr", "-i", original_file])
-        subprocess.run(["cp", new_file, original_file])
-        subprocess.run(["chattr", "+i", original_file])
+        subprocess.run(["chattr", "-i", original_file], check=True)
+        subprocess.run(["cp", new_file, original_file], check=True)
+        subprocess.run(["chattr", "+i", original_file], check=True)
 
     def _backup_file(self, file_path, timestamp):
         base_name = os.path.basename(file_path)
@@ -1549,7 +1549,7 @@ class LegionModelFacade:
         os.makedirs(full_logo_dir, exist_ok=True)
         dest_filename = f"mylogo_{img_w}x{img_h}.{img_fmt}"
         dest_path = os.path.join(full_logo_dir, dest_filename)
-        subprocess.run(["cp", image_path, dest_path])
+        shutil.copy(image_path, dest_path)
         log.info(f"Image copied to {dest_path}")
 
     def restore_boot_logo(self):
