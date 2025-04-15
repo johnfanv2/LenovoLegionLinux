@@ -686,7 +686,7 @@ These are the profiles avaiable:
 - balanced-performance-ac - Fan Profile on custom mode on charger
 - performance-ac - Fan Profile on performance mode on charger
 
-Exemple profiles are [here](extra/service/profiles) can also be set via the gui for easy set up:
+Example profiles are [here](extra/service/profiles) can also be set via the gui for easy set up:
 1 - Set the `Fan Curve` you like to use
 2 - Chose on the profile above in `Fancurve Preset` and hit Sate to Preset (will ask for you password)
 3 - Set all the profiles

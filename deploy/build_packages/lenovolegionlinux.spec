@@ -92,8 +92,8 @@ rm -rf %{buildroot}/usr/lib/debug
 %exclude /usr/lib/debug
 
 %post
-echo "Frist install?! Pls copy /usr/share/legion_linux folder to /etc/legion_linux.\n"
-echo "Command: sudo cp /usr/share/legion_linux /etc/legion_linux"
+echo "If first install, copy /usr/share/legion_linux folder to /etc/legion_linux.\n"
+echo "Command: sudo cp -r /usr/share/legion_linux /etc/legion_linux"
 
 %preun
 echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
