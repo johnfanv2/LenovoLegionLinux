@@ -29,7 +29,7 @@ void term_handler(int signum)
 	exit(0);
 }
 
-void timer_handler()
+void timer_handler(union sigval sigev_value)
 {
 	pretty("config reload start");
 	parseconf(&config);
