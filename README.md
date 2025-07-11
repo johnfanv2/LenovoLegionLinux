@@ -988,12 +988,15 @@ cat /sys/devices/pci0000\:00/0000\:00\:01.1/power_state
 sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 ```
 
+### Is "quiet mode" suitable for gaming?
 
+That depends on what you deem "suitible" for gaming.
+Quiet mode works by lowering the power available to you CPU and/or GPU to make your computer more quiet. (hence the "quiet" mode.) This in turn lowers performance.
+If you don't mind the lowered performance, you can use quiet mode for gaming. If you're playing a latency sensitive game, or prefer lower latency albeit at a higher fan speed it isn't recommended.
 
 ## :question: Unanswered Questions
 
 - What exactly is the third temperature? Currently, it is currently called IC Temperature.
-- Is "quiet mode" suitable for gaming?
 
 ## :information_desk_person: Overview for Developers
 
