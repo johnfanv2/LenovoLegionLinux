@@ -792,8 +792,11 @@ Thank you for your contribution for the Linux support:
 Also please tell me if it works or does not work on your laptop.
 
 ### Tools that are based on LenovoLegionLinux
-#### Plasma Vantage
-PlasmaVantage is a Plasma Widget for KDE. It is an alternative GUI for the LenovoLegionLinux kernel module. It is availabe in the [KDE stroe](https://store.kde.org/p/2150610/) or with source [here](https://gitlab.com/Scias/plasmavantage).
+#### PlasmaVantage
+PlasmaVantage is a Plasma Widget for KDE. It is an alternative GUI for the LenovoLegionLinux kernel module. It is available in the [KDE store](https://store.kde.org/p/2150610/) or with source [here](https://gitlab.com/Scias/plasmavantage).
+
+#### CinnamonVantage
+CinnamonVantage is a Cinnamon Applet for Cinnamon. It is an alternative GUI for the LenovoLegionLinux kernel module. It is available in the [Mint store](https://cinnamon-spices.linuxmint.com/applets/view/395) or with source [here](https://github.com/linuxmint/cinnamon-spices-applets/tree/master/cinnamonvantage@garlayntoji).
 
 
 ## :interrobang: Frequency Asked Questions
