@@ -4351,6 +4351,39 @@ static ssize_t igpumode_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR_RW(igpumode);
 
+static ssize_t notify_dgpu_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
+{
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  LEGION_WMI_GAMEZONE_GUID, 0,
+					  WMI_METHOD_ID_NOTIFYDGPUSTATUS, false,
+					  1);
+}
+
+static DEVICE_ATTR_WO(notify_dgpu);
+
+static ssize_t issupportigpumode_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_ISSUPPORTIGPUMODE, false,
+					 1);
+}
+
+static DEVICE_ATTR_RO(issupportigpumode);
+
+static ssize_t issupportgsync_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_ISSUPPORTGSYNC, false, 1);
+}
+
+static DEVICE_ATTR_RO(issupportgsync);
+
 static ssize_t cpu_oc_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
@@ -4742,6 +4775,9 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_issupportgpuoc.attr,
 	&dev_attr_aslcodeversion.attr,
 	&dev_attr_igpumode.attr,
+	&dev_attr_notify_dgpu.attr,
+	&dev_attr_issupportigpumode.attr,
+	&dev_attr_issupportgsync.attr,
 	NULL
 };
 
