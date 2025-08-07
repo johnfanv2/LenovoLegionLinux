@@ -369,10 +369,10 @@ static const struct ec_register_offsets ec_register_offsets_loq_v0 = {
 	.ECHIPID2 = 0x2001,
 	.ECHIPVER = 0x2002,
 	.ECDEBUG = 0x2003,
-	.EXT_FAN_CUR_POINT = 0xC5a0,
+	.EXT_FAN_CUR_POINT = 0xC500,
 	.EXT_FAN_POINTS_SIZE = 0xC5a0, // constant 0
-	.EXT_FAN1_BASE = 0xC530,
-	.EXT_FAN2_BASE = 0xC530, // same rpm as cpu
+	.EXT_FAN1_BASE = 0xCF00, // CPU FAN (CL00) 0xFE0B0F00 - 0xFE0B0400 + 0xC400
+	.EXT_FAN2_BASE = 0xCF3C, // GPU FAN (GL00)
 	.EXT_FAN_ACC_BASE = 0xC5a0, // not found yet
 	.EXT_FAN_DEC_BASE = 0xC5a0, // not found yet
 	.EXT_CPU_TEMP = 0xC52F,
@@ -2988,6 +2988,135 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	return err;
 }
 
+struct WMIFanTableReadLoq { // FAT2 table
+	u32 FTLE; // FanTableLen
+	u32 FTS0; // Values containts the FanCurve Point Index used (not RPM)
+	u32 FTS1;
+	u32 FTS2;
+	u32 FTS3;
+	u32 FTS4;
+	u32 FTS5;
+	u32 FTS6;
+	u32 FTS7;
+	u32 FTS8;
+	u32 FTS9;
+	u32 FTSL; // SensorTableLen
+	u32 FSS0; // Position 1
+	u32 FSS1; // Values containts the FanCurve Point Index used (not RPM)
+	u32 FSS2; // same as FT**
+	u32 FSS3;
+	u32 FSS4;
+	u32 FSS5;
+	u32 FSS6;
+	u32 FSS7;
+	u32 FSS8;
+	u32 FSS9;
+} __packed;
+
+static ssize_t wmi_read_fancurve_idx(const struct model_config *model,
+					struct fancurve *fancurve)
+{
+	u8 buffer[88];
+	int err;
+
+	// The output buffer contains : 
+	// FanTableSize u32
+	// FanTable u32 * 10  -- position indices (start in 1 instead of 0)
+	// SensorTableSize u32
+	// SensorTable u32 * 10 -- same values as FanTable
+	u8 input[2] = { 0 };
+	struct acpi_buffer in_buf = {
+		.length = sizeof(input),
+		.pointer = input,
+	};
+
+	// use wmi_exec_ints to avoid AE_AML_BUFFER_LIMIT
+	err = wmi_exec_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
+					WMI_METHOD_ID_FAN_GET_TABLE, &in_buf, buffer,
+					sizeof(buffer));
+
+	if (!err) {
+		// use only the 44 first bytes (FanTable array, SensorTable has the same values)
+		struct WMIFanTableReadLoq *fantable =
+			(struct WMIFanTableReadLoq *)&buffer[0];
+
+		fancurve->current_point_i = 0;
+		fancurve->size = fantable->FTLE;
+		fancurve->fan_speed_unit = FAN_SPEED_UNIT_RPM_HUNDRED;
+		// Only use the FanTable values, SensorTable values are the same.
+	  // reusing the fancurve speed1, needs a new option on hwmon ? / acpi/firmware ?
+		fancurve->points[0].speed1 = fantable->FTS0;
+		fancurve->points[1].speed1 = fantable->FTS1;
+		fancurve->points[2].speed1 = fantable->FTS2;
+		fancurve->points[3].speed1 = fantable->FTS3;
+		fancurve->points[4].speed1 = fantable->FTS4;
+		fancurve->points[5].speed1 = fantable->FTS5;
+		fancurve->points[6].speed1 = fantable->FTS6;
+		fancurve->points[7].speed1 = fantable->FTS7;
+		fancurve->points[8].speed1 = fantable->FTS8;
+		fancurve->points[9].speed1 = fantable->FTS9;
+
+		print_hex_dump(KERN_DEBUG, "legion_laptop fan table idx wmi buffer",
+		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
+		       true);
+	}
+	return err;
+}
+
+struct WMIFanTableWriteLoq {
+	u8 F000; // Thermal Mode/Powermode
+	u8 F001; // not used
+	u32 F002; // not used
+	u16 F003; // Index Pos 1
+	u16 F004; // 2
+	u16 F005; // 3
+	u16 F006; // 4
+	u16 F007; // 5
+	u16 F008; // 6
+	u16 F009; // 7
+	u16 F00A; // 8
+	u16 F00B; // 9
+	u16 F00C; // Index Pos 10
+	u8 F00D; // not used
+	u32 F00E; // not used
+	u16 F00F; // not used
+	u16 F010; // not used
+	u16 F011; // not used
+	u16 F012; // not used
+	u16 F013; // not used
+	u16 F014; // not used
+	u16 F015; // not used
+	u16 F016; // not used
+	u16 F017; // not used
+	u16 F018; // not used
+	u8 F019; // not used
+} __packed;
+
+static ssize_t wmi_write_fancurve_idx(const struct model_config *model,
+					 const struct fancurve *fancurve, int powermode)
+{
+	int err;
+	struct WMIFanTableWriteLoq fan_table;
+	fan_table.F000 = powermode;
+	// reusing the fancurve speed1, needs a new option on hwmon ? / acpi/firmware? 
+	fan_table.F003 = fancurve->points[0].speed1;
+	fan_table.F004 = fancurve->points[1].speed1;
+	fan_table.F005 = fancurve->points[2].speed1;
+	fan_table.F006 = fancurve->points[3].speed1;
+	fan_table.F007 = fancurve->points[4].speed1;
+	fan_table.F008 = fancurve->points[5].speed1;
+	fan_table.F009 = fancurve->points[6].speed1;
+	fan_table.F00A = fancurve->points[7].speed1;
+	fan_table.F00B = fancurve->points[8].speed1;
+	fan_table.F00C = fancurve->points[9].speed1;
+
+	u8* buffer = (u8*)&fan_table;
+
+	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
+						WMI_METHOD_ID_FAN_SET_TABLE, buffer, sizeof(struct WMIFanTableWriteLoq));
+	return err;
+}
+
 /* Read the fan curve from the EC.
  *
  * In newer models (>=2022) there is an ACPI/WMI to read fan curve as
@@ -3216,38 +3345,58 @@ static int ec_read_fancurve_loq(struct ecram *ecram,
 				struct fancurve *fancurve)
 {
 	size_t i = 0;
-	size_t struct_offset = 3; // {cpu_temp: u8, rpm: u8, gpu_temp?: u8}
+	size_t struct_offset = 6;
 
 	fancurve->fan_speed_unit = FAN_SPEED_UNIT_RPM_HUNDRED;
+
+	// C** CPU Fan, G** GPU Fan, E** Sensor Fan, rpm's are the same, temps different
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		struct fancurve_point *point = &fancurve->points[i];
 
-		point->speed1 =
+		// CL**
+		point->cpu_min_temp_celsius =
 			ecram_read(ecram, model->registers->EXT_FAN1_BASE +
-						  (i * struct_offset));
-		point->speed2 =
-			ecram_read(ecram, model->registers->EXT_FAN2_BASE +
-						  (i * struct_offset));
+							(i * struct_offset));
+		// CT**
+		point->cpu_max_temp_celsius =
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE + 1 +
+							(i * struct_offset));
+		// CR*
+		point->speed1 =
+			ecram_read(ecram, model->registers->EXT_FAN1_BASE + 2 +
+							(i * struct_offset));
 
+		// GL**
+		point->gpu_min_temp_celsius =
+			ecram_read(ecram, model->registers->EXT_FAN2_BASE +
+							(i * struct_offset));
+		// GT**
+		point->gpu_max_temp_celsius =
+			ecram_read(ecram, model->registers->EXT_FAN2_BASE + 1 +
+							(i * struct_offset));
+
+		// GR** should be same speed as CPU
+		point->speed2 =
+			ecram_read(ecram, model->registers->EXT_FAN2_BASE + 2 +
+							(i * struct_offset));
+
+		// EL** 0xFE0B0F00 - 0xFE0B0400 + 0xC400 + 0x77 + 1
+
+		point->ic_min_temp_celsius = ecram_read(ecram, 0xCF78 +
+							(i * struct_offset));
+		// ET**
+		point->ic_max_temp_celsius = ecram_read(ecram, 0xCF78 + 1 +
+							(i * struct_offset));
+		// ER** same speed as CPU
+
+		// Constant to 100 for lzn model according to FAN_TABLE_DATA, leaving as 0 till found in ec
 		point->accel = 0;
 		point->decel = 0;
-		point->cpu_max_temp_celsius =
-			ecram_read(ecram, model->registers->EXT_CPU_TEMP +
-						  (i * struct_offset));
-		point->gpu_max_temp_celsius =
-			ecram_read(ecram, model->registers->EXT_GPU_TEMP +
-						  (i * struct_offset));
-		point->cpu_min_temp_celsius = 0;
-		point->gpu_min_temp_celsius = 0;
-		point->ic_max_temp_celsius = 0;
-		point->ic_min_temp_celsius = 0;
 	}
 
 	fancurve->size = FANCURVESIZE_LOQ;
 	fancurve->current_point_i =
 		ecram_read(ecram, model->registers->EXT_FAN_CUR_POINT);
-	fancurve->current_point_i =
-		min(fancurve->current_point_i, fancurve->size);
 	return 0;
 }
 
@@ -3256,42 +3405,52 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 				 const struct fancurve *fancurve)
 {
 	size_t i;
-	int valr1;
-	int valr2;
-	size_t struct_offset = 3; // {cpu_temp: u8, rpm: u8, gpu_temp?: u8}
+	size_t struct_offset = 6;
 
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
+		// reset index table for current speed (see output of wmi_read_fancurve_idx)
+		ecram_write(ecram, 0xCFE0 + i, i + 1);
+
 		const struct fancurve_point *point = &fancurve->points[i];
 
-		ecram_write(ecram,
-			    model->registers->EXT_FAN1_BASE +
-				    (i * struct_offset),
-			    point->speed1);
-		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE +
-						  (i * struct_offset));
-		ecram_write(ecram,
-			    model->registers->EXT_FAN2_BASE +
-				    (i * struct_offset),
-			    point->speed2);
-		valr2 = ecram_read(ecram, model->registers->EXT_FAN2_BASE +
-						  (i * struct_offset));
-		pr_info("Writing fan1: %d; reading fan1: %d\n", point->speed1,
-			valr1);
-		pr_info("Writing fan2: %d; reading fan2: %d\n", point->speed2,
-			valr2);
+		// CL**
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE +
+		 		    (i * struct_offset), point->cpu_min_temp_celsius);
+		// CT**
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE + 1 +
+		 		    (i * struct_offset), point->cpu_max_temp_celsius);
+		// CR**
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE + 2 +
+		 		    (i * struct_offset), point->speed1);
 
-		// write to memory and repeat 8 bytes later again
-		ecram_write(ecram,
-			    model->registers->EXT_CPU_TEMP +
-				    (i * struct_offset),
-			    point->cpu_max_temp_celsius);
-		// write to memory and repeat 8 bytes later again
-		ecram_write(ecram,
-			    model->registers->EXT_GPU_TEMP +
-				    (i * struct_offset),
-			    point->gpu_max_temp_celsius);
+		// GL**
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE +
+		 		    (i * struct_offset), point->gpu_min_temp_celsius);
+		// GT**
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE + 1 +
+		 		    (i * struct_offset), point->gpu_max_temp_celsius);
+		// GR**
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE + 2 +
+		 		    (i * struct_offset), point->speed2);
+
+		// EL**
+		ecram_write(ecram, 0xCF78 +
+		 		    (i * struct_offset), point->ic_min_temp_celsius);
+		// ET**
+		ecram_write(ecram, 0xCF78 + 1 +
+		 		    (i * struct_offset), point->ic_max_temp_celsius);
+		// ER** same speed as CPU
+		ecram_write(ecram, 0xCF78 + 2 +
+		 		    (i * struct_offset), point->speed1);
 	}
+  // Reset current point
+	ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
 
+	// Reset Device
+	// read FFON 1 bit, empty 3 bits, CMRD 1 bit, 3 bits left 
+	u8 rval_cmrd = ecram_read(ecram, 0xCFB6);
+	// write modified bit
+	ecram_write(ecram, 0xCFB6, rval_cmrd | (1 << 4));
 	return 0;
 }
 
