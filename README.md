@@ -127,8 +127,12 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 5 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion 7i 16ITHG6 (BIOS H1CN35WW): sensors, fan curve, power profile
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
+- Lenovo Legion Pro 7 16IAX10H (83F5) (BIOS Q7CN42WW): sensors, power profile, fan curve (speed steps via WMI), rapid charge, keyboard backlight, GPU mux (igpumode)
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
+
+Known unsupported features on Q7CN (Legion Pro 7 16IAX10H):
+- Chassis RGB zones (front lip bar, rear vent bar, lid LEGION logo). These are USB HID-controlled (OpenRGB Gen10 patch), not exposed via the kernel driver.
 
 Currently fan control is not working for the following models. Other features, probably work:
 
