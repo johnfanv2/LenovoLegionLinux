@@ -310,6 +310,21 @@ class FileFeature(Feature):
     def exists(self):
         return self.filename is not None
 
+    def _probe_exists_readable(self) -> bool:
+        cached = getattr(self, "_probe_exists", None)
+        if cached:
+            return True
+        if self.filename is None:
+            return False
+        try:
+            with open(self.filename, "r", encoding=DEFAULT_ENCODING) as filepointer:
+                filepointer.read(1)
+        except OSError as err:
+            log.info('Feature %s probe read failed: %s', self.name(), str(err))
+            return False
+        self._probe_exists = True
+        return True
+
     def set(self, value):
         outvalue = 1 if value else 0
         return self._write_file(self.filename, outvalue)
@@ -338,6 +353,12 @@ class BoolFileFeature(FileFeature):
     def get(self):
         invalue = self._read_file_int(self.filename)
         return invalue != 0
+
+
+class ProbeBoolFileFeature(BoolFileFeature):
+
+    def exists(self):
+        return self._probe_exists_readable()
 
 
 class LegionGUIAutostart(BoolFileFeature):
@@ -392,6 +413,12 @@ class IntFileFeature(FileFeature):
 
     def get(self) -> int:
         return self._read_file_int(self.filename)
+
+
+class ProbeIntFileFeature(IntFileFeature):
+
+    def exists(self):
+        return self._probe_exists_readable()
 
 
 class FloatFileFeature(FileFeature):
@@ -490,9 +517,6 @@ class AlwaysOnUSBChargingFeature(BoolFileFeature):
     def __init__(self):
         super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'usb_charging'))
 
-    def set(self, value: str):
-        raise NotImplementedError()
-
 
 class MaximumFanSpeedFeature(BoolFileFeature):
     def __init__(self):
@@ -556,63 +580,63 @@ class BatteryCurrentCapacityPercentage(FloatFileFeature):
         raise NotImplementedError()
 
 
-class CPUOverclock(BoolFileFeature):
+class CPUOverclock(ProbeBoolFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_oc"))
 
 
-class GPUOverclock(BoolFileFeature):
+class GPUOverclock(ProbeBoolFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_oc"))
 
 
-class CPUShorttermPowerLimit(IntFileFeature):
+class CPUShorttermPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_shortterm_powerlimit"), 5, 200, 1)
 
 
-class CPULongtermPowerLimit(IntFileFeature):
+class CPULongtermPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_longterm_powerlimit"), 5, 200, 1)
 
 
-class CPUPeakPowerLimit(IntFileFeature):
+class CPUPeakPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_peak_powerlimit"), 0, 200, 1)
 
 
-class CPUAPUSPPTPowerLimit(IntFileFeature):
+class CPUAPUSPPTPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_apu_sppt_powerlimit"), 0, 100, 1)
 
 
-class CPUDefaultPowerLimit(IntFileFeature):
+class CPUDefaultPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_default_powerlimit"), 0, 100, 1)
 
 
-class CPUCrossLoadingPowerLimit(IntFileFeature):
+class CPUCrossLoadingPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH,
                                       "cpu_cross_loading_powerlimit"), 0, 100, 1)
 
 
-class GPUBoostClock(IntFileFeature):
+class GPUBoostClock(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_boost_clock"), 0, 10000, 1)
 
 
-class GPUCTGPPowerLimit(IntFileFeature):
+class GPUCTGPPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_ctgp_powerlimit"), 0, 200, 1)
 
 
-class GPUPPABPowerLimit(IntFileFeature):
+class GPUPPABPowerLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_ppab_powerlimit"), 0, 200, 1)
 
 
-class GPUTemperatureLimit(IntFileFeature):
+class GPUTemperatureLimit(ProbeIntFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_temperature_limit"), 0, 120, 1)
 
