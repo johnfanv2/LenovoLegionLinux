@@ -2424,7 +2424,7 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 		const struct fancurve_point *point = &fancurve->points[i];
 
 		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm1);
-		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm2);
+		fancurve_get_speed_pwm(fancurve, i, 1, &speed_pwm2);
 
 		seq_printf(
 			s,
