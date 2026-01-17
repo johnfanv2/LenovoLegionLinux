@@ -2248,7 +2248,7 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 		*speed = clamp_t(u8, value, 0, 255);
 		return true;
 	case FAN_SPEED_UNIT_RPM_HUNDRED:
-		*speed = clamp_t(u8, value * MAX_RPM / 100 / 255, 0, 255);
+		*speed = clamp_t(u8, (value * MAX_RPM + (100 * 255) - 1) / (100 * 255), 0, 255);
 		return true;
 	default:
 		pr_info("No method to set for fan_speed_unit %d.",
@@ -2424,7 +2424,7 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 		const struct fancurve_point *point = &fancurve->points[i];
 
 		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm1);
-		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm2);
+		fancurve_get_speed_pwm(fancurve, i, 1, &speed_pwm2);
 
 		seq_printf(
 			s,
