@@ -3788,6 +3788,14 @@ static int legion_wmi_light_get(struct legion_private *priv, u8 light_id,
 		return -EIO;
 	}
 
+	if (light_id == LIGHT_ID_YLOGO) {
+		/* Y-Logo: DSDT returns on/off state in byte 0 (LCST).
+		 * EC convention: 1 = ON, 2 = OFF.
+		 * Map to sysfs brightness: 1 or 0.
+		 */
+		return (result[0] == 1) ? 1 : 0;
+	}
+
 	value = result[1];
 	if (!(value >= min_value && value <= max_value)) {
 		pr_info("Error WMI call for reading brightness: expected a value between %u and %u, but got %d\n",
@@ -3810,9 +3818,17 @@ static int legion_wmi_light_set(struct legion_private *priv, u8 light_id,
 	buffer.length = 3;
 	buffer.pointer = &in_buffer_param[0];
 	in_buffer_param[0] = light_id;
-	in_buffer_param[1] = 0x01;
-	in_buffer_param[2] =
-		clamp(brightness + min_value, min_value, max_value);
+	if (light_id == LIGHT_ID_YLOGO) {
+		/* Y-Logo: DSDT checks SCST (byte 1) for on/off.
+		 * EC convention: 1 = ON, 2 = OFF.
+		 */
+		in_buffer_param[1] = brightness ? 1 : 2;
+		in_buffer_param[2] = 0;
+	} else {
+		in_buffer_param[1] = 0x01;
+		in_buffer_param[2] =
+			clamp(brightness + min_value, min_value, max_value);
+	}
 
 	err = wmi_exec_int(LEGION_WMI_KBBACKLIGHT_GUID, 0,
 			   WMI_METHOD_ID_KBBACKLIGHTSET, &buffer, &result);
@@ -6331,7 +6347,7 @@ static int legion_add(struct platform_device *pdev)
 	}
 
 	pr_info("Init IO-Port LED driver\n");
-	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
+	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 0, 2,
 				"platform::ioport");
 	if (err) {
 		dev_info(&pdev->dev,
