@@ -1026,6 +1026,31 @@ static const struct model_config model_nrcn = {
 	.ramio_size = 0x600
 };
 
+// Legion Pro 7i Gen 10 (83F5) - EC chip 0x5508
+// Intel Core Ultra 9 275HX + RTX 5080 Laptop
+// EC fans/temp/curve accessed via WMI3 (GameZone), same as 5507 family.
+// ramio confirmed at 0xFE00D400 from force-loaded dmesg on live hardware.
+// Fan curve WMI path returns 10 points but all zeros - needs firmware investigation.
+// UNTESTED write paths - use ec_readonly=1 during initial validation.
+static const struct model_config model_q7cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
+};
+
 
 static const struct dmi_system_id denylist[] = { {} };
 
@@ -1420,6 +1445,20 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "NRCN"),
 		},
 		.driver_data = (void *)&model_nrcn
+	},
+	{
+		// Release year: 2025
+		// Generation: 10
+		// Name: Legion Pro 7i Gen 10
+		// Family: 83F5 (Intel Core Ultra 9 275HX + RTX 5080 Laptop)
+		// EC chip ID: 0x5508 (next gen after 0x5507)
+		// Matches any Q7CN BIOS version (Q7CN40WW, etc.)
+		.ident = "Q7CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "Q7CN"),
+		},
+		.driver_data = (void *)&model_q7cn
 	},
 	{}
 };
