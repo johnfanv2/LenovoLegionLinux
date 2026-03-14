@@ -4103,6 +4103,44 @@ static void legion_debugfs_exit(struct legion_private *priv)
 /* sysfs interface                */
 /* ============================   */
 
+// WMAE-based show/store helpers for models that route power limits
+// through the OtherMethod (WMAE Get/SetFeatureValue) interface
+static int show_other_method_attribute(struct device *dev,
+				       struct device_attribute *attr, char *buf,
+				       enum OtherMethodFeature feature_id)
+{
+	int value = 0;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_get_value(feature_id, &value);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+	return sysfs_emit(buf, "%d\n", value);
+}
+
+static int store_other_method_attribute(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count,
+					enum OtherMethodFeature feature_id)
+{
+	int value;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_set_value(feature_id, value);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+	return count;
+}
+
 static int show_simple_wmi_attribute(struct device *dev,
 				     struct device_attribute *attr, char *buf,
 				     const char *guid, u8 instance,
@@ -4448,18 +4486,30 @@ static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
+	ssize_t ret;
+
+	ret = show_simple_wmi_attribute_from_buffer(
 		dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
 		WMI_METHOD_ID_CPU_GET_SHORTTERM_POWERLIMIT, 16, 0, 1);
+	if (ret < 0)
+		ret = show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+	return ret;
 }
 
 static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 					      struct device_attribute *attr,
 					      const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
+	ssize_t ret;
+
+	ret = store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
 		WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT, false, 1);
+	if (ret < 0)
+		ret = store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+	return ret;
 }
 
 static DEVICE_ATTR_RW(cpu_shortterm_powerlimit);
@@ -4468,18 +4518,30 @@ static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
+	ssize_t ret;
+
+	ret = show_simple_wmi_attribute_from_buffer(
 		dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
 		WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT, 16, 0, 1);
+	if (ret < 0)
+		ret = show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+	return ret;
 }
 
 static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
+	ssize_t ret;
+
+	ret = store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
 		WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT, false, 1);
+	if (ret < 0)
+		ret = store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+	return ret;
 }
 
 static DEVICE_ATTR_RW(cpu_longterm_powerlimit);
@@ -4541,18 +4603,30 @@ static ssize_t cpu_cross_loading_powerlimit_show(struct device *dev,
 						 struct device_attribute *attr,
 						 char *buf)
 {
-	return show_simple_wmi_attribute(
+	ssize_t ret;
+
+	ret = show_simple_wmi_attribute(
 		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_CPU_GET_CROSS_LOADING_POWERLIMIT, false, 1);
+	if (ret < 0)
+		ret = show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
+	return ret;
 }
 
 static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
 						  struct device_attribute *attr,
 						  const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
+	ssize_t ret;
+
+	ret = store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT, false, 1);
+	if (ret < 0)
+		ret = store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
+	return ret;
 }
 
 static DEVICE_ATTR_RW(cpu_cross_loading_powerlimit);
@@ -4581,19 +4655,31 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
+	ssize_t ret;
+
+	ret = show_simple_wmi_attribute_from_buffer(
 		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT, 16, 0, 1);
+	if (ret < 0)
+		ret = show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_GPU_POWER_BOOST);
+	return ret;
 }
 
 static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
+	ssize_t ret;
+
+	ret = store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT,
 					  false, 1);
+	if (ret < 0)
+		ret = store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_GPU_POWER_BOOST);
+	return ret;
 }
 
 static DEVICE_ATTR_RW(gpu_ppab_powerlimit);
@@ -4602,19 +4688,31 @@ static ssize_t gpu_ctgp_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
+	ssize_t ret;
+
+	ret = show_simple_wmi_attribute_from_buffer(
 		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 16, 0, 1);
+	if (ret < 0)
+		ret = show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_GPU_cTGP);
+	return ret;
 }
 
 static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
+	ssize_t ret;
+
+	ret = store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT,
 					  false, 1);
+	if (ret < 0)
+		ret = store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_GPU_cTGP);
+	return ret;
 }
 
 static DEVICE_ATTR_RW(gpu_ctgp_powerlimit);
@@ -4714,20 +4812,32 @@ static DEVICE_ATTR_RW(fan_fullspeed);
 static ssize_t fan_maxspeed_show(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
-	return show_simple_wmi_attribute(dev, attr, buf,
+	ssize_t ret;
+
+	ret = show_simple_wmi_attribute(dev, attr, buf,
 					 WMI_GUID_LENOVO_FAN_METHOD, 0,
 					 WMI_METHOD_ID_FAN_GET_MAXSPEED, false,
 					 1);
+	if (ret < 0)
+		ret = show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_FAN_FULLSPEED);
+	return ret;
 }
 
 static ssize_t fan_maxspeed_store(struct device *dev,
 				  struct device_attribute *attr,
 				  const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
+	ssize_t ret;
+
+	ret = store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_FAN_METHOD, 0,
 					  WMI_METHOD_ID_FAN_SET_MAXSPEED, false,
 					  1);
+	if (ret < 0)
+		ret = store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_FAN_FULLSPEED);
+	return ret;
 }
 
 static DEVICE_ATTR_RW(fan_maxspeed);
