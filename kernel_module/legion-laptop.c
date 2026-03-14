@@ -1786,8 +1786,10 @@ enum OtherMethodFeature {
 	OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE =
 		0x02040000,
 
+	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
 	OtherMethodFeature_FAN_SPEED_1 = 0x04030001,
 	OtherMethodFeature_FAN_SPEED_2 = 0x04030002,
+	OtherMethodFeature_FAN_SPEED_3 = 0x04030004,
 
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
@@ -1809,6 +1811,16 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 	if (!error)
 		*value = res;
 	return error;
+}
+
+static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id,
+					  int value)
+{
+	u32 param[2] = { feature_id, value };
+
+	return wmi_exec_arg(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
+			    WMI_METHOD_ID_SET_FEATURE_VALUE, param,
+			    sizeof(param));
 }
 
 /* =================================== */
