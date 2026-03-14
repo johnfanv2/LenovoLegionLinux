@@ -5767,7 +5767,7 @@ static ssize_t pwm1_mode_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = ec_read_fanfullspeed(&priv->ecram, priv->conf, &value);
+	err = read_fanfullspeed(priv, &value);
 	if (err) {
 		err = -1;
 		pr_info("Failed to pwm1_mode/maximumfanspeed\n");
@@ -5800,8 +5800,7 @@ static ssize_t pwm1_mode_store(struct device *dev,
 	is_maximumfanspeed = value == 0;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = ec_write_fanfullspeed(&priv->ecram, priv->conf,
-				    is_maximumfanspeed);
+	err = write_fanfullspeed(priv, is_maximumfanspeed);
 	if (err) {
 		err = -1;
 		pr_info("Failed to write pwm1_mode/maximumfanspeed\n");
