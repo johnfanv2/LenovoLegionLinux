@@ -3507,6 +3507,24 @@ static ssize_t wmi_write_fanfullspeed(struct legion_private *priv, bool state)
 					1, state);
 }
 
+static ssize_t wmi3_read_fanfullspeed(bool *state)
+{
+	int value = 0;
+	int err;
+
+	err = wmi_other_method_get_value(OtherMethodFeature_FAN_FULLSPEED,
+					 &value);
+	if (!err)
+		*state = !!value;
+	return err;
+}
+
+static ssize_t wmi3_write_fanfullspeed(bool state)
+{
+	return wmi_other_method_set_value(OtherMethodFeature_FAN_FULLSPEED,
+					  state ? 1 : 0);
+}
+
 static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
 	// TODO: use enums or function pointers?
@@ -3515,6 +3533,8 @@ static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 		return ec_read_fanfullspeed(&priv->ecram, priv->conf, state);
 	case ACCESS_METHOD_WMI:
 		return wmi_read_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi3_read_fanfullspeed(state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
@@ -3532,6 +3552,8 @@ static ssize_t write_fanfullspeed(struct legion_private *priv, bool state)
 		return res;
 	case ACCESS_METHOD_WMI:
 		return wmi_write_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi3_write_fanfullspeed(state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
