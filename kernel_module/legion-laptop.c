@@ -218,6 +218,9 @@ struct model_config {
 	enum access_method access_method_fancurve;
 	enum access_method access_method_fanfullspeed;
 	bool three_state_keyboard;
+	// set to true to skip registering non-functional LED controls
+	bool no_ylogo_light;
+	bool no_ioport_light;
 
 	bool acpi_check_dev;
 
@@ -6465,20 +6468,26 @@ static int legion_add(struct platform_device *pdev)
 			"Failed to init keyboard backlight LED driver. Skipping ...\n");
 	}
 
-	pr_info("Init Y-Logo LED driver\n");
-	err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
-				"platform::ylogo");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init Y-Logo LED driver. Skipping ...\n");
+	if (!priv->conf->no_ylogo_light) {
+		pr_info("Init Y-Logo LED driver\n");
+		err = legion_light_init(priv, &priv->ylogo_light,
+					LIGHT_ID_YLOGO, 0, 1,
+					"platform::ylogo");
+		if (err) {
+			dev_info(&pdev->dev,
+				 "Failed to init Y-Logo LED driver. Skipping ...\n");
+		}
 	}
 
-	pr_info("Init IO-Port LED driver\n");
-	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 1, 2,
-				"platform::ioport");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init IO-Port LED driver. Skipping ...\n");
+	if (!priv->conf->no_ioport_light) {
+		pr_info("Init IO-Port LED driver\n");
+		err = legion_light_init(priv, &priv->iport_light,
+					LIGHT_ID_IOPORT, 1, 2,
+					"platform::ioport");
+		if (err) {
+			dev_info(&pdev->dev,
+				 "Failed to init IO-Port LED driver. Skipping ...\n");
+		}
 	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
