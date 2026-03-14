@@ -2,6 +2,13 @@ SHELL := /bin/bash
 KERNELVERSION  ?= $(shell uname --kernel-release)
 KSRC := /lib/modules/$(KERNELVERSION)/build
 
+DKMS_VERSION ?= 1.0.0
+PKG_NAME := lenovolegionlinux-dkms
+PKG_ARCH := all
+PKG_BUILD_DIR := /tmp/lenovolegionlinux-dkms-deb
+PKG_OUTPUT_DIR := ../deploy/packages
+PKG_DST := $(PKG_BUILD_DIR)/usr/src/LenovoLegionLinux-$(DKMS_VERSION)
+
 #install dir for kernel drivers
 INSTALLDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
 MODDESTDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
@@ -83,3 +90,49 @@ dkms: all
 	modprobe legion_laptop
 	dmesg --ctime | grep legion_laptop
 	bash -c "./issue-warning.sh"
+
+deb:
+	@command -v dpkg-deb >/dev/null 2>&1 || { \
+		echo "dpkg-deb not found; install dpkg-dev first"; \
+		exit 1; \
+	}
+	@rm -rf $(PKG_BUILD_DIR)
+	@mkdir -p $(PKG_BUILD_DIR)/DEBIAN $(PKG_DST) $(PKG_OUTPUT_DIR)
+	@rsync -a --delete \
+		--exclude='*.ko' \
+		--exclude='*.mod' \
+		--exclude='*.mod.c' \
+		--exclude='*.o' \
+		--exclude='Module.symvers' \
+		--exclude='modules.order' \
+		. $(PKG_DST)/
+	@sed -i 's/PACKAGE_VERSION="DKMS_VERSION"/PACKAGE_VERSION="$(DKMS_VERSION)"/' $(PKG_DST)/dkms.conf
+	@printf '%s\n' \
+		"Package: $(PKG_NAME)" \
+		"Version: $(DKMS_VERSION)" \
+		"Section: kernel" \
+		"Priority: optional" \
+		"Architecture: $(PKG_ARCH)" \
+		"Maintainer: Lenovo Legion Linux Team <noreply@example.com>" \
+		"Depends: dkms" \
+		"Description: LenovoLegionLinux DKMS package" \
+		" DKMS wrapper for Lenovo Legion kernel module." \
+		> $(PKG_BUILD_DIR)/DEBIAN/control
+	@printf '%s\n' \
+		"#!/bin/sh" \
+		"set -e" \
+		"dkms add -m LenovoLegionLinux -v $(DKMS_VERSION) -q || true" \
+		"dkms build -m LenovoLegionLinux -v $(DKMS_VERSION) -q || true" \
+		"dkms install -m LenovoLegionLinux -v $(DKMS_VERSION) -q --force || true" \
+		"exit 0" \
+		> $(PKG_BUILD_DIR)/DEBIAN/postinst
+	@printf '%s\n' \
+		"#!/bin/sh" \
+		"set -e" \
+		"dkms remove -m LenovoLegionLinux -v $(DKMS_VERSION) -q --all || true" \
+		"exit 0" \
+		> $(PKG_BUILD_DIR)/DEBIAN/prerm
+	@chmod 0755 $(PKG_BUILD_DIR)/DEBIAN/postinst $(PKG_BUILD_DIR)/DEBIAN/prerm
+	@dpkg-deb --build $(PKG_BUILD_DIR) $(PKG_OUTPUT_DIR)/$(PKG_NAME)_$(DKMS_VERSION)_$(PKG_ARCH).deb
+	@rm -rf $(PKG_BUILD_DIR)
+	@printf "Built %s\n" "$(PKG_OUTPUT_DIR)/$(PKG_NAME)_$(DKMS_VERSION)_$(PKG_ARCH).deb"

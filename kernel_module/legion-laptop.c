@@ -1526,20 +1526,20 @@ static int acpi_process_buffer_to_ints(const char *id_name, int id_nr,
 	int error = 0;
 
 	if (ACPI_FAILURE(status)) {
-		pr_info("ACPI evaluation error for: %s:%d\n", id_name, id_nr);
+		pr_debug("ACPI evaluation error for: %s:%d\n", id_name, id_nr);
 		error = -EFAULT;
 		goto err;
 	}
 
 	out = out_buffer->pointer;
 	if (!out) {
-		pr_info("Unexpected ACPI result for %s:%d\n", id_name, id_nr);
+		pr_debug("Unexpected ACPI result for %s:%d\n", id_name, id_nr);
 		error = -AE_ERROR;
 		goto err;
 	}
 
 	if (out->type != ACPI_TYPE_BUFFER || out->buffer.length != ressize) {
-		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d; expected length %lu but got %u;\n",
+		pr_debug("Unexpected ACPI result for %s:%d: expected type %d but got %d; expected length %lu but got %u;\n",
 			id_name, id_nr, ACPI_TYPE_BUFFER, out->type, ressize,
 			out->buffer.length);
 		error = -AE_ERROR;
@@ -1598,20 +1598,20 @@ static int wmi_exec_int(const char *guid, u8 instance, u32 method_id,
 				     &out_buffer);
 
 	if (ACPI_FAILURE(status)) {
-		pr_info("WMI evaluation error for: %s:%d\n", guid, method_id);
+		pr_debug("WMI evaluation error for: %s:%d\n", guid, method_id);
 		error = -EFAULT;
 		goto err;
 	}
 
 	out = out_buffer.pointer;
 	if (!out) {
-		pr_info("Unexpected ACPI result for %s:%d", guid, method_id);
+		pr_debug("Unexpected ACPI result for %s:%d", guid, method_id);
 		error = -AE_ERROR;
 		goto err;
 	}
 
 	if (out->type != ACPI_TYPE_INTEGER) {
-		pr_info("Unexpected ACPI result for %s:%d: expected type %d but got %d\n",
+		pr_debug("Unexpected ACPI result for %s:%d: expected type %d but got %d\n",
 			guid, method_id, ACPI_TYPE_INTEGER, out->type);
 		error = -AE_ERROR;
 		goto err;
@@ -2599,7 +2599,7 @@ static int get_simple_wmi_attribute(struct legion_private *priv,
 		return -EINVAL;
 
 	// TODO: remove later
-	pr_info("%swith raw value: %ld\n", __func__, state);
+	pr_debug("%s with raw value: %ld\n", __func__, state);
 
 	state = state * scale;
 
