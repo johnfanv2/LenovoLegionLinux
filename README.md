@@ -109,7 +109,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 # If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54).
 
-**Other Lenovo Legion models from 2020 to 2023 probably also work. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
+**Other Lenovo Legion models from 2020 to 2025 probably also work. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
 
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
@@ -127,6 +127,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 5 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion 7i 16ITHG6 (BIOS H1CN35WW): sensors, fan curve, power profile
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
+- Lenovo Legion Pro 7 16IAX10H (BIOS Q7CN38WW), Arrow Lake 2025: sensors, fan speed, power profile, power limits (CPU PL1/PL2, GPU PPAB/cTGP), fan fullspeed toggle. Keyboard backlight is USB HID (ITE 048d:c193), not controlled by this driver.
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
 
