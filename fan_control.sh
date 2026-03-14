@@ -9,7 +9,6 @@ case "$1" in
         echo 1 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed > /dev/null
         echo 1 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_maxspeed > /dev/null
         echo 2 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/powermode > /dev/null
-        sudo /home/xuananh/Downloads/LenovoLegionLinux/.venv/bin/legion_cli maximumfanspeed-enable
         echo "✅ High-performance fan mode enabled!"
         echo "📊 Current fan speeds:"
         sensors legion_hwmon-isa-0000
@@ -19,7 +18,6 @@ case "$1" in
         echo 0 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed > /dev/null
         echo 0 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_maxspeed > /dev/null
         echo 3 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/powermode > /dev/null
-        sudo /home/xuananh/Downloads/LenovoLegionLinux/.venv/bin/legion_cli maximumfanspeed-disable
         echo "✅ Automatic fan mode restored!"
         echo "📊 Current fan speeds:"
         sensors legion_hwmon-isa-0000
