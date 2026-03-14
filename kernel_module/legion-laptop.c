@@ -1043,7 +1043,8 @@ static const struct model_config model_q7cn = {
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.access_method_keyboard = ACCESS_METHOD_WMI,
+	// Keyboard backlight is USB HID (ITE 048d:c193), not WMI-controlled
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
