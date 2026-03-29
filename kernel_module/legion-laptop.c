@@ -752,6 +752,25 @@ static const struct model_config model_nscn = {
 	.ramio_size = 0x600
 };
 
+static const struct model_config model_qncn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600
+};
+
 static const struct model_config model_lpcn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -1505,6 +1524,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "NZCN"),
 		},
 		.driver_data = (void *)&model_nzcn
+	},
+	{
+		// e.g. Legion 5 15IRX10 (83LY)
+		.ident = "QNCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "QNCN"),
+		},
+		.driver_data = (void *)&model_qncn
 	},
 	{
 		// e.g. Legion Pro 5 16IRX9 (83DF)
