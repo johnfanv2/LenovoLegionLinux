@@ -3083,7 +3083,7 @@ static int ec_read_fancurve_legion(struct ecram *ecram,
 	return 0;
 }
 
-static int ec_write_fancurve_legion(struct ecram *ecram,
+static int ec_write_fancurve_legion(struct ecram_memoryio *ec_memoryio,
 				    const struct model_config *model,
 				    const struct fancurve *fancurve,
 				    bool write_size)
@@ -3091,8 +3091,8 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 	size_t i;
 
 	// Reset fan update counters (try to avoid any race conditions)
-	ecram_write(ecram, 0xC5FE, 0);
-	ecram_write(ecram, 0xC5FF, 0);
+	ecram_memoryio_write(ec_memoryio, 0xC5FE, 0);
+	ecram_memoryio_write(ec_memoryio, 0xC5FF, 0);
 	for (i = 0; i < MAXFANCURVESIZE; ++i) {
 		// Entries for points larger than fancurve size should be cleared
 		// to 0
@@ -3100,44 +3100,44 @@ static int ec_write_fancurve_legion(struct ecram *ecram,
 			i < fancurve->size ? &fancurve->points[i] :
 					     &fancurve_point_zero;
 
-		ecram_write(ecram, model->registers->EXT_FAN1_BASE + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_FAN1_BASE + i,
 			    point->speed1);
-		ecram_write(ecram, model->registers->EXT_FAN2_BASE + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_FAN2_BASE + i,
 			    point->speed2);
 
-		ecram_write(ecram, model->registers->EXT_FAN_ACC_BASE + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_FAN_ACC_BASE + i,
 			    point->accel);
-		ecram_write(ecram, model->registers->EXT_FAN_DEC_BASE + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_FAN_DEC_BASE + i,
 			    point->decel);
 
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_CPU_TEMP + i,
 			    point->cpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_CPU_TEMP_HYST + i,
 			    point->cpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_GPU_TEMP + i,
 			    point->gpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_GPU_TEMP_HYST + i,
 			    point->gpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_VRM_TEMP + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_VRM_TEMP + i,
 			    point->ic_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_VRM_TEMP_HYST + i,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_VRM_TEMP_HYST + i,
 			    point->ic_min_temp_celsius);
 	}
 
 	if (write_size) {
-		ecram_write(ecram, model->registers->EXT_FAN_POINTS_SIZE,
+		ecram_memoryio_write(ec_memoryio, model->registers->EXT_FAN_POINTS_SIZE,
 			    fancurve->size);
 	}
 
 	// Reset current fan level to 0, so algorithm in EC
 	// selects fan curve point again and resetting hysterisis
 	// effects
-	ecram_write(ecram, model->registers->EXT_FAN_CUR_POINT, 0);
+	ecram_memoryio_write(ec_memoryio, model->registers->EXT_FAN_CUR_POINT, 0);
 
 	// Reset internal fan levels
-	ecram_write(ecram, 0xC634, 0); // CPU
-	ecram_write(ecram, 0xC635, 0); // GPU
-	ecram_write(ecram, 0xC636, 0); // SENSOR
+	ecram_memoryio_write(ec_memoryio, 0xC634, 0); // CPU
+	ecram_memoryio_write(ec_memoryio, 0xC635, 0); // GPU
+	ecram_memoryio_write(ec_memoryio, 0xC636, 0); // SENSOR
 
 	return 0;
 }
@@ -3363,7 +3363,7 @@ static int write_fancurve(struct legion_private *priv,
 	// TODO: use enums or function pointers?
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
-		return ec_write_fancurve_legion(&priv->ecram, priv->conf,
+		return ec_write_fancurve_legion(&priv->ec_memoryio, priv->conf,
 						fancurve, write_size);
 	case ACCESS_METHOD_EC2:
 		return ec_write_fancurve_ideapad(&priv->ecram, priv->conf,
@@ -6242,10 +6242,11 @@ static int legion_add(struct platform_device *pdev)
 		goto err_acpi_init;
 	}
 
-	// TODO: remove; only used for reverse engineering
+	// Used as fallback write path for models where port IO writes are unreliable
 	pr_info("Creating RAM access to embedded controller\n");
 	err = ecram_memoryio_init(&priv->ec_memoryio,
-				  priv->conf->ramio_physical_start, 0,
+				  priv->conf->ramio_physical_start,
+				  priv->conf->memoryio_physical_ec_start,
 				  priv->conf->ramio_size);
 	if (err) {
 		dev_info(
