@@ -4971,8 +4971,10 @@ static void legion_platform_profile_notify(struct device *dev)
 static void legion_platform_profile_notify(void)
 #endif
 {
-	if (!enable_platformprofile)
+	if (!enable_platformprofile) {
 		pr_info("Skipping platform_profile_notify because enable_platformprofile is false\n");
+		return;
+	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	platform_profile_notify(dev);
