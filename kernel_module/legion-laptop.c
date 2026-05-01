@@ -6675,7 +6675,7 @@ static int legion_add(struct platform_device *pdev)
 	})) {
 		priv->conf = &model_lpcn62ww;
 		dev_info(&pdev->dev,
-			 "Using LPCN62WW machine-specific config for WMB5/WMAA OC/powerlimit controls\n");
+			 "Using LPCN62WW machine-specific config for WMI3/WMAA OC/powerlimit controls\n");
 	}
 
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
