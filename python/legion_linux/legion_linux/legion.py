@@ -614,12 +614,12 @@ class GPUCTGPPowerLimit(IntFileFeature):
 
 class GPUPPABPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_ppab_powerlimit"), 0, 80, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_ppab_powerlimit"), 0, 200, 1)
 
 
 class GPUTemperatureLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_temperature_limit"), 0, 95, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_temperature_limit"), 0, 120, 1)
 
 
 class GPUTotalProcessorPowerTargetOnAC(IntFileFeature):
