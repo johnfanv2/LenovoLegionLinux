@@ -223,6 +223,15 @@ struct model_config {
 
 	phys_addr_t ramio_physical_start;
 	size_t ramio_size;
+
+	// Access method for CPU power limits (short/long/peak/cross-load)
+	enum access_method access_method_cpu_powerlimit;
+	// Access method for GPU power limits (PPAB/cTGP/temperature limit)
+	enum access_method access_method_gpu_powerlimit;
+	// Access method for GPU overclock status
+	enum access_method access_method_gpu_oc;
+	// Whether advanced LPCN62WW-only power features are present
+	bool has_advanced_power_features;
 };
 
 /* =================================== */
@@ -702,7 +711,35 @@ static const struct model_config model_lpcn = {
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	.access_method_cpu_powerlimit = ACCESS_METHOD_WMI,
+	.access_method_gpu_powerlimit = ACCESS_METHOD_WMI,
+	.access_method_gpu_oc = ACCESS_METHOD_WMI,
+};
+
+// LPCN62WW on product 82WM (Legion R9000P 2023):
+// Uses OtherMethodFeature (WMI3) for power limits and WMAA (WMI2 via Gamezone) for GPU OC
+static const struct model_config model_lpcn62ww = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	.access_method_cpu_powerlimit = ACCESS_METHOD_WMI3,
+	.access_method_gpu_powerlimit = ACCESS_METHOD_WMI3,
+	.access_method_gpu_oc = ACCESS_METHOD_WMI2,
+	.has_advanced_power_features = true,
 };
 
 static const struct model_config model_kfcn = {
@@ -1686,6 +1723,9 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 #define WMI_METHOD_ID_GETIGPUMODESTATUS 64
 #define WMI_METHOD_ID_SETIGPUMODESTATUS 65
 #define WMI_METHOD_ID_NOTIFYDGPUSTATUS 66
+// \_SB.GZFD.WMAA Arg1 0x32/0x33 used for GPU OC state on LPCN62WW
+#define WMI_METHOD_ID_GET_GPU_OC_STATUS_WMAA 0x32
+#define WMI_METHOD_ID_SET_GPU_OC_STATUS_WMAA 0x33
 enum IGPUState {
 	IGPUState_default = 0,
 	IGPUState_iGPUOnly = 1,
@@ -1785,6 +1825,7 @@ enum OtherMethodFeature {
 	OtherMethodFeature_GPU_TEMPERATURE_LIMIT = 0x02030000,
 	OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE =
 		0x02040000,
+	OtherMethodFeature_GPU_TO_CPU_DYNAMIC_BOOST = 0x020B0000,
 
 	OtherMethodFeature_FAN_SPEED_1 = 0x04030001,
 	OtherMethodFeature_FAN_SPEED_2 = 0x04030002,
@@ -1809,6 +1850,21 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 	if (!error)
 		*value = res;
 	return error;
+}
+
+static int wmi_other_method_set_value(enum OtherMethodFeature feature_id, int value)
+{
+	struct {
+		u32 feature_id;
+		u32 value;
+	} in_param = {
+		.feature_id = feature_id,
+		.value = value,
+	};
+
+	return wmi_exec_arg(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
+			    WMI_METHOD_ID_SET_FEATURE_VALUE, &in_param,
+			    sizeof(in_param));
 }
 
 /* =================================== */
@@ -4141,6 +4197,56 @@ static int store_simple_wmi_attribute(struct device *dev,
 	return count;
 }
 
+static ssize_t show_wmi_other_feature_attribute(struct device *dev, char *buf,
+						enum OtherMethodFeature feature_id,
+						unsigned long scale)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	unsigned long scaled_value;
+	int raw_value;
+	int err;
+
+	if (scale == 0)
+		return -EINVAL;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_get_value(feature_id, &raw_value);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	scaled_value = (unsigned long)raw_value * scale;
+	return sysfs_emit(buf, "%lu\n", scaled_value);
+}
+
+static ssize_t store_wmi_other_feature_attribute(struct device *dev,
+						 const char *buf, size_t count,
+						 enum OtherMethodFeature feature_id,
+						 int scale)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	unsigned int state;
+	u32 feature_value;
+	int err;
+
+	if (scale <= 0)
+		return -EINVAL;
+
+	err = kstrtouint(buf, 0, &state);
+	if (err)
+		return err;
+
+	feature_value = state / scale;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_set_value(feature_id, feature_value);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
+
+	return count;
+}
+
 static ssize_t lockfancontroller_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
@@ -4414,18 +4520,40 @@ static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
-		dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_GET_SHORTTERM_POWERLIMIT, 16, 0, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(
+			dev, buf, OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT,
+			1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute_from_buffer(
+			dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_GET_SHORTTERM_POWERLIMIT, 16, 0, 1);
+	}
 }
 
 static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 					      struct device_attribute *attr,
 					      const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count,
+			OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(
+			dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT, false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(cpu_shortterm_powerlimit);
@@ -4434,18 +4562,40 @@ static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
-		dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT, 16, 0, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(
+			dev, buf, OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT,
+			1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute_from_buffer(
+			dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT, 16, 0, 1);
+	}
 }
 
 static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count,
+			OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(
+			dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT, false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(cpu_longterm_powerlimit);
@@ -4465,20 +4615,41 @@ static ssize_t cpu_peak_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	return show_simple_wmi_attribute(dev, attr, buf,
-					 WMI_GUID_LENOVO_GPU_METHOD, 0,
-					 WMI_METHOD_ID_CPU_GET_PEAK_POWERLIMIT,
-					 false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(
+			dev, buf, OtherMethodFeature_CPU_PEAK_POWER_LIMIT, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute(dev, attr, buf,
+						 WMI_GUID_LENOVO_GPU_METHOD, 0,
+						 WMI_METHOD_ID_CPU_GET_PEAK_POWERLIMIT,
+						 false, 1);
+	}
 }
 
 static ssize_t cpu_peak_powerlimit_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
-					  WMI_GUID_LENOVO_GPU_METHOD, 0,
-					  WMI_METHOD_ID_CPU_SET_PEAK_POWERLIMIT,
-					  false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count, OtherMethodFeature_CPU_PEAK_POWER_LIMIT,
+			1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(dev, attr, buf, count,
+						  WMI_GUID_LENOVO_GPU_METHOD, 0,
+						  WMI_METHOD_ID_CPU_SET_PEAK_POWERLIMIT,
+						  false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(cpu_peak_powerlimit);
@@ -4487,18 +4658,36 @@ static ssize_t cpu_apu_sppt_powerlimit_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf)
 {
-	return show_simple_wmi_attribute(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_GET_APU_SPPT_POWERLIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return -EOPNOTSUPP;
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_GET_APU_SPPT_POWERLIMIT, false, 1);
+	}
 }
 
 static ssize_t cpu_apu_sppt_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_APU_SPPT_POWERLIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return -EOPNOTSUPP;
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(
+			dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_SET_APU_SPPT_POWERLIMIT, false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(cpu_apu_sppt_powerlimit);
@@ -4507,18 +4696,40 @@ static ssize_t cpu_cross_loading_powerlimit_show(struct device *dev,
 						 struct device_attribute *attr,
 						 char *buf)
 {
-	return show_simple_wmi_attribute(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_GET_CROSS_LOADING_POWERLIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(
+			dev, buf, OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT,
+			1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_GET_CROSS_LOADING_POWERLIMIT, false, 1);
+	}
 }
 
 static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
 						  struct device_attribute *attr,
 						  const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_cpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count,
+			OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(
+			dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT, false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(cpu_cross_loading_powerlimit);
@@ -4526,19 +4737,41 @@ static DEVICE_ATTR_RW(cpu_cross_loading_powerlimit);
 static ssize_t gpu_oc_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
-	return show_simple_wmi_attribute(dev, attr, buf,
-					 WMI_GUID_LENOVO_GPU_METHOD, 0,
-					 WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
-					 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_oc) {
+	case ACCESS_METHOD_WMI2:
+		return show_simple_wmi_attribute(
+			dev, attr, buf, LEGION_WMI_GAMEZONE_GUID, 0,
+			WMI_METHOD_ID_GET_GPU_OC_STATUS_WMAA, false, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute(dev, attr, buf,
+						 WMI_GUID_LENOVO_GPU_METHOD, 0,
+						 WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
+						 1);
+	}
 }
 
 static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
-					  WMI_GUID_LENOVO_GPU_METHOD, 0,
-					  WMI_METHOD_ID_GPU_SET_OC_STATUS,
-					  false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_oc) {
+	case ACCESS_METHOD_WMI2:
+		return store_simple_wmi_attribute(
+			dev, attr, buf, count, LEGION_WMI_GAMEZONE_GUID, 0,
+			WMI_METHOD_ID_SET_GPU_OC_STATUS_WMAA, false, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(dev, attr, buf, count,
+						  WMI_GUID_LENOVO_GPU_METHOD, 0,
+						  WMI_METHOD_ID_GPU_SET_OC_STATUS,
+						  false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(gpu_oc);
@@ -4547,19 +4780,39 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT, 16, 0, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(
+			dev, buf, OtherMethodFeature_GPU_POWER_BOOST, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute_from_buffer(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT, 16, 0, 1);
+	}
 }
 
 static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
-					  WMI_GUID_LENOVO_GPU_METHOD, 0,
-					  WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT,
-					  false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count, OtherMethodFeature_GPU_POWER_BOOST, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(dev, attr, buf, count,
+						  WMI_GUID_LENOVO_GPU_METHOD, 0,
+						  WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT,
+						  false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(gpu_ppab_powerlimit);
@@ -4568,19 +4821,40 @@ static ssize_t gpu_ctgp_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 16, 0, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(dev, buf,
+							OtherMethodFeature_GPU_cTGP,
+							1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute_from_buffer(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 16, 0, 1);
+	}
 }
 
 static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(dev, attr, buf, count,
-					  WMI_GUID_LENOVO_GPU_METHOD, 0,
-					  WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT,
-					  false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count, OtherMethodFeature_GPU_cTGP, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(dev, attr, buf, count,
+						  WMI_GUID_LENOVO_GPU_METHOD, 0,
+						  WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT,
+						  false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(gpu_ctgp_powerlimit);
@@ -4589,9 +4863,18 @@ static ssize_t gpu_ctgp2_powerlimit_show(struct device *dev,
 					 struct device_attribute *attr,
 					 char *buf)
 {
-	return show_simple_wmi_attribute_from_buffer(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 16, 0x0C, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return -EOPNOTSUPP;
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute_from_buffer(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_GPU_GET_CTGP_POWERLIMIT, 16, 0x0C, 1);
+	}
 }
 
 static DEVICE_ATTR_RO(gpu_ctgp2_powerlimit);
@@ -4611,21 +4894,132 @@ static ssize_t gpu_temperature_limit_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
-	return show_simple_wmi_attribute(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_GET_TEMPERATURE_LIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return show_wmi_other_feature_attribute(
+			dev, buf, OtherMethodFeature_GPU_TEMPERATURE_LIMIT, 1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return show_simple_wmi_attribute(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_GPU_GET_TEMPERATURE_LIMIT, false, 1);
+	}
 }
 
 static ssize_t gpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_gpu_powerlimit) {
+	case ACCESS_METHOD_WMI3:
+		return store_wmi_other_feature_attribute(
+			dev, buf, count, OtherMethodFeature_GPU_TEMPERATURE_LIMIT,
+			1);
+	case ACCESS_METHOD_WMI:
+	case ACCESS_METHOD_NO_ACCESS:
+	default:
+		return store_simple_wmi_attribute(
+			dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	}
 }
 
 static DEVICE_ATTR_RW(gpu_temperature_limit);
+
+static ssize_t cpu_temperature_limit_show(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->has_advanced_power_features)
+		return -EOPNOTSUPP;
+
+	return show_wmi_other_feature_attribute(
+		dev, buf, OtherMethodFeature_CPU_TEMPERATURE_LIMIT, 1);
+}
+
+static ssize_t cpu_temperature_limit_store(struct device *dev,
+					   struct device_attribute *attr,
+					   const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->has_advanced_power_features)
+		return -EOPNOTSUPP;
+
+	return store_wmi_other_feature_attribute(
+		dev, buf, count, OtherMethodFeature_CPU_TEMPERATURE_LIMIT, 1);
+}
+
+static DEVICE_ATTR_RW(cpu_temperature_limit);
+
+static ssize_t
+gpu_total_processor_power_target_on_ac_show(struct device *dev,
+					    struct device_attribute *attr,
+					    char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->has_advanced_power_features)
+		return -EOPNOTSUPP;
+
+	return show_wmi_other_feature_attribute(
+		dev, buf,
+		OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE,
+		1);
+}
+
+static ssize_t
+gpu_total_processor_power_target_on_ac_store(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->has_advanced_power_features)
+		return -EOPNOTSUPP;
+
+	return store_wmi_other_feature_attribute(
+		dev, buf, count,
+		OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE,
+		1);
+}
+
+static DEVICE_ATTR_RW(gpu_total_processor_power_target_on_ac);
+
+static ssize_t gpu_to_cpu_dynamic_boost_show(struct device *dev,
+					     struct device_attribute *attr,
+					     char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->has_advanced_power_features)
+		return -EOPNOTSUPP;
+
+	return show_wmi_other_feature_attribute(
+		dev, buf, OtherMethodFeature_GPU_TO_CPU_DYNAMIC_BOOST, 1);
+}
+
+static ssize_t gpu_to_cpu_dynamic_boost_store(struct device *dev,
+					      struct device_attribute *attr,
+					      const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->has_advanced_power_features)
+		return -EOPNOTSUPP;
+
+	return store_wmi_other_feature_attribute(
+		dev, buf, count, OtherMethodFeature_GPU_TO_CPU_DYNAMIC_BOOST, 1);
+}
+
+static DEVICE_ATTR_RW(gpu_to_cpu_dynamic_boost);
 
 // TOOD: probably remove again because provided by other means; only useful for overclocking
 static ssize_t gpu_boost_clock_show(struct device *dev,
@@ -4768,10 +5162,13 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_cpu_default_powerlimit.attr,
 	&dev_attr_cpu_peak_powerlimit.attr,
 	&dev_attr_cpu_cross_loading_powerlimit.attr,
+	&dev_attr_cpu_temperature_limit.attr,
 	&dev_attr_gpu_oc.attr,
 	&dev_attr_gpu_ppab_powerlimit.attr,
 	&dev_attr_gpu_ctgp_powerlimit.attr,
 	&dev_attr_gpu_ctgp2_powerlimit.attr,
+	&dev_attr_gpu_total_processor_power_target_on_ac.attr,
+	&dev_attr_gpu_to_cpu_dynamic_boost.attr,
 	&dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr,
 	&dev_attr_gpu_temperature_limit.attr,
 	&dev_attr_gpu_boost_clock.attr,
@@ -4785,8 +5182,37 @@ static struct attribute *legion_sysfs_attributes[] = {
 	NULL
 };
 
+static umode_t legion_sysfs_is_visible(struct kobject *kobj,
+				       struct attribute *attr, int n)
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	(void)n;
+
+	if (attr == &dev_attr_cpu_apu_sppt_powerlimit.attr) {
+		if (priv && priv->conf->access_method_cpu_powerlimit == ACCESS_METHOD_WMI3)
+			return 0;
+	}
+
+	if (attr == &dev_attr_gpu_ctgp2_powerlimit.attr) {
+		if (priv && priv->conf->access_method_gpu_powerlimit == ACCESS_METHOD_WMI3)
+			return 0;
+	}
+
+	if (attr == &dev_attr_cpu_temperature_limit.attr ||
+	    attr == &dev_attr_gpu_total_processor_power_target_on_ac.attr ||
+	    attr == &dev_attr_gpu_to_cpu_dynamic_boost.attr) {
+		if (!priv || !priv->conf->has_advanced_power_features)
+			return 0;
+	}
+
+	return attr->mode;
+}
+
 static const struct attribute_group legion_attribute_group = {
-	.attrs = legion_sysfs_attributes
+	.attrs = legion_sysfs_attributes,
+	.is_visible = legion_sysfs_is_visible,
 };
 
 static int legion_sysfs_init(struct legion_private *priv)
@@ -6237,6 +6663,20 @@ static int legion_add(struct platform_device *pdev)
 		 dmi_sys->ident);
 
 	priv->conf = dmi_sys->driver_data;
+
+	// LPCN62WW on 82WM uses different WMI paths for power limits and GPU OC
+	if (dmi_check_system((const struct dmi_system_id[]) {
+		{ .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "82WM"),
+			DMI_MATCH(DMI_BIOS_VERSION, "LPCN62WW"),
+		}},
+		{},
+	})) {
+		priv->conf = &model_lpcn62ww;
+		dev_info(&pdev->dev,
+			 "Using LPCN62WW machine-specific config for WMB5/WMAA OC/powerlimit controls\n");
+	}
 
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
 	if (err) {
