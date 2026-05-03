@@ -757,30 +757,6 @@ static const struct model_config model_lpcn = {
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
-	.access_method_cpu_powerlimit = ACCESS_METHOD_WMI,
-	.access_method_gpu_powerlimit = ACCESS_METHOD_WMI,
-	.access_method_gpu_oc = ACCESS_METHOD_WMI,
-};
-
-// LPCN62WW on product 82WM (Legion R9000P 2023):
-// Uses OtherMethodFeature (WMI3) for power limits and WMAA (WMI2 via Gamezone) for GPU OC
-static const struct model_config model_lpcn62ww = {
-	.registers = &ec_register_offsets_v0,
-	.check_embedded_controller_id = true,
-	.embedded_controller_id = 0x5507,
-	.memoryio_physical_ec_start = 0xC400,
-	.memoryio_size = 0x300,
-	.has_minifancurve = false,
-	.has_custom_powermode = true,
-	.access_method_powermode = ACCESS_METHOD_WMI,
-	.access_method_keyboard = ACCESS_METHOD_WMI,
-	.access_method_fanspeed = ACCESS_METHOD_WMI3,
-	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_WMI3,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
-	.acpi_check_dev = false,
-	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600,
 	.access_method_cpu_powerlimit = ACCESS_METHOD_WMI3,
 	.access_method_gpu_powerlimit = ACCESS_METHOD_WMI3,
 	.access_method_gpu_oc = ACCESS_METHOD_WMI2,
@@ -6737,20 +6713,6 @@ static int legion_add(struct platform_device *pdev)
 		 dmi_sys->ident);
 
 	priv->conf = dmi_sys->driver_data;
-
-	// LPCN62WW on 82WM uses different WMI paths for power limits and GPU OC
-	if (dmi_check_system((const struct dmi_system_id[]) {
-		{ .matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "82WM"),
-			DMI_MATCH(DMI_BIOS_VERSION, "LPCN62WW"),
-		}},
-		{},
-	})) {
-		priv->conf = &model_lpcn62ww;
-		dev_info(&pdev->dev,
-			 "Using LPCN62WW machine-specific config for WMI3/WMAA OC/powerlimit controls\n");
-	}
 
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
 	if (err) {
