@@ -5727,65 +5727,6 @@ error:
 
 static SENSOR_DEVICE_ATTR_RW(minifancurve, minifancurve, 0);
 
-static ssize_t pwm1_mode_show(struct device *dev,
-			      struct device_attribute *devattr, char *buf)
-{
-	bool value;
-	int err;
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = ec_read_fanfullspeed(&priv->ecram, priv->conf, &value);
-	if (err) {
-		err = -1;
-		pr_info("Failed to pwm1_mode/maximumfanspeed\n");
-		goto error_unlock;
-	}
-	mutex_unlock(&priv->fancurve_mutex);
-	return sprintf(buf, "%d\n", value ? 0 : 2);
-
-error_unlock:
-	mutex_unlock(&priv->fancurve_mutex);
-	return -1;
-}
-
-// TODO: remove? or use WMI method?
-static ssize_t pwm1_mode_store(struct device *dev,
-			       struct device_attribute *devattr,
-			       const char *buf, size_t count)
-{
-	int value;
-	int is_maximumfanspeed;
-	int err;
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	err = kstrtoint(buf, 0, &value);
-	if (err) {
-		err = -1;
-		pr_info("Parsing hwmon store failed: error:%d\n", err);
-		goto error;
-	}
-	is_maximumfanspeed = value == 0;
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = ec_write_fanfullspeed(&priv->ecram, priv->conf,
-				    is_maximumfanspeed);
-	if (err) {
-		err = -1;
-		pr_info("Failed to write pwm1_mode/maximumfanspeed\n");
-		goto error_unlock;
-	}
-	mutex_unlock(&priv->fancurve_mutex);
-	return count;
-
-error_unlock:
-	mutex_unlock(&priv->fancurve_mutex);
-error:
-	return err;
-}
-
-static SENSOR_DEVICE_ATTR_RW(pwm1_mode, pwm1_mode, 0);
-
 static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_fan1_max.dev_attr.attr,
 	&sensor_dev_attr_fan2_max.dev_attr.attr,
@@ -5892,7 +5833,7 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	//
 	&sensor_dev_attr_auto_points_size.dev_attr.attr,
 	&sensor_dev_attr_minifancurve.dev_attr.attr,
-	&sensor_dev_attr_pwm1_mode.dev_attr.attr, NULL
+	NULL
 };
 
 static umode_t legion_hwmon_is_visible(struct kobject *kobj,
