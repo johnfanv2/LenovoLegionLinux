@@ -1788,6 +1788,7 @@ enum OtherMethodFeature {
 
 	OtherMethodFeature_FAN_SPEED_1 = 0x04030001,
 	OtherMethodFeature_FAN_SPEED_2 = 0x04030002,
+	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
 
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
@@ -1808,6 +1809,37 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 			     WMI_METHOD_ID_GET_FEATURE_VALUE, &params, &res);
 	if (!error)
 		*value = res;
+	return error;
+}
+
+static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id, int value, int *output)
+{
+	struct acpi_buffer params;
+	int error;
+	unsigned long val;
+	unsigned long res;
+  // WMI Call 0x12 (18) struct:
+	//
+	// CreateWordField (Arg2, Zero, TYP1)
+	// CreateByteField (Arg2, 0x02, FEA1)
+	// CreateByteField (Arg2, 0x03, DEV1)
+	// CreateDWordField (Arg2, 0x04, DAT1)
+	//
+	//OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
+	// TYP0 = 0x0000
+	// FEA0 = 0x02
+	// DEV0 = 0x04
+	// DAT1 = 0xXXXXXXXX = parameter to add
+	// val = OtherMethodXX + Param = 0x4020000 | (DAT1 << 32)
+	val = (unsigned long)feature_id | ((unsigned long)(u32)value << 32);
+	params.length = sizeof(val);
+	params.pointer = &val;
+	error = wmi_exec_int(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
+					WMI_METHOD_ID_SET_FEATURE_VALUE, &params, &res);
+	if (error)
+		pr_info("Error calling WMI Other Method Set Value: %d\n", error);
+	else
+		*output = res;
 	return error;
 }
 
@@ -3495,6 +3527,25 @@ static ssize_t wmi_write_fanfullspeed(struct legion_private *priv, bool state)
 					1, state);
 }
 
+static int wmi_read_fanfullspeed_other(struct legion_private *priv, bool *state)
+{
+	int err;
+	int res;
+
+	err = wmi_other_method_get_value(OtherMethodFeature_FAN_FULLSPEED, &res);
+	if (!err)
+		*state = (res != 0); // ON
+	return err;
+}
+
+static int wmi_write_fanfullspeed_other(struct legion_private *priv, bool state)
+{
+	int res;
+	int value = (state)?1:0;
+
+	return wmi_other_method_set_value(OtherMethodFeature_FAN_FULLSPEED, value, &res);
+}
+
 static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 {
 	// TODO: use enums or function pointers?
@@ -3503,6 +3554,8 @@ static ssize_t read_fanfullspeed(struct legion_private *priv, bool *state)
 		return ec_read_fanfullspeed(&priv->ecram, priv->conf, state);
 	case ACCESS_METHOD_WMI:
 		return wmi_read_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi_read_fanfullspeed_other(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
@@ -3520,6 +3573,8 @@ static ssize_t write_fanfullspeed(struct legion_private *priv, bool state)
 		return res;
 	case ACCESS_METHOD_WMI:
 		return wmi_write_fanfullspeed(priv, state);
+	case ACCESS_METHOD_WMI3:
+		return wmi_write_fanfullspeed_other(priv, state);
 	default:
 		pr_info("No access method for fan full speed: %d\n",
 			priv->conf->access_method_fanfullspeed);
