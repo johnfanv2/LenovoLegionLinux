@@ -223,6 +223,10 @@ struct model_config {
 
 	phys_addr_t ramio_physical_start;
 	size_t ramio_size;
+
+	// Maximum fan speed in RPM, used for fancurve PWM conversion.
+	// When 0 (default), the compile-time MAX_RPM constant is used.
+	int max_rpm;
 };
 
 /* =================================== */
@@ -702,7 +706,8 @@ static const struct model_config model_lpcn = {
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	.max_rpm = 5400,
 };
 
 static const struct model_config model_kfcn = {
@@ -2204,6 +2209,8 @@ struct fancurve {
 	size_t size;
 	// the point at which fans are run currently
 	size_t current_point_i;
+	// maximum fan speed in RPM for this fan curve (0 = use MAX_RPM default)
+	int max_rpm;
 };
 
 // validation functions
@@ -2247,9 +2254,11 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 	case FAN_SPEED_UNIT_PWM:
 		*speed = clamp_t(u8, value, 0, 255);
 		return true;
-	case FAN_SPEED_UNIT_RPM_HUNDRED:
-		*speed = clamp_t(u8, (value * MAX_RPM + (100 * 255) - 1) / (100 * 255), 0, 255);
+	case FAN_SPEED_UNIT_RPM_HUNDRED: {
+		int max = fancurve->max_rpm ?: MAX_RPM;
+		*speed = clamp_t(u8, (value * max + (100 * 255) - 1) / (100 * 255), 0, 255);
 		return true;
+	}
 	default:
 		pr_info("No method to set for fan_speed_unit %d.",
 			fancurve->fan_speed_unit);
@@ -2287,7 +2296,7 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 		pr_info("%s 3b", __func__);
 		return true;
 	case FAN_SPEED_UNIT_RPM_HUNDRED:
-		*value = speed * 255 * 100 / MAX_RPM;
+		*value = speed * 255 * 100 / (fancurve->max_rpm ?: MAX_RPM);
 		pr_info("%s 3c", __func__);
 		return true;
 	default:
@@ -2971,6 +2980,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		fancurve->current_point_i = 0;
 		fancurve->size = 10;
 		fancurve->fan_speed_unit = FAN_SPEED_UNIT_PERCENT;
+		fancurve->max_rpm = model->max_rpm ?: MAX_RPM;
 		fancurve->points[0].speed1 = fantable->FSS0;
 		fancurve->points[1].speed1 = fantable->FSS1;
 		fancurve->points[2].speed1 = fantable->FSS2;
@@ -3339,6 +3349,7 @@ static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 {
 	// TODO: use enums or function pointers?
 	pr_info("Reading fancurve"); // TODO: remove that
+	fancurve->max_rpm = priv->conf->max_rpm ?: MAX_RPM;
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
 		return ec_read_fancurve_legion(&priv->ecram, priv->conf,
@@ -4015,7 +4026,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 				   &is_maximumfanspeed);
 	seq_file_print_with_error(s, "fanfullspeed EC", err,
 				  is_maximumfanspeed);
-	seq_printf(s, "Max speed for fancurve: %d\n", MAX_RPM);
+	seq_printf(s, "Max speed for fancurve: %d\n", priv->conf->max_rpm ?: MAX_RPM);
 
 	read_fancurve(priv, &priv->fancurve);
 
@@ -5266,7 +5277,10 @@ static struct attribute *sensor_hwmon_attributes[] = {
 static ssize_t fan_max_show(struct device *dev,
 			    struct device_attribute *devattr, char *buf)
 {
-	return sprintf(buf, "%d\n", MAX_RPM);
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int max_rpm = priv->conf->max_rpm ?: MAX_RPM;
+
+	return sprintf(buf, "%d\n", max_rpm);
 }
 
 static ssize_t autopoint_show(struct device *dev,
