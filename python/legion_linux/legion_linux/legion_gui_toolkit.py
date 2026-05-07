@@ -1,0 +1,6660 @@
+#!/usr/bin/env python3
+"""
+Legion Linux Toolkit — Dashboard GUI  v0.6.3
+New: LLL integration, IC temp, AC/battery auto-switching, kernel 7.x fallback.
+KDE Plasma 6 / Wayland compatible.
+"""
+
+import os, sys, subprocess, json, time, threading
+from pathlib import Path
+
+try:
+    from kernel_check import get_fan_status_message
+except ImportError:
+    def get_fan_status_message(): return ""
+
+# Make legion_linux importable when running from source
+_this_dir = Path(__file__).resolve().parent
+_src_root = _this_dir.parent.parent
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
+
+os.environ["QT_QPA_PLATFORM"] = "wayland"
+os.environ["QT_WAYLAND_DISABLE_WINDOWDECORATION"] = "1"
+os.environ.setdefault("WAYLAND_DISPLAY", "wayland-0")
+if "XDG_RUNTIME_DIR" not in os.environ:
+    os.environ["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
+
+# ── Legion logo icon (embedded, no external file) ────────────────────────────
+_LEGION_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAcAklEQVR4nO2de5QdV3Xmv73PqfvqbkvW03o/+iW1bCU8V+KJaQwkcWZgWIS5gjDEMCFjiMF4QkIwL8smITGG4ABjCAZm/ADbqFkEExvMsmOpgQFjLGNbtqxnS7IellpqdUvdfR9V5+w9f9StVrvpNpKRu6Vb+q2ldbV61a17qs5X++yzzz676Msr2/5qOnTmngPbb/7oMfQDwPrOTruhu1uuBwTnOOtZC/BrOzv50u5uBwDXXHTR+R3IvX+Isn2knZ323sN9H85DrmyylX/8Ehpv/+aTTw4DgALcBdAawE/tJZzjxbAOMEVAqfYgr169uuGzUeV6i8zbDpC9eeHsaZ+DAgQA32pvf9P/61h27KmOtmM/XtFy47+0vWx1ciIFeF0RBrVjz3FGQ+uKMApw8oeb2xasfrx52Wc2r1x9fP3qVbvvXjT3TcmxAGKTDwAzZ85s6l6x4J6jq9r16fblfv2qlq/etnjZGzHq6PWdnVbPCeGMQwFa3wk7+m+3Lln+lu9ftPTeJ1bN8+WOZn1sxYqv/tF5C2cAJ/p8hHWASXr1npUr3/P0iqX+eMci3bxiqf5kRcf9t17Y+ha0IJscv76z064dpbJzTA1rAX5eZ7Yge+eFy9+ysW3l/VvaF+nwykW6qW25/7eVbe8B4id3HWDGPdloFX1u8crX/6S15blSywLtbZ+nOzuW6C9bmrf8YHHLtR9sWDZ35DtFmHNCmHzWAUaLxZGOfM+chrn3Lp9/7WNti7fsa1uiA81L9Wj7PP1V6/JH/mV+2+uBU7DeiQj+Zvr0JRtb22/a1bFQ9zfPcUeWL9S+9gX66KoFu+5f3bb2muaOluQ7WiyamrLODQ8vHRR3/Ikn+JqOhS0PXtiy9unWZbv62xfoweYLdH/LQrd91UL9aceymzrnNc4CxjH5yQkn+qV1gEm8/+83t/3l4sB/5QKt2mpYqgYZm81qA56VoLzHRN/bZ/LXfmDz5h3JCR8C7KXxd/V0Xn2KofXoNK9Dt0tu6Geamy99Ffn/ORfuzednbCFbCTFshqsZk8k+J9OiJ8BXvnvbtq8TgG+P6stTYvT48oUFCy59bGXHQ0fb2vTAslnR3uZZ4aHmeXqoY6E+tXJB6ectLXd+b9nKN6A2HJxzGH974iG50466gfTD1sVveKR9/p3bWxbpsbYlenD5Qt27bH64q3Vu2Nfeok+t7PjOPy1Y8DtAbJVPy/0fbXK6L2q/YV/7Mj24fJ7sap4b7Wyd7fa2ztH+1uXa096iG1Ys/NUdSxddfc5hfPGsBXj0+A4g+73m1st/fGHrf+xZMV/72y7QfcsXyLPL5rvdLTOjI82zdOeKFXrvqlffkPT3mO9PyEmroxZUAAH+m+2t775ISrcs1ygYcuoVAVeNEc+g6VAOOYO9bJ7s9eb/PhBV7/rirl2HkkZd19Wl5yKM46MAowiirthcf3TZsrmvD8yfzTT6P5ZF0eqKUQzASlNZtJSL2HNF5kje7DBNvY+78CNXbO+5VQHTBeBkTf4pm4f1nbCXdsN9ZOms1/y33LRPLoa8IQxLEjEo50EKlch4aWRrlZqwW/gwsX72/srwA5/Yc+Dx2oVSF8DnIowx61A0RXQJ1XymW+a3/u5F2ep7p1n31lnGzIZnVGTIAcyqjRxoWRt8RUqNM8x207DuB1Huyhu2/LJP46n8Kd3TFzU+aLFoqKvLA8CPLlzxD60++njgykou9KyBVWJUTCRZrxIYWMowep0dHkbTNx8mc/vVW5/+GRALAUUwujBy8WkhvvYio+tEx9/evuriZipd3qjBOxcJGoapgkhCV4iUiZiHA4Yg9I1EpsKN2Opyn/7jHZs/ATy/T06FF+0grANMsVgEdXX5L69e+eevqoZfuygMs4fI+6o1puA8oIyQRa06nwVbzmTRC0VF9K7tQ/z9tx/Yc/fIDSkWzeibUa8oQBs6O02yMAMAd7euentrxv3XGZH7s/MRouQdvMIpyCgRKQGegLyPfCEIzCbKVzZV+Iord2+7Q+Op94u+b7+1h5gMCX+7+Pz/9LbCrE/MJ72sJGUJIk9MllgZUIFnUaNOrDrOBjkaRg6HBT/do/K1GwcG/+1nfX2Dyfk2dKPuViLHrsi9+tWvPu8Tw8NvXuQqV8yB/4OCRBhSrxFYGJ4zEpJRQshZVCgvWZQ0FwRmtxTu+k7l2N/fuOfgM1qESfyFF8tpmaKNNj8PtK66fqVWr7XahzKxZ80axwQFwypAKlB4L+yQszmjmsORyD67B3TLt2dGX/rWIzuOA/WzEjl2Re6DHcsX/3GIq+YZu2a+yuKCG8YART5ii8AHhuHgGAAMCApI5BsMzCAa8BjbT7116/a1wIs3+WM5bXP00bOE25YvfMdFZL62QqPCfhv5iDNmesXAscIZQWMkEPUoBeozwmjSrClnMuglv/cwdN3j6m77m637NgHPE4Lg7BkeaF0RXOw60fE3t124uoP95TM0+u8LUL6AogpCZV8xFqEhEwiQjxQKgoGiZBWs7AumYHaY8v5HB6O/u2pf751ahLmuC6dtJnXagzSJMj80f0Vbcab/xFKnfx4MV/yxTMhMoKxXKCwEAZQ8PAkA1cCrZAwbDQwOuYzr9/aHWzm65Yodu+5Nzl0bbs7kCCOt74S5tBsj4/sty1re2G7litkU/ck8EutDjzKpqxgyGQmIxQDkAYoAcvDIIOLQT/Me1kwzm7jxjv8dZq/q6tl47HSY/F9r8Ok8WcLohv572+pPtlH4qTwG4H3oreSMEkMhUCJ4ApQErIARCMBiIbaJGX0I0Gsy//4s+W8Un9n5QwAhEAeWXtvd7c8UhzHx6EdMcktL9p6AL1sAvCcPfdM8qaLihlFlONWsCYSIICAlsMZncAYIjULV+0bKmaOUx9Pqri1u6/n72m+c8hTvZHjJwrRrAb4OIAL855vnr7lEMt9oM9Q4oKEnVeOsQpVQiADHQGQUWQ8YBSpG4Ul9oER5m+VQCftZHt6v4R3XHI7u2FpzGGszhxEzO9kowBs6wckT337xzKa1/fmrl1L2nYvUtzf6KkpeJFJSkDUAoKRgCIQcIuuQiSyyUR4RA2oq7jxj7W7T+IsfVdyN1/T0fFdRNMBLNzt6yeP0yZBw5eyFLe+cNf3jy2X43c6XfAWGLIGtVxAAR7EQrJxoVPxwqCeACpbYU4ADkt1xwNDtj1WO3/7J3Qf3xL8B09V18tGv35Z4CgwkVu7jK1cueWXZr13NuGRaptoSSYRQIBBV0Ik8iwQjBEeMckaRcYLAwxtm0iDDm21w6x9e3HQFbtkYre/stKOniy8Fk7JQs64Is6Z2s+5Y1fyxDjafXloqoSyhDwM1rAzrDRwbkPrY+x2DIysGKg2oWmMs9lD2+H7Nfn932X3l/c/u/FlyMbWVyNN+05L5++u6T6zI3dy8+OLX5MxlFOrVsw3OY19GWZ0TzXDgM6zsIOQx9jZ7AowEIGVUgmE/jdQ8h/PwdGg+9o5d2/9JAbqus9Nc/xJ3Pn6tZS8hawG+rhbn/ufFi9/6+4XM51o9Lx3S4x4qpsEZlIwFsQfpeNZOYVUBUfHM4mxgGzlAf6ThwVyua5+PbnvHlh0PIp5y4aHT5CeME7ihO1e0vGFRELxrbrVaXOKjTL94DFnvlT3lHDGrQdXE4zuPeykMz05zWvFNdJ7dYpq6f+7kQ1ft3PJYLZdPJ8u/mfSl2sSZecW8eYXPNc764kpy7xE/4IeNIBBrjAiUtNa0E4MBwUGI4SgHFgPjvRoqixgxgS2gJBbPCR7bGeHrl+/p+VckI8iLXIAaLVgAeGNj46w18xcVl1PlLxeh9PIm8ii5AE4yzrMYAyUrisArQALPCkcnFkCTK1IQjIi3LDRUKPAOzX7jspkXvA/d3W4yTP5YpmStfl0R5m1d8ArgzrbFf7eK6TNLnMMxDZ3nwFoxYPUQcvHjrBZCDMDXfASFECBMIK+a8SKRVSqYDFepgD0m+NURcl/f1He86+MHDx4GTl4I8YpckRKP/qMtLbNfeV62OKs09LFmowsyTuDCUISgnsFKTAQBe4aC4ZmgpLCiIGUIC0gVRhieCEDkCzYwPZzXjcLX/NW2bTdO5eLYlCVr1BIVmAB/w+IF/+U/F/IfWYjqJYNR6AQ5kxGQNyVUrEcmaoQVQDhE8hyh5imMdhgVKlYhWWOtGkYPZXr3O/ru1mF308cO7NpWO27cCOPYiN0/rljW9qoIfz3X2j+dYaI57EKI886DmMAc/7ACo1qhiE9AAEiB2JrHPo2KFaLAZ3MIdig99AM37UP/sP3xJ3QtmK4fOdGkM+XZOusTp61YND9+YtPNHTr03gpVdZCMZH3eFCIgtCE8exg5ueaqqhCgxpDJcg69PtN/hO26LeJvvWLHloeBE0IAgOKoxZQ7Wlb8Xps17z4PQ2vOt+XzXUTIlPI+YmFnIzqVG0ZUhaMMnBpfYDEVm8VTmvvqm5/Z8n4AfipM/q+1cSp/PGH00/f1tiUfusjwZ1e4Eg868kJ5AypDSUB6UkkuIxjxqvCejLFZU8ABZNALemi/c7e8a+fOb48+9q6lS9/WYs0V55ny6+ZqAK0Qhox35Yw3OV8hIwaO7CndMCEgEO8aTGAP2dy2jZXqZ96xa9//+a3y9E4zZ4QAapDGgSP59PLlF14W4POtKn/YS1UnqqbgQHJKzx9gvEVoFZ5DLUTOM4zhTEDH0Yij2rBhHw1+2VXdjBaTed8ME/5u1gyj4qEQ9gprjDAFKoiMQDGBRz8BolCreclm2eyh6IENhew7/nbjtiO1uMgZs65xJgkAwInlZaxdy/esu/tLL4e7MghLWoUKgeJoGk6u4Yp4KqY14ZA4CDnPRNRoAx6EAatFQRQlqUrIormowVQCBzEVZL2A1cIhA0BAE/iPz28PASo+w2yOBwGeEvryn75991W4HjJybWcQZ5wAgOcPCV9tWXT1y4z5XKt39phEPjTG5H3sCIpxYAF0go0upAolqs0k4k9WBUEgJJ6UoMSkChgws8TRSFOLzwspSGsO3jh3igA4VhAUhWoOQxkHQyU3nXJ2F7IHH/PV9/3FzufuUYCuA+hMzHE4IzN118TBMtVi0bx3x94vfEd09VPZ3P1BvmAavTjlUJxxgGQRUX7C84w8+RrPGbgWYFIwSAMDWENKzCBW6EhnCsXTTCAWzXidH58HsEIInEWFSTJKLsjm7ZMmuP8+mb76L3Y+d48Wi4YAnImdD5yhFmA0o83mfW1tX7gQ+sGsDqCi3hspGBYLb6pT1DqFJ4uI1E/nijnOjXjM57+4ZtuW/wVA150hjt4LccYLAKgFZwAQIF9avPj9l2byH72AqwsqbtgBZIVObXZwWtqkChCD1UUNGRPs1cxTPwn9DR/Yte9bZ7LJH8sZOQSMhWrzdC0WzVXPPntzV8asfgZN92m+yXojTvWlv9E69n9EEkAkH+SCJyV/37WV6Zd8YNe+b9VM/lmz9+GssACjGR08Wdfa/PlVgfnr2VE/qi7jrRrjOYSwQjWoxQpPvh+UACGF8Qyj8SwicSANhfBkEFEGrKHPWTaHOYdnytWb1uze96G4bWeel/+bOOsEAIyEkYkA+eySRe+7pMAfW0RmEZXLzhNsZGKn72Qjh6POCxDAArASHBOE4nOREiJWDSRyMzkb7EL2yYcMvffqLTseTvbfnSkZSqfCWTEEjKXmmKsWYT68Z++/fiWzdPV28D02F1hiCHsVQgihU7PCDCDj4jB/ZARiPEAORIKygRRgaAY1BL9SvueGvv5Lrt6y4+HE5J+NnQ+cpRZgNGsBe30tAeTu5iU3vpzlw7M1wnFvPDHMqQ7FLAaREYA8sk5gxcCBXSET2QOmoffpqOlTxZ2bbgaev4X+bOWsFwAwMiSAAL2tfdErOyi4pVn4ZcOuJELKp7SAo7EAWD3yEUHIwDcUsJvcr3okWnP55n07Jjtp46XkrBwCxnJiSCiad23d++iNnHvNRlv9rssYMgoZWaatdVmccDLBmaBg9VAiVSYZzOcHHyV3x8cPDb3m8s37djz6ilcEhPrZy1gXFmA06wDzNsTJJo+2LX2yxVcvGmDxnqxpqDK8iVCxisD/uvaFGKQEgzJCzvgZSuYZbvz572/bdjED+CTAZ8v07mQZt27M2cyauPMNA74KDAkbkHgo68iTP5EBGEkuIQJp/Jj3ubBx9K6nSbmISaQuhoBxUAVwyEeNEduRtQBfiydOZPZI4wUkTwApVNlCWdevATyKxclr/SRSnwIoFmurQLTeGwOrUCKFpzhkSBOt7uCEd0ca5/BNayr8EgA29PbW3XAJ1KkAks6aM336L+M5QPzUa22uMKEPWMvMU1BNCIxDLpw2KY2eIupSAAm7q24a+SocM0gCWPEQMhMPAhTvVzQ+A4MKlUTdvqrZDwCH58ypC69/LHUpgMNzuhUA+kqVfVUvjoiIJEnseOF+FIrnicwwFcVQR27JAwBQjNO46o66FECxK56qrVje+mCZeciADUE0SfSYaDCPhwgBq0KIERqmA+eHwaQ1fAqoSwEkbA7DoExM0DgbSDnOxZzYCMRTxdhfYAwpsGXvUF2a/oS6FsAze/dq2YtaWEAVQgL9jQE8if8RY9hH1NPTMxlNnTLqWgC/6OmhapUyzjp4JgQ+gBXFROnlpARGvAQMYpSd+o3xW3TqlroVgAL0BBCpmr1ghQBqvIHRiQUAjMQIfAaMpkz2vh5gsFavty6HgroUAAGKzk4DYLix0f5HBgwGxNecwBfa4BGnjhOUCCUrJdRZ7H8sdSkAANhQ+zwgYTYu0RCbdh3Z1PnrKClEBSSAqMEhH9V15wN1LACgGwBwRCuhKtW2alMS558QZYIBc+SBuYG9CwAOd3fXpfkH6lgAh7vjx3w+5+92AnhWjhd7Xvh7LARhgoMiQG54Mto6ldStABIKYW7Yq4dnD1aFqRVxGA9SgvUWjj1CIzpUlbq/P3V/gf0iXGVSEy/vQKAgnWhoj7eFMQwiKD1bHaq7fImx1P0F7gsHTHPWUl5j319IYSdcDiYIqeRBVCbpORQNbku2rE9ikyeVurUAT8dJIbR78NiRYfX9VokQ16ac0A9QAoShBkTK9tANBwb7cKImTV1StwKo5e7RTcerO0zGbskQERFEf2ORiXgtoCKailfg1a0ARkFD1JQhKgMQsJt4cY8FMOrhjcfRMJNDHT/5CWkQgB6vVitxeDCO9b/QXJAAJSY0Mv8AwIn0sjqlrgWwobOTAWC+Ce5iDgBAWQUTbRmMS70QhA2m5fPPAPWbC5hQ1wJIEGsqngwUSbr3xHnhpIpIgQOukpvcVk4NqRDAsTAkp3FyKMPDv8BqEIHhAPSWBmtPfvektHGqqG8BdMedd/h4lBUhCHtEJt4BPB6qAJEiFOjAsFYAYEN99399C+BwzYvvj6LtJdWICeQIL1Q3QIlgS5DBOTNX3gsA19XhbqDR1LUAirUI3rzX/sFPhowZNmADqL5QZjApo0Qqj7rBaNIaOoXUtQASbtvyi9yQiGHlWuHIiXcHM1kcU8n8ONqainuTiov8eflZX1FfsrVawy+wxicZMApG1z+x59iQFmHqNRUsoa4FQIBqZ6c9ugODc8jcl42v1tMEPgBBlQhoQm4PAIfezrqOAQB1LoCYbgDQkMUp+TjYM6EJUDgSDDlb15tBRlP3AthQ+xx0jgQMg4m3BhEAz4zDUsmO/m49U/cCSOgjMRERWGncSGAtDEyhEgbZPRH/tc6DAEiRAI5GleMOHGf8TjALIAWFIMw+v/FBADg8p74dQCAFAkiSQ+flG+6ugkCkPFH577iKCGk/2VSsAwApEEBC2cz3FTYqxsHKeMWlCcKCCgntH8jGB3RNbhungtQIYOtgvw3jUP8ETqCqJUMV8b2HBvoPKEBP13kMAEiBANYAogAdG+p/WsVvyZEhGSfJkxRiicgEZuc/H9y9B2dJuffflroXAGoO/mfjN44P2Lhc1LhPthJh2KlFCnIBE9IggASKQCYuMz7eZcdjw3DkDFJg+hPSJAAdqqjxpOO+nRyIq4IMOh0AAKydxJZNIWkSAI576RdDsVcwBgKUiDGrafq3AWDDhs5U3JtUXGSSHDrz/My3iRk8ToUAAuBIcUxcXSeAjCUVAkg4bJwkr58eTTIzdAD2+srE76GrQ1IigDim31MZykeq4HG9AOKq+uqglyeBE7UG651UCCCJ6TuyT4SqVWHPpFpbGCJ4UrVQrgiVf+/i1z8CnKg1WO+kQgBJZ6559R/90gmVhT2DVFkMHMXbxhlAFaANjz+emnUAICUCSLj18Q25SlwGCkLxe39BAqsEIoMKCM8NPpsK05+QKgE8N3hcB6FgxG8GSRYFWQQKg+NeeWNPfdcFHEuqBPBgfz+GvGejBixAvF1UYBVCxsBmzI82AkPraq+Cm+r2TgapEEDyQqmefgw1mMyPskxgjVND45qArMoKymR7AfjZdb4hdDSpEAAwssvXu0z+kDMOjo2SClgMKsaAtYpjjgpT3c7Jpu5rBI3lcBRNU669FAgnqoY6ZgyUSoemtHFTQGosQFLs0Rv+qVOGAiQUzwJIiUvEaGssdI0+Ng2kRgAJC/LBzyKJ3yIpJIgDQkAIi35jUnc/UnfBA5EUqBb8ifcIxqHhSATPlUpT3bxJJ3UCGBx0MgRGIEA2snBkoCZCGBH2HCkRkIpc0BFS4wQmnfpMXx+1zZ2OGRS/YlRBPmAYIvNU+WiwSQGuxzeETkRqLEBX3N+8/fjxTRoETwVErBR3tFFGyergTdhXnup2TjapEUBCF1CODA0StLbcxwAYB6XaOLUtmxpSJwAA6K+UG0HJJlFSqwzDtaSBOq8LOJZ0CaDWuQHZbgYgICWNAONxQea8R4D6rws4llQJYOSdwg2NjxhDUCUYEkTkcSSS1IWBgZQJIKG3FBaqyuBaHLgKg6FymBrPfzSpFMAxJ75aKxqpUIQUoLfq40yg7vqvCTCadAmg1rl95WrGKYHUK4h4ULhSdvowALw2BfsBR5MqASSFI/uq4YFhFcdgYmIOCeU57a97qnZYahaCgJQJICkcue1PfueB4UAGjWQsQCipZr9zdGeq9gMkpEoACf1PHMyUlbMAYJngvNv/aO/2UFO0KzghdQJQgB4lCp3QfrDCQjHTBg8eOnRoGJ2dqckFTEiVAJJ3Ch968snhmbAPBhy/TrZESE1dwLGkSgCjceAgqRZWirwH0lEXcCypE8CGWsh/wEbec7xEuC8crjmA6YoBACkUQMKBoXJeQAiJALZxXcDudI3/QAoFkGwU9Rw8EMKgyqSzLljw+BQ3a8pInQCS1KBpcxc9EcJqCKVN/QNNU9uoqSN9AqixfWCgEWCqivTvHTx2JC11Ac8RvzaS1i7smLGzden+Z1YsegwANKUPQxovWgHQ9fs2H3Xkj5Y9F5DCCGBCGgWQQEPG2EFVhxSb/jQLQPtEfB8kjgGkpC7gWNIpgFpn94trCA1vBYCuzelKBk1IpQCSzq4w9zQ0Fn4AAGmqCTCaVAog6WzfNOOHe5VnTnV7ppLUbA0bzYba5xFR5z32AMDhOXNS6Qj+fyFymWYKyHQSAAAAAElFTkSuQmCC"
+
+def _legion_icon():
+    import base64 as _b64
+    from PyQt6.QtGui import QPixmap as _px
+    data = _b64.b64decode(_LEGION_ICON_B64)
+    pm = _px(); pm.loadFromData(data)
+    from PyQt6.QtGui import QIcon as _ic
+    return _ic(pm)
+
+
+
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QFrame, QScrollArea, QSizePolicy,
+    QSlider, QStackedWidget, QComboBox, QToolTip, QSpinBox,
+    QDoubleSpinBox, QLineEdit
+)
+from PyQt6.QtCore import (Qt, QTimer, QPropertyAnimation, QEasingCurve,
+                           pyqtProperty, QThread, pyqtSignal, QPoint)
+from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QCursor
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PATHS
+# ══════════════════════════════════════════════════════════════════════════════
+PLATFORM_PROFILE  = Path("/sys/firmware/acpi/platform_profile")
+_POWERMODE_MAP = {1: "quiet", 2: "balanced", 3: "performance", 255: "custom"}
+
+LEGION_SYS_BASEPATH = Path("/sys/module/legion_laptop/drivers/platform:legion/legion")
+LEGION_POWERMODE    = LEGION_SYS_BASEPATH / "powermode"
+
+def _read_powermode() -> str:
+    try:
+        return _POWERMODE_MAP.get(int(LEGION_POWERMODE.read_text().strip()), "balanced")
+    except:
+        return "balanced"
+AMD_BOOST         = Path("/sys/devices/system/cpu/cpufreq/boost")
+DAEMON_BIN        = Path("/usr/lib/legion-toolkit/legion-daemon.py")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DYNAMIC SYSFS PATH DETECTION
+# Works for ALL Lenovo models across all brands and generations.
+# Never hardcodes a specific path — scans the actual filesystem at startup.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _find_feature(feature: str) -> "Path | None":
+    """
+    Dynamically find a Lenovo feature file anywhere in sysfs.
+    Searches ideapad_acpi, legion_laptop, wmi, platform and devices trees.
+    """
+    # Ordered list of search bases — checked in priority order
+    search_bases = []
+
+    # 1. ideapad_acpi — IdeaPad, Legion, Yoga, LOQ, ThinkBook
+    ideapad_root = Path("/sys/bus/platform/drivers/ideapad_acpi")
+    if ideapad_root.exists():
+        try:
+            for d in ideapad_root.iterdir():
+                if d.is_dir() or d.is_symlink():
+                    search_bases.append(d)
+        except: pass
+
+    # 2. legion_laptop driver — Legion, LOQ (any generation, any PCI slot)
+    for legion_root in [
+        Path("/sys/bus/platform/drivers/legion"),
+        Path("/sys/module/legion_laptop/drivers/platform:legion"),
+    ]:
+        if legion_root.exists():
+            try:
+                for d in legion_root.iterdir():
+                    search_bases.append(d)
+            except: pass
+
+    # 3. PNP0C09/VPC2004 device — scan all PCI buses (different slot on different models, kernel 7.x uses VPC2004)
+    try:
+        for pci in Path("/sys/devices").glob("pci*"):
+            for dev in pci.glob("*/PNP0C09:*"):
+                search_bases.append(dev)
+            for dev in pci.glob("*/VPC2004:*"):
+                search_bases.append(dev)
+    except: pass
+
+    # 4. WMI devices — some features exposed via WMI
+    wmi_root = Path("/sys/bus/wmi/devices")
+    if wmi_root.exists():
+        try:
+            for d in wmi_root.iterdir():
+                search_bases.append(d)
+        except: pass
+
+    # 5. General platform devices
+    plat_root = Path("/sys/bus/platform/devices")
+    if plat_root.exists():
+        try:
+            for d in plat_root.iterdir():
+                n = d.name.lower()
+                if any(k in n for k in ["vpc","ideapad","legion","lenovo","thinkpad"]):
+                    search_bases.append(d)
+        except: pass
+
+    # Search all bases for the feature file
+    for base in search_bases:
+        try:
+            p = Path(base) / feature
+            if p.exists(): return p
+        except: pass
+
+    return None
+
+
+def _find_ideapad(feature: str) -> "Path | None":
+    """Find ideapad_acpi specific feature (conservation_mode, fn_lock etc.)"""
+    root = Path("/sys/bus/platform/drivers/ideapad_acpi")
+    if root.exists():
+        try:
+            for d in root.iterdir():
+                p = d / feature
+                if p.exists(): return p
+        except: pass
+    # Fallback to general scan
+    return _find_feature(feature)
+
+
+# ── Resolve all feature paths at startup ─────────────────────────────────────
+IDEAPAD_BASE      = (lambda: next(
+    (d for d in Path("/sys/bus/platform/drivers/ideapad_acpi").iterdir()
+     if (d / "conservation_mode").exists() or (d / "fn_lock").exists()),
+    Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00")
+) if Path("/sys/bus/platform/drivers/ideapad_acpi").exists()
+  else Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00"))()
+
+LEGION_SYS_BASEPATH = LEGION_SYS_BASEPATH  # from line 47
+
+# G-Sync — use the LLL device path
+_GSYNC_PATH  = LEGION_SYS_BASEPATH / "gsync"
+
+CONSERVATION_MODE = _find_ideapad("conservation_mode") or IDEAPAD_BASE / "conservation_mode"
+CAMERA_POWER      = _find_ideapad("camera_power")      or IDEAPAD_BASE / "camera_power"
+FN_LOCK           = _find_ideapad("fn_lock")            or IDEAPAD_BASE / "fn_lock"
+USB_CHARGING      = _find_ideapad("usb_charging")       or IDEAPAD_BASE / "usb_charging"
+
+TOUCHPAD          = LEGION_SYS_BASEPATH / "touchpad"
+RAPID_CHARGE      = LEGION_SYS_BASEPATH / "rapidcharge"
+WINKEY            = LEGION_SYS_BASEPATH / "winkey"
+OVERDRIVE         = LEGION_SYS_BASEPATH / "overdrive"
+GSYNC             = _GSYNC_PATH
+NVIDIA_BACKLIGHT = Path("/sys/class/backlight/nvidia_wmi_ec_backlight/brightness")
+POWER_CHARGE_MODE = LEGION_SYS_BASEPATH / "powerchargemode"
+THERMAL_MODE      = LEGION_SYS_BASEPATH / "thermalmode"
+FAN_FULLSPEED     = LEGION_SYS_BASEPATH / "fan_fullspeed"
+
+LEGION_BASE = LEGION_SYS_BASEPATH
+
+def get_gsync_status() -> bool:
+    """Check if G-Sync (hybrid mode) is enabled."""
+    if _GSYNC_PATH.exists():
+        try:
+            return _GSYNC_PATH.read_text().strip() == "1"
+        except:
+            pass
+    return False
+
+def set_gsync(enable: bool) -> tuple[bool, str]:
+    """Enable/disable G-Sync."""
+    if _GSYNC_PATH.exists():
+        try:
+            subprocess.run(["pkexec", "sh", "-c", f"echo {'1' if enable else '0'} > {_GSYNC_PATH}"],
+                        capture_output=True, timeout=5)
+            return True, f"G-Sync {'enabled' if enable else 'disabled'}"
+        except Exception as e:
+            return False, str(e)[:80]
+    return False, "G-Sync not available on this system"
+
+def get_gpu_hybrid_status() -> bool:
+    """Check if GPU is in hybrid mode (switchable graphics)."""
+    try:
+        r = subprocess.run(["which", "envycontrol"], capture_output=True)
+        if r.returncode != 0:
+            return False
+        r = subprocess.run(["envycontrol", "query"], capture_output=True, text=True)
+        return "hybrid" in r.stdout.lower()
+    except:
+        return False
+
+# ── Flip to Start / Instant Boot ─────────────────────────────────────────────
+def _find_sysfs_feature(names: list) -> "Path | None":
+    for name in names:
+        p = _find_feature(name)
+        if p: return p
+    return None
+
+FLIP_TO_START = _find_sysfs_feature(["flip_to_start","fliptostart","flip_to_boot","fliptoboot"])
+INSTANT_BOOT  = _find_sysfs_feature(["instant_boot","instantboot","instant_on","ac_boot"])
+BAT               = Path("/sys/class/power_supply/BAT0")
+ACTIONS_CFG       = Path.home() / ".config/legion-toolkit/actions.json"
+OC_CFG            = Path.home() / ".config/legion-toolkit/overclock.json"
+CFG_DIR         = Path.home() / ".config/legion-toolkit"
+FAN_CFG           = Path.home() / ".config/legion-toolkit/fan.json"
+APP_CFG           = Path.home() / ".config/legion-toolkit/appearance.json"
+HARDWARE_CFG      = Path.home() / ".config/legion-toolkit/hardware.json"
+LANG_CFG          = Path.home() / ".config/legion-toolkit/language.json"
+FIRST_RUN_FLAG    = Path.home() / ".config/legion-toolkit/first_run_done"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRANSLATIONS
+# ══════════════════════════════════════════════════════════════════════════════
+_LANG = "en"   # set by first-run wizard or saved config
+
+_TR = {
+    "en": {
+        "app_name":"Legion Linux Toolkit","home":"Home","battery":"Battery",
+        "performance":"Performance","display":"Display","keyboard":"Keyboard",
+        "system":"System","overclock":"Overclock","fan":"Fan","actions":"Actions",
+        "about":"About","power_mode":"Power Mode","battery_mode":"Battery Mode",
+        "gpu_mode":"GPU Working Mode","apply":"Apply","save":"Save",
+        "enabled":"Enabled","disabled":"Disabled","on":"ON","off":"OFF",
+        "auto":"Auto","full_speed":"Full Speed","detecting":"Detecting hardware…",
+        "welcome":"Welcome to Legion Linux Toolkit",
+        "choose_lang":"Choose your language to get started.",
+        "hw_detect_title":"Hardware Detection",
+        "hw_detect_desc":"Scanning your device — this runs once and is saved.",
+        "hw_done":"Detection complete!","next":"Next","finish":"Finish",
+        "brightness":"Brightness","resolution":"Resolution",
+        "refresh_rate":"Refresh Rate","theme":"Theme",
+        "conservation":"Conservation (~60%)","rapid_charge":"Rapid Charge",
+        "normal":"Normal","quiet":"Quiet","balanced":"Balanced",
+        "performance_label":"Performance","custom":"Custom",
+    },
+    "fr": {
+        "app_name":"Legion Linux Toolkit","home":"Accueil","battery":"Batterie",
+        "performance":"Performance","display":"Affichage","keyboard":"Clavier",
+        "system":"Système","overclock":"Overclocking","fan":"Ventilateur",
+        "actions":"Actions","about":"À propos","power_mode":"Mode d'alimentation",
+        "battery_mode":"Mode batterie","gpu_mode":"Mode GPU",
+        "apply":"Appliquer","save":"Enregistrer",
+        "enabled":"Activé","disabled":"Désactivé","on":"OUI","off":"NON",
+        "auto":"Auto","full_speed":"Vitesse max","detecting":"Détection…",
+        "welcome":"Bienvenue dans Legion Linux Toolkit",
+        "choose_lang":"Choisissez votre langue.",
+        "hw_detect_title":"Détection matérielle",
+        "hw_detect_desc":"Analyse de votre appareil — exécuté une seule fois.",
+        "hw_done":"Détection terminée !","next":"Suivant","finish":"Terminer",
+        "brightness":"Luminosité","resolution":"Résolution",
+        "refresh_rate":"Taux de rafraîchissement","theme":"Thème",
+        "conservation":"Conservation (~60%)","rapid_charge":"Charge rapide",
+        "normal":"Normal","quiet":"Silencieux","balanced":"Équilibré",
+        "performance_label":"Performance","custom":"Personnalisé",
+    },
+    "de": {
+        "app_name":"Legion Linux Toolkit","home":"Start","battery":"Akku",
+        "performance":"Leistung","display":"Anzeige","keyboard":"Tastatur",
+        "system":"System","overclock":"Übertaktung","fan":"Lüfter",
+        "actions":"Aktionen","about":"Über","power_mode":"Energiemodus",
+        "battery_mode":"Akkumodus","gpu_mode":"GPU-Modus",
+        "apply":"Anwenden","save":"Speichern",
+        "enabled":"Aktiviert","disabled":"Deaktiviert","on":"AN","off":"AUS",
+        "auto":"Auto","full_speed":"Volle Drehzahl","detecting":"Erkennung…",
+        "welcome":"Willkommen bei Legion Linux Toolkit",
+        "choose_lang":"Wählen Sie Ihre Sprache.",
+        "hw_detect_title":"Hardware-Erkennung",
+        "hw_detect_desc":"Gerät wird einmalig gescannt und gespeichert.",
+        "hw_done":"Erkennung abgeschlossen!","next":"Weiter","finish":"Fertig",
+        "brightness":"Helligkeit","resolution":"Auflösung",
+        "refresh_rate":"Bildwiederholrate","theme":"Design",
+        "conservation":"Schutz (~60%)","rapid_charge":"Schnellladen",
+        "normal":"Normal","quiet":"Leise","balanced":"Ausgewogen",
+        "performance_label":"Leistung","custom":"Benutzerdefiniert",
+    },
+    "es": {
+        "app_name":"Legion Linux Toolkit","home":"Inicio","battery":"Batería",
+        "performance":"Rendimiento","display":"Pantalla","keyboard":"Teclado",
+        "system":"Sistema","overclock":"Overclocking","fan":"Ventilador",
+        "actions":"Acciones","about":"Acerca de","power_mode":"Modo energía",
+        "battery_mode":"Modo batería","gpu_mode":"Modo GPU",
+        "apply":"Aplicar","save":"Guardar",
+        "enabled":"Activado","disabled":"Desactivado","on":"ON","off":"OFF",
+        "auto":"Auto","full_speed":"Velocidad máx","detecting":"Detectando…",
+        "welcome":"Bienvenido a Legion Linux Toolkit",
+        "choose_lang":"Elige tu idioma.",
+        "hw_detect_title":"Detección de hardware",
+        "hw_detect_desc":"Escaneando tu dispositivo — se ejecuta una vez.",
+        "hw_done":"¡Detección completa!","next":"Siguiente","finish":"Finalizar",
+        "brightness":"Brillo","resolution":"Resolución",
+        "refresh_rate":"Tasa de refresco","theme":"Tema",
+        "conservation":"Conservación (~60%)","rapid_charge":"Carga rápida",
+        "normal":"Normal","quiet":"Silencioso","balanced":"Equilibrado",
+        "performance_label":"Rendimiento","custom":"Personalizado",
+    },
+    "pt": {
+        "app_name":"Legion Linux Toolkit","home":"Início","battery":"Bateria",
+        "performance":"Desempenho","display":"Ecrã","keyboard":"Teclado",
+        "system":"Sistema","overclock":"Overclocking","fan":"Ventoinha",
+        "actions":"Ações","about":"Sobre","power_mode":"Modo de energia",
+        "battery_mode":"Modo bateria","gpu_mode":"Modo GPU",
+        "apply":"Aplicar","save":"Guardar",
+        "enabled":"Ativado","disabled":"Desativado","on":"ON","off":"OFF",
+        "auto":"Auto","full_speed":"Vel. máxima","detecting":"A detetar…",
+        "welcome":"Bem-vindo ao Legion Linux Toolkit",
+        "choose_lang":"Escolha o seu idioma.",
+        "hw_detect_title":"Deteção de hardware",
+        "hw_detect_desc":"A analisar o seu dispositivo — executado uma vez.",
+        "hw_done":"Deteção concluída!","next":"Seguinte","finish":"Concluir",
+        "brightness":"Brilho","resolution":"Resolução",
+        "refresh_rate":"Taxa de atualização","theme":"Tema",
+        "conservation":"Conservação (~60%)","rapid_charge":"Carga rápida",
+        "normal":"Normal","quiet":"Silencioso","balanced":"Equilibrado",
+        "performance_label":"Desempenho","custom":"Personalizado",
+    },
+    "tr": {
+        "app_name":"Legion Linux Toolkit","home":"Ana Sayfa","battery":"Pil",
+        "performance":"Performans","display":"Ekran","keyboard":"Klavye",
+        "system":"Sistem","overclock":"Hız Aşırtma","fan":"Fan",
+        "actions":"Eylemler","about":"Hakkında","power_mode":"Güç modu",
+        "battery_mode":"Pil modu","gpu_mode":"GPU modu",
+        "apply":"Uygula","save":"Kaydet",
+        "enabled":"Etkin","disabled":"Devre dışı","on":"AÇIK","off":"KAPALI",
+        "auto":"Otomatik","full_speed":"Tam hız","detecting":"Algılanıyor…",
+        "welcome":"Legion Linux Toolkit'e Hoş Geldiniz",
+        "choose_lang":"Dilinizi seçin.",
+        "hw_detect_title":"Donanım Algılama",
+        "hw_detect_desc":"Cihazınız taranıyor — yalnızca bir kez çalışır.",
+        "hw_done":"Algılama tamamlandı!","next":"İleri","finish":"Bitir",
+        "brightness":"Parlaklık","resolution":"Çözünürlük",
+        "refresh_rate":"Yenileme hızı","theme":"Tema",
+        "conservation":"Koruma (~%60)","rapid_charge":"Hızlı şarj",
+        "normal":"Normal","quiet":"Sessiz","balanced":"Dengeli",
+        "performance_label":"Performans","custom":"Özel",
+    },
+    "ru": {
+        "app_name":"Legion Linux Toolkit","home":"Главная","battery":"Батарея",
+        "performance":"Производительность","display":"Дисплей","keyboard":"Клавиатура",
+        "system":"Система","overclock":"Разгон","fan":"Вентилятор",
+        "actions":"Действия","about":"О программе","power_mode":"Режим питания",
+        "battery_mode":"Режим батареи","gpu_mode":"Режим GPU",
+        "apply":"Применить","save":"Сохранить",
+        "enabled":"Включено","disabled":"Выключено","on":"ВКЛ","off":"ВЫКЛ",
+        "auto":"Авто","full_speed":"Макс. скорость","detecting":"Определение…",
+        "welcome":"Добро пожаловать в Legion Linux Toolkit",
+        "choose_lang":"Выберите язык.",
+        "hw_detect_title":"Обнаружение оборудования",
+        "hw_detect_desc":"Сканирование устройства — выполняется один раз.",
+        "hw_done":"Обнаружение завершено!","next":"Далее","finish":"Готово",
+        "brightness":"Яркость","resolution":"Разрешение",
+        "refresh_rate":"Частота обновления","theme":"Тема",
+        "conservation":"Защита (~60%)","rapid_charge":"Быстрая зарядка",
+        "normal":"Нормальный","quiet":"Тихий","balanced":"Сбалансированный",
+        "performance_label":"Производительность","custom":"Пользовательский",
+    },
+    "zh": {
+        "app_name":"军团 Linux 工具包","home":"主页","battery":"电池",
+        "performance":"性能","display":"显示","keyboard":"键盘",
+        "system":"系统","overclock":"超频","fan":"风扇",
+        "actions":"操作","about":"关于","power_mode":"电源模式",
+        "battery_mode":"电池模式","gpu_mode":"GPU 模式",
+        "apply":"应用","save":"保存",
+        "enabled":"已启用","disabled":"已禁用","on":"开","off":"关",
+        "auto":"自动","full_speed":"全速","detecting":"检测中…",
+        "welcome":"欢迎使用军团 Linux 工具包",
+        "choose_lang":"请选择您的语言。",
+        "hw_detect_title":"硬件检测",
+        "hw_detect_desc":"正在扫描您的设备 — 仅运行一次。",
+        "hw_done":"检测完成！","next":"下一步","finish":"完成",
+        "brightness":"亮度","resolution":"分辨率",
+        "refresh_rate":"刷新率","theme":"主题",
+        "conservation":"保护模式 (~60%)","rapid_charge":"快速充电",
+        "normal":"正常","quiet":"安静","balanced":"均衡",
+        "performance_label":"性能","custom":"自定义",
+    },
+    "ja": {
+        "app_name":"Legion Linux ツールキット","home":"ホーム","battery":"バッテリー",
+        "performance":"パフォーマンス","display":"ディスプレイ","keyboard":"キーボード",
+        "system":"システム","overclock":"オーバークロック","fan":"ファン",
+        "actions":"アクション","about":"このアプリについて","power_mode":"電源モード",
+        "battery_mode":"バッテリーモード","gpu_mode":"GPU モード",
+        "apply":"適用","save":"保存",
+        "enabled":"有効","disabled":"無効","on":"オン","off":"オフ",
+        "auto":"自動","full_speed":"最大速度","detecting":"検出中…",
+        "welcome":"Legion Linux ツールキットへようこそ",
+        "choose_lang":"言語を選択してください。",
+        "hw_detect_title":"ハードウェア検出",
+        "hw_detect_desc":"デバイスをスキャン中 — 一度だけ実行されます。",
+        "hw_done":"検出完了！","next":"次へ","finish":"完了",
+        "brightness":"輝度","resolution":"解像度",
+        "refresh_rate":"リフレッシュレート","theme":"テーマ",
+        "conservation":"保護モード (~60%)","rapid_charge":"急速充電",
+        "normal":"通常","quiet":"静音","balanced":"バランス",
+        "performance_label":"パフォーマンス","custom":"カスタム",
+    },
+    "ko": {
+        "app_name":"Legion Linux 툴킷","home":"홈","battery":"배터리",
+        "performance":"성능","display":"디스플레이","keyboard":"키보드",
+        "system":"시스템","overclock":"오버클럭","fan":"팬",
+        "actions":"작업","about":"정보","power_mode":"전원 모드",
+        "battery_mode":"배터리 모드","gpu_mode":"GPU 모드",
+        "apply":"적용","save":"저장",
+        "enabled":"활성화","disabled":"비활성화","on":"켜짐","off":"꺼짐",
+        "auto":"자동","full_speed":"최대 속도","detecting":"감지 중…",
+        "welcome":"Legion Linux 툴킷에 오신 것을 환영합니다",
+        "choose_lang":"언어를 선택하세요.",
+        "hw_detect_title":"하드웨어 감지",
+        "hw_detect_desc":"장치 스캔 중 — 한 번만 실행됩니다.",
+        "hw_done":"감지 완료!","next":"다음","finish":"완료",
+        "brightness":"밝기","resolution":"해상도",
+        "refresh_rate":"주사율","theme":"테마",
+        "conservation":"보호 모드 (~60%)","rapid_charge":"급속 충전",
+        "normal":"일반","quiet":"조용함","balanced":"균형",
+        "performance_label":"성능","custom":"사용자 지정",
+    },
+    "ar": {
+        "app_name":"Legion Linux Toolkit","home":"الرئيسية","battery":"البطارية",
+        "performance":"الأداء","display":"الشاشة","keyboard":"لوحة المفاتيح",
+        "system":"النظام","overclock":"رفع التردد","fan":"المروحة",
+        "actions":"الإجراءات","about":"حول","power_mode":"وضع الطاقة",
+        "battery_mode":"وضع البطارية","gpu_mode":"وضع GPU",
+        "apply":"تطبيق","save":"حفظ",
+        "enabled":"مُفعَّل","disabled":"معطَّل","on":"تشغيل","off":"إيقاف",
+        "auto":"تلقائي","full_speed":"السرعة الكاملة","detecting":"جارٍ الاكتشاف…",
+        "welcome":"مرحباً بك في Legion Linux Toolkit",
+        "choose_lang":"اختر لغتك للبدء.",
+        "hw_detect_title":"اكتشاف الأجهزة",
+        "hw_detect_desc":"جارٍ مسح الجهاز — يعمل مرة واحدة فقط.",
+        "hw_done":"اكتمل الاكتشاف!","next":"التالي","finish":"إنهاء",
+        "brightness":"السطوع","resolution":"الدقة",
+        "refresh_rate":"معدل التحديث","theme":"السمة",
+        "conservation":"الحماية (~60%)","rapid_charge":"الشحن السريع",
+        "normal":"عادي","quiet":"صامت","balanced":"متوازن",
+        "performance_label":"أداء","custom":"مخصص",
+    },
+}
+
+_LANG_NAMES = {
+    "en":"English","fr":"Français","de":"Deutsch","es":"Español",
+    "pt":"Português","tr":"Türkçe","ru":"Русский","zh":"中文",
+    "ja":"日本語","ko":"한국어","ar":"العربية",
+}
+
+def tr(key: str) -> str:
+    """Translate a key using the current language, fall back to English."""
+    return _TR.get(_LANG, _TR["en"]).get(key, _TR["en"].get(key, key))
+
+def load_language():
+    global _LANG
+    try:
+        if LANG_CFG.exists():
+            _LANG = json.loads(LANG_CFG.read_text()).get("lang","en")
+    except: _LANG = "en"
+
+def save_language(lang: str):
+    global _LANG
+    _LANG = lang
+    try:
+        LANG_CFG.parent.mkdir(parents=True, exist_ok=True)
+        LANG_CFG.write_text(json.dumps({"lang": lang}))
+    except: pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HARDWARE DETECTION
+# ══════════════════════════════════════════════════════════════════════════════
+HARDWARE_CACHE_TTL = 3600  # Cache for 1 hour
+
+def _dmi(field: str) -> str:
+    try: return Path(f"/sys/class/dmi/id/{field}").read_text().strip().lower()
+    except: return ""
+
+def _read_file(path: str, default: str = "") -> str:
+    """Safely read a file, return default on error."""
+    try: return Path(path).read_text().strip()
+    except: return default
+
+def _which(cmd: str) -> bool:
+    """Check if command exists in PATH."""
+    return Path(cmd).exists() or subprocess.run(["which", cmd], capture_output=True).returncode == 0
+
+def _exists_quiet(paths: list) -> bool:
+    """Check if any path exists."""
+    return any(Path(p).exists() for p in paths)
+
+# Legion model mapping for better detection
+LEGION_MODELS = {
+    "82ju": "Legion 5 15ACH6H",
+    "82gu": "Legion 5 15ACH5",
+    "82ms": "Legion 7 16ACHg6",
+    "82rh": "Legion 5 Pro 16ARH7",
+    "82sr": "Legion 5 Pro 16",
+    "82ts": "Legion 7 16",
+    "82wm": "Legion Slim 7",
+}
+
+def detect_hardware(force: bool = False) -> dict:
+    """
+    Detect Lenovo brand, model and hardware capabilities.
+    Add force=True to bypass cache and re-detect.
+    """
+    # Check cache first
+    if not force:
+        cached = load_hardware()
+        if cached:
+            import time
+            cached_time = cached.get("_detected_at", 0)
+            if time.time() - cached_time < HARDWARE_CACHE_TTL:
+                return cached
+
+    vendor      = _dmi("sys_vendor")
+    product     = _dmi("product_name")
+    family      = _dmi("product_family")
+    chassis     = _dmi("chassis_type")
+
+    # ── Enhanced brand detection ──────────────────────────────────────────
+    full = f"{product} {family}".lower()
+    
+    # Legion detection with model codes
+    if "legion" in full:
+        brand = "legion"
+        # Try to get detailed model name
+        product_code = product[:4] if product else ""
+        if product_code in LEGION_MODELS:
+            model_detail = LEGION_MODELS[product_code]
+        else:
+            # Try to extract model from product name
+            import re
+            match = re.search(r'(legion\s+\d+|loq\s+\d+)', full, re.IGNORECASE)
+            model_detail = match.group(0).title() if match else product.title()
+    elif "loq" in full:
+        brand = "loq"
+        model_detail = product.title() if product else "LOQ"
+    elif "thinkpad" in full:
+        brand = "thinkpad"
+        model_detail = product.title() if product else "ThinkPad"
+    elif "thinkbook" in full:
+        brand = "thinkbook"
+        model_detail = product.title() if product else "ThinkBook"
+    elif "yoga" in full:
+        brand = "yoga"
+        model_detail = product.title() if product else "Yoga"
+    elif any(k in full for k in ["ideapad", "idea pad", "flex", "slim"]):
+        brand = "ideapad"
+        model_detail = product.title() if product else "IdeaPad"
+    else:
+        brand = "lenovo" if "lenovo" in vendor else "unknown"
+        model_detail = product.title() if product else "Unknown"
+
+    # ── CPU vendor detection ──────────────────────────────────────────────────
+    cpu_vendor = "unknown"
+    cpu_name   = "Unknown"
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if "vendor_id" in line.lower():
+                v = line.split(":")[1].strip().lower()
+                if "amd" in v:   cpu_vendor = "amd"
+                elif "intel" in v: cpu_vendor = "intel"
+            if "model name" in line.lower() and cpu_name == "Unknown":
+                cpu_name = line.split(":")[1].strip()
+    except: pass
+
+    # ── GPU detection — Optimized ───────────────────────────────────────────
+    has_nvidia = False
+    has_amd_gpu = False
+    has_intel_gpu = False
+    
+    # Try lspci first (most reliable)
+    try:
+        lspci = subprocess.run(["lspci"], capture_output=True, text=True, timeout=3).stdout.lower()
+        has_nvidia = "nvidia" in lspci
+        has_amd_gpu = any(k in lspci for k in ["amd", "radeon", "amdgpu"])
+        has_intel_gpu = any(k in lspci for k in ["intel", "arc", "xe"])
+    except:
+        # Fallback: check sysfs
+        nvidia_sysfs = Path("/sys/bus/pci/drivers/nvidia")
+        has_nvidia = nvidia_sysfs.exists()
+        
+        amd_gpu_sysfs = Path("/sys/class/drm")
+        if amd_gpu_sysfs.exists():
+            for card in amd_gpu_sysfs.glob("card*/device/vendor"):
+                try:
+                    vendor = card.read_text().strip().lower()
+                    if "1002" in vendor:  # AMD vendor ID
+                        has_amd_gpu = True
+                    elif "8086" in vendor:  # Intel vendor ID
+                        has_intel_gpu = True
+                except:
+                    pass
+
+    # ── Intel-specific paths ─────────────────────────────────────────────────
+    # Intel TurboBoost
+    intel_boost_path = Path("/sys/devices/system/cpu/intel_pstate/no_turbo")
+    # Intel powercap RAPL
+    intel_rapl = any(Path("/sys/class/powercap").glob("intel-rapl:*")) \
+                 if Path("/sys/class/powercap").exists() else False
+    # Intel GPU sysfs
+    intel_gpu_sysfs = bool(list(Path("/sys/class/drm").glob("card*/device/vendor"))
+                           if Path("/sys/class/drm").exists() else [])
+
+    # ── Fingerprint — multiple drivers ───────────────────────────────────────
+    fp_drivers = [
+        "/sys/bus/usb/drivers/validity-sensor",
+        "/sys/bus/usb/drivers/synaptics-usb",
+        "/sys/bus/usb/drivers/fpc_fingerprint",
+        "/sys/bus/usb/drivers/elan-fingerprint",
+        "/sys/bus/platform/drivers/fingerprint",
+    ]
+    has_fingerprint = any(Path(d).exists() and list(Path(d).glob("*"))
+                          for d in fp_drivers)
+
+    def ex(p): return Path(p).exists()
+
+    cap = {
+        # Identity
+        "brand":      brand,
+        "model":      _dmi("product_name"),
+        "vendor":     _dmi("sys_vendor"),
+        "family":     _dmi("product_family"),
+        "cpu_vendor": cpu_vendor,
+        "cpu_name":   cpu_name,
+        "has_nvidia":    has_nvidia,
+        "has_amd_gpu":   has_amd_gpu,
+        "has_intel_gpu": has_intel_gpu,
+
+        # Power
+        "platform_profile":  ex("/sys/firmware/acpi/platform_profile"),
+        "conservation_mode": CONSERVATION_MODE.exists(),
+        "rapidcharge":       RAPID_CHARGE.exists(),
+        "powerchargemode":   POWER_CHARGE_MODE.exists(),
+
+        # CPU boost — AMD or Intel
+        "amd_boost":         AMD_BOOST.exists(),
+        "intel_boost":       intel_boost_path.exists(),
+        "intel_rapl":        intel_rapl,
+
+        # Display
+        "overdrive":  OVERDRIVE.exists(),
+        "gsync":      GSYNC.exists(),
+        "nw_backlight": NVIDIA_BACKLIGHT.exists(),
+
+        # Input
+        "fn_lock":      FN_LOCK.exists(),
+        "camera":       CAMERA_POWER.exists(),
+        "touchpad":     TOUCHPAD.exists(),
+        "winkey":       WINKEY.exists(),
+        "usb_charging": USB_CHARGING.exists(),
+
+        # Fan
+        "fan_fullspeed": FAN_FULLSPEED.exists(),
+        "thermalmode":   THERMAL_MODE.exists(),
+        "lockfancontroller": ex(LEGION_SYS_BASEPATH / "lockfancontroller"),
+        "minifancurve":    ex(LEGION_SYS_BASEPATH / "minifancurve"),
+
+        # Backlight
+        "kbd_backlight":    ex("/sys/class/leds/platform::kbd_backlight/brightness"),
+        "ylogo":         ex("/sys/class/leds/platform::ylogo/brightness"),
+        "ioport":        ex("/sys/class/leds/platform::ioport/brightness"),
+        "screen_backlight": bool(list(Path("/sys/class/backlight").iterdir())
+                                 if Path("/sys/class/backlight").exists() else []),
+
+        # ThinkPad-specific
+        "tp_charge_start": ex("/sys/class/power_supply/BAT0/charge_start_threshold"),
+        "tp_charge_stop":  ex("/sys/class/power_supply/BAT0/charge_stop_threshold"),
+        "tp_fan_control":  ex("/proc/acpi/ibm/fan"),
+        "tp_trackpoint":   bool(list(Path("/sys/bus/serio/devices").glob("*/speed"))
+                                if Path("/sys/bus/serio/devices").exists() else []),
+        "tp_thinklight":   ex("/sys/class/leds/tpacpi::thinklight/brightness"),
+        "tp_micmute_led":  ex("/sys/class/leds/platform::micmute/brightness"),
+
+        # Yoga-specific
+        "yoga_hinge": ex("/sys/bus/platform/drivers/lenovo-ymc"),
+        "als_sensor": bool(list(Path("/sys/bus/iio/devices").glob("*/in_illuminance_raw"))
+                           if Path("/sys/bus/iio/devices").exists() else []),
+
+        # Tools (cached check)
+        "legionaura": _which("legionaura"),
+        "envycontrol": _which("envycontrol"),
+
+        # Misc
+        "fingerprint": has_fingerprint,
+        "wwan": bool(list(Path("/sys/class/net").glob("ww*"))
+                    if Path("/sys/class/net").exists() else []),
+    }
+    return cap
+
+def load_hardware() -> dict:
+    try:
+        if HARDWARE_CFG.exists():
+            return json.loads(HARDWARE_CFG.read_text())
+    except: pass
+    return {}
+
+def save_hardware(cap: dict):
+    import time
+    try:
+        cap["_detected_at"] = int(time.time())
+        HARDWARE_CFG.parent.mkdir(parents=True, exist_ok=True)
+        HARDWARE_CFG.write_text(json.dumps(cap, indent=2))
+    except: pass
+
+# Global hardware profile — loaded at startup
+HW: dict = {}
+
+# L1 AI Engine — try multiple known paths from LenovoLegionLinux driver
+_AI_ENGINE_PATHS = [
+    Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/ai_mode"),
+    Path("/sys/bus/platform/devices/VPC2004:00/ai_mode"),
+    Path("/sys/bus/wmi/drivers/lenovo-wmi-gamezone/ai_mode"),
+]
+AI_ENGINE = next((p for p in _AI_ENGINE_PATHS if p.exists()), None)
+
+# RGB keyboard — LenovoLegionLinux driver paths
+_KBD_BACKLIGHT_PATHS = [
+    Path("/sys/class/leds/platform::kbd_backlight/brightness"),
+    Path("/sys/class/leds/legion::kbd_backlight/brightness"),
+]
+KBD_BACKLIGHT_PATH = next((p for p in _KBD_BACKLIGHT_PATHS if p.exists()), None)
+KBD_BACKLIGHT_MAX_PATH = None
+if KBD_BACKLIGHT_PATH:
+    KBD_BACKLIGHT_MAX_PATH = KBD_BACKLIGHT_PATH.parent / "max_brightness"
+
+RGB_PRESETS = {
+    # ── Static colours ───────────────────────────────────────────────────────
+    "Static Red":      ("ff0000","ff0000","ff0000","ff0000"),
+    "Static Blue":     ("0044ff","0044ff","0044ff","0044ff"),
+    "Static Green":    ("00ff44","00ff44","00ff44","00ff44"),
+    "Static White":    ("ffffff","ffffff","ffffff","ffffff"),
+    "Static Purple":   ("aa00ff","aa00ff","aa00ff","aa00ff"),
+    "Static Cyan":     ("00ffff","00ffff","00ffff","00ffff"),
+    "Static Orange":   ("ff6600","ff6600","ff6600","ff6600"),
+    "Static Pink":     ("ff69b4","ff69b4","ff69b4","ff69b4"),
+    # ── Legion themed ────────────────────────────────────────────────────────
+    "Legion Red":      ("cc0000","dd1111","ff0000","cc0000"),
+    "Legion Blue":     ("001aff","0033ff","004cff","0033ff"),
+    "Legion Storm":    ("0033ff","00aaff","00ffcc","00ff88"),
+    # ── Gradients ────────────────────────────────────────────────────────────
+    "Ocean":           ("001aff","0066ff","00aaff","00ffff"),
+    "Sunset":          ("ff2200","ff6600","ffaa00","ffff00"),
+    "Aurora":          ("00ff44","00ccff","aa00ff","ff00aa"),
+    "Fire":            ("ff0000","ff4400","ff8800","ffaa00"),
+    "Galaxy":          ("1a0033","4400aa","8800ff","cc44ff"),
+    "Neon":            ("ff00ff","aa00ff","0044ff","00ffff"),
+    # ── Profile-matched ──────────────────────────────────────────────────────
+    "Quiet (Blue)":    ("001aff","0033ff","004cff","0033ff"),
+    "Performance (Red)":("ff0000","ff0000","ff0000","ff0000"),
+    "Custom (Pink)":   ("ff69b4","ff69b4","ff69b4","ff69b4"),
+    # ── Special ──────────────────────────────────────────────────────────────
+    "Rainbow":         ("ff0000","ff8800","0044ff","aa00ff"),
+    "Stealth":         ("111111","111111","111111","111111"),
+    "Off":             ("000000","000000","000000","000000"),
+}
+
+# Detect actual profile names from the kernel (low-power vs quiet)
+def _detect_profiles():
+    return ["quiet", "balanced", "performance", "custom"]
+
+PROFILES       = _detect_profiles()
+
+# UI labels — "low-power" is the sysfs name but user always sees "Quiet"
+PROFILE_LABELS = {
+    "quiet":       "Quiet",
+    "balanced":    "Balanced",
+    "performance": "Performance",
+    "custom":      "Custom",
+}
+PROFILE_ICONS = {
+    "quiet":       "🔵",
+    "balanced":    "⚪",
+    "performance": "🔴",
+    "custom":      "🩷",
+}
+PROFILE_DESCS = {
+    "quiet":       "15W · Boost OFF",
+    "balanced":    "35W · Boost ON",
+    "performance": "54W · Boost ON",
+    "custom":      "54W · Custom Config",
+}
+PROFILE_COLORS = {
+    "quiet":       "#4a9eff",
+    "balanced":    "#d0d0d0",
+    "performance": "#ff4757",
+    "custom":      "#ff69b4",
+}
+
+EPP_VALUES = ["default","performance","balance_performance","balance_power","power"]
+EPP_LABELS = {"default":"Default","performance":"Performance",
+              "balance_performance":"Balance Performance",
+              "balance_power":"Balance Power","power":"Power Save"}
+
+_THEMES = {
+    "dark": {
+        "C_BG":      "#0d0d0d",
+        "C_SIDEBAR": "#111111",
+        "C_CARD":    "#181818",
+        "C_CARD2":   "#222222",
+        "C_BORDER":  "#2a2a2a",
+        "C_TEXT":    "#e5e5e5",
+        "C_TEXT2":   "#999999",
+        "C_TEXT3":   "#666666",
+        "C_HOVER":   "#1a1a1a",
+        "C_ACTIVE":  "#252525",
+        "C_SHADOW":  "#000000",
+    },
+    "dark_dimmed": {
+        "C_BG":      "#151515",
+        "C_SIDEBAR": "#1a1a1a",
+        "C_CARD":    "#1e1e1e",
+        "C_CARD2":   "#262626",
+        "C_BORDER":  "#333333",
+        "C_TEXT":    "#e0e0e0",
+        "C_TEXT2":   "#999999",
+        "C_TEXT3":   "#666666",
+        "C_HOVER":   "#222222",
+        "C_ACTIVE":  "#2d2d2d",
+        "C_SHADOW":  "#000000",
+    },
+    "oled_black": {
+        "C_BG":      "#000000",
+        "C_SIDEBAR": "#050505",
+        "C_CARD":    "#0a0a0a",
+        "C_CARD2":   "#111111",
+        "C_BORDER":  "#1a1a1a",
+        "C_TEXT":    "#e0e0e0",
+        "C_TEXT2":   "#888888",
+        "C_TEXT3":   "#555555",
+        "C_HOVER":   "#0f0f0f",
+        "C_ACTIVE":  "#151515",
+        "C_SHADOW":  "#000000",
+    },
+    "light": {
+        "C_BG":      "#f5f5f5",
+        "C_SIDEBAR": "#eaeaea",
+        "C_CARD":    "#ffffff",
+        "C_CARD2":   "#f0f0f0",
+        "C_BORDER":  "#e0e0e0",
+        "C_TEXT":    "#1a1a1a",
+        "C_TEXT2":   "#666666",
+        "C_TEXT3":   "#999999",
+        "C_HOVER":   "#eeeeee",
+        "C_ACTIVE":  "#e5e5e5",
+        "C_SHADOW":  "#cccccc",
+    },
+}
+
+def _load_theme_colours():
+    global C_BG, C_SIDEBAR, C_CARD, C_CARD2, C_BORDER, C_TEXT, C_TEXT2, C_TEXT3
+    global C_HOVER, C_ACTIVE, C_SHADOW
+    try:
+        cfg = json.loads(APP_CFG.read_text()) if APP_CFG.exists() else {}
+        t = _THEMES.get(cfg.get("theme","dark"), _THEMES["dark"])
+    except:
+        t = _THEMES["dark"]
+    C_BG     = t["C_BG"]
+    C_SIDEBAR= t["C_SIDEBAR"]
+    C_CARD   = t["C_CARD"]
+    C_CARD2  = t["C_CARD2"]
+    C_BORDER = t["C_BORDER"]
+    C_TEXT   = t["C_TEXT"]
+    C_TEXT2  = t["C_TEXT2"]
+    C_TEXT3  = t["C_TEXT3"]
+    C_HOVER  = t["C_HOVER"]
+    C_ACTIVE = t["C_ACTIVE"]
+    C_SHADOW = t["C_SHADOW"]
+
+_load_theme_colours()
+
+C_ACCENT = "#cc3333"
+C_GREEN  = "#4ecb71"
+C_BLUE   = "#4a9eff"
+C_ORANGE = "#ffa724"
+C_RED    = "#ff4757"
+C_PURPLE = "#a855f7"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOTIFICATION
+# ══════════════════════════════════════════════════════════════════════════════
+def send_notif(title: str, body: str = "", icon: str = "computer"):
+    try:
+        subprocess.Popen(
+            ["notify-send", "-a", "Legion Toolkit", "-i", icon,
+             "-t", "3000", title, body],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+    except Exception:
+        pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Map sysfs feature names to legion-cli command names
+_CLI_FEATURES = {
+    "rapidcharge":        "rapid-charging",
+    "conservation_mode":  "batteryconservation",
+    "fn_lock":            "fnlock",
+    "touchpad":           "touchpad",
+    "usb_charging":       "always-on-usb-charging",
+    "camera_power":       "camera-power",
+    "lockfancontroller":  "lockfancontroller",
+    "maximumfanspeed":    "maximumfanspeed",
+}
+
+def _cli_status(name):
+    """Get status via legion-cli. Returns "1" or "0", or None on failure."""
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "legion_linux.legion_cli", f"{name}-status"],
+            capture_output=True, text=True, timeout=5
+        )
+        if r.returncode == 0:
+            out = r.stdout.strip().lower()
+            return "1" if out in ("true", "1", "enabled", "on") else "0"
+    except:
+        pass
+    return None
+
+def _cli_set(name, enable):
+    """Enable/disable a feature via legion-cli."""
+    cmd = f"{name}-enable" if enable else f"{name}-disable"
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "legion_linux.legion_cli", cmd],
+            capture_output=True, timeout=5
+        )
+        return r.returncode == 0
+    except:
+        return False
+
+def _cli_feature_from_path(path):
+    """Check if a path matches a CLI-supported feature. Returns CLI name or None."""
+    path = str(path).lower()
+    for feat_key, cli_name in _CLI_FEATURES.items():
+        if feat_key in path:
+            return cli_name
+    return None
+
+def rdsys(path, default="0"):
+    """Read sysfs — uses legion-cli when available, falls back to direct read."""
+    cli = _cli_feature_from_path(path)
+    if cli:
+        val = _cli_status(cli)
+        if val is not None:
+            return val
+    try: return Path(path).read_text().strip()
+    except: return default
+
+def wrsys(path, value):
+    """Write to sysfs — uses legion-cli first, then daemon, direct, pkexec."""
+    import socket as _s
+    path = str(path)
+    value = str(value)
+    # Method 1: legion-cli
+    cli = _cli_feature_from_path(path)
+    if cli:
+        if _cli_set(cli, value == "1"):
+            return
+    # Method 2: daemon socket (root daemon writes with correct permissions)
+    try:
+        c = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
+        c.settimeout(2.0)
+        c.connect("/run/legion-toolkit.sock")
+        c.send(f"write:{path}:{value}\n".encode())
+        resp = c.recv(32).decode().strip()
+        c.close()
+        if resp == "ok": return
+    except Exception:
+        pass
+    # Method 3: direct write (works if user has group permission via udev)
+    try:
+        Path(path).write_text(value + "\n")
+        return
+    except Exception:
+        pass
+    # Method 4: pkexec fallback
+    try:
+        v = value.replace("'","").replace(";","").replace("&","")
+        subprocess.Popen(
+            ["pkexec","sh","-c", f"echo '{v}' > {path}"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+    except Exception:
+        pass
+
+DAEMON_SOCKET = "/run/legion-toolkit.sock"
+
+def apply_profile(name: str):
+    """Send profile switch to daemon via unix socket. No pkexec needed."""
+    import socket as _s
+    try:
+        c = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
+        c.settimeout(2.0)
+        c.connect(DAEMON_SOCKET)
+        c.send(f"set:{name}\n".encode())
+        resp = c.recv(32).decode().strip()
+        c.close()
+        if resp == "ok":
+            return True, f"Profile set to {name}"
+    except Exception as e:
+        pass
+    # Fallback: write powermode directly
+    rev = {"quiet": 1, "balanced": 2, "performance": 3, "custom": 255}
+    try:
+        val = rev.get(name, 2)
+        LEGION_POWERMODE.write_text(f"{val}\n")
+        return True, f"Profile set to {name}"
+    except Exception as e:
+        return False, str(e)
+
+def find_hwmon(name):
+    for base in [Path("/sys/class/hwmon"),Path("/sys/devices/virtual/hwmon")]:
+        if not base.exists(): continue
+        try:
+            for p in base.iterdir():
+                nf = p/"name"
+                if nf.exists() and nf.read_text().strip() == name:
+                    return p
+        except: pass
+    return None
+
+# ── LLL (LenovoLegionLinux) Integration ───────────────────────────────────────────────
+LLL_FANCURVE_DEBUGFS = Path("/sys/kernel/debug/legion/fancurve")
+FAN_FULLSPEED = LEGION_SYS_BASEPATH / "fan_fullspeed"
+
+def is_lll_module_loaded() -> bool:
+    """Check if LLL kernel module is loaded."""
+    return Path("/sys/module/legion_laptop").exists()
+
+def is_lll_device_bound() -> bool:
+    """Check if LLL device is bound (hwmon exposed)."""
+    return find_hwmon("legion_hwmon") is not None
+
+def get_lll_status() -> dict:
+    """Get detailed LLL status for UI display."""
+    status = {
+        "module_loaded": is_lll_module_loaded(),
+        "device_bound": is_lll_device_bound(),
+        "debugfs_exists": LLL_FANCURVE_DEBUGFS.exists(),
+        "has_fancurve": False,
+    }
+    if status["debugfs_exists"]:
+        try:
+            curve = LLL_FANCURVE_DEBUGFS.read_text()
+            status["has_fancurve"] = "fan curve points size:" in curve
+        except: pass
+    return status
+
+def is_lll_available() -> bool:
+    """Full check: module loaded AND device bound."""
+    return is_lll_module_loaded() and is_lll_device_bound()
+
+def force_load_lll() -> tuple[bool, str]:
+    """Try to force-load LLL module with force=1."""
+    if not is_lll_module_loaded():
+        try:
+            r = subprocess.run(
+                ["pkexec", "modprobe", "legion_laptop", "force=1"],
+                capture_output=True, text=True, timeout=15
+            )
+            if r.returncode == 0:
+                return True, "Module loaded with force=1"
+            return False, r.stderr.strip()[:80]
+        except Exception as e:
+            return False, str(e)[:80]
+    return is_lll_device_bound(), "Module already loaded, trying force..."
+
+def get_ic_temp() -> int:
+    """Get IC temperature from LLL hwmon (returns 0 if not available)."""
+    h = find_hwmon("legion_hwmon")
+    if h:
+        for f in [h/"temp3_input", h/"temp4_input"]:
+            if f.exists():
+                try: return int(f.read_text())//1000
+                except: pass
+    return 0
+
+def read_fancurve_from_hw() -> str | None:
+    """Read current fan curve from LLL debugfs. Returns None if not available."""
+    if LLL_FANCURVE_DEBUGFS.exists():
+        try: return LLL_FANCURVE_DEBUGFS.read_text()
+        except: pass
+    return None
+
+def write_fancurve_to_hw(points: list[dict]) -> tuple[bool, str]:
+    """Write fan curve points to LLL hwmon. Each point: {fan1_pwm, fan2_pwm, cpu_temp, gpu_temp, ic_temp, accel, decel}"""
+    hwmon = _fan_hwmon()
+    if not hwmon:
+        return False, "LLL hwmon not found"
+    
+    try:
+        for i, pt in enumerate(points, 1):
+            if i > 10:
+                break
+            base = f"pwm{1 if i <= 3 else 2}_auto_point{i}_"
+            
+            # Write PWM values (fan speed)
+            if "fan1_pwm" in pt:
+                subprocess.run(["pkexec", "sh", "-c", f"echo {pt['fan1_pwm']} > {hwmon/base}pwm"],
+                             capture_output=True, timeout=2)
+            if "fan2_pwm" in pt:
+                other = "pwm2_auto_point" if i <= 3 else "pwm1_auto_point"
+                idx = i if i <= 3 else i - 3
+                subprocess.run(["pkexec", "sh", "-c", f"echo {pt['fan2_pwm']} > {hwmon}{other}{idx}_pwm"],
+                             capture_output=True, timeout=2)
+            
+            # Write temperature thresholds
+            if "cpu_temp" in pt:
+                subprocess.run(["pkexec", "sh", "-c", f"echo {pt['cpu_temp']} > {hwmon/base}temp"],
+                             capture_output=True, timeout=2)
+            
+            # Write acceleration/deceleration
+            if "accel" in pt:
+                subprocess.run(["pkexec", "sh", "-c", f"echo {pt['accel']} > {hwmon/base}accel"],
+                             capture_output=True, timeout=2)
+            if "decel" in pt:
+                subprocess.run(["pkexec", "sh", "-c", f"echo {pt['decel']} > {hwmon/base}decel"],
+                             capture_output=True, timeout=2)
+        
+        return True, f"Wrote {len(points)} fan curve points"
+    except Exception as e:
+        return False, str(e)[:80]
+
+def save_fancurve_to_file(points: list[dict], filename: str) -> bool:
+    """Save fan curve to JSON file."""
+    try:
+        CFG_DIR.mkdir(parents=True, exist_ok=True)
+        path = CFG_DIR / f"fancurve_{filename}.json"
+        path.write_text(json.dumps(points, indent=2))
+        return True
+    except:
+        return False
+
+def load_fancurve_from_file(filename: str) -> list[dict] | None:
+    """Load fan curve from JSON file."""
+    try:
+        path = CFG_DIR / f"fancurve_{filename}.json"
+        if path.exists():
+            return json.loads(path.read_text())
+    except:
+        pass
+    return None
+
+def parse_fancurve(curve_text: str) -> list[dict]:
+    """Parse fancurve debugfs output into list of point dicts."""
+    lines = curve_text.strip().split("\n")
+    if not lines or "fan curve points size:" not in curve_text:
+        return []
+    points = []
+    header = lines[0].split("|")
+    for line in lines[2:]:
+        if not line.strip(): continue
+        vals = line.split()
+        if len(vals) >= 12:
+            points.append({
+                "speed_unit": int(vals[0]),
+                "fan1_rpm": int(vals[1]) * 100 if vals[0] == "3" else 0,
+                "fan2_rpm": int(vals[2]) * 100 if vals[0] == "3" else 0,
+                "fan1_pwm": int(vals[3]),
+                "fan2_pwm": int(vals[4]),
+                "accel": int(vals[5]),
+                "decel": int(vals[6]),
+                "cpu_min": int(vals[7]),
+                "cpu_max": int(vals[8]),
+                "gpu_min": int(vals[9]),
+                "gpu_max": int(vals[10]),
+                "ic_min": int(vals[11]),
+                "ic_max": int(vals[12]) if len(vals) > 12 else 127,
+            })
+    return points
+
+def get_fan_lock_status() -> bool:
+    """Check if fan controller is locked (read-only, firmware level)."""
+    lock_path = LEGION_SYS_BASEPATH / "lockfancontroller"
+    if not lock_path.exists():
+        return False
+    try:
+        return lock_path.read_text().strip() == "1"
+    except:
+        return False
+
+def set_fan_lock(lock: bool) -> tuple[bool, str]:
+    """Lock/unlock fan controller. Requires LLL."""
+    lock_path = LEGION_SYS_BASEPATH / "lockfancontroller"
+    if not lock_path.exists():
+        if not is_lll_available():
+            return False, "LLL not loaded"
+        return False, "lockfancontroller not found"
+    try:
+        val = "1" if lock else "0"
+        r = subprocess.run(
+            ["pkexec", "sh", "-c", f"echo {val} > {lock_path}"],
+            capture_output=True, text=True, timeout=8
+        )
+        if r.returncode == 0:
+            return True, f"Fan controller {'locked' if lock else 'unlocked'}"
+        return False, r.stderr.strip()[:80]
+    except Exception as e:
+        return False, str(e)[:80]
+
+def get_minifancurve_status() -> bool:
+    """Check if mini fan curve (cold) is enabled."""
+    mini_path = LEGION_SYS_BASEPATH / "minifancurve"
+    if not mini_path.exists():
+        return False
+    try:
+        return mini_path.read_text().strip() == "1"
+    except:
+        return False
+
+def set_minifancurve(enable: bool) -> tuple[bool, str]:
+    """Enable/disable mini fan curve when cold. Requires LLL."""
+    mini_path = LEGION_SYS_BASEPATH / "minifancurve"
+    if not mini_path.exists():
+        if not is_lll_available():
+            return False, "LLL not loaded"
+        return False, "minifancurve not found"
+    try:
+        val = "1" if enable else "0"
+        r = subprocess.run(
+            ["pkexec", "sh", "-c", f"echo {val} > {mini_path}"],
+            capture_output=True, text=True, timeout=8
+        )
+        if r.returncode == 0:
+            return True, f"Mini fan curve {'enabled' if enable else 'disabled'}"
+        return False, r.stderr.strip()[:80]
+    except Exception as e:
+        return False, str(e)[:80]
+
+def set_max_fan_speed(enable: bool) -> tuple[bool, str]:
+    """Set maximum fan speed (extreme cooling mode)."""
+    if not FAN_FULLSPEED.exists():
+        if not is_lll_available():
+            return False, "LLL not loaded"
+        return False, "fan_fullspeed path not found"
+    try:
+        val = "1" if enable else "0"
+        r = subprocess.run(
+            ["pkexec", "sh", "-c", f"echo {val} > {FAN_FULLSPEED}"],
+            capture_output=True, text=True, timeout=8
+        )
+        if r.returncode == 0:
+            return True, f"Max fan {'ON' if enable else 'OFF'}"
+        return False, r.stderr.strip()[:80]
+    except Exception as e:
+        return False, str(e)[:80]
+
+def get_cpu_temp():
+    h = find_hwmon("k10temp")
+    if h:
+        for f in sorted(h.glob("temp*_input")):
+            try: return int(f.read_text())//1000
+            except: pass
+    return 0
+
+def get_fan_rpm():
+    h = find_hwmon("legion_hwmon"); fans = []
+    if h:
+        for f in sorted(h.glob("fan*_input")):
+            try: fans.append(int(f.read_text()))
+            except: pass
+    while len(fans) < 2: fans.append(0)
+    return fans[0], fans[1]
+
+def get_cpu_freq_ghz():
+    try:
+        return round(int(Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
+                         .read_text()) / 1_000_000, 2)
+    except: return 0.0
+
+def get_cpu_max_freq_mhz():
+    """Max allowed frequency in MHz (scaling_max_freq)."""
+    try:
+        return int(Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq")
+                   .read_text()) // 1000
+    except: return 0
+
+def get_cpu_hw_max_mhz():
+    """Hardware max frequency in MHz — scan all cores, take the highest."""
+    best = 0
+    for i in range(16):
+        p = Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/cpuinfo_max_freq")
+        try:
+            v = int(p.read_text()) // 1000
+            if v > best: best = v
+        except: break
+    # cpuinfo_max_freq can return base clock on some AMD configs;
+    # also check policy0 bios_limit for actual turbo ceiling
+    try:
+        bl = int(Path("/sys/devices/system/cpu/cpufreq/policy0/bios_limit")
+                 .read_text()) // 1000
+        if bl > best: best = bl
+    except: pass
+    return best if best >= 3000 else 4400   # 5800H absolute fallback
+
+def get_cpu_power_w():
+    """
+    NOT called directly — use DataSampler which tracks RAPL energy delta.
+    This is kept as a helper for finding the energy file.
+    """
+    return None   # handled by _read_cpu_power_delta in DataSampler
+
+def _find_rapl_energy_file():
+    """Find AMD RAPL package energy file. Returns Path or None."""
+    try:
+        pc = Path("/sys/class/powercap")
+        if pc.exists():
+            for p in sorted(pc.iterdir()):
+                try:
+                    name = (p/"name").read_text().strip().lower()
+                    if "package" in name or "psys" in name:
+                        ef = p/"energy_uj"
+                        if ef.exists(): return ef
+                except: pass
+    except: pass
+    # AMD hwmon fallback
+    h = find_hwmon("k10temp")
+    if h:
+        for f in h.glob("power*_input"):
+            return f   # already in µW, not cumulative
+    return None
+
+def get_igpu_power_w():
+    """AMD iGPU power via amdgpu hwmon or apu_power in k10temp."""
+    # Try amdgpu hwmon
+    h = find_hwmon("amdgpu")
+    if h:
+        for f in h.glob("power*_input"):
+            try: return round(int(f.read_text()) / 1_000_000, 1)
+            except: pass
+    # Try k10temp APU power (some AMD mobile CPUs expose this)
+    h2 = find_hwmon("k10temp")
+    if h2:
+        for f in h2.glob("power*_input"):
+            try: return round(int(f.read_text()) / 1_000_000, 1)
+            except: pass
+    return None
+
+def get_ram_info():
+    """
+    Returns (used_mb, total_mb, pct).
+    Uses MemTotal - MemAvailable — the kernel's own best estimate of
+    used memory, matching what htop/free shows as 'used'.
+    """
+    try:
+        d = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if ":" in line:
+                    k, v = line.split(":", 1)
+                    d[k.strip()] = int(v.strip().split()[0])
+        total     = d.get("MemTotal", 0)
+        available = d.get("MemAvailable", 0)
+        used      = max(0, total - available)
+        pct       = int(used * 100 / max(total, 1))
+        return used // 1024, total // 1024, pct
+    except: return 0, 0, 0
+
+def get_battery_pct():
+    try:
+        n = int(rdsys(BAT/"energy_now"))
+        f = int(rdsys(BAT/"energy_full", "1"))
+        return min(100, int(n * 100 / f))
+    except: return 0
+
+def get_battery_status(): return rdsys(BAT/"status", "Unknown")
+
+def get_battery_health():
+    try:
+        f = int(rdsys(BAT/"energy_full","1"))
+        d = int(rdsys(BAT/"energy_full_design","1"))
+        return min(100, int(f*100/d))
+    except: return 0
+
+def get_battery_stats():
+    s = {}
+    s["percent"] = get_battery_pct()
+    s["status"]  = get_battery_status()
+    s["health"]  = get_battery_health()
+    s["cycles"]  = rdsys(BAT/"cycle_count","—")
+
+    # ── Battery temperature — exhaustive scan ────────────────────────────────
+    _bat_temp = None
+
+    # 1. Direct BAT sysfs (some kernels expose this)
+    for bat_path in [BAT, Path("/sys/class/power_supply/BAT1"),
+                     Path("/sys/class/power_supply/CMB0")]:
+        for fname in ["temp", "temp_now"]:
+            try:
+                v = int((bat_path/fname).read_text().strip())
+                if v > 0:
+                    # Values can be in tenths of °C (273→27) or milli-°C
+                    _bat_temp = v // 10 if v > 1000 else v
+                    break
+            except: pass
+        if _bat_temp is not None: break
+
+    # 2. power_supply device symlink — real device path often has temp
+    if _bat_temp is None:
+        try:
+            real = Path("/sys/class/power_supply/BAT0").resolve()
+            for fname in ["temp", "temp_now", "uevent"]:
+                p = real / fname
+                if fname == "uevent" and p.exists():
+                    # parse POWER_SUPPLY_TEMP= from uevent
+                    for line in p.read_text().splitlines():
+                        if "TEMP=" in line:
+                            try:
+                                v = int(line.split("=")[1].strip())
+                                if v > 0:
+                                    _bat_temp = v // 10 if v > 1000 else v
+                            except: pass
+                elif p.exists():
+                    try:
+                        v = int(p.read_text().strip())
+                        if v > 0:
+                            _bat_temp = v // 10 if v > 1000 else v
+                            break
+                    except: pass
+        except: pass
+
+    # 3. hwmon scan — look for battery/acpi named hwmon devices
+    if _bat_temp is None:
+        try:
+            for hwmon in sorted(Path("/sys/class/hwmon").iterdir()):
+                try:
+                    name = (hwmon/"name").read_text().strip().lower()
+                except: name = ""
+                if not any(k in name for k in
+                           ("bat","acpi","power","bq","max","lenovo","smbus")):
+                    continue
+                for f in sorted(hwmon.glob("temp*_input")):
+                    try:
+                        v = int(f.read_text().strip()) // 1000
+                        if 10 < v < 80:
+                            _bat_temp = v; break
+                    except: pass
+                if _bat_temp is not None: break
+        except: pass
+
+    # 4. Scan ALL hwmon for a temp in battery range (20–55°C realistic)
+    if _bat_temp is None:
+        try:
+            for hwmon in sorted(Path("/sys/class/hwmon").iterdir()):
+                try: name = (hwmon/"name").read_text().strip().lower()
+                except: name = ""
+                # Skip CPU/GPU hwmon — not battery temps
+                if any(k in name for k in ("k10temp","coretemp","nct","asus",
+                                           "it8","gpu","nouveau","radeon","amdgpu")):
+                    continue
+                for f in sorted(hwmon.glob("temp*_input")):
+                    try:
+                        v = int(f.read_text().strip()) // 1000
+                        if 20 < v < 55:  # realistic battery temp range
+                            _bat_temp = v; break
+                    except: pass
+                if _bat_temp is not None: break
+        except: pass
+
+    # 5. ACPI thermal zone — last resort
+    if _bat_temp is None:
+        try:
+            for tz in sorted(Path("/sys/class/thermal").glob("thermal_zone*")):
+                try:
+                    ttype = (tz/"type").read_text().strip().lower()
+                    if any(k in ttype for k in ("bat","acpi","charger")):
+                        v = int((tz/"temp").read_text().strip()) // 1000
+                        if 10 < v < 80:
+                            _bat_temp = v; break
+                except: pass
+        except: pass
+
+    s["temp"] = f"{_bat_temp} °C" if _bat_temp is not None else "—"
+
+    try: s["power"] = f"{int(rdsys(BAT/'power_now','0'))/1_000_000:.1f} W"
+    except: s["power"] = "—"
+    try: s["voltage"] = f"{int(rdsys(BAT/'voltage_now','0'))/1_000_000:.2f} V"
+    except: s["voltage"] = "—"
+    try:
+        ef = int(rdsys(BAT/"energy_full","0"))
+        ed = int(rdsys(BAT/"energy_full_design","0"))
+        s["capacity"] = f"{ef//1000} mWh / {ed//1000} mWh (design)"
+    except: s["capacity"] = "—"
+    s["manufacturer"] = rdsys(BAT/"manufacturer","—")
+    s["model"]        = rdsys(BAT/"model_name","—")
+    s["technology"]   = rdsys(BAT/"technology","—")
+    return s
+
+def get_epp():
+    try:
+        return Path("/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference") \
+               .read_text().strip()
+    except: return "default"
+
+def set_epp(val):
+    paths = [
+        f"/sys/devices/system/cpu/cpu{i}/cpufreq/energy_performance_preference"
+        for i in range(32)
+        if Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/energy_performance_preference").exists()
+    ]
+    if paths:
+        cmd = " && ".join(f"echo {val} > {p}" for p in paths)
+        subprocess.Popen(["pkexec","sh","-c",cmd],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def get_governor():
+    try:
+        return Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").read_text().strip()
+    except: return "—"
+
+def get_ac_connected():
+    try:
+        for psu in Path("/sys/class/power_supply").iterdir():
+            if rdsys(psu/"type","") == "Mains":
+                return rdsys(psu/"online","0") == "1"
+    except: pass
+    return False
+
+def get_ai_engine():
+    """Return '1'/'0' for AI Engine state, or None if unavailable."""
+    if AI_ENGINE:
+        return rdsys(AI_ENGINE, "0")
+    return None
+
+def set_ai_engine(enabled: bool):
+    if AI_ENGINE:
+        wrsys(AI_ENGINE, "1" if enabled else "0")
+        return True
+    # Fallback: use EPP balance_performance
+    if enabled:
+        set_epp("balance_performance")
+    else:
+        set_epp("default")
+    return False   # not native, EPP fallback
+
+# ── GPU via nvidia-smi ────────────────────────────────────────────────────────
+_gpu_cache  = {}
+_gpu_last   = 0.0
+_GPU_LOCK   = threading.Lock()
+
+def get_gpu_info():
+    global _gpu_cache, _gpu_last
+    with _GPU_LOCK:
+        now = time.time()
+        if now - _gpu_last < 1.4:
+            return _gpu_cache
+        try:
+            out = subprocess.check_output(
+                ["nvidia-smi",
+                 "--query-gpu=utilization.gpu,temperature.gpu,clocks.current.graphics,"
+                 "memory.used,memory.total,pstate,power.draw,name",
+                 "--format=csv,noheader,nounits"],
+                stderr=subprocess.DEVNULL, text=True, timeout=2
+            ).strip().split(",")
+            if len(out) >= 8:
+                _gpu_cache = {
+                    "util":      int(out[0].strip()),
+                    "temp":      int(out[1].strip()),
+                    "freq":      int(out[2].strip()),
+                    "mem_used":  int(out[3].strip()),
+                    "mem_total": int(out[4].strip()),
+                    "pstate":    out[5].strip(),
+                    "power":     float(out[6].strip()),
+                    "name":      out[7].strip(),
+                    "available": True,
+                }
+                _gpu_last = now
+                return _gpu_cache
+        except: pass
+        _gpu_cache = {"available": False}
+        _gpu_last  = now
+        return _gpu_cache
+
+# ── Display / VRR / Refresh Rate (KDE Plasma 6 Wayland via kscreen-doctor) ─────
+
+def _kscreen_json():
+    """Return parsed kscreen-doctor JSON, or {}."""
+    try:
+        out = subprocess.check_output(
+            ["kscreen-doctor", "-j"], stderr=subprocess.DEVNULL, text=True, timeout=3
+        )
+        return json.loads(out)
+    except: return {}
+
+def get_display_outputs():
+    """
+    Return list of (output_name, current_mode_str, modes_list).
+    modes_list = [(mode_str, is_current), ...]  mode_str = 'WxH@HZ'
+    Uses kscreen-doctor (works on KDE Plasma 6 Wayland).
+    """
+    outputs = []
+    try:
+        data = _kscreen_json()
+        for o in data.get("outputs", []):
+            if not o.get("enabled"): continue
+            name = o.get("name", "")
+            cur_id = o.get("currentModeId","")
+            modes = []
+            cur_mode = ""
+            for m in o.get("modes", []):
+                mid   = m.get("id","")
+                size  = m.get("size", {})
+                w, h  = size.get("width",0), size.get("height",0)
+                # refreshRate is a float like 143.981
+                hz    = round(m.get("refreshRate", 0))
+                if not (w and h and hz): continue
+                mode_str = f"{w}x{h}@{hz}"
+                is_cur   = (mid == cur_id)
+                modes.append((mode_str, is_cur))
+                if is_cur: cur_mode = mode_str
+            if modes:
+                outputs.append((name, cur_mode, modes))
+    except: pass
+    return outputs
+
+def _kscreen_output_idx(name: str) -> int:
+    """Return 1-based output index for kscreen-doctor output.N commands."""
+    try:
+        data = _kscreen_json()
+        for i, o in enumerate(data.get("outputs", []), 1):
+            if o.get("name","") == name:
+                return i
+    except: pass
+    return 1
+
+def get_vrr_status():
+    """
+    Return (is_on, policy_int) for the first enabled output.
+    policy: 0=never  1=always  2=automatic
+    """
+    try:
+        data = _kscreen_json()
+        for o in data.get("outputs", []):
+            if o.get("enabled"):
+                vrr = o.get("vrrpolicy", 0)
+                return vrr in (1, 2), vrr
+        return False, 0
+    except: return False, -1
+
+def _persist_vrr(output_name: str, policy: int):
+    """
+    Write VRR policy into every kscreen config file that references this output,
+    so the setting survives reboot. Then ask KWin to reload.
+    policy: 0=never  1=always  2=automatic
+    """
+    kscreen_dir = Path.home() / ".local/share/kscreen"
+    if not kscreen_dir.exists(): return
+    changed = False
+    try:
+        for cfg_file in kscreen_dir.glob("*"):
+            if cfg_file.is_dir(): continue
+            try:
+                data = json.loads(cfg_file.read_text())
+                for o in data.get("outputs", []):
+                    if o.get("name","") == output_name:
+                        o["vrrpolicy"] = policy
+                        changed = True
+                if changed:
+                    cfg_file.write_text(json.dumps(data, indent=2))
+                    changed = False   # reset for next file
+            except: pass
+    except: pass
+    # Signal KWin to reload display config
+    try:
+        subprocess.Popen(
+            ["dbus-send","--session","--type=signal","/KWin",
+             "org.kde.KWin.reloadConfig"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+    except: pass
+
+def _ensure_nvidia_modeset():
+    """
+    Ensure nvidia-drm.modeset=1 is set — required for VRR on NVIDIA hybrid Wayland.
+    Writes to /etc/modprobe.d/nvidia-drm.conf (needs pkexec, one-time).
+    """
+    cfg = Path("/etc/modprobe.d/nvidia-drm.conf")
+    try:
+        content = cfg.read_text() if cfg.exists() else ""
+        if "modeset=1" in content: return True   # already set
+    except: pass
+    try:
+        line = "options nvidia-drm modeset=1 fbdev=1\n"
+        subprocess.run(
+            ["pkexec","sh","-c",f"echo '{line.strip()}' > /etc/modprobe.d/nvidia-drm.conf"],
+            timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        return True
+    except: return False
+
+def _configure_kwin_vrr(enabled: bool):
+    """
+    Set KWin compositor VRR policy via kwriteconfig6.
+    This is what KDE System Settings → Display → VRR does internally.
+    """
+    try:
+        # VRRPolicy: 0=Never 1=Automatic 2=Always
+        policy = "1" if enabled else "0"
+        subprocess.run(
+            ["kwriteconfig6","--file","kwinrc",
+             "--group","Compositing","--key","VRRPolicy", policy],
+            timeout=3, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        # Reload KWin compositor (non-blocking, no visual glitch)
+        subprocess.Popen(
+            ["qdbus6","org.kde.KWin","/Compositor","org.kde.kwin.Compositing.resume"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        # Also signal via dbus
+        subprocess.Popen(
+            ["dbus-send","--session","--dest=org.kde.KWin",
+             "--type=method_call","/KWin","org.kde.KWin.reconfigure"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+    except: pass
+
+def set_vrr(enabled: bool, output_name: str = ""):
+    """
+    Enable/disable VRR on KDE Plasma 6 Wayland + NVIDIA hybrid.
+    1. kscreen-doctor output.N.vrrpolicy.automatic — per-output, immediate
+    2. kwriteconfig6 kwinrc VRRPolicy — KWin compositor global policy
+    3. Patch ~/.local/share/kscreen/ files — survives reboot
+    4. nvidia-drm.modeset=1 — required for NVIDIA hybrid VRR
+    """
+    policy     = "automatic" if enabled else "never"
+    policy_int = 2 if enabled else 0
+    errors = []
+
+    try:
+        data = _kscreen_json()
+        outputs = data.get("outputs", [])
+        targets = ([o for o in outputs if o.get("name","") == output_name]
+                   if output_name else
+                   [o for o in outputs if o.get("enabled")])
+        if not targets: targets = outputs
+
+        for o in targets:
+            name = o.get("name","")
+            idx  = _kscreen_output_idx(name)
+            try:
+                r = subprocess.run(
+                    ["kscreen-doctor", f"output.{idx}.vrrpolicy.{policy}"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if r.returncode != 0 and r.stderr:
+                    errors.append(r.stderr.strip())
+            except Exception as e: errors.append(str(e))
+            _persist_vrr(name, policy_int)
+
+        # KWin compositor VRR policy
+        _configure_kwin_vrr(enabled)
+
+        # Ensure nvidia-drm modeset (one-time, silent)
+        if enabled: _ensure_nvidia_modeset()
+
+        msg = ("Automatic — syncs to GPU framerate" if enabled else "Fixed refresh rate")
+        if errors: msg += f"\n⚠ {errors[0]}"
+        send_notif("VRR " + ("Enabled ✓" if enabled else "Disabled"), msg, "display")
+
+    except Exception as e:
+        send_notif("VRR Error", str(e), "dialog-error")
+
+def set_refresh_rate(output: str, mode: str):
+    """
+    Set display mode via kscreen-doctor (works on KDE Plasma 6 Wayland).
+    mode = 'WxH@HZ'
+    """
+    try:
+        # Find the exact mode id from kscreen-doctor JSON
+        data = _kscreen_json()
+        mode_id = None
+        for o in data.get("outputs", []):
+            if o.get("name","") == output:
+                res_part, hz_part = mode.split("@")
+                w_str, h_str = res_part.split("x")
+                w, h, hz = int(w_str), int(h_str), int(hz_part)
+                for m in o.get("modes", []):
+                    sz = m.get("size",{})
+                    mhz = round(m.get("refreshRate",0))
+                    if sz.get("width")==w and sz.get("height")==h and mhz==hz:
+                        mode_id = m.get("id","")
+                        break
+                break
+        idx = _kscreen_output_idx(output)
+        if mode_id:
+            subprocess.Popen(
+                ["kscreen-doctor", f"output.{idx}.mode.{mode_id}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        else:
+            # Fallback: try WxHzHZ format
+            subprocess.Popen(
+                ["kscreen-doctor", f"output.{idx}.mode.{mode}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        send_notif("Refresh Rate Changed",
+                   f"{output}: {mode.replace('@',' @ ')} Hz", "display")
+    except Exception as e:
+        send_notif("Refresh Rate Error", str(e), "dialog-error")
+# ── RGB Keyboard — via legionaura CLI ─────────────────────────────────────────
+# legionaura (AUR: legionaura) wraps the USB HID protocol for Legion keyboards.
+# Install: yay -S legionaura
+# CLI: legionaura static|breath|wave|hue|off [colors] [--speed 1-4] [--brightness 1-2]
+
+_KBD_BRI_PATH = Path("/sys/class/leds/platform::kbd_backlight/brightness")
+_KBD_BRI_MAX  = Path("/sys/class/leds/platform::kbd_backlight/max_brightness")
+
+def _has_legionaura() -> bool:
+    try:
+        r = subprocess.run(["which","legionaura"], capture_output=True, timeout=2)
+        return r.returncode == 0
+    except Exception: return False
+
+def _legionaura_version() -> str:
+    try:
+        r = subprocess.run(["legionaura","--version"], capture_output=True, text=True, timeout=2)
+        return (r.stdout or r.stderr).strip().split("\n")[0][:40]
+    except Exception: return "unknown"
+
+def _write_sysfs(path: Path, value: str) -> bool:
+    try:
+        path.write_text(value + "\n"); return True
+    except PermissionError: pass
+    except Exception: return False
+    try:
+        import socket as _s
+        c = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM); c.settimeout(2.0)
+        c.connect("/run/legion-toolkit.sock")
+        c.send(f"write:{path}:{value}\n".encode())
+        r = c.recv(32).decode().strip(); c.close()
+        if r == "ok": return True
+    except Exception: pass
+    try:
+        v = value.replace("'","").replace(";","").replace("&","")
+        subprocess.run(["pkexec","sh","-c",f"printf '%s\\n' '{v}' > {path}"],
+                       check=False, timeout=5,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception: return False
+
+def set_kbd_brightness(val: int):
+    p = _KBD_BRI_PATH if _KBD_BRI_PATH.exists() else KBD_BACKLIGHT_PATH
+    if p: _write_sysfs(p, str(val))
+
+def get_kbd_brightness() -> int:
+    p = _KBD_BRI_PATH if _KBD_BRI_PATH.exists() else KBD_BACKLIGHT_PATH
+    try: return int(p.read_text().strip()) if p else 0
+    except: return 0
+
+def get_kbd_max_brightness() -> int:
+    try: return int(_KBD_BRI_MAX.read_text().strip()) if _KBD_BRI_MAX.exists() else 2
+    except: return 2
+
+# ── Y-Logo and IO-Port LED (via LLL) ─────────────────────────────────────────
+_YLOGO_PATH = Path("/sys/class/leds/platform::ylogo/brightness")
+_IOPORT_PATH = Path("/sys/class/leds/platform::ioport/brightness")
+
+def set_ylogo_brightness(brightness: int) -> tuple[bool, str]:
+    """Set Y-logo LED brightness (0-2 or 0-100 depending on model). Requires LLL."""
+    if not _YLOGO_PATH.exists():
+        return False, "Y-logo LED not found"
+    try:
+        _YLOGO_PATH.write_text(str(brightness) + "\n")
+        return True, f"Y-logo brightness: {brightness}"
+    except PermissionError:
+        try:
+            subprocess.run(["pkexec", "sh", "-c", f"echo {brightness} > {_YLOGO_PATH}"],
+                         capture_output=True, timeout=5)
+            return True, f"Y-logo brightness: {brightness}"
+        except Exception as e:
+            return False, str(e)[:80]
+    except Exception as e:
+        return False, str(e)[:80]
+
+def get_ylogo_brightness() -> int:
+    """Get current Y-logo LED brightness."""
+    if not _YLOGO_PATH.exists():
+        return 0
+    try:
+        return int(_YLOGO_PATH.read_text().strip())
+    except:
+        return 0
+
+def set_ioport_brightness(brightness: int) -> tuple[bool, str]:
+    """Set IO-Port LED brightness. Requires LLL."""
+    if not _IOPORT_PATH.exists():
+        return False, "IO-Port LED not found"
+    try:
+        _IOPORT_PATH.write_text(str(brightness) + "\n")
+        return True, f"IO-Port brightness: {brightness}"
+    except PermissionError:
+        try:
+            subprocess.run(["pkexec", "sh", "-c", f"echo {brightness} > {_IOPORT_PATH}"],
+                         capture_output=True, timeout=5)
+            return True, f"IO-Port brightness: {brightness}"
+        except Exception as e:
+            return False, str(e)[:80]
+    except Exception as e:
+        return False, str(e)[:80]
+
+def get_ioport_brightness() -> int:
+    """Get current IO-Port LED brightness."""
+    if not _IOPORT_PATH.exists():
+        return 0
+    try:
+        return int(_IOPORT_PATH.read_text().strip())
+    except:
+        return 0
+
+def run_legionaura(args: list, callback=None):
+    """Run legionaura CLI in a background thread. callback(ok, msg) when done."""
+    def _do():
+        try:
+            r = subprocess.run(
+                ["legionaura"] + args,
+                capture_output=True, text=True, timeout=8
+            )
+            ok  = r.returncode == 0
+            msg = (r.stdout or r.stderr or "").strip()[:120]
+            if not msg: msg = "OK" if ok else "failed (no output)"
+        except FileNotFoundError:
+            ok, msg = False, "legionaura not found — install: yay -S legionaura"
+        except Exception as e:
+            ok, msg = False, str(e)[:120]
+        if callback: callback(ok, msg)
+    threading.Thread(target=_do, daemon=True).start()
+
+# ── Overclock helpers ─────────────────────────────────────────────────────────
+def load_oc_config():
+    try:
+        if OC_CFG.exists():
+            return json.loads(OC_CFG.read_text())
+    except: pass
+    hw_max = get_cpu_hw_max_mhz()
+    return {
+        "cpu_max_freq_mhz": hw_max,
+        "gpu_core_offset":  0,
+        "gpu_mem_offset":   0,
+        "gpu_power_limit":  0,
+    }
+
+def save_oc_config(data):
+    try:
+        OC_CFG.parent.mkdir(parents=True, exist_ok=True)
+        OC_CFG.write_text(json.dumps(data, indent=2))
+    except: pass
+
+def apply_cpu_freq(mhz: int):
+    """Set scaling_max_freq for all CPU cores."""
+    khz = mhz * 1000
+    paths = [
+        f"/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_max_freq"
+        for i in range(32)
+        if Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_max_freq").exists()
+    ]
+    if paths:
+        cmd = " && ".join(f"echo {khz} > {p}" for p in paths)
+        subprocess.Popen(["pkexec","sh","-c",cmd],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        send_notif("CPU Frequency Set", f"Max frequency: {mhz} MHz", "cpu")
+
+def apply_gpu_oc(core_off: int, mem_off: int, power_limit: int):
+    """Apply GPU overclock via nvidia-smi. Requires coolbits=28 in xorg."""
+    cmds = []
+    if core_off != 0:
+        cmds.append(f"nvidia-smi --lock-gpu-clocks={core_off},{core_off}")
+    if mem_off != 0:
+        cmds.append(f"nvidia-smi --lock-memory-clocks={mem_off},{mem_off}")
+    if power_limit > 0:
+        cmds.append(f"nvidia-smi -pl {power_limit}")
+    if cmds:
+        for cmd in cmds:
+            try:
+                subprocess.Popen(cmd.split(),
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except: pass
+        send_notif("GPU Overclock Applied",
+                   f"Core +{core_off} MHz | Mem +{mem_off} MHz | PL {power_limit}W",
+                   "gpu")
+
+def reset_gpu_oc():
+    try:
+        subprocess.Popen(["nvidia-smi","--reset-gpu-clocks"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["nvidia-smi","--reset-memory-clocks"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        send_notif("GPU OC Reset", "Clock offsets cleared", "gpu")
+    except: pass
+
+# ── GPU overclock via nvidia-settings (offset mode, needs coolbits=28) ────────
+def apply_gpu_oc_full(core_off: int, mem_off: int, power_limit_w: int,
+                      temp_target: int = 0, fan_pct: int = 0):
+    errors = []
+    # 1. Power limit via nvidia-smi
+    if power_limit_w > 0:
+        try:
+            r = subprocess.run(["nvidia-smi","-i","0","-pl",str(power_limit_w)],
+                               capture_output=True, text=True, timeout=5)
+            if r.returncode != 0: errors.append(f"PL: {r.stderr.strip()[:60]}")
+        except Exception as e: errors.append(str(e))
+    # 2. Clock offsets via nvidia-settings
+    if core_off != 0:
+        try:
+            subprocess.Popen(
+                ["nvidia-settings","-a",
+                 f"[gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels={core_off}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except: errors.append("nvidia-settings not found")
+    if mem_off != 0:
+        try:
+            subprocess.Popen(
+                ["nvidia-settings","-a",
+                 f"[gpu:0]/GPUMemoryTransferRateOffsetAllPerformanceLevels={mem_off}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except: pass
+    # 3. Temperature target
+    if temp_target > 0:
+        try:
+            subprocess.Popen(["nvidia-smi","-i","0",
+                               f"--gom={temp_target}"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except: pass
+    # 4. Manual fan speed
+    if fan_pct > 0:
+        try:
+            subprocess.Popen(
+                ["nvidia-settings","-a","[gpu:0]/GPUFanControlState=1",
+                 "-a",f"[fan:0]/GPUTargetFanSpeed={fan_pct}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except: pass
+    msg = f"Core +{core_off} MHz | Mem +{mem_off} MHz | PL {power_limit_w}W"
+    if errors: msg += f" ⚠ {errors[0]}"
+    send_notif("GPU OC Applied", msg, "gpu")
+
+def reset_gpu_oc_full():
+    try:
+        subprocess.Popen(["nvidia-smi","--reset-gpu-clocks"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["nvidia-smi","--reset-memory-clocks"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except: pass
+    try:
+        subprocess.Popen(
+            ["nvidia-settings","-a","[gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=0",
+             "-a","[gpu:0]/GPUMemoryTransferRateOffsetAllPerformanceLevels=0",
+             "-a","[gpu:0]/GPUFanControlState=0"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except: pass
+    send_notif("GPU OC Reset", "All values reset to default", "gpu")
+
+# ── CPU TDP via RAPL (writable PL1/PL2) ──────────────────────────────────────
+def _rapl_power_paths():
+    """Return (pl1_path, pl2_path) or (None, None)."""
+    try:
+        pc = Path("/sys/class/powercap")
+        for p in sorted(pc.iterdir()):
+            try:
+                name = (p/"name").read_text().strip().lower()
+                if "package" in name or "psys" in name or name.startswith("amd"):
+                    pl1 = p/"constraint_0_power_limit_uw"
+                    pl2 = p/"constraint_1_power_limit_uw"
+                    if pl1.exists(): return pl1, pl2 if pl2.exists() else None
+            except: pass
+    except: pass
+    return None, None
+
+def set_cpu_tdp(pl1_w: int, pl2_w: int):
+    """Set CPU TDP via RAPL. Requires daemon socket or pkexec."""
+    pl1_path, pl2_path = _rapl_power_paths()
+    if pl1_path:
+        wrsys(pl1_path, str(pl1_w * 1_000_000))
+    if pl2_path and pl2_w > 0:
+        wrsys(pl2_path, str(pl2_w * 1_000_000))
+    send_notif("CPU TDP Set", f"PL1: {pl1_w}W  PL2: {pl2_w}W", "cpu")
+
+def get_cpu_tdp():
+    """Return (pl1_w, pl2_w) or (0, 0)."""
+    pl1_path, pl2_path = _rapl_power_paths()
+    try:
+        pl1 = int(rdsys(pl1_path, "0")) // 1_000_000 if pl1_path else 0
+        pl2 = int(rdsys(pl2_path, "0")) // 1_000_000 if pl2_path else 0
+        return pl1, pl2
+    except: return 0, 0
+
+def get_cpu_min_freq_mhz():
+    try:
+        return int(Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq")
+                   .read_text()) // 1000
+    except: return 400
+
+def apply_cpu_min_freq(mhz: int):
+    khz = mhz * 1000
+    paths = [f"/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_min_freq"
+             for i in range(32)
+             if Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_min_freq").exists()]
+    if paths:
+        cmd = " && ".join(f"echo {khz} > {p}" for p in paths)
+        subprocess.Popen(["pkexec","sh","-c",cmd],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+# ── Fan control via legion_hwmon + FAN_FULLSPEED sysfs ────────────────────────
+#
+# Legion 5 15ACH6H fan control reality:
+#   fan_fullspeed  → /sys/devices/.../PNP0C09:00/fan_fullspeed  (0/1) — always works
+#   pwm1/pwm2      → legion_hwmon pwm files — may be writable on some driver versions
+#   fan1_input/fan2_input → RPM read-only — always works
+#
+# Strategy:
+#   Auto       → fan_fullspeed=0  (firmware controls fans via thermal curve)
+#   Full Speed → fan_fullspeed=1  (locks both fans to 100%)
+#   Manual     → try pwm via pkexec; if hwmon missing fall back to fan_fullspeed
+#   Presets    → map to platform_profile + fan_fullspeed combinations
+
+def _fan_hwmon():
+    return find_hwmon("legion_hwmon")
+
+def _fan_hwmon_info() -> dict:
+    """Return dict of what the hwmon actually exposes."""
+    h = _fan_hwmon()
+    if not h:
+        return {"found": False, "path": None,
+                "pwm1": False, "pwm2": False,
+                "pwm1_enable": False, "pwm2_enable": False}
+    return {
+        "found": True,
+        "path": str(h),
+        "pwm1":        (h/"pwm1").exists(),
+        "pwm2":        (h/"pwm2").exists(),
+        "pwm1_enable": (h/"pwm1_enable").exists(),
+        "pwm2_enable": (h/"pwm2_enable").exists(),
+    }
+
+def get_fan_rpm():
+    h = _fan_hwmon(); fans = []
+    if h:
+        for f in sorted(h.glob("fan*_input")):
+            try: fans.append(int(f.read_text()))
+            except: pass
+    while len(fans) < 2: fans.append(0)
+    return fans[0], fans[1]
+
+def get_fan_pwm():
+    h = _fan_hwmon()
+    if not h: return 128, 128
+    try: c = int((h/"pwm1").read_text())
+    except: c = 0
+    try: g = int((h/"pwm2").read_text())
+    except: g = 0
+    return c, g
+
+def _write_fan_pwm(cpu_pct: int, gpu_pct: int) -> tuple:
+    """
+    Write PWM values as root via subprocess (avoids daemon socket path issues).
+    Returns (ok: bool, msg: str).
+    """
+    h = _fan_hwmon()
+    if not h:
+        return False, "legion_hwmon not found"
+
+    cpu_pwm = int(cpu_pct * 255 / 100)
+    gpu_pwm = int(gpu_pct * 255 / 100)
+    cmds = []
+
+    pwm1_en = h / "pwm1_enable"
+    pwm2_en = h / "pwm2_enable"
+    pwm1    = h / "pwm1"
+    pwm2    = h / "pwm2"
+
+    if pwm1_en.exists(): cmds.append(f"echo 1 > {pwm1_en}")
+    if pwm2_en.exists(): cmds.append(f"echo 1 > {pwm2_en}")
+    if pwm1.exists():    cmds.append(f"echo {cpu_pwm} > {pwm1}")
+    if pwm2.exists():    cmds.append(f"echo {gpu_pwm} > {pwm2}")
+
+    if not cmds:
+        return False, f"No writable pwm files in {h}"
+
+    try:
+        r = subprocess.run(
+            ["pkexec", "sh", "-c", " && ".join(cmds)],
+            capture_output=True, text=True, timeout=8
+        )
+        if r.returncode == 0:
+            return True, f"PWM set: CPU {cpu_pct}%  GPU {gpu_pct}%"
+        else:
+            return False, r.stderr.strip()[:100]
+    except Exception as e:
+        return False, str(e)[:100]
+
+def _write_fan_auto() -> tuple:
+    """Set fans back to automatic (pwm_enable=2) + clear fan_fullspeed."""
+    cmds = []
+    h = _fan_hwmon()
+    if h:
+        for f in ["pwm1_enable", "pwm2_enable"]:
+            p = h / f
+            if p.exists(): cmds.append(f"echo 2 > {p}")
+
+    if FAN_FULLSPEED.exists():
+        cmds.append(f"echo 0 > {FAN_FULLSPEED}")
+
+    if not cmds:
+        return False, "No fan control paths found"
+
+    try:
+        r = subprocess.run(
+            ["pkexec", "sh", "-c", " && ".join(cmds)],
+            capture_output=True, text=True, timeout=8
+        )
+        return r.returncode == 0, r.stderr.strip()[:80] if r.returncode != 0 else "Auto"
+    except Exception as e:
+        return False, str(e)[:80]
+
+def _write_fan_fullspeed(on: bool) -> tuple:
+    """Set fan_fullspeed 0 or 1 via pkexec."""
+    if not FAN_FULLSPEED.exists():
+        return False, f"fan_fullspeed not found at {FAN_FULLSPEED}"
+    val = "1" if on else "0"
+    try:
+        r = subprocess.run(
+            ["pkexec", "sh", "-c", f"echo {val} > {FAN_FULLSPEED}"],
+            capture_output=True, text=True, timeout=8
+        )
+        return r.returncode == 0, r.stderr.strip()[:80] if r.returncode != 0 else ("Full speed ON" if on else "Full speed OFF")
+    except Exception as e:
+        return False, str(e)[:80]
+
+# Keep these as sync wrappers for backwards compat (used elsewhere)
+def set_fan_mode_auto():
+    _write_fan_auto()
+
+def set_fan_mode_manual(cpu_pct: int, gpu_pct: int):
+    _write_fan_pwm(cpu_pct, gpu_pct)
+
+def set_fan_fullspeed(on: bool):
+    _write_fan_fullspeed(on)
+    if on: _write_fan_pwm(100, 100)
+
+# Fan presets
+FAN_PRESETS = {
+    "Quiet":       (20, 20),
+    "Balanced":    (50, 50),
+    "Performance": (75, 80),
+    "Turbo":       (90, 95),
+    "Full Speed":  (100, 100),
+}
+
+def load_fan_config():
+    try:
+        if FAN_CFG.exists():
+            return json.loads(FAN_CFG.read_text())
+    except: pass
+    return {"mode": "auto", "cpu_pct": 50, "gpu_pct": 50, "preset": "Balanced"}
+
+def save_fan_config(data):
+    try:
+        FAN_CFG.parent.mkdir(parents=True, exist_ok=True)
+        FAN_CFG.write_text(json.dumps(data, indent=2))
+    except: pass
+
+# ── Appearance config ─────────────────────────────────────────────────────────
+_ACCENT_OPTIONS = {
+    "Legion Red":    "#cc3333",
+    "Electric Blue": "#2979ff",
+    "Neon Green":    "#00e676",
+    "Amber":         "#ffa724",
+    "Purple":        "#a855f7",
+    "Pink":          "#ff69b4",
+    "Cyan":          "#00bcd4",
+}
+
+def load_app_config():
+    try:
+        if APP_CFG.exists():
+            return json.loads(APP_CFG.read_text())
+    except: pass
+    return {"accent": "#cc3333", "font_size": 12}
+
+def save_app_config(data):
+    try:
+        APP_CFG.parent.mkdir(parents=True, exist_ok=True)
+        APP_CFG.write_text(json.dumps(data, indent=2))
+    except: pass
+
+def load_actions():
+    try:
+        if ACTIONS_CFG.exists():
+            return json.loads(ACTIONS_CFG.read_text())
+    except: pass
+    return {"on_ac":"performance","on_battery":"balanced","auto_switch":False,
+            "_last_ac": None}
+
+def save_actions(data):
+    try:
+        ACTIONS_CFG.parent.mkdir(parents=True, exist_ok=True)
+        ACTIONS_CFG.write_text(json.dumps(data, indent=2))
+    except: pass
+
+def apply_actions_now():
+    """Read actions config and apply profile if auto_switch is on."""
+    try:
+        cfg = load_actions()
+        if not cfg.get("auto_switch"): return
+        ac = get_ac_connected()
+        target = cfg["on_ac"] if ac else cfg["on_battery"]
+        current = _read_powermode()
+        if target != current:
+            apply_profile(target)
+            send_notif("Auto Profile",
+                       f"{'AC connected' if ac else 'On battery'} → {PROFILE_LABELS.get(target,target)}",
+                       "battery-charging" if ac else "battery")
+    except: pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BACKGROUND SAMPLER THREAD
+# ══════════════════════════════════════════════════════════════════════════════
+class DataSampler(QThread):
+    data_ready = pyqtSignal(dict)
+
+    def __init__(self):
+        super().__init__()
+        self.cpu_util    = 0
+        self._running    = True
+        self._last_idle  = 0
+        self._last_total = 0
+        self._last_ac    = None
+        # RAPL delta tracking for CPU power
+        self._rapl_file  = _find_rapl_energy_file()
+        self._rapl_is_delta = (self._rapl_file and
+                               "energy_uj" in str(self._rapl_file))
+        self._rapl_last_uj = 0
+        self._rapl_last_t  = 0.0
+        # seed CPU stat
+        try:
+            with open("/proc/stat") as f:
+                p = f.readline().split()
+            self._last_idle  = int(p[4])
+            self._last_total = sum(int(x) for x in p[1:])
+        except: pass
+        # seed RAPL
+        if self._rapl_is_delta and self._rapl_file:
+            try:
+                self._rapl_last_uj = int(self._rapl_file.read_text())
+                self._rapl_last_t  = time.monotonic()
+            except: pass
+
+    def _read_cpu_util(self):
+        try:
+            with open("/proc/stat") as f:
+                p = f.readline().split()
+            idle  = int(p[4])
+            total = sum(int(x) for x in p[1:])
+            di    = idle  - self._last_idle
+            dt    = total - self._last_total
+            self._last_idle  = idle
+            self._last_total = total
+            if dt > 0:
+                self.cpu_util = max(0, 100 - int(di * 100 / dt))
+        except: pass
+        return self.cpu_util
+
+    def _read_cpu_power(self):
+        """Return CPU package power in watts using RAPL energy delta."""
+        if not self._rapl_file:
+            return None
+        try:
+            now = time.monotonic()
+            val = int(self._rapl_file.read_text())
+            if self._rapl_is_delta:
+                dt = now - self._rapl_last_t
+                if dt > 0.05 and self._rapl_last_uj > 0:
+                    delta_uj = val - self._rapl_last_uj
+                    if delta_uj < 0:   # counter wraparound
+                        delta_uj += 2**32
+                    watts = round(delta_uj / dt / 1_000_000, 1)
+                    self._rapl_last_uj = val
+                    self._rapl_last_t  = now
+                    return watts if 0 < watts < 200 else None
+                self._rapl_last_uj = val
+                self._rapl_last_t  = now
+                return None
+            else:
+                # hwmon power*_input is already instantaneous µW
+                return round(val / 1_000_000, 1)
+        except: return None
+
+    def run(self):
+        _tick = 0
+        while self._running:
+            try:
+                _tick += 1
+                # Always sample — these are cheap reads
+                util          = self._read_cpu_util()
+                ac            = get_ac_connected()
+                profile       = _read_powermode()
+
+                # Medium cost — every tick
+                freq          = get_cpu_freq_ghz()
+                temp          = get_cpu_temp()
+                fan1, fan2    = get_fan_rpm()
+                ic_temp      = get_ic_temp() if is_lll_available() else 0
+                pct           = get_battery_pct()
+                bat_status    = get_battery_status()
+
+                # Slightly heavier — battery power
+                try:
+                    bat_power = f"{int(Path('/sys/class/power_supply/BAT0/power_now').read_text())/1_000_000:.1f} W"
+                except: bat_power = "—"
+
+                # CPU power via RAPL delta
+                cpu_power = self._read_cpu_power()
+
+                # Every 2 ticks — RAM, GPU, governor, EPP (slower changing)
+                if _tick % 2 == 0 or _tick == 1:
+                    ru, rt, rpct  = get_ram_info()
+                    gpu           = get_gpu_info()
+                    boost         = rdsys(AMD_BOOST,"0")
+                    gov           = get_governor()
+                    epp           = get_epp()
+                    ai_engine     = get_ai_engine()
+                    igpu_power    = get_igpu_power_w()
+                    vrr_on, vrr_p = get_vrr_status()
+                    self._cached = {
+                        "ram_used": ru, "ram_total": rt, "ram_pct": rpct,
+                        "gpu": gpu, "boost": boost, "gov": gov, "epp": epp,
+                        "ai_engine": ai_engine, "igpu_power": igpu_power,
+                        "vrr_on": vrr_on,
+                    }
+                else:
+                    # Use cached values
+                    cached = getattr(self, '_cached', {})
+                    ru     = cached.get("ram_used",  "—")
+                    rt     = cached.get("ram_total",  "—")
+                    rpct   = cached.get("ram_pct",    0)
+                    gpu    = cached.get("gpu",        {})
+                    boost  = cached.get("boost",      "0")
+                    gov    = cached.get("gov",        "—")
+                    epp    = cached.get("epp",        "—")
+                    ai_engine  = cached.get("ai_engine",  False)
+                    igpu_power = cached.get("igpu_power", None)
+                    vrr_on     = cached.get("vrr_on",     False)
+
+                self.data_ready.emit({
+                    "cpu_util":   util,  "cpu_freq":  freq,    "cpu_temp":  temp,
+                    "ic_temp":    ic_temp,
+                    "fan1":       fan1,  "fan2":      fan2,
+                    "ram_used":   ru,    "ram_total": rt,      "ram_pct":   rpct,
+                    "bat_pct":    pct,   "bat_status":bat_status,"bat_power":bat_power,
+                    "boost":      boost, "gov":       gov,     "epp":       epp,
+                    "ac":         ac,    "profile":   profile, "gpu":       gpu,
+                    "cpu_power":  cpu_power,  "igpu_power": igpu_power,
+                    "ai_engine":  ai_engine,  "vrr_on":     vrr_on,
+                })
+
+                # auto profile switch on AC change
+                if ac != self._last_ac and self._last_ac is not None:
+                    apply_actions_now()
+                self._last_ac = ac
+
+            except Exception:
+                pass
+            time.sleep(1.0)
+
+    def stop(self):
+        self._running = False
+        self.wait()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WIDGET PRIMITIVES
+# ══════════════════════════════════════════════════════════════════════════════
+
+class BarFill(QWidget):
+    """Smooth animated progress bar."""
+    def __init__(self, pct=0, color=None, parent=None):
+        super().__init__(parent)
+        self._pct   = float(max(0, min(100, pct)))
+        self._color = color or C_ACCENT
+        self.setFixedHeight(6)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._anim = QPropertyAnimation(self, b"pct_prop", self)
+        self._anim.setDuration(500)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+    @pyqtProperty(float)
+    def pct_prop(self): return self._pct
+    @pct_prop.setter
+    def pct_prop(self, v): self._pct = v; self.update()
+
+    def set_pct(self, pct, color=None):
+        target = float(max(0, min(100, pct)))
+        if color: self._color = color
+        if abs(target - self._pct) < 0.3:
+            self._pct = target; self.update(); return
+        self._anim.stop()
+        self._anim.setStartValue(self._pct)
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def _bar_color(self, pct):
+        if self._color != C_ACCENT: return QColor(self._color)
+        if pct > 85: return QColor(C_RED)
+        if pct > 65: return QColor(C_ORANGE)
+        return QColor(C_ACCENT)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        p.setBrush(QBrush(QColor(C_BORDER))); p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, w, h, 3, 3)
+        fill = int(w * self._pct / 100)
+        if fill > 0:
+            p.setBrush(QBrush(self._bar_color(self._pct)))
+            p.drawRoundedRect(0, 0, fill, h, 3, 3)
+        p.end()
+
+
+class StatRow(QWidget):
+    def __init__(self, label, value_str="—", pct=0,
+                 lbl_w=110, val_w=110, color=None, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(26)
+        self.setStyleSheet("background:transparent;")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(10)
+        self._lbl = QLabel(label)
+        self._lbl.setFixedWidth(lbl_w)
+        self._lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;font-weight:500;")
+        lay.addWidget(self._lbl)
+        self._bar = BarFill(pct, color)
+        lay.addWidget(self._bar)
+        self._val = QLabel(value_str)
+        self._val.setFixedWidth(val_w)
+        self._val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._val.setStyleSheet(f"color:{C_TEXT};font-size:12px;font-weight:600;")
+        lay.addWidget(self._val)
+
+    def update_value(self, value_str, pct, color=None):
+        self._val.setText(value_str)
+        self._bar.set_pct(pct, color)
+
+    def set_value(self, value_str, pct=0, color=None, visible=True):
+        self._val.setText(value_str)
+        self._bar.set_pct(pct, color)
+        self.setVisible(visible)
+
+
+class InfoRow(QWidget):
+    def __init__(self, label, value="—", lbl_w=180, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(40)
+        self.setStyleSheet("background:transparent;")
+        lay = QHBoxLayout(self); lay.setContentsMargins(0,4,0,4)
+        lbl = QLabel(label); lbl.setFixedWidth(lbl_w)
+        lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;font-weight:500;")
+        self._val = QLabel(value)
+        self._val.setStyleSheet(f"color:{C_TEXT};font-size:12px;font-weight:500;")
+        lay.addWidget(lbl); lay.addWidget(self._val); lay.addStretch()
+    def set_value(self, v): self._val.setText(v)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FIRST-RUN WIZARD  (language selector + hardware detection)
+# ══════════════════════════════════════════════════════════════════════════════
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QProgressBar, QListWidget, QListWidgetItem
+
+class FirstRunWizard(QDialog):
+    """
+    Shown once on first launch.
+    Page 0 → Language selection
+    Page 1 → Hardware detection with progress
+    Page 2 → Summary / done
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Legion Linux Toolkit — Setup")
+        self.setFixedSize(560, 440)
+        self.setWindowIcon(_legion_icon())
+        self.setStyleSheet(f"""
+            QDialog {{ background:{C_BG}; }}
+            QLabel  {{ color:{C_TEXT}; background:transparent; }}
+            QPushButton {{
+                background:{C_CARD2}; color:{C_TEXT}; border:1px solid {C_BORDER};
+                border-radius:8px; padding:10px 24px; font-size:13px;
+            }}
+            QPushButton:hover {{ background:{C_ACCENT}; color:#fff; border-color:{C_ACCENT}; }}
+            QListWidget {{
+                background:{C_CARD}; border:1px solid {C_BORDER};
+                border-radius:10px; color:{C_TEXT}; font-size:13px;
+            }}
+            QListWidget::item:selected {{
+                background:{C_ACCENT}; color:#fff; border-radius:6px;
+            }}
+            QListWidget::item:hover {{ background:{C_CARD2}; }}
+        """)
+        self._hw_result = {}
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self); root.setContentsMargins(32,28,32,24); root.setSpacing(0)
+
+        # ── Logo + App name ───────────────────────────────────────────────────
+        logo_row = QHBoxLayout()
+        logo_lbl = QLabel()
+        import base64 as _b64
+        from PyQt6.QtGui import QPixmap as _QPixmap
+        pm = _QPixmap(); pm.loadFromData(_b64.b64decode(_LEGION_ICON_B64))
+        logo_lbl.setPixmap(pm.scaled(44, 52, Qt.AspectRatioMode.KeepAspectRatio,
+                                     Qt.TransformationMode.SmoothTransformation))
+        logo_row.addWidget(logo_lbl)
+        logo_row.addSpacing(14)
+        app_name = QLabel("Legion Linux Toolkit")
+        app_name.setStyleSheet(f"color:{C_TEXT};font-size:20px;font-weight:600;")
+        logo_row.addWidget(app_name); logo_row.addStretch()
+        root.addLayout(logo_row)
+        root.addSpacing(20)
+
+        # ── Stacked pages ─────────────────────────────────────────────────────
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._page_lang())
+        self._stack.addWidget(self._page_detect())
+        self._stack.addWidget(self._page_done())
+        root.addWidget(self._stack, 1)
+
+        root.addSpacing(16)
+
+        # ── Navigation buttons ────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self._back_btn = QPushButton("← Back")
+        self._back_btn.setVisible(False)
+        self._back_btn.clicked.connect(self._go_back)
+        self._next_btn = QPushButton("Next →")
+        self._next_btn.clicked.connect(self._go_next)
+        self._next_btn.setStyleSheet(
+            f"QPushButton{{background:{C_ACCENT};color:#fff;border:none;"
+            f"border-radius:6px;padding:8px 24px;font-size:13px;font-weight:600;}}"
+            f"QPushButton:hover{{background:#aa2222;}}"
+        )
+        btn_row.addWidget(self._back_btn); btn_row.addWidget(self._next_btn)
+        root.addLayout(btn_row)
+
+        # Page indicator dots
+        self._dots = QHBoxLayout(); self._dots.setSpacing(6)
+        self._dot_lbls = []
+        for _ in range(3):
+            d = QLabel("●"); d.setStyleSheet(f"color:{C_TEXT3};font-size:10px;")
+            self._dot_lbls.append(d); self._dots.addWidget(d)
+        self._dots.addStretch()
+        root.addLayout(self._dots)
+        self._update_dots(0)
+
+    def _page_lang(self) -> QWidget:
+        w = QWidget(); w.setStyleSheet("background:transparent;")
+        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(10)
+        title = QLabel("Choose Your Language")
+        title.setStyleSheet(f"color:{C_TEXT};font-size:16px;font-weight:600;")
+        desc = QLabel("Select the language for the interface.")
+        desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;")
+        lay.addWidget(title); lay.addWidget(desc); lay.addSpacing(8)
+
+        self._lang_list = QListWidget()
+        self._lang_list.setFixedHeight(220)
+        # Pre-select saved or system language
+        saved = _LANG
+        sel_row = 0
+        for i, (code, name) in enumerate(_LANG_NAMES.items()):
+            item = QListWidgetItem(f"  {name}")
+            item.setData(Qt.ItemDataRole.UserRole, code)
+            self._lang_list.addItem(item)
+            if code == saved: sel_row = i
+        self._lang_list.setCurrentRow(sel_row)
+        self._lang_list.itemClicked.connect(self._on_lang_select)
+        lay.addWidget(self._lang_list)
+        return w
+
+    def _page_detect(self) -> QWidget:
+        w = QWidget(); w.setStyleSheet("background:transparent;")
+        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(10)
+        self._detect_title = QLabel("Hardware Detection")
+        self._detect_title.setStyleSheet(f"color:{C_TEXT};font-size:16px;font-weight:600;")
+        self._detect_desc = QLabel("Scanning your device for supported features.\nThis runs once and the result is saved.")
+        self._detect_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;")
+        self._detect_desc.setWordWrap(True)
+        lay.addWidget(self._detect_title); lay.addWidget(self._detect_desc)
+        lay.addSpacing(12)
+
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 0)   # indeterminate
+        self._progress.setFixedHeight(6)
+        self._progress.setStyleSheet(
+            f"QProgressBar{{background:{C_BORDER};border-radius:3px;border:none;}}"
+            f"QProgressBar::chunk{{background:{C_ACCENT};border-radius:3px;}}"
+        )
+        self._progress.hide()
+        lay.addWidget(self._progress)
+
+        self._detect_status = QLabel("")
+        self._detect_status.setStyleSheet(f"color:{C_TEXT3};font-size:12px;font-family:monospace;")
+        self._detect_status.setWordWrap(True)
+        lay.addWidget(self._detect_status)
+        lay.addStretch()
+        return w
+
+    def _page_done(self) -> QWidget:
+        w = QWidget(); w.setStyleSheet("background:transparent;")
+        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(10)
+        done_title = QLabel("✓  Setup Complete")
+        done_title.setStyleSheet(f"color:{C_GREEN};font-size:18px;font-weight:600;")
+        done_desc = QLabel("Your hardware profile has been saved.\nThe dashboard is ready to use.")
+        done_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;")
+        done_desc.setWordWrap(True)
+        lay.addWidget(done_title); lay.addWidget(done_desc); lay.addSpacing(8)
+
+        self._summary_lbl = QLabel("")
+        self._summary_lbl.setStyleSheet(
+            f"color:{C_TEXT2};font-size:12px;font-family:monospace;"
+            f"background:{C_CARD};border-radius:8px;padding:12px;")
+        self._summary_lbl.setWordWrap(True)
+        lay.addWidget(self._summary_lbl)
+        lay.addStretch()
+        return w
+
+    def _on_lang_select(self, item):
+        code = item.data(Qt.ItemDataRole.UserRole)
+        save_language(code)
+
+    def _update_dots(self, page: int):
+        for i, d in enumerate(self._dot_lbls):
+            d.setStyleSheet(
+                f"color:{C_ACCENT};font-size:10px;" if i == page
+                else f"color:{C_TEXT3};font-size:10px;"
+            )
+
+    def _go_next(self):
+        cur = self._stack.currentIndex()
+        if cur == 0:
+            # Save language from list
+            item = self._lang_list.currentItem()
+            if item:
+                save_language(item.data(Qt.ItemDataRole.UserRole))
+            self._stack.setCurrentIndex(1)
+            self._back_btn.setVisible(True)
+            self._update_dots(1)
+            self._next_btn.setEnabled(False)
+            self._next_btn.setText("Detecting…")
+            # Run detection in background
+            threading.Thread(target=self._run_detection, daemon=True).start()
+
+        elif cur == 1:
+            self._stack.setCurrentIndex(2)
+            self._update_dots(2)
+            self._next_btn.setText("Finish")
+
+        elif cur == 2:
+            self.accept()
+
+    def _go_back(self):
+        cur = self._stack.currentIndex()
+        if cur > 0:
+            self._stack.setCurrentIndex(cur - 1)
+            self._update_dots(cur - 1)
+            if cur - 1 == 0:
+                self._back_btn.setVisible(False)
+            self._next_btn.setText("Next →")
+            self._next_btn.setEnabled(True)
+
+    def _run_detection(self):
+        """Called from worker thread."""
+        from PyQt6.QtCore import QMetaObject, Q_ARG
+        def upd(msg):
+            QMetaObject.invokeMethod(self._detect_status, "setText",
+                Qt.ConnectionType.QueuedConnection, Q_ARG(str, msg))
+
+        QMetaObject.invokeMethod(self._progress, "show",
+            Qt.ConnectionType.QueuedConnection)
+
+        steps = [
+            ("Reading DMI info…",           lambda: _dmi("product_name")),
+            ("Checking power profiles…",    lambda: Path("/sys/firmware/acpi/platform_profile").exists()),
+            ("Checking fan control…",       lambda: FAN_FULLSPEED.exists()),
+            ("Checking battery paths…",     lambda: BAT.exists()),
+            ("Checking backlight…",         lambda: any(Path("/sys/class/backlight").iterdir()) if Path("/sys/class/backlight").exists() else False),
+            ("Checking ThinkPad features…", lambda: Path("/proc/acpi/ibm/fan").exists()),
+            ("Checking Yoga hinge…",        lambda: Path("/sys/bus/platform/drivers/lenovo-ymc").exists()),
+            ("Checking envycontrol…",       lambda: subprocess.run(["which","envycontrol"],capture_output=True).returncode==0),
+            ("Checking legionaura…",        lambda: subprocess.run(["which","legionaura"],capture_output=True).returncode==0),
+            ("Building capability map…",    lambda: detect_hardware()),
+        ]
+
+        lines = []
+        cap = {}
+        for msg, fn in steps:
+            upd(msg)
+            time.sleep(0.15)
+            try:
+                result = fn()
+                if isinstance(result, dict):
+                    cap = result
+                status = "✓" if result else "—"
+                lines.append(f"{status}  {msg.rstrip('…')}")
+            except Exception as e:
+                lines.append(f"✗  {msg.rstrip('…')}: {e}")
+
+        if not cap:
+            cap = detect_hardware()
+
+        save_hardware(cap)
+        FIRST_RUN_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        FIRST_RUN_FLAG.touch()
+
+        global HW
+        HW = cap
+
+        # Build summary
+        brand = cap.get("brand","unknown").upper()
+        model = cap.get("model","Unknown")
+        feats = []
+        if cap.get("platform_profile"): feats.append("Power Profiles")
+        if cap.get("fan_fullspeed"):    feats.append("Fan Control")
+        if cap.get("tp_charge_start"):  feats.append("ThinkPad Charge Thresholds")
+        if cap.get("tp_fan_control"):   feats.append("ThinkPad Fan Levels")
+        if cap.get("yoga_hinge"):       feats.append("Yoga Hinge Mode")
+        if cap.get("legionaura"):       feats.append("RGB Keyboard (LegionAura)")
+        if cap.get("envycontrol"):      feats.append("GPU Mode Switching")
+        if cap.get("overdrive"):        feats.append("Display Overdrive")
+        if cap.get("gsync"):            feats.append("G-Sync")
+        if cap.get("nw_backlight"):    feats.append("Brightness Backlight")
+
+        summary = f"Brand: {brand}\nModel: {model}\n\nDetected features:\n"
+        summary += "\n".join(f"  ✓  {f}" for f in feats) if feats else "  — No special features detected"
+
+        def finish_up():
+            self._progress.hide()
+            self._detect_status.setText("\n".join(lines[-4:]))
+            self._summary_lbl.setText(summary)
+            self._next_btn.setEnabled(True)
+            self._next_btn.setText("Next →")
+            self._stack.setCurrentIndex(2)
+            self._update_dots(2)
+            self._next_btn.setText("Finish")
+
+        QMetaObject.invokeMethod(self, "_finish_detection",
+            Qt.ConnectionType.QueuedConnection)
+
+    from PyQt6.QtCore import pyqtSlot
+
+    @pyqtSlot()
+    def _finish_detection(self):
+        cap = HW
+        brand = cap.get("brand","unknown").upper()
+        model = cap.get("model","Unknown")
+        feats = []
+        if cap.get("platform_profile"): feats.append("Power Profiles")
+        if cap.get("fan_fullspeed"):    feats.append("Fan Control")
+        if cap.get("tp_charge_start"):  feats.append("ThinkPad Charge Thresholds")
+        if cap.get("tp_fan_control"):   feats.append("ThinkPad Fan Levels (0–7)")
+        if cap.get("yoga_hinge"):       feats.append("Yoga Hinge Mode")
+        if cap.get("legionaura"):       feats.append("RGB Keyboard")
+        if cap.get("envycontrol"):      feats.append("GPU Mode Switching")
+        if cap.get("overdrive"):        feats.append("Display Overdrive")
+        if cap.get("gsync"):            feats.append("G-Sync")
+        if cap.get("nw_backlight"):    feats.append("Brightness Backlight")
+        if cap.get("tp_thinklight"):    feats.append("ThinkLight")
+        if cap.get("tp_micmute_led"):   feats.append("Mic Mute LED")
+        if cap.get("als_sensor"):       feats.append("Ambient Light Sensor")
+
+        summary = f"Brand:  {brand}\nModel:  {model}\n\nAvailable features:\n"
+        summary += "\n".join(f"  ✓  {f}" for f in feats) if feats else "  — Standard features only"
+        self._summary_lbl.setText(summary)
+        self._progress.hide()
+        self._next_btn.setEnabled(True)
+        self._next_btn.setText("Finish")
+        self._update_dots(2)
+        self._stack.setCurrentIndex(2)
+
+
+class ToggleSwitch(QWidget):
+    def __init__(self, path=None, on_change=None, parent=None, read_val=None):
+        super().__init__(parent)
+        self.path = path; self.on_change = on_change
+        val = read_val if read_val is not None else (rdsys(path) if path else "0")
+        self._checked = val == "1"
+        self._cx = 26.0 if self._checked else 6.0
+        self.setFixedSize(56, 32)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._anim = QPropertyAnimation(self, b"cx", self)
+        self._anim.setDuration(180)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+    @pyqtProperty(float)
+    def cx(self): return self._cx
+    @cx.setter
+    def cx(self, v): self._cx = v; self.update()
+
+    def isChecked(self): return self._checked
+
+    def setChecked(self, val, write=True, notify_title=None, notify_on=None, notify_off=None, silent=False):
+        self._checked = val
+        self._anim.stop()
+        self._anim.setStartValue(self._cx)
+        self._anim.setEndValue(26.0 if val else 6.0)
+        self._anim.start(); self.update()
+        if write and self.path:
+            wrsys(self.path, "1" if val else "0")
+        if notify_title and not silent:
+            body = notify_on if val else notify_off or ""
+            send_notif(notify_title, body, "dialog-information")
+        if self.on_change and not silent:
+            self.on_change(val)
+
+    def mousePressEvent(self, e):
+        if self.path and Path(self.path).exists():
+            actual = rdsys(self.path, "0") == "1"
+            self.setChecked(not actual)
+        else:
+            self.setChecked(not self._checked)
+
+    def paintEvent(self, e):
+        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bg_color = C_ACCENT if self._checked else C_TEXT3
+        p.setBrush(QBrush(QColor(bg_color)))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, 56, 32, 16, 16)
+        p.setBrush(QBrush(QColor("#ffffff")))
+        p.drawEllipse(int(self._cx), 6, 20, 20); p.end()
+
+
+class NotifyToggle(QWidget):
+    """ToggleRow that sends a desktop notification on change."""
+    def __init__(self, title, desc, path,
+                 notif_title=None, notif_on="Enabled", notif_off="Disabled",
+                 on_change=None, read_val=None, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background:transparent;"); self.setFixedHeight(56)
+        self._notif_title = notif_title or title
+        self._notif_on    = notif_on
+        self._notif_off   = notif_off
+        lay = QHBoxLayout(self); lay.setContentsMargins(0,4,0,4)
+        col = QVBoxLayout(); col.setSpacing(3)
+        t = QLabel(title)
+        t.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:500;background:transparent;border:none;")
+        d = QLabel(desc)
+        d.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;border:none;")
+        d.setWordWrap(True)
+        col.addWidget(t); col.addWidget(d)
+        lay.addLayout(col); lay.addStretch()
+        self.toggle = ToggleSwitch(path, self._on_toggle, parent=self, read_val=read_val)
+        lay.addWidget(self.toggle, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self._on_change = on_change
+
+    def _on_toggle(self, val):
+        send_notif(self._notif_title,
+                   self._notif_on if val else self._notif_off)
+        if self._on_change: self._on_change(val)
+
+
+def _mk_lbl(text: str, color: str = None, size: int = 12, bold: bool = False) -> QLabel:
+    """Quick styled QLabel factory."""
+    lbl = QLabel(text)
+    c = color or C_TEXT2
+    w = "600" if bold else "400"
+    lbl.setStyleSheet(f"color:{c};font-size:{size}px;font-weight:{w};background:transparent;")
+    lbl.setWordWrap(True)
+    return lbl
+
+def _mk_lineedit(text: str = "", width: int = 100, placeholder: str = "") -> "QLineEdit":
+    from PyQt6.QtWidgets import QLineEdit
+    le = QLineEdit(text)
+    le.setPlaceholderText(placeholder)
+    le.setFixedWidth(width)
+    le.setStyleSheet(
+        f"QLineEdit{{background:{C_CARD2};color:{C_TEXT};border:none;"
+        f"border-radius:8px;padding:8px 12px;font-size:13px;selection-background-color:{C_ACCENT};}}"
+    )
+    return le
+
+def make_div():
+    f = QWidget(); f.setFixedHeight(6); f.setStyleSheet("background:transparent;")
+    return f
+
+def make_card(title=""):
+    card = QWidget()
+    card.setStyleSheet(f"background:{C_CARD};border-radius:12px;")
+    card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+    lay = QVBoxLayout(card); lay.setContentsMargins(20,16,20,16); lay.setSpacing(12)
+    if title:
+        t = QLabel(title)
+        t.setStyleSheet(f"color:{C_TEXT};font-size:14px;font-weight:600;background:transparent;border:none;")
+        lay.addWidget(t)
+    return card, lay
+
+def sec_title(text):
+    l = QLabel(text)
+    l.setStyleSheet(f"color:{C_TEXT};font-size:14px;font-weight:600;background:transparent;border:none;")
+    return l
+
+def combo_style():
+    return (f"QComboBox{{background:{C_CARD2};color:{C_TEXT};border:none;"
+            f"border-radius:8px;padding:8px 14px;font-size:13px;min-width:180px;}}"
+            f"QComboBox::drop-down{{border:none;width:24px;}}"
+            f"QComboBox QAbstractItemView{{background:{C_CARD2};color:{C_TEXT};"
+            f"border:none;selection-background-color:{C_ACCENT};selection-color:#fff;"
+            f"padding:4px;}}")
+
+
+class StatusBadge(QWidget):
+    def __init__(self, title, value="—", color=C_TEXT3, tooltip="", parent=None):
+        super().__init__(parent)
+        self.setMinimumWidth(90)
+        self.setFixedHeight(60)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setStyleSheet(
+            f"QWidget{{background:{C_CARD2};border-radius:10px;}}"
+        )
+        lay = QVBoxLayout(self); lay.setContentsMargins(10,8,10,8); lay.setSpacing(2)
+        self._t = QLabel(title)
+        self._t.setStyleSheet(f"color:{C_TEXT2};font-size:10px;background:transparent;border:none;font-weight:500;")
+        self._v = QLabel(value)
+        self._v.setStyleSheet(f"color:{color};font-size:13px;font-weight:700;background:transparent;border:none;")
+        self._v.setWordWrap(False)
+        self._v.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        lay.addWidget(self._t); lay.addWidget(self._v)
+        if tooltip: self.setToolTip(tooltip)
+
+    def set_value(self, v, color=None):
+        self._v.setText(v)
+        if color:
+            self._v.setStyleSheet(
+                f"color:{color};font-size:12px;font-weight:600;background:transparent;border:none;"
+            )
+
+
+class AIBadge(StatusBadge):
+    """StatusBadge with an inline toggle switch — identical size/style to peers."""
+    toggled = None  # callback(bool)
+
+    def __init__(self, on_change=None, parent=None):
+        super().__init__("L1 AI Engine", "OFF", C_TEXT3,
+                         "Lenovo L1 AI Engine\nOn Linux: adjusts EPP for performance.\nToggle is manual — never auto-changed by profile switching.",
+                         parent)
+        self.toggled = on_change
+        # Replace the value label row with value + toggle side by side
+        lay = self.layout()
+        # Remove old value label
+        lay.removeWidget(self._v)
+        self._v.setParent(None)
+        # New row: value text + toggle
+        row = QHBoxLayout(); row.setContentsMargins(0,0,0,0); row.setSpacing(4)
+        self._v = QLabel("OFF")
+        self._v.setStyleSheet(f"color:{C_TEXT3};font-size:12px;font-weight:600;background:transparent;border:none;")
+        self._v.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self._tog = ToggleSwitch(path=None, on_change=self._handle_toggle, read_val="0")
+        self._tog.setFixedSize(36, 20)
+        row.addWidget(self._v); row.addWidget(self._tog)
+        lay.addLayout(row)
+
+    def _handle_toggle(self, val):
+        col = C_GREEN if val else C_TEXT3
+        self._v.setText("ON" if val else "OFF")
+        self._v.setStyleSheet(f"color:{col};font-size:12px;font-weight:600;background:transparent;border:none;")
+        if self.toggled:
+            self.toggled(val)
+
+    def set_state(self, is_on: bool, silent: bool = False):
+        """Update visual state WITHOUT triggering the callback."""
+        col = C_GREEN if is_on else C_TEXT3
+        self._v.setText("ON" if is_on else "OFF")
+        self._v.setStyleSheet(f"color:{col};font-size:12px;font-weight:600;background:transparent;border:none;")
+        self._tog._checked = is_on
+        self._tog._cx = 22.0 if is_on else 4.0
+        self._tog.update()
+
+
+class ProfileBtn(QPushButton):
+    def __init__(self, profile, parent=None):
+        super().__init__(parent)
+        self.profile = profile
+        self.setCheckable(True)
+        self.setFixedHeight(72)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        color  = PROFILE_COLORS[profile]
+        icon   = PROFILE_ICONS[profile]
+        label  = PROFILE_LABELS[profile]
+        desc   = PROFILE_DESCS[profile].split(" · ")[0]   # first part only e.g. "15W"
+        # Unchecked: dark card
+        # Checked: colored border + subtle color background
+        import re as _re
+        r = int(_re.search(r'#(..)', color).group(1), 16) if '#' in color else 255
+        self.setStyleSheet(
+            f"QPushButton{{"
+            f"  background:{C_CARD2};color:{C_TEXT2};"
+            f"  border:none;border-radius:10px;"
+            f"  font-size:12px;text-align:center;padding:4px 2px;"
+            f"}}"
+            f"QPushButton:checked{{"
+            f"  background:rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},30);"
+            f"  color:{color};border:none;border-radius:10px;"
+            f"}}"
+            f"QPushButton:hover:!checked{{"
+            f"  background:{C_HOVER};color:{C_TEXT};"
+            f"}}"
+        )
+        # Layout inside button: icon on top, label below, watt hint at bottom
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 6, 4, 6)
+        lay.setSpacing(1)
+        lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_icon = QLabel(icon)
+        lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_icon.setStyleSheet("background:transparent;font-size:16px;")
+        lbl_name = QLabel(label)
+        lbl_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_name.setStyleSheet(f"background:transparent;font-size:12px;font-weight:600;color:{color};")
+        lbl_desc = QLabel(desc)
+        lbl_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_desc.setStyleSheet(f"background:transparent;font-size:12px;color:{C_TEXT3};")
+        lay.addWidget(lbl_icon)
+        lay.addWidget(lbl_name)
+        lay.addWidget(lbl_desc)
+
+
+class SidebarBtn(QPushButton):
+    def __init__(self, icon_char, label, parent=None):
+        super().__init__(parent); self.setCheckable(True)
+        self.setFixedSize(204, 44)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.icon_char = icon_char; self.label = label
+
+        self.setLayout(QHBoxLayout())
+        self.layout().setContentsMargins(16, 0, 16, 0)
+        self.layout().setSpacing(12)
+        self.layout().setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self._icon_lbl = QLabel(icon_char)
+        self._icon_lbl.setStyleSheet(f"font-size:18px;background:transparent;")
+        self._icon_lbl.setFixedSize(20, 20)
+        self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._text_lbl = QLabel(label)
+        self._text_lbl.setStyleSheet(f"font-size:13px;background:transparent;font-weight:500;")
+
+        self.layout().addWidget(self._icon_lbl)
+        self.layout().addWidget(self._text_lbl)
+        self.layout().addStretch()
+
+        self.toggled.connect(self._update_style)
+        self._update_style(self.isChecked())
+
+    def _update_style(self, checked):
+        if checked:
+            bg = C_ACTIVE; fg = C_ACCENT; tw = 600
+            il_color = C_ACCENT; tl_color = C_ACCENT
+        else:
+            bg = "transparent"; fg = C_TEXT2; tw = 500
+            il_color = C_TEXT3; tl_color = C_TEXT2
+        self.setStyleSheet(
+            f"QPushButton{{background:{bg};border:none;color:{fg};"
+            f"border-radius:8px;}}"
+            f"QPushButton:hover{{background:{C_HOVER};}}"
+        )
+        self._icon_lbl.setStyleSheet(f"color:{il_color};font-size:18px;background:transparent;")
+        self._text_lbl.setStyleSheet(f"color:{tl_color};font-size:13px;background:transparent;font-weight:{tw};")
+
+
+def scrollable(widget_factory):
+    """Wrap a QVBoxLayout-based page in a scroll area."""
+    outer = QWidget()
+    outer.setStyleSheet(f"background:{C_BG};")
+    scroll = QScrollArea(outer)
+    scroll.setWidgetResizable(True)
+    scroll.setStyleSheet("border:none;background:transparent;")
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+    root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+    lay = QVBoxLayout(outer); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+    scroll.setWidget(inner)
+    widget_factory(root)
+    root.addStretch()
+    return outer
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HOME PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class HomePage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._last_profile = None
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        root.setAlignment(Qt.AlignmentFlag.AlignTop)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # ── Hardware Monitor Card ─────────────────────────────────────────
+        hw = QWidget(); hw.setStyleSheet(f"background:{C_CARD};border-radius:12px;")
+        hw.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        hw_outer = QHBoxLayout(hw); hw_outer.setContentsMargins(0,0,0,0); hw_outer.setSpacing(0)
+
+        def hw_col(stretch=1):
+            w = QWidget(); w.setStyleSheet("background:transparent;")
+            w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+            l = QVBoxLayout(w); l.setContentsMargins(16,14,16,14); l.setSpacing(2)
+            l.setAlignment(Qt.AlignmentFlag.AlignTop)
+            return w, l
+
+        def col_hdr(text, badge_widget=None):
+            row = QHBoxLayout(); row.setSpacing(8); row.setContentsMargins(0,0,0,8)
+            lbl = QLabel(text)
+            lbl.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:600;background:transparent;")
+            row.addWidget(lbl)
+            if badge_widget: row.addWidget(badge_widget)
+            row.addStretch()
+            hdr_w = QWidget(); hdr_w.setStyleSheet("background:transparent;")
+            hdr_l = QVBoxLayout(hdr_w); hdr_l.setContentsMargins(0,0,0,4); hdr_l.setSpacing(3)
+            hdr_l.addLayout(row)
+            return hdr_w
+
+        def vdiv():
+            f = QWidget(); f.setFixedWidth(12); f.setStyleSheet("background:transparent;")
+            f.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+            return f
+
+        # CPU column
+        cpu_w, cpu_l = hw_col(3)
+        cpu_l.addWidget(col_hdr("CPU"))
+        self.r_util  = StatRow("Utilization",  "0%",      0)
+        self.r_freq  = StatRow("Core Clock",   "0.0 GHz", 0, val_w=80)
+        self.r_temp  = StatRow("Temperature",  "0 °C",    0, val_w=80)
+        self.r_ic_temp = StatRow("IC Temp",    "—",     0, val_w=80)
+        self.r_ic_temp.setToolTip("Integrated Controller temperature (requires LLL)")
+        self.r_fan1  = StatRow("Fan 1",        "0 RPM",   0, val_w=80)
+        self.r_fan2  = StatRow("Fan 2",        "0 RPM",   0, val_w=80)
+        for r in [self.r_util,self.r_freq,self.r_temp,
+                  self.r_ic_temp,self.r_fan1,self.r_fan2]:
+            cpu_l.addWidget(r)
+
+        # GPU column
+        gpu_w, gpu_l = hw_col(3)
+        self.gpu_pstate_lbl = QLabel("P-State: —")
+        self.gpu_pstate_lbl.setStyleSheet(
+            f"color:{C_BLUE};font-size:12px;background:transparent;"
+            f"border:none;border-radius:4px;padding:2px 6px;"
+        )
+        self.gpu_pstate_lbl.setToolTip("GPU Performance State\nP0=Max  P2=Mid  P8=Idle")
+        gpu_l.addWidget(col_hdr("GPU", self.gpu_pstate_lbl))
+        self.r_g_util = StatRow("Utilization",  "—", 0, val_w=90, color=C_BLUE)
+        self.r_g_freq = StatRow("Core Clock",   "—", 0, val_w=90, color=C_BLUE)
+        self.r_g_temp = StatRow("Temperature",  "—", 0, val_w=90)
+        self.r_g_mem  = StatRow("VRAM Used",    "—", 0, val_w=90, color=C_BLUE)
+        self.r_g_pow  = StatRow("Power Draw",   "—", 0, val_w=90, color=C_ORANGE)
+        for r in [self.r_g_util,self.r_g_freq,self.r_g_temp,self.r_g_mem,self.r_g_pow]:
+            gpu_l.addWidget(r)
+        self.gpu_na = QLabel("nvidia-smi not found — yay -S nvidia-utils")
+        self.gpu_na.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
+        self.gpu_na.hide(); gpu_l.addWidget(self.gpu_na)
+
+        # Memory & Battery column
+        mem_w, mem_l = hw_col(2)
+        mem_l.addWidget(col_hdr("Memory & Battery"))
+        self.r_ram   = StatRow("RAM Used",  "0 MB",  0, val_w=120)
+        self.r_bat   = StatRow("Battery",   "0%",    0, val_w=120, color=C_GREEN)
+        self.r_bstat = StatRow("Status",    "—",     0, val_w=120)
+        self.r_bpow  = StatRow("Draw",      "— W",   0, val_w=120)
+        for r in [self.r_ram,self.r_bat,self.r_bstat,self.r_bpow]:
+            mem_l.addWidget(r)
+
+        hw_outer.addWidget(cpu_w, 3); hw_outer.addWidget(vdiv())
+        hw_outer.addWidget(gpu_w, 3); hw_outer.addWidget(vdiv())
+        hw_outer.addWidget(mem_w, 2)
+        root.addWidget(hw)
+
+        # ── Power  +  Graphics  (2-column, LLT-style) ───────────────────────
+        two_col = QHBoxLayout(); two_col.setSpacing(10)
+
+        # ── LEFT: Power card ─────────────────────────────────────────────────
+        pw, pl = make_card("Power")
+
+        def _setting_row(icon_text, title, desc, control_widget):
+            """LLT-style row: icon | title+desc | control"""
+            row_w = QWidget(); row_w.setStyleSheet("background:transparent;")
+            row_w.setMinimumHeight(60)
+            rl = QHBoxLayout(row_w); rl.setContentsMargins(0,6,0,6); rl.setSpacing(14)
+            icon = QLabel(icon_text)
+            icon.setFixedWidth(32)
+            icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon.setStyleSheet("font-size:18px;background:transparent;")
+            txt = QVBoxLayout(); txt.setSpacing(3)
+            t = QLabel(title)
+            t.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:500;background:transparent;")
+            d = QLabel(desc); d.setWordWrap(True)
+            d.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+            txt.addWidget(t); txt.addWidget(d)
+            rl.addWidget(icon)
+            rl.addLayout(txt, 1)
+            rl.addWidget(control_widget, 0, Qt.AlignmentFlag.AlignVCenter)
+            return row_w
+
+        def _combo(options, current_idx=0):
+            c = QComboBox(); c.setStyleSheet(combo_style())
+            c.setFixedWidth(170); c.setFixedHeight(34)
+            for o in options:
+                if isinstance(o, tuple):
+                    c.addItem(o[0])                        # display text
+                    c.setItemData(c.count()-1, o[1])       # sysfs name as UserRole data
+                else:
+                    c.addItem(o)
+            c.setCurrentIndex(current_idx)
+            return c
+
+        # Power Mode dropdown
+        cur_profile  = _read_powermode()
+        profile_opts = [(PROFILE_LABELS.get(p,p), p) for p in PROFILES]
+        cur_idx      = next((i for i,(_,p) in enumerate(profile_opts) if p == cur_profile), 0)
+        self.power_combo = _combo(profile_opts, cur_idx)
+        self.power_combo.currentIndexChanged.connect(self._on_power_combo)
+        pl.addWidget(_setting_row("⚡", "Power Mode",
+            "Change performance profile.  Also: Fn+Q",
+            self.power_combo))
+        pl.addWidget(make_div())
+
+        # Battery Mode dropdown
+        cons = rdsys(CONSERVATION_MODE,"0"); rapid = rdsys(RAPID_CHARGE,"0")
+        bat_mode_now = 1 if cons=="1" else 2 if rapid=="1" else 0
+        self.bat_combo = _combo(["Normal", "Conservation (~60%)", "Rapid Charge"], bat_mode_now)
+        self.bat_combo.currentIndexChanged.connect(self._on_bat_combo)
+        pl.addWidget(_setting_row("🔋", "Battery Mode",
+            "Choose how the battery is charged.", self.bat_combo))
+        pl.addWidget(make_div())
+
+        # Always on USB toggle
+        usb_tog = ToggleSwitch(path=USB_CHARGING,
+                               read_val=rdsys(USB_CHARGING,"0"))
+        pl.addWidget(_setting_row("🔌", "Always on USB",
+            "Charge USB devices when laptop is off or sleeping.", usb_tog))
+        pl.addWidget(make_div())
+
+        # Fn Lock toggle
+        fn_tog = ToggleSwitch(path=FN_LOCK, read_val=rdsys(FN_LOCK,"0"))
+        pl.addWidget(_setting_row("⌨️", "Fn Lock",
+            "Swap Fn and media keys so F1–F12 work as function keys.", fn_tog))
+
+        two_col.addWidget(pw, 1)
+
+        # ── RIGHT: Graphics card ──────────────────────────────────────────────
+        gw, gl = make_card("Graphics")
+
+        # GPU Working Mode via envycontrol
+        # Read current mode from envycontrol at build time
+        def _envycontrol_current() -> int:
+            try:
+                r = subprocess.run(["envycontrol", "--query"],
+                                   capture_output=True, text=True, timeout=4)
+                out = r.stdout.strip().lower()
+                if "integrated" in out:   return 2
+                if "nvidia" in out:       return 1
+                return 0   # hybrid
+            except Exception: return 0
+
+        gpu_mode_opts = [
+            ("Hybrid  (iGPU + dGPU)", "hybrid"),
+            ("NVIDIA  (Discrete only)", "nvidia"),
+            ("Integrated  (iGPU only)", "integrated"),
+        ]
+        _cur_gpu_idx = _envycontrol_current()
+        self.gpu_mode_combo = QComboBox()
+        self.gpu_mode_combo.setStyleSheet(combo_style())
+        self.gpu_mode_combo.setFixedHeight(34)
+        for label, _ in gpu_mode_opts:
+            self.gpu_mode_combo.addItem(label)
+        self.gpu_mode_combo.setCurrentIndex(_cur_gpu_idx)
+        self.gpu_mode_combo.currentIndexChanged.connect(self._on_gpu_mode_combo)
+        gl.addWidget(_setting_row("🎮", "GPU Working Mode",
+            "Switches GPU mode via envycontrol. Requires reboot to take effect.", self.gpu_mode_combo))
+        gl.addWidget(make_div())
+
+        # G-Sync Toggle — via ToggleSwitch
+        _gsync_tog = ToggleSwitch(path=GSYNC, read_val=rdsys(GSYNC,"0"))
+        gl.addWidget(_setting_row("🔄", "G-Sync",
+            "NVIDIA G-Sync variable refresh rate. Enable for smoother gaming.", _gsync_tog))
+        gl.addWidget(make_div())
+
+        # Display Overdrive toggle
+        od_tog = ToggleSwitch(path=OVERDRIVE, read_val=rdsys(OVERDRIVE,"0"))
+        gl.addWidget(_setting_row("🖥️", "Display Overdrive",
+            "Reduce display response time latency.", od_tog))
+        gl.addWidget(make_div())
+
+        # Overclock GPU row — button to navigate to OC page
+        oc_btn = QPushButton("Open OC →")
+        oc_btn.setFixedSize(110, 34)
+        oc_btn.setStyleSheet(
+            f"background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+            f"border-radius:6px;font-size:12px;")
+        oc_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        oc_btn.clicked.connect(lambda: self._request_page(6))
+        gl.addWidget(_setting_row("🚀", "Overclock GPU",
+            "Increase performance by overclocking the discrete GPU.", oc_btn))
+
+        two_col.addWidget(gw, 1)
+        root.addLayout(two_col)
+
+        # ── System Status badges ──────────────────────────────────────────────
+        ss = QWidget(); ss.setStyleSheet(f"background:{C_CARD};border-radius:8px;")
+        ss.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        ssl = QVBoxLayout(ss); ssl.setContentsMargins(16,12,16,12); ssl.setSpacing(8)
+        ss_title = QLabel("System Status")
+        ss_title.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:600;background:transparent;")
+        ssl.addWidget(ss_title)
+        badge_row = QHBoxLayout(); badge_row.setSpacing(6)
+        self.b_boost  = StatusBadge("CPU Boost","—",C_TEXT3,"AMD Boost: allows CPU to burst above base clock")
+        self.b_gov    = StatusBadge("Governor","—",C_BLUE,"CPU frequency scaling governor")
+        self.b_epp    = StatusBadge("EPP","—",C_ORANGE,"Energy Performance Preference")
+        self.b_ac     = StatusBadge("Power","—",C_GREEN,"Current power source")
+        self.b_pstate = StatusBadge("GPU P-State","—",C_BLUE,"P0=Max Performance  P2=Mid  P8=Idle")
+        for b in [self.b_boost,self.b_gov,self.b_epp,self.b_ac,self.b_pstate]:
+            badge_row.addWidget(b)
+        ssl.addLayout(badge_row)
+        root.addWidget(ss)
+        root.addStretch()
+        self._page_request_cb = None
+        self._sync_battery_cb = None   # set by LegionDashboard to sync Battery page
+
+    def _request_page(self, idx):
+        if self._page_request_cb:
+            self._page_request_cb(idx)
+
+    def _on_power_combo(self, idx):
+        """Power Mode dropdown changed — read sysfs name from item UserRole data."""
+        p = self.power_combo.currentData()
+        if not p:  # fallback by position
+            p = PROFILES[idx] if idx < len(PROFILES) else PROFILES[0]
+        ok, msg = apply_profile(p)
+        send_notif(f"Power Mode: {PROFILE_LABELS.get(p,p)}",
+                   msg if not ok else PROFILE_DESCS.get(p,""), "battery" if ok else "dialog-error")
+
+    def _on_bat_combo(self, idx):
+        """Battery Mode: 0=Normal 1=Conservation 2=Rapid"""
+        if idx == 0:
+            wrsys(CONSERVATION_MODE, "0"); wrsys(RAPID_CHARGE, "0")
+            send_notif("Battery Mode", "Normal charging", "battery")
+            mode = "normal"
+        elif idx == 1:
+            wrsys(CONSERVATION_MODE, "1"); wrsys(RAPID_CHARGE, "0")
+            send_notif("Battery Mode", "Conservation — capped at ~60%", "battery")
+            mode = "conservation"
+        elif idx == 2:
+            wrsys(RAPID_CHARGE, "1"); wrsys(CONSERVATION_MODE, "0")
+            send_notif("Battery Mode", "Rapid Charge ON", "battery")
+            mode = "rapid"
+        else:
+            return
+        # Sync Battery page toggles if callback is set
+        if self._sync_battery_cb:
+            self._sync_battery_cb(mode)
+
+    def _on_gpu_mode_combo(self, idx):
+        """Apply GPU mode via envycontrol then notify user to reboot."""
+        modes  = ["hybrid", "nvidia", "integrated"]
+        labels = ["Hybrid (iGPU + dGPU)", "NVIDIA (Discrete only)", "Integrated (iGPU only)"]
+        descs  = [
+            "AMD iGPU renders, NVIDIA handles 3D workloads.",
+            "NVIDIA GPU drives everything — reboot required.",
+            "AMD iGPU only, NVIDIA powered off — reboot required.",
+        ]
+        mode = modes[idx]
+
+        def _do():
+            try:
+                import socket as _sk
+                c = _sk.socket(_sk.AF_UNIX, _sk.SOCK_STREAM)
+                c.settimeout(35)
+                c.connect("/run/legion-toolkit.sock")
+                c.send(f"envycontrol:{mode}\n".encode())
+                resp = c.recv(256).decode().strip()
+                c.close()
+                if resp == "ok":
+                    send_notif(
+                        f"GPU Mode → {labels[idx]}",
+                        f"{descs[idx]}\n\n⚠  Reboot to apply.",
+                        "display"
+                    )
+                elif "not found" in resp:
+                    send_notif("envycontrol not found",
+                        "Install it: yay -S envycontrol\nthen run: sudo bash update.sh",
+                        "dialog-error")
+                else:
+                    send_notif("GPU Mode — Error",
+                        resp.replace("err:","").strip() or "envycontrol failed",
+                        "dialog-error")
+            except ConnectionRefusedError:
+                # Daemon not running — try envycontrol directly via pkexec
+                try:
+                    import shutil
+                    env_bin = shutil.which("envycontrol")
+                    if env_bin:
+                        r = subprocess.run(
+                            ["pkexec", env_bin, "--switch", mode],
+                            capture_output=True, text=True, timeout=30
+                        )
+                        if r.returncode == 0:
+                            send_notif(f"GPU Mode → {labels[idx]}",
+                                f"{descs[idx]}\n\n⚠  Reboot to apply.", "display")
+                        else:
+                            send_notif("GPU Mode — Error",
+                                (r.stderr or r.stdout or "failed").strip()[:120],
+                                "dialog-error")
+                    else:
+                        send_notif("Daemon not running",
+                            "Start it: sudo systemctl start legion-toolkit",
+                            "dialog-error")
+                except Exception as e2:
+                    send_notif("GPU Mode — Error", str(e2)[:100], "dialog-error")
+            except Exception as e:
+                send_notif("GPU Mode — Error", str(e)[:100], "dialog-error")
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _on_profile(self, profile):
+        """Kept for compat — not used in new layout."""
+        apply_profile(profile)
+
+    def refresh(self, d=None):
+        if d is None: return
+        # CPU
+        self.r_util.update_value(f"{d['cpu_util']}%",  d["cpu_util"])
+        self.r_freq.update_value(f"{d['cpu_freq']} GHz", int(d["cpu_freq"]/4.4*100))
+        self.r_temp.update_value(f"{d['cpu_temp']} °C",  d["cpu_temp"])
+        ic = d.get("ic_temp", 0)
+        if ic > 0:
+            self.r_ic_temp.set_value(f"{ic} °C", ic, visible=True)
+            self.r_ic_temp.setToolTip("Integrated Controller temperature (LLL)")
+        else:
+            self.r_ic_temp.set_value("—", 0, visible=False)
+            self.r_ic_temp.setToolTip("IC temperature requires LLL driver")
+        self.r_fan1.update_value(f"{d['fan1']} RPM",  int(d["fan1"]/5000*100))
+        self.r_fan2.update_value(f"{d['fan2']} RPM",  int(d["fan2"]/5000*100))
+        # GPU
+        gpu = d["gpu"]
+        if gpu.get("available"):
+            self.gpu_na.hide()
+            gmem_pct = int(gpu["mem_used"]*100/max(gpu["mem_total"],1))
+            self.r_g_util.update_value(f"{gpu['util']}%",  gpu["util"], C_BLUE)
+            self.r_g_freq.update_value(f"{gpu['freq']} MHz",int(gpu["freq"]/2000*100),C_BLUE)
+            self.r_g_temp.update_value(f"{gpu['temp']} °C", gpu["temp"])
+            self.r_g_mem.update_value( f"{gpu['mem_used']}/{gpu['mem_total']} MB",gmem_pct,C_BLUE)
+            self.r_g_pow.update_value( f"{gpu['power']:.0f} W",int(gpu["power"]/150*100),C_ORANGE)
+            pst = gpu.get("pstate","—")
+            col = C_GREEN if pst=="P0" else C_BLUE if pst in ["P1","P2"] else C_TEXT3
+            self.gpu_pstate_lbl.setText(f"P-State: {pst}")
+            self.gpu_pstate_lbl.setStyleSheet(
+                f"color:{col};font-size:12px;background:transparent;"
+                f"border:1px solid {col};border-radius:4px;padding:2px 8px;"
+            )
+        else:
+            self.gpu_na.show()
+            for r in [self.r_g_util,self.r_g_freq,self.r_g_temp,self.r_g_mem,self.r_g_pow]:
+                r.update_value("—", 0)
+            self.gpu_pstate_lbl.setText("P-State: N/A")
+        # RAM & Battery
+        ru=d["ram_used"]; rt=d["ram_total"]; rpct=d["ram_pct"]
+        pct=d["bat_pct"]; status=d["bat_status"]
+        self.r_ram.update_value(f"{ru} MB / {rt} MB", rpct)
+        bat_col = C_GREEN if pct>50 else C_ORANGE if pct>20 else C_RED
+        self.r_bat.update_value(f"{pct}%", pct, bat_col)
+        self.r_bstat.update_value(status, 0)
+        self.r_bpow.update_value(d["bat_power"], 0)
+        # Profile — sync dropdown by matching stored UserRole data (sysfs name)
+        cur = d["profile"]
+        self.power_combo.blockSignals(True)
+        for i in range(self.power_combo.count()):
+            if self.power_combo.itemData(i, Qt.ItemDataRole.UserRole) == cur:
+                self.power_combo.setCurrentIndex(i)
+                break
+        self.power_combo.blockSignals(False)
+        # Badges
+        boost = d["boost"]
+        self.b_boost.set_value("ON" if boost=="1" else "OFF",
+                               C_GREEN if boost=="1" else C_TEXT3)
+        self.b_gov.set_value(d["gov"].capitalize(), C_BLUE)
+        # EPP: shorten for display, full name in tooltip
+        epp_raw = d["epp"]
+        EPP_SHORT = {"default":"Default","performance":"Perf","balance_performance":"Bal.Perf",
+                     "balance_power":"Bal.Power","power":"PowerSave"}
+        self.b_epp.set_value(EPP_SHORT.get(epp_raw, epp_raw[:10]), C_ORANGE)
+        self.b_epp.setToolTip(f"EPP: {epp_raw.replace('_',' ').title()}")
+        self.b_ac.set_value("AC" if d["ac"] else "Battery",
+                            C_GREEN if d["ac"] else C_ORANGE)
+        pst2 = gpu.get("pstate","—") if gpu.get("available") else "—"
+        self.b_pstate.set_value(pst2,
+                                C_GREEN if pst2=="P0" else C_BLUE if pst2 in ["P1","P2"] else C_TEXT3)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BATTERY PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class BatteryPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._sync_home_cb = None   # set by LegionDashboard to sync Home combo
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        sc, sl = make_card()
+        top = QHBoxLayout(); top.setSpacing(24)
+        left = QVBoxLayout(); left.setSpacing(4)
+        self.pct_lbl    = QLabel("—%")
+        self.pct_lbl.setStyleSheet(f"color:{C_TEXT};font-size:42px;font-weight:700;background:transparent;")
+        self.status_lbl = QLabel("Status: —")
+        self.status_lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;font-weight:500;background:transparent;")
+        self.health_lbl = QLabel("Health: —")
+        self.health_lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;font-weight:500;background:transparent;")
+        left.addWidget(self.pct_lbl); left.addWidget(self.status_lbl)
+        left.addWidget(self.health_lbl); left.addStretch()
+        top.addLayout(left)
+        vd = QWidget(); vd.setFixedWidth(12); vd.setStyleSheet("background:transparent;"); top.addWidget(vd)
+        right = QVBoxLayout(); right.setSpacing(4)
+        self.b_charge = StatRow("Charge",  "—", 0, 130, 110, C_GREEN)
+        self.b_health = StatRow("Health",  "—", 0, 130)
+        self.b_temp   = StatRow("Temp",    "—", 0, 130)
+        self.b_power  = StatRow("Draw",    "—", 0, 130)
+        for b in [self.b_charge,self.b_health,self.b_temp,self.b_power]:
+            right.addWidget(b)
+        right.addStretch(); top.addLayout(right)
+        sl.addLayout(top); root.addWidget(sc)
+
+        ds, dl = make_card("Battery Details")
+        self.info_rows = {}
+        for key, label in [("capacity","Capacity"),("voltage","Voltage"),
+                            ("cycles","Charge Cycles"),("power","Power Draw"),
+                            ("temp","Temperature"),("manufacturer","Manufacturer"),
+                            ("model","Model"),("technology","Technology")]:
+            r = InfoRow(label,"—"); self.info_rows[key] = r; dl.addWidget(r)
+        root.addWidget(ds)
+
+        cc, cl = make_card("Charging Settings")
+        # Normal charging toggle — ON = conservation OFF AND rapid OFF
+        _is_normal = (rdsys(CONSERVATION_MODE,"0") == "0" and
+                      rdsys(RAPID_CHARGE,"0") == "0")
+        self._normal_toggle = ToggleSwitch(
+            path=None,
+            on_change=self._on_normal_toggle,
+            read_val="1" if _is_normal else "0"
+        )
+        norm_row = QWidget(); norm_row.setStyleSheet("background:transparent;"); norm_row.setFixedHeight(56)
+        nrl = QHBoxLayout(norm_row); nrl.setContentsMargins(0,0,0,0); nrl.setSpacing(0)
+        ncol = QVBoxLayout(); ncol.setSpacing(2)
+        nt_lbl = QLabel("Normal Charging"); nt_lbl.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:600;background:transparent;")
+        nd_lbl = QLabel("Standard mode — both conservation and rapid charge OFF.")
+        nd_lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        ncol.addWidget(nt_lbl); ncol.addWidget(nd_lbl)
+        nrl.addLayout(ncol); nrl.addStretch()
+        nrl.addWidget(self._normal_toggle, alignment=Qt.AlignmentFlag.AlignVCenter)
+        cl.addWidget(norm_row)
+        cl.addWidget(make_div())
+
+        rows = [
+            ("Conservation Mode",
+             "Limits charge to ~60% to extend battery lifespan.",
+             CONSERVATION_MODE, "conservation"),
+            ("Rapid Charging",
+             "Charges faster, generates more heat.",
+             RAPID_CHARGE, "rapid"),
+            ("USB Charging (off)",
+             "Keep USB ports powered when laptop is off/sleeping.",
+             USB_CHARGING, "usb"),
+            ("Power Charge Mode",
+             "Optimised charging curve for battery longevity.",
+             POWER_CHARGE_MODE, "pcm"),
+        ]
+        self.charge_toggles = {}
+        for i, (title, desc, path, key) in enumerate(rows):
+            # Build on_change callback that syncs the Home combo
+            def _make_cb(k):
+                def _cb(val):
+                    if k == "conservation" and val:
+                        wrsys(RAPID_CHARGE, "0")
+                        if "rapid" in self.charge_toggles:
+                            self.charge_toggles["rapid"].setChecked(False, write=False, silent=True)
+                        self._normal_toggle.setChecked(False, write=False, silent=True)
+                        if self._sync_home_cb: self._sync_home_cb(1)
+                    elif k == "rapid" and val:
+                        wrsys(CONSERVATION_MODE, "0")
+                        if "conservation" in self.charge_toggles:
+                            self.charge_toggles["conservation"].setChecked(False, write=False, silent=True)
+                        self._normal_toggle.setChecked(False, write=False, silent=True)
+                        if self._sync_home_cb: self._sync_home_cb(2)
+                    elif not val:
+                        # Turned off — check if both now off → Normal
+                        cons  = rdsys(CONSERVATION_MODE, "0")
+                        rapid = rdsys(RAPID_CHARGE, "0")
+                        if cons == "0" and rapid == "0":
+                            self._normal_toggle.setChecked(True, write=False, silent=True)
+                            if self._sync_home_cb: self._sync_home_cb(0)
+                return _cb
+
+            nt = NotifyToggle(title, desc, path,
+                              notif_title=title,
+                              notif_on="Enabled",
+                              notif_off="Disabled",
+                              on_change=_make_cb(key) if key in ("conservation","rapid") else None)
+            self.charge_toggles[key] = nt.toggle
+            cl.addWidget(nt)
+            if i < len(rows)-1: cl.addWidget(make_div())
+        root.addWidget(cc)
+
+        # ── ThinkPad charge thresholds (only shown on ThinkPads) ──────────────
+        if HW.get("tp_charge_start") and HW.get("tp_charge_stop"):
+            tc, tl = make_card("⚡  ThinkPad Charge Thresholds")
+            tp_desc = QLabel(
+                "Set custom start/stop charge levels to preserve long-term battery health.\n"
+                "Example: Start=40%, Stop=80% avoids full cycles.")
+            tp_desc.setWordWrap(True)
+            tp_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+            tl.addWidget(tp_desc)
+            tl.addWidget(make_div())
+
+            def _tp_spin(lo, hi, val, label_text):
+                row = QHBoxLayout(); row.setSpacing(12)
+                lbl = QLabel(label_text); lbl.setFixedWidth(130)
+                lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+                sp = QSpinBox(); sp.setRange(lo, hi); sp.setValue(val); sp.setSuffix(" %")
+                sp.setStyleSheet(
+                    f"QSpinBox{{background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+                    f"border-radius:6px;padding:6px;font-size:12px;min-width:90px;}}"
+                    f"QSpinBox::up-button,QSpinBox::down-button{{width:20px;background:{C_CARD2};}}"
+                )
+                row.addWidget(lbl); row.addWidget(sp); row.addStretch()
+                return row, sp
+
+            try:
+                cur_start = int(Path("/sys/class/power_supply/BAT0/charge_start_threshold").read_text().strip())
+                cur_stop  = int(Path("/sys/class/power_supply/BAT0/charge_stop_threshold").read_text().strip())
+            except:
+                cur_start, cur_stop = 40, 80
+
+            start_row, self._tp_start = _tp_spin(0, 99, cur_start, "Start charging at:")
+            stop_row,  self._tp_stop  = _tp_spin(1, 100, cur_stop,  "Stop charging at:")
+            tl.addLayout(start_row); tl.addLayout(stop_row)
+
+            tp_apply = QPushButton("Apply Thresholds")
+            tp_apply.setFixedHeight(32)
+            tp_apply.setStyleSheet(
+                f"background:{C_ACCENT};color:#fff;border:none;"
+                f"border-radius:6px;font-size:12px;padding:0 16px;")
+            tp_apply.setCursor(Qt.CursorShape.PointingHandCursor)
+            tp_apply.clicked.connect(self._apply_tp_thresholds)
+            self._tp_status = QLabel("")
+            self._tp_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+            tp_btn_row = QHBoxLayout()
+            tp_btn_row.addWidget(tp_apply); tp_btn_row.addWidget(self._tp_status); tp_btn_row.addStretch()
+            tl.addLayout(tp_btn_row)
+            root.addWidget(tc)
+
+        root.addStretch()
+
+    def sync_charging(self, mode: str):
+        """Called from HomePage combo — updates toggles silently (no callbacks, no sysfs writes)."""
+        self._normal_toggle.setChecked(mode == "normal",       write=False, silent=True)
+        if "conservation" in self.charge_toggles:
+            self.charge_toggles["conservation"].setChecked(mode == "conservation", write=False, silent=True)
+        if "rapid" in self.charge_toggles:
+            self.charge_toggles["rapid"].setChecked(mode == "rapid",        write=False, silent=True)
+
+    def _apply_tp_thresholds(self):
+        start = self._tp_start.value()
+        stop  = self._tp_stop.value()
+        if start >= stop:
+            self._tp_status.setStyleSheet(f"color:{C_ORANGE};font-size:12px;background:transparent;")
+            self._tp_status.setText("✗  Start must be less than Stop")
+            return
+        def _do():
+            cmds = (
+                f"echo {start} > /sys/class/power_supply/BAT0/charge_start_threshold && "
+                f"echo {stop}  > /sys/class/power_supply/BAT0/charge_stop_threshold"
+            )
+            r = subprocess.run(["pkexec","sh","-c",cmds],
+                               capture_output=True, text=True, timeout=8)
+            if r.returncode == 0:
+                self._tp_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+                self._tp_status.setText(f"✓  Start {start}%  Stop {stop}%")
+                send_notif("Charge Thresholds", f"Start {start}%  →  Stop {stop}%", "battery")
+            else:
+                self._tp_status.setStyleSheet(f"color:{C_ORANGE};font-size:12px;background:transparent;")
+                self._tp_status.setText(f"✗  {r.stderr.strip()[:80]}")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _on_normal_toggle(self, val):
+        if val:
+            wrsys(CONSERVATION_MODE, "0")
+            wrsys(RAPID_CHARGE, "0")
+            if "conservation" in self.charge_toggles:
+                self.charge_toggles["conservation"].setChecked(False, write=False, silent=True)
+            if "rapid" in self.charge_toggles:
+                self.charge_toggles["rapid"].setChecked(False, write=False, silent=True)
+            send_notif("Charging Mode", "Normal charging — no limits", "battery")
+            if self._sync_home_cb: self._sync_home_cb(0)
+
+    def refresh(self, d=None):
+        s = get_battery_stats()
+        pct    = s["percent"]
+        health = s["health"]
+        bat_col    = C_GREEN if pct > 50 else C_ORANGE if pct > 20 else C_RED
+        health_col = C_GREEN if health > 80 else C_ORANGE if health > 60 else C_RED
+        self.pct_lbl.setText(f"{pct}%")
+        self.pct_lbl.setStyleSheet(f"color:{bat_col};font-size:40px;font-weight:600;background:transparent;")
+        self.status_lbl.setText(f"Status: {s['status']}")
+        self.health_lbl.setText(f"Health: {health}%")
+        self.b_charge.update_value(f"{pct}%",    pct,    bat_col)
+        self.b_health.update_value(f"{health}%", health, health_col)
+        self.b_temp.update_value(s["temp"],  0)
+        self.b_power.update_value(s["power"], 0)
+        for k in self.info_rows:
+            self.info_rows[k].set_value(str(s.get(k, "—")))
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PERFORMANCE PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class PerformancePage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # Boost — detect AMD or Intel
+        bc, bl = make_card("CPU Boost")
+        br = QHBoxLayout()
+        bt_col = QVBoxLayout(); bt_col.setSpacing(3)
+        _intel_boost = Path("/sys/devices/system/cpu/intel_pstate/no_turbo")
+        _is_intel    = HW.get("cpu_vendor","amd") == "intel" if HW else False
+        _boost_path  = _intel_boost if _is_intel and _intel_boost.exists() else AMD_BOOST
+        _boost_label = "Intel Turbo Boost" if _is_intel else "AMD CPU Boost"
+        _boost_desc  = ("Allows CPU to exceed base clock. Intel Turbo Boost (no_turbo=0 = enabled)."
+                        if _is_intel else
+                        "Allows CPU to exceed base clock for short bursts. Auto-managed by power profile daemon.")
+        bt = QLabel(_boost_label)
+        bt.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:500;background:transparent;")
+        bd = QLabel(_boost_desc)
+        bd.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;"); bd.setWordWrap(True)
+        bt_col.addWidget(bt); bt_col.addWidget(bd)
+        br.addLayout(bt_col); br.addStretch()
+        _boost_read = "1" if _is_intel and rdsys(_boost_path,"1") == "0" else rdsys(_boost_path,"0")
+        self.boost_toggle = ToggleSwitch(_boost_path, read_val=_boost_read)
+        br.addWidget(self.boost_toggle, alignment=Qt.AlignmentFlag.AlignVCenter)
+        bl.addLayout(br); root.addWidget(bc)
+
+        # EPP
+        ec, el = make_card("Energy Performance Preference")
+        edesc = QLabel("Controls CPU energy/performance tradeoff. Daemon sets this per profile automatically.")
+        edesc.setWordWrap(True)
+        edesc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        el.addWidget(edesc)
+        er = QHBoxLayout(); er.setSpacing(12)
+        lbl = QLabel("EPP Level"); lbl.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:500;background:transparent;")
+        er.addWidget(lbl)
+        self.epp_combo = QComboBox(); self.epp_combo.setStyleSheet(combo_style())
+        self.epp_combo.setFixedHeight(36)
+        cur_epp = get_epp()
+        for v in EPP_VALUES: self.epp_combo.addItem(EPP_LABELS[v], v)
+        if cur_epp in EPP_VALUES: self.epp_combo.setCurrentIndex(EPP_VALUES.index(cur_epp))
+        self.epp_combo.currentIndexChanged.connect(self._on_epp)
+        er.addWidget(self.epp_combo); er.addStretch()
+        el.addLayout(er)
+        self.epp_status = QLabel("")
+        self.epp_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;font-weight:500;background:transparent;")
+        el.addWidget(self.epp_status); root.addWidget(ec)
+
+        # Fan & Thermal
+        fc, fl = make_card("Fan & Thermal")
+        for i, (t, d, p) in enumerate([
+            ("Fan Full Speed","Lock both fans to maximum speed immediately.", FAN_FULLSPEED),
+            ("Thermal Mode","Enhanced thermal performance for sustained workloads.", THERMAL_MODE),
+        ]):
+            fl.addWidget(NotifyToggle(t, d, p, notif_title=t))
+            if i == 0: fl.addWidget(make_div())
+        root.addWidget(fc)
+
+        # Live info
+        li, ll = make_card("Live CPU Info")
+        self.gov_row   = InfoRow("Governor","—"); ll.addWidget(self.gov_row)
+        self.freq_row  = InfoRow("Frequency","—"); ll.addWidget(self.freq_row)
+        self.temp_row  = InfoRow("Temperature","—"); ll.addWidget(self.temp_row)
+        self.boost_row = InfoRow("Boost State","—"); ll.addWidget(self.boost_row)
+        root.addWidget(li)
+        root.addStretch()
+
+    def _on_epp(self, idx):
+        val = EPP_VALUES[idx]; set_epp(val)
+        send_notif("EPP Changed", EPP_LABELS[val])
+        self.epp_status.setText(f"✓ Set to '{EPP_LABELS[val]}'")
+        QTimer.singleShot(2000, lambda: self.epp_status.setText(""))
+
+    def refresh(self, d=None):
+        # Accept data from sampler (no blocking reads)
+        if d:
+            boost = d.get("boost","0")
+            self.gov_row.set_value(d.get("gov","—"))
+            self.freq_row.set_value(f"{d.get('cpu_freq',0)} GHz")
+            self.temp_row.set_value(f"{d.get('cpu_temp',0)} °C")
+            epp = d.get("epp","default")
+        else:
+            boost = rdsys(AMD_BOOST,"0")
+            self.gov_row.set_value(get_governor())
+            self.freq_row.set_value(f"{get_cpu_freq_ghz()} GHz")
+            self.temp_row.set_value(f"{get_cpu_temp()} °C")
+            epp = get_epp()
+        self.boost_toggle._checked = boost == "1"
+        self.boost_toggle._cx = 22.0 if boost=="1" else 4.0
+        self.boost_toggle.update()
+        self.boost_row.set_value("ON ✓" if boost=="1" else "OFF ✗")
+        if epp in EPP_VALUES:
+            self.epp_combo.blockSignals(True)
+            self.epp_combo.setCurrentIndex(EPP_VALUES.index(epp))
+            self.epp_combo.blockSignals(False)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DISPLAY PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class DisplayPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._outputs = []
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # ── Screen Brightness ─────────────────────────────────────────────────
+        bc, bl = make_card("Screen Brightness")
+        bl.addWidget(_mk_lbl(
+            "Display backlight brightness via sysfs.", C_TEXT2, size=12))
+
+        # Detect backlight path — scan known paths + all available
+        _bl_paths = [
+            Path("/sys/class/backlight/nvidia_wmi_ec_backlight"),
+            Path("/sys/class/backlight/amdgpu_bl0"),
+            Path("/sys/class/backlight/amdgpu_bl1"),
+            Path("/sys/class/backlight/acpi_video0"),
+        ]
+        # Also scan dynamically
+        try:
+            for p in Path("/sys/class/backlight").iterdir():
+                if p not in _bl_paths: _bl_paths.append(p)
+        except Exception: pass
+        self._bl_path = next((p for p in _bl_paths if (p/"brightness").exists()), None)
+
+        if self._bl_path:
+            try:
+                _max_bl = int((self._bl_path/"max_brightness").read_text().strip())
+                _cur_bl = int((self._bl_path/"brightness").read_text().strip())
+            except Exception:
+                _max_bl = 255; _cur_bl = 128
+
+            # Read actual hardware minimum — nvidia_wmi_ec_backlight supports 0
+            try:
+                _min_bl = int((self._bl_path/"min_brightness").read_text().strip())
+            except:
+                _min_bl = 0   # default to 0, allow full dim
+
+            bl.addWidget(_mk_lbl(
+                f"Path: {self._bl_path}/brightness  ·  Max: {_max_bl}", C_TEXT3, size=11))
+
+            bri_row = QHBoxLayout(); bri_row.setSpacing(12)
+            dim_lbl = QLabel("0%")
+            dim_lbl.setFixedWidth(32)
+            dim_lbl.setStyleSheet(f"color:{C_TEXT3};font-size:12px;background:transparent;")
+            bri_row.addWidget(dim_lbl)
+
+            self._screen_sl = QSlider(Qt.Orientation.Horizontal)
+            self._screen_sl.setRange(_min_bl, _max_bl)  # use hardware min — allows 0
+            self._screen_sl.setValue(_cur_bl)
+            self._screen_sl.setStyleSheet(
+                f"QSlider::groove:horizontal{{background:{C_BORDER};height:8px;border-radius:4px;}}"
+                f"QSlider::handle:horizontal{{background:{C_BLUE};width:20px;height:20px;"
+                f"border-radius:10px;margin:-6px 0;}}"
+                f"QSlider::sub-page:horizontal{{background:{C_BLUE};border-radius:4px;}}"
+            )
+            bri_row.addWidget(self._screen_sl)
+
+            max_lbl = QLabel("100%")
+            max_lbl.setFixedWidth(36)
+            max_lbl.setStyleSheet(f"color:{C_TEXT3};font-size:12px;background:transparent;")
+            bri_row.addWidget(max_lbl)
+
+            # Percentage label
+            self._bri_pct_lbl = QLabel(f"{int(_cur_bl/_max_bl*100)}%")
+            self._bri_pct_lbl.setFixedWidth(42)
+            self._bri_pct_lbl.setStyleSheet(
+                f"color:{C_BLUE};font-size:13px;font-weight:600;background:transparent;")
+            bri_row.addWidget(self._bri_pct_lbl)
+            bl.addLayout(bri_row)
+
+            # Connect: live update on drag, write on release
+            self._bl_max = _max_bl
+            self._screen_sl.valueChanged.connect(self._on_bri_change)
+            self._screen_sl.sliderReleased.connect(self._write_brightness)
+        else:
+            bl.addWidget(_mk_lbl(
+                "⚠  No backlight device found.\n"
+                "Is the amdgpu driver loaded? Try: sudo modprobe amdgpu", C_ORANGE, size=11))
+        root.addWidget(bc)
+
+        # ── Display toggles ───────────────────────────────────────────────────
+        dc, dl = make_card("Display Settings")
+        dl.addWidget(NotifyToggle("Display Overdrive",
+                                  "Reduce display response time. May introduce minor artefacts.",
+                                  OVERDRIVE, notif_title="Display Overdrive"))
+        dl.addWidget(make_div())
+
+        # G-Sync — via Legion sysfs node
+        _gsync_nt = NotifyToggle(
+            "G-Sync",
+            "NVIDIA G-Sync variable refresh rate. Enable for smoother gaming.",
+            GSYNC,
+            notif_title="G-Sync")
+        dl.addWidget(_gsync_nt)
+
+        # Brightness Backlight
+        if NVIDIA_BACKLIGHT.exists():
+            def _is_bl_on():
+                try: return int(NVIDIA_BACKLIGHT.read_text().strip()) > 0
+                except: return False
+            _bl_nt = NotifyToggle(
+                "Brightness Backlight",
+                "Control display backlight via nvidia_wmi_ec_backlight.",
+                NVIDIA_BACKLIGHT,
+                notif_title="Brightness Backlight",
+                read_val=lambda: "1" if _is_bl_on() else "0")
+            dl.addWidget(_bl_nt)
+        root.addWidget(dc)
+
+        # ── Resolution ────────────────────────────────────────────────────────
+        resc, resl = make_card("Resolution")
+        res_desc = QLabel("Change the display resolution. Takes effect immediately via kscreen.")
+        res_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        resl.addWidget(res_desc)
+
+        out_row = QHBoxLayout(); out_row.setSpacing(12)
+        out_lbl = QLabel("Output:")
+        out_lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+        self.out_combo = QComboBox(); self.out_combo.setStyleSheet(combo_style())
+        self.out_combo.currentIndexChanged.connect(self._on_output_change)
+        out_row.addWidget(out_lbl); out_row.addWidget(self.out_combo); out_row.addStretch()
+        resl.addLayout(out_row)
+
+        res_row = QHBoxLayout(); res_row.setSpacing(12)
+        res_lbl = QLabel("Resolution:")
+        res_lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+        self.res_combo = QComboBox(); self.res_combo.setStyleSheet(combo_style())
+        self.res_combo.currentIndexChanged.connect(self._on_res_change)
+        res_row.addWidget(res_lbl); res_row.addWidget(self.res_combo); res_row.addStretch()
+        resl.addLayout(res_row)
+
+        self.res_current = InfoRow("Current", "—"); resl.addWidget(self.res_current)
+
+        apply_res_btn = QPushButton("Apply Resolution")
+        apply_res_btn.setFixedHeight(32)
+        apply_res_btn.setStyleSheet(
+            f"background:{C_ACCENT};color:#fff;border-radius:6px;"
+            f"font-size:12px;border:none;padding:0 16px;")
+        apply_res_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_res_btn.clicked.connect(self._apply_resolution)
+        res_btn_row = QHBoxLayout()
+        res_btn_row.addWidget(apply_res_btn); res_btn_row.addStretch()
+        resl.addLayout(res_btn_row)
+
+        self.res_note = QLabel("kscreen-doctor not found. Install: sudo pacman -S kscreen")
+        self.res_note.setStyleSheet(f"color:{C_ORANGE};font-size:12px;background:transparent;")
+        resl.addWidget(self.res_note)
+        root.addWidget(resc)
+
+        # ── Refresh Rate ──────────────────────────────────────────────────────
+        rrc, rrl = make_card("Refresh Rate")
+        rr_desc = QLabel("Set the display refresh rate for the current resolution.")
+        rr_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        rrl.addWidget(rr_desc)
+
+        hz_row = QHBoxLayout(); hz_row.setSpacing(12)
+        hz_lbl = QLabel("Refresh Rate:")
+        hz_lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+        self.hz_combo = QComboBox(); self.hz_combo.setStyleSheet(combo_style())
+        hz_row.addWidget(hz_lbl); hz_row.addWidget(self.hz_combo); hz_row.addStretch()
+        rrl.addLayout(hz_row)
+
+        self.hz_current = InfoRow("Current", "—"); rrl.addWidget(self.hz_current)
+
+        apply_hz_btn = QPushButton("Apply Refresh Rate")
+        apply_hz_btn.setFixedHeight(32)
+        apply_hz_btn.setStyleSheet(
+            f"background:{C_ACCENT};color:#fff;border-radius:6px;"
+            f"font-size:12px;border:none;padding:0 16px;")
+        apply_hz_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_hz_btn.clicked.connect(self._apply_rate)
+        hz_btn_row = QHBoxLayout()
+        hz_btn_row.addWidget(apply_hz_btn); hz_btn_row.addStretch()
+        rrl.addLayout(hz_btn_row)
+        root.addWidget(rrc)
+
+        root.addStretch()
+        self._refresh_outputs()
+
+    def _on_bri_change(self, val: int):
+        """Live label update while dragging — no sysfs write yet."""
+        pct = int(val / self._bl_max * 100)
+        self._bri_pct_lbl.setText(f"{pct}%")
+
+    def _write_brightness(self):
+        """Write brightness on slider release — via sysfs direct or pkexec."""
+        if not self._bl_path: return
+        val = self._screen_sl.value()
+        bri_file = self._bl_path / "brightness"
+        try:
+            bri_file.write_text(str(val) + "\n")
+        except PermissionError:
+            subprocess.Popen(
+                ["pkexec","sh","-c",f"echo {val} > {bri_file}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except Exception: pass
+
+    def _refresh_outputs(self):
+        self._outputs = get_display_outputs()
+        self.out_combo.blockSignals(True)
+        self.out_combo.clear()
+        if self._outputs:
+            self.res_note.hide()
+            self.out_combo.show()
+            for name, cur_mode, modes in self._outputs:
+                self.out_combo.addItem(name)
+        else:
+            self.res_note.show()
+        self.out_combo.blockSignals(False)
+        self._on_output_change(0)
+
+    def _on_output_change(self, idx):
+        """Populate resolution combo from unique WxH values for selected output."""
+        self.res_combo.blockSignals(True)
+        self.res_combo.clear()
+        self._cur_output_modes = []   # list of (mode_str, is_cur)
+
+        if 0 <= idx < len(self._outputs):
+            name, cur_mode, modes = self._outputs[idx]
+            self._cur_output_modes = modes
+
+            # Collect unique resolutions preserving order
+            seen_res = {}
+            for mode_str, is_cur in modes:
+                res = mode_str.split("@")[0]   # "1920x1080"
+                if res not in seen_res:
+                    seen_res[res] = is_cur
+                elif is_cur:
+                    seen_res[res] = True
+
+            for res, is_cur in seen_res.items():
+                label = ("● " if is_cur else "  ") + res
+                self.res_combo.addItem(label, res)
+                if is_cur:
+                    self.res_combo.setCurrentIndex(self.res_combo.count()-1)
+
+            if cur_mode:
+                res_part = cur_mode.split("@")[0]
+                hz_part  = cur_mode.split("@")[1] if "@" in cur_mode else "?"
+                self.res_current.set_value(f"{res_part}  ({hz_part} Hz active)")
+                self.hz_current.set_value(f"{hz_part} Hz")
+
+        self.res_combo.blockSignals(False)
+        self._on_res_change(self.res_combo.currentIndex())
+
+    def _on_res_change(self, idx):
+        """Populate refresh rate combo for selected resolution."""
+        self.hz_combo.blockSignals(True)
+        self.hz_combo.clear()
+        selected_res = self.res_combo.itemData(idx) if idx >= 0 else None
+        if selected_res and self._cur_output_modes:
+            for mode_str, is_cur in self._cur_output_modes:
+                res = mode_str.split("@")[0]
+                if res == selected_res:
+                    hz = mode_str.split("@")[1] if "@" in mode_str else "?"
+                    label = ("● " if is_cur else "  ") + hz + " Hz"
+                    self.hz_combo.addItem(label, mode_str)
+                    if is_cur:
+                        self.hz_combo.setCurrentIndex(self.hz_combo.count()-1)
+        self.hz_combo.blockSignals(False)
+
+    def _apply_resolution(self):
+        """Apply selected resolution at its highest available refresh rate."""
+        out_idx = self.out_combo.currentIndex()
+        res_data = self.res_combo.currentData()
+        if out_idx < 0 or not res_data or not self._outputs: return
+        out_name = self._outputs[out_idx][0]
+        # Find highest Hz mode for this resolution
+        best_mode = None
+        best_hz = 0
+        for mode_str, _ in self._cur_output_modes:
+            if mode_str.split("@")[0] == res_data:
+                try:
+                    hz = int(mode_str.split("@")[1])
+                    if hz > best_hz:
+                        best_hz = hz; best_mode = mode_str
+                except: pass
+        if best_mode:
+            set_refresh_rate(out_name, best_mode)
+            QTimer.singleShot(1500, self._refresh_outputs)
+
+    def _apply_rate(self):
+        """Apply selected refresh rate."""
+        out_idx  = self.out_combo.currentIndex()
+        mode_str = self.hz_combo.currentData()
+        if out_idx < 0 or not mode_str or not self._outputs: return
+        out_name = self._outputs[out_idx][0]
+        set_refresh_rate(out_name, mode_str)
+        QTimer.singleShot(1500, self._refresh_outputs)
+
+    def _apply_vrr(self):
+        """Apply VRR/FreeSync policy via kscreen-doctor + persist to kscreen config."""
+        # combo: 0=Never 1=Automatic 2=Always → kscreen: 0=never 1=automatic 2=always
+        _idx_to_ks    = {0: 0, 1: 1, 2: 2}
+        _idx_to_str   = {0: "never", 1: "automatic", 2: "always"}
+        _idx_to_label = {0: "Never", 1: "Automatic", 2: "Always"}
+        idx    = self._vrr_combo.currentIndex()
+        policy = _idx_to_ks.get(idx, 0)
+        policy_str = _idx_to_str.get(idx, "never")
+        label  = _idx_to_label.get(idx, "Never")
+
+        self._vrr_status.setStyleSheet(f"color:{C_ORANGE};font-size:12px;background:transparent;")
+        self._vrr_status.setText("⏳  Applying…")
+
+        def _do():
+            errors = []
+            try:
+                data = _kscreen_json()
+                for o in data.get("outputs", []):
+                    if not o.get("enabled"): continue
+                    name    = o.get("name","")
+                    out_idx = _kscreen_output_idx(name)
+                    r = subprocess.run(
+                        ["kscreen-doctor", f"output.{out_idx}.vrrpolicy.{policy_str}"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if r.returncode != 0 and r.stderr:
+                        errors.append(r.stderr.strip()[:60])
+                    _persist_vrr(name, policy)
+            except Exception as e:
+                errors.append(str(e)[:60])
+
+            from PyQt6.QtCore import QMetaObject, Q_ARG
+            if errors:
+                QMetaObject.invokeMethod(self._vrr_status, "setText",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG(str, f"✗  {errors[0]}"))
+                self._vrr_status.setStyleSheet(
+                    f"color:{C_ORANGE};font-size:12px;background:transparent;")
+            else:
+                QMetaObject.invokeMethod(self._vrr_status, "setText",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG(str, f"✓  VRR set to {label}"))
+                self._vrr_status.setStyleSheet(
+                    f"color:{C_GREEN};font-size:12px;background:transparent;")
+                send_notif("VRR / FreeSync", f"Adaptive sync → {label}", "display")
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def refresh(self, d=None):
+        pass
+# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# KEYBOARD PAGE — via legionaura
+# ══════════════════════════════════════════════════════════════════════════════
+class KeyboardPage(QWidget):
+    # Signal emitted from worker thread → received on main thread
+    _rgb_result = pyqtSignal(bool, str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._rgb_result.connect(self._on_rgb_result)
+        self._build()
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+    def _color_btn(self, default_hex: str, idx: int) -> QPushButton:
+        """Colour swatch button — click to open QColorDialog."""
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor as _QColor
+        btn = QPushButton()
+        btn.setFixedSize(40, 36)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._set_swatch(btn, default_hex)
+        btn.clicked.connect(lambda: self._pick_color(btn, idx))
+        return btn
+
+    def _set_swatch(self, btn: QPushButton, hex_col: str):
+        hex_col = hex_col.strip().lstrip("#")
+        btn.setProperty("hex", hex_col)
+        btn.setStyleSheet(
+            f"QPushButton{{background:#{hex_col};border:2px solid #555;"
+            f"border-radius:5px;}}"
+            f"QPushButton:hover{{border:2px solid #aaa;}}"
+        )
+
+    def _pick_color(self, btn: QPushButton, idx: int):
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor as _QColor
+        cur = btn.property("hex") or "ff0000"
+        c = QColorDialog.getColor(_QColor(f"#{cur}"), self, f"Zone {idx+1} Colour")
+        if c.isValid():
+            h = c.name().lstrip("#")
+            self._set_swatch(btn, h)
+            # Update linked hex input if present
+            inp = self._hex_inputs.get(idx)
+            if inp: inp.setText(h)
+
+    def _get_zone_colors(self) -> list:
+        """Return [hex1, hex2, hex3, hex4] from current swatch buttons."""
+        return [self._swatches[i].property("hex") or "ff0000" for i in range(4)]
+
+    def _on_rgb_result(self, ok: bool, msg: str):
+        """Always runs on main thread via signal."""
+        color = C_GREEN if ok else C_ORANGE
+        self._status_lbl.setStyleSheet(
+            f"color:{color};font-size:12px;font-weight:600;background:transparent;")
+        self._status_lbl.setText(msg)
+
+    def _status(self, ok, msg: str):
+        """Thread-safe status update — emits signal if called from worker thread."""
+        self._rgb_result.emit(bool(ok), str(msg)[:120])
+
+    # ── build ─────────────────────────────────────────────────────────────────
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        self._swatches: dict   = {}
+        self._hex_inputs: dict = {}
+
+        # ── Status banner ─────────────────────────────────────────────────────
+        has_la = _has_legionaura()
+        banner, bl = make_card("LegionAura — Keyboard RGB")
+
+        if has_la:
+            ver = _legionaura_version()
+            ok_lbl = QLabel(f"✓  legionaura ready   {ver}")
+            ok_lbl.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+            bl.addWidget(ok_lbl)
+        else:
+            warn_w = QWidget(); warn_w.setObjectName("la_warn")
+            warn_w.setStyleSheet(
+                f"QWidget#la_warn{{background:#1a0f00;border-radius:8px;"
+                f"border:1px solid {C_ORANGE};}}"
+                f"QWidget#la_warn QLabel{{background:transparent;border:none;}}"
+            )
+            wl = QVBoxLayout(warn_w); wl.setContentsMargins(12,10,12,10); wl.setSpacing(6)
+            wl.addWidget(_mk_lbl("⚠  legionaura not installed", C_ORANGE, bold=True))
+            wl.addWidget(_mk_lbl(
+                "LegionAura is a dedicated RGB controller for your Legion keyboard.\n"
+                "Install from AUR:  yay -S legionaura", C_TEXT2))
+            cmd_lbl = QLabel("yay -S legionaura")
+            cmd_lbl.setStyleSheet(
+                f"color:{C_TEXT};font-family:monospace;font-size:12px;"
+                f"background:{C_CARD2};padding:4px 10px;border-radius:4px;")
+            wl.addWidget(cmd_lbl)
+            bl.addWidget(warn_w)
+
+        # Brightness (sysfs — works regardless of legionaura)
+        bri_row = QHBoxLayout(); bri_row.setSpacing(12)
+        bri_lbl = QLabel("Brightness:")
+        bri_lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+        bri_row.addWidget(bri_lbl)
+        bri_max = get_kbd_max_brightness()
+        self._bri_sl = QSlider(Qt.Orientation.Horizontal)
+        self._bri_sl.setRange(0, bri_max); self._bri_sl.setValue(get_kbd_brightness())
+        self._bri_sl.setTickInterval(1); self._bri_sl.setFixedWidth(120)
+        self._bri_sl.setStyleSheet(
+            f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+            f"QSlider::handle:horizontal{{background:{C_ACCENT};width:16px;height:16px;"
+            f"border-radius:8px;margin:-5px 0;}}"
+            f"QSlider::sub-page:horizontal{{background:{C_ACCENT};border-radius:3px;}}"
+        )
+        self._bri_sl.valueChanged.connect(set_kbd_brightness)
+        bri_row.addWidget(self._bri_sl)
+        bri_val_lbl = QLabel(f"(0=off  {bri_max}=max)")
+        bri_val_lbl.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
+        bri_row.addWidget(bri_val_lbl); bri_row.addStretch()
+        bl.addLayout(bri_row)
+        root.addWidget(banner)
+
+        # ── Effect selector ───────────────────────────────────────────────────
+        ec, el = make_card("Effect")
+        self._effect_stack = QStackedWidget()
+        self._effect_stack.setStyleSheet(f"background:{C_BG};")
+        effect_row = QHBoxLayout(); effect_row.setSpacing(6)
+        self._effect_btns = {}
+        effects = [
+            ("Static",  "🎨", C_BLUE),
+            ("Breath",  "💨", C_GREEN),
+            ("Wave",    "🌊", C_PURPLE),
+            ("Hue",     "🌈", C_ORANGE),
+            ("Off",     "⬛", C_TEXT3),
+        ]
+        for name, icon, color in effects:
+            b = QPushButton(f"{icon}  {name}")
+            b.setCheckable(True); b.setFixedHeight(36)
+            b.setChecked(name == "Static")
+            b.setStyleSheet(
+                f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+                f"border:1px solid {C_BORDER};border-radius:6px;"
+                f"font-size:12px;font-weight:600;padding:0 12px;}}"
+                f"QPushButton:checked{{background:transparent;color:{color};"
+                f"border:2px solid {color};}}"
+                f"QPushButton:hover:!checked{{border:1px solid #555;color:{C_TEXT};}}"
+            )
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(lambda chk, n=name: self._switch_effect(n))
+            self._effect_btns[name] = b; effect_row.addWidget(b)
+        el.addLayout(effect_row)
+
+        # Static panel
+        static_w = QWidget(); static_w.setStyleSheet("background:transparent;")
+        sv = QVBoxLayout(static_w); sv.setContentsMargins(0,8,0,0); sv.setSpacing(8)
+        sv.addWidget(_mk_lbl("Set colour per zone. Click a swatch to pick colour.", C_TEXT2, size=11))
+        zone_row = QHBoxLayout(); zone_row.setSpacing(16)
+        zone_defaults = ["ff0000","00aaff","00ff66","aa00ff"]
+        for i in range(4):
+            zcol = QVBoxLayout(); zcol.setSpacing(4)
+            lbl = QLabel(f"Zone {i+1}")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet(f"color:{C_TEXT2};font-size:10px;background:transparent;")
+            swatch = self._color_btn(zone_defaults[i], i)
+            self._swatches[i] = swatch
+            hex_inp = _mk_lineedit(zone_defaults[i], width=80, placeholder="rrggbb")
+            self._hex_inputs[i] = hex_inp
+            def _on_hex(txt, idx=i):
+                if len(txt.strip()) == 6:
+                    try:
+                        int(txt, 16)
+                        self._set_swatch(self._swatches[idx], txt.strip())
+                    except ValueError: pass
+            hex_inp.textChanged.connect(_on_hex)
+            zcol.addWidget(swatch, alignment=Qt.AlignmentFlag.AlignCenter)
+            zcol.addWidget(lbl)
+            zcol.addWidget(hex_inp, alignment=Qt.AlignmentFlag.AlignCenter)
+            zone_row.addLayout(zcol)
+        zone_row.addStretch()
+        sv.addLayout(zone_row)
+        # Quick presets row
+        sv.addWidget(_mk_lbl("Quick presets:", C_TEXT3, size=10))
+        qp_row = QHBoxLayout(); qp_row.setSpacing(6)
+        quick = [
+            ("All Red",    ["ff0000","ff0000","ff0000","ff0000"]),
+            ("All Blue",   ["0044ff","0044ff","0044ff","0044ff"]),
+            ("All White",  ["ffffff","ffffff","ffffff","ffffff"]),
+            ("All Pink",   ["ff69b4","ff69b4","ff69b4","ff69b4"]),
+            ("Ocean",      ["0044ff","0088ff","00ccff","00ffcc"]),
+            ("Sunset",     ["ff2200","ff6600","ffaa00","ffff00"]),
+            ("Aurora",     ["00ff44","00ccff","aa00ff","ff00aa"]),
+            ("Legion",     ["cc0000","dd0000","ff0000","cc0000"]),
+        ]
+        for pname, pcols in quick:
+            pb = QPushButton(pname)
+            pb.setFixedHeight(28)
+            c1 = f"#{pcols[0]}"
+            pb.setStyleSheet(
+                f"QPushButton{{background:{C_CARD2};color:{C_TEXT};font-size:12px;"
+                f"border:none;border-radius:5px;padding:0 10px;"
+                f"border-left:3px solid {c1};}}"
+                f"QPushButton:hover{{background:{C_BORDER};}}"
+            )
+            pb.setCursor(Qt.CursorShape.PointingHandCursor)
+            pb.clicked.connect(lambda chk, cols=pcols: self._apply_quick_preset(cols))
+            qp_row.addWidget(pb)
+        qp_row.addStretch()
+        sv.addLayout(qp_row)
+        self._effect_stack.addWidget(static_w)
+
+        # Breath panel
+        breath_w = QWidget(); breath_w.setStyleSheet("background:transparent;")
+        bv = QVBoxLayout(breath_w); bv.setContentsMargins(0,8,0,0); bv.setSpacing(8)
+        bv.addWidget(_mk_lbl("Fade in and out. Up to 4 colours.", C_TEXT2, size=11))
+        bc_row = QHBoxLayout(); bc_row.setSpacing(16)
+        self._breath_swatches = {}
+        self._breath_hex = {}
+        for i in range(4):
+            bc = QVBoxLayout(); bc.setSpacing(4)
+            lbl = QLabel(f"Colour {i+1}")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet(f"color:{C_TEXT2};font-size:10px;background:transparent;")
+            sw = self._color_btn(["ff0000","00ff00","0000ff","ffffff"][i], 10+i)
+            self._breath_swatches[i] = sw
+            hi = _mk_lineedit(["ff0000","00ff00","0000ff","ffffff"][i], width=80)
+            self._breath_hex[i] = hi
+            def _bh(txt, idx=i):
+                if len(txt.strip()) == 6:
+                    try: int(txt,16); self._set_swatch(self._breath_swatches[idx], txt.strip())
+                    except ValueError: pass
+            hi.textChanged.connect(_bh)
+            bc.addWidget(sw, alignment=Qt.AlignmentFlag.AlignCenter)
+            bc.addWidget(lbl); bc.addWidget(hi, alignment=Qt.AlignmentFlag.AlignCenter)
+            bc_row.addLayout(bc)
+        bc_row.addStretch()
+        bv.addLayout(bc_row)
+        bv.addLayout(self._speed_row("_breath_speed", default=2))
+        self._effect_stack.addWidget(breath_w)
+
+        # Wave panel
+        wave_w = QWidget(); wave_w.setStyleSheet("background:transparent;")
+        wv = QVBoxLayout(wave_w); wv.setContentsMargins(0,8,0,0); wv.setSpacing(8)
+        wv.addWidget(_mk_lbl("Classic rainbow wave across zones.", C_TEXT2, size=11))
+        dir_row = QHBoxLayout(); dir_row.setSpacing(10)
+        self._wave_ltr = QPushButton("◀  Left to Right")
+        self._wave_rtl = QPushButton("Right to Left  ▶")
+        for b, sel in [(self._wave_ltr,True),(self._wave_rtl,False)]:
+            b.setCheckable(True); b.setChecked(sel); b.setFixedHeight(34)
+            b.setStyleSheet(
+                f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+                f"border:1px solid {C_BORDER};border-radius:6px;font-size:12px;padding:0 16px;}}"
+                f"QPushButton:checked{{background:transparent;color:{C_PURPLE};"
+                f"border:2px solid {C_PURPLE};}}"
+            )
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._wave_ltr.clicked.connect(lambda: (self._wave_ltr.setChecked(True), self._wave_rtl.setChecked(False)))
+        self._wave_rtl.clicked.connect(lambda: (self._wave_rtl.setChecked(True), self._wave_ltr.setChecked(False)))
+        dir_row.addWidget(self._wave_ltr); dir_row.addWidget(self._wave_rtl); dir_row.addStretch()
+        wv.addLayout(dir_row)
+        wv.addLayout(self._speed_row("_wave_speed", default=2))
+        self._effect_stack.addWidget(wave_w)
+
+        # Hue panel
+        hue_w = QWidget(); hue_w.setStyleSheet("background:transparent;")
+        hv = QVBoxLayout(hue_w); hv.setContentsMargins(0,8,0,0); hv.setSpacing(8)
+        hv.addWidget(_mk_lbl("Smooth transition through the full colour spectrum.", C_TEXT2, size=11))
+        hv.addLayout(self._speed_row("_hue_speed", default=1))
+        self._effect_stack.addWidget(hue_w)
+
+        # Off panel
+        off_w = QWidget(); off_w.setStyleSheet("background:transparent;")
+        ov = QVBoxLayout(off_w); ov.setContentsMargins(0,8,0,0)
+        ov.addWidget(_mk_lbl("Turn off all keyboard lighting.", C_TEXT2, size=11))
+        self._effect_stack.addWidget(off_w)
+
+        el.addWidget(self._effect_stack)
+
+        # Apply button + status
+        apply_row = QHBoxLayout(); apply_row.setSpacing(12)
+        apply_btn = QPushButton("Apply Effect")
+        apply_btn.setFixedHeight(38)
+        apply_btn.setStyleSheet(
+            f"background:{C_ACCENT};color:#fff;font-size:13px;font-weight:600;"
+            f"border:none;border-radius:7px;padding:0 28px;"
+        )
+        apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_btn.clicked.connect(self._apply)
+        self._status_lbl = QLabel("")
+        self._status_lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        apply_row.addWidget(apply_btn)
+        apply_row.addWidget(self._status_lbl); apply_row.addStretch()
+        el.addLayout(apply_row)
+        root.addWidget(ec)
+        root.addStretch()
+
+        # Start on Static
+        self._current_effect = "Static"
+        self._effect_stack.setCurrentIndex(0)
+
+    def _speed_row(self, attr: str, default: int = 2):
+        row = QHBoxLayout(); row.setSpacing(10)
+        lbl = QLabel("Speed:")
+        lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+        row.addWidget(lbl)
+        for i in range(1, 5):
+            b = QPushButton(str(i)); b.setCheckable(True)
+            b.setFixedSize(32, 28); b.setChecked(i == default)
+            b.setStyleSheet(
+                f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+                f"border:1px solid {C_BORDER};border-radius:5px;font-size:12px;}}"
+                f"QPushButton:checked{{background:{C_ACCENT};color:#fff;border:none;}}"
+                f"QPushButton:hover:!checked{{background:{C_BORDER};}}"
+            )
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            row.addWidget(b)
+        row.addStretch()
+        # Store buttons as attribute
+        self._speed_btns = self._speed_btns if hasattr(self, "_speed_btns") else {}
+        # Grab the 4 buttons just added
+        btns = [row.itemAt(i+1).widget() for i in range(4)]
+        def _sel(idx, blist):
+            for j,bb in enumerate(blist): bb.setChecked(j == idx)
+        for i,b in enumerate(btns):
+            b.clicked.connect(lambda chk, idx=i, bl=btns: _sel(idx, bl))
+        setattr(self, attr + "_btns", btns)
+        return row
+
+    def _get_speed(self, attr: str) -> int:
+        btns = getattr(self, attr + "_btns", [])
+        for i, b in enumerate(btns):
+            if b.isChecked(): return i + 1
+        return 2
+
+    def _switch_effect(self, name: str):
+        self._current_effect = name
+        idx = ["Static","Breath","Wave","Hue","Off"].index(name)
+        self._effect_stack.setCurrentIndex(idx)
+        for n, b in self._effect_btns.items():
+            b.setChecked(n == name)
+
+    def cycle_effect(self):
+        """Cycle to the next effect — called by Fn+Space watcher."""
+        order = ["Static","Breath","Wave","Hue","Off"]
+        cur   = self._current_effect if hasattr(self,"_current_effect") else "Static"
+        nxt   = order[(order.index(cur) + 1) % len(order)]
+        self._switch_effect(nxt)
+        # Auto-apply the new effect immediately
+        self._apply()
+
+    def _apply_quick_preset(self, cols: list):
+        for i in range(4):
+            self._set_swatch(self._swatches[i], cols[i])
+            inp = self._hex_inputs.get(i)
+            if inp: inp.setText(cols[i])
+        self._apply()
+
+    def _apply(self):
+        if not _has_legionaura():
+            self._status(False, "legionaura not installed — run: yay -S legionaura")
+            return
+
+        eff = self._current_effect
+        bri = str(max(1, self._bri_sl.value())) if self._bri_sl.value() > 0 else "2"
+
+        if eff == "Static":
+            cols = self._get_zone_colors()
+            args = ["static"] + cols + ["--brightness", bri]
+        elif eff == "Breath":
+            cols = [self._breath_swatches[i].property("hex") or "ff0000" for i in range(4)]
+            speed = self._get_speed("_breath_speed")
+            args = ["breath"] + cols + ["--speed", str(speed), "--brightness", bri]
+        elif eff == "Wave":
+            direction = "ltr" if self._wave_ltr.isChecked() else "rtl"
+            speed = self._get_speed("_wave_speed")
+            args = ["wave", direction, "--speed", str(speed), "--brightness", bri]
+        elif eff == "Hue":
+            speed = self._get_speed("_hue_speed")
+            args = ["hue", "--speed", str(speed), "--brightness", bri]
+        elif eff == "Off":
+            args = ["off"]
+        else:
+            return
+
+        # Set pending status directly on main thread
+        self._status_lbl.setStyleSheet(
+            f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        self._status_lbl.setText(f"⏳  Applying {eff}…")
+
+        def _cb(ok, msg):
+            # Called from worker thread — emit signal to reach main thread safely
+            disp = f"✓  {eff} applied" if ok else f"✗  {msg.split(chr(10))[0][:80]}"
+            self._rgb_result.emit(ok, disp)
+
+        run_legionaura(args, callback=_cb)
+
+    def refresh(self, d=None): pass
+
+class SystemPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._app_cfg = load_app_config()
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # Input devices
+        ic, il = make_card("Input Devices")
+        input_rows = [
+            ("Fn Lock",   "Swap Fn and media keys so F1–F12 work as standard keys.",
+             FN_LOCK,   "Fn Lock ON — F1-F12 as function keys",  "Fn Lock OFF — media keys"),
+            ("Super Key", "Enable or disable the Windows/Super key.",
+             WINKEY,   "Super Key Enabled",  "Super Key Disabled"),
+            ("Touchpad",  "Enable or disable the built-in touchpad.",
+             TOUCHPAD, "Touchpad Enabled",   "Touchpad Disabled"),
+            ("Camera",    "Hardware kill switch for the built-in webcam.",
+             CAMERA_POWER,"Camera Enabled",  "Camera Disabled 🔒"),
+        ]
+        for i, (title, desc, path, notif_on, notif_off) in enumerate(input_rows):
+            il.addWidget(NotifyToggle(title, desc, path,
+                                      notif_title=title,
+                                      notif_on=notif_on, notif_off=notif_off))
+            if i < len(input_rows)-1: il.addWidget(make_div())
+        root.addWidget(ic)
+
+        # ── TrackPoint (ThinkPad only) ────────────────────────────────────────
+        if HW.get("tp_trackpoint"):
+            tp_c, tp_l = make_card("🔴  TrackPoint")
+            tp_l.addWidget(_mk_lbl(
+                "Adjust the red TrackPoint pointing stick sensitivity and speed.",
+                C_TEXT2, size=12))
+            tp_l.addWidget(make_div())
+
+            def _tp_serio_path(attr: str) -> "Path | None":
+                try:
+                    for d in Path("/sys/bus/serio/devices").iterdir():
+                        p = d / attr
+                        if p.exists(): return p
+                except: pass
+                return None
+
+            def _tp_slider(label, attr, lo, hi, color):
+                path = _tp_serio_path(attr)
+                row = QHBoxLayout(); row.setSpacing(12)
+                lb = QLabel(label); lb.setFixedWidth(100)
+                lb.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+                sl = QSlider(Qt.Orientation.Horizontal)
+                sl.setRange(lo, hi)
+                try: sl.setValue(int(path.read_text().strip())) if path else sl.setValue((lo+hi)//2)
+                except: sl.setValue((lo+hi)//2)
+                sl.setStyleSheet(
+                    f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+                    f"QSlider::handle:horizontal{{background:{color};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
+                    f"QSlider::sub-page:horizontal{{background:{color};border-radius:3px;}}"
+                )
+                vl = QLabel(str(sl.value())); vl.setFixedWidth(30)
+                vl.setStyleSheet(f"color:{color};font-size:12px;font-weight:600;background:transparent;")
+                sl.valueChanged.connect(lambda v, l=vl, p=path: (l.setText(str(v)),
+                    _tp_serio_path(attr) and _tp_serio_path(attr).write_text(str(v))))
+                row.addWidget(lb); row.addWidget(sl); row.addWidget(vl)
+                return row
+
+            tp_l.addLayout(_tp_slider("Sensitivity", "sensitivity", 1, 255, C_RED))
+            tp_l.addLayout(_tp_slider("Speed",       "speed",       1, 255, C_ORANGE))
+            root.addWidget(tp_c)
+
+        # ── Yoga auto-rotate ──────────────────────────────────────────────────
+        if HW.get("yoga_hinge") or HW.get("als_sensor"):
+            yr_c, yr_l = make_card("🔄  Yoga — Auto Rotate")
+            yr_l.addWidget(_mk_lbl(
+                "Lock or unlock automatic screen rotation based on hinge/accelerometer.",
+                C_TEXT2, size=11))
+            yr_l.addWidget(make_div())
+
+            rot_row = QHBoxLayout(); rot_row.setSpacing(16)
+            rot_text = QVBoxLayout(); rot_text.setSpacing(2)
+            rot_t = QLabel("Orientation Lock")
+            rot_t.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:600;background:transparent;")
+            rot_d = QLabel("When ON, rotation is locked to current orientation.")
+            rot_d.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+            rot_text.addWidget(rot_t); rot_text.addWidget(rot_d)
+            rot_row.addLayout(rot_text, 1)
+
+            self._rot_lock_tog = ToggleSwitch(path=None, on_change=self._on_rot_lock, read_val="0")
+            rot_row.addWidget(self._rot_lock_tog, 0, Qt.AlignmentFlag.AlignVCenter)
+            yr_l.addLayout(rot_row)
+            self._rot_status = QLabel("")
+            self._rot_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+            yr_l.addWidget(self._rot_status)
+            root.addWidget(yr_c)
+
+        # Appearance — Theme
+        ac, al = make_card("Appearance")
+        th_row = QHBoxLayout(); th_row.setSpacing(12)
+        th_lbl = QLabel("Theme")
+        th_lbl.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:500;background:transparent;")
+        th_row.addWidget(th_lbl)
+        self.theme_combo = QComboBox()
+        self.theme_combo.setStyleSheet(combo_style())
+        self.theme_combo.setFixedHeight(36)
+        self.theme_combo.addItems(["Dark", "Dark Dimmed", "OLED Black", "Light"])
+        saved_theme = self._app_cfg.get("theme", "dark")
+        theme_idx = {"dark": 0, "dark_dimmed": 1, "oled_black": 2, "light": 3}.get(saved_theme, 0)
+        self.theme_combo.setCurrentIndex(theme_idx)
+        self.theme_combo.currentIndexChanged.connect(self._on_theme)
+        th_row.addWidget(self.theme_combo); th_row.addStretch()
+        al.addLayout(th_row)
+        th_desc = QLabel("Changes the application theme. Applied immediately.")
+        th_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        al.addWidget(th_desc)
+        self._app_status = QLabel("")
+        self._app_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+        al.addWidget(self._app_status)
+        root.addWidget(ac)
+
+        # ── Yoga hinge mode (only on Yoga devices) ────────────────────────────
+        if HW.get("yoga_hinge"):
+            yc, yl = make_card("🔄  Yoga Mode")
+            yl.addWidget(_mk_lbl(
+                "Your device supports automatic mode switching based on hinge angle.",
+                C_TEXT2, size=11))
+            yl.addWidget(make_div())
+            def _get_yoga_mode() -> str:
+                try:
+                    p = next(Path("/sys/bus/platform/drivers/lenovo-ymc").glob("*/yoga_mode"), None)
+                    if p: return p.read_text().strip()
+                except: pass
+                return "—"
+            self._yoga_mode_lbl = QLabel(f"Current mode: {_get_yoga_mode()}")
+            self._yoga_mode_lbl.setStyleSheet(f"color:{C_BLUE};font-size:13px;font-weight:600;background:transparent;")
+            yl.addWidget(self._yoga_mode_lbl)
+            yoga_ref = QPushButton("🔄  Refresh Mode")
+            yoga_ref.setFixedHeight(30)
+            yoga_ref.setStyleSheet(f"background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};border-radius:6px;font-size:12px;")
+            yoga_ref.clicked.connect(lambda: self._yoga_mode_lbl.setText(f"Current mode: {_get_yoga_mode()}"))
+            yl.addWidget(yoga_ref)
+            root.addWidget(yc)
+
+        # ── ThinkPad keyboard extras ──────────────────────────────────────────
+        if HW.get("tp_thinklight") or HW.get("tp_micmute_led"):
+            tpk_c, tpk_l = make_card("⌨️  ThinkPad Extras")
+            if HW.get("tp_thinklight"):
+                tpk_l.addWidget(NotifyToggle(
+                    "ThinkLight", "Keyboard light above the screen.",
+                    Path("/sys/class/leds/tpacpi::thinklight/brightness"),
+                    notif_title="ThinkLight"))
+                tpk_l.addWidget(make_div())
+            if HW.get("tp_micmute_led"):
+                tpk_l.addWidget(NotifyToggle(
+                    "Mic Mute LED", "Sync the mic mute LED with system mute state.",
+                    Path("/sys/class/leds/platform::micmute/brightness"),
+                    notif_title="Mic Mute LED"))
+            root.addWidget(tpk_c)
+
+        root.addStretch()
+
+    def _on_rot_lock(self, locked: bool):
+        """Toggle screen orientation lock via iio-sensor-proxy / monitor-sensor."""
+        def _do():
+            try:
+                if locked:
+                    subprocess.Popen(["gdbus", "call", "--session",
+                        "--dest", "net.hadess.SensorProxy",
+                        "--object-path", "/net/hadess/SensorProxy",
+                        "--method", "net.hadess.SensorProxy.ClaimAccelerometer"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self._rot_status.setText("✓  Rotation locked")
+                else:
+                    subprocess.Popen(["gdbus", "call", "--session",
+                        "--dest", "net.hadess.SensorProxy",
+                        "--object-path", "/net/hadess/SensorProxy",
+                        "--method", "net.hadess.SensorProxy.ReleaseAccelerometer"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self._rot_status.setText("✓  Auto-rotate enabled")
+            except Exception as e:
+                self._rot_status.setText(f"✗  {e}")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _on_theme(self, idx):
+        """Save theme and restart dashboard so all colours rebuild correctly."""
+        names = ["dark", "dark_dimmed", "oled_black", "light"]
+        name = names[idx] if idx < len(names) else "dark"
+        self._app_cfg["theme"] = name
+        save_app_config(self._app_cfg)
+        self._app_status.setText("✓ Restarting to apply theme…")
+        QTimer.singleShot(500, self._restart)
+
+    def _restart(self):
+        """Restart the GUI so all colours rebuild from the saved theme."""
+        import os
+        win = self.window()
+        if win: win.close()
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    def refresh(self, d=None): pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OVERCLOCK PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class OverclockPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._cfg    = load_oc_config()
+        self._hw_max = get_cpu_hw_max_mhz()
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # Warning banner
+        warn_card = QWidget(); warn_card.setObjectName("oc_warn")
+        warn_card.setStyleSheet(
+            f"QWidget#oc_warn{{background:#1a0a00;border-radius:8px;border:1px solid {C_ORANGE};}}"
+            f"QWidget#oc_warn QLabel{{background:transparent;border:none;}}"
+        )
+        wl = QVBoxLayout(warn_card); wl.setContentsMargins(16,12,16,12); wl.setSpacing(4)
+        wt = QLabel("⚠️  Overclock / TDP Warning")
+        wt.setStyleSheet(f"color:{C_ORANGE};font-size:14px;font-weight:600;")
+        wd = QLabel(
+            "Changes apply immediately. Instability or data loss can occur. "
+            "GPU clock offsets require nvidia-settings with Coolbits=28. "
+            "TDP changes via RAPL are reset on reboot unless saved to profile."
+        )
+        wd.setWordWrap(True); wd.setStyleSheet(f"color:{C_TEXT2};font-size:12px;")
+        wl.addWidget(wt); wl.addWidget(wd); root.addWidget(warn_card)
+
+        # ── OC Master Toggle ───────────────────────────────────────────────────
+        tc, tl = make_card("Overclock")
+        tog_row = QHBoxLayout(); tog_row.setSpacing(16)
+        tog_text = QVBoxLayout(); tog_text.setSpacing(2)
+        tog_title = QLabel("Enable Overclock")
+        tog_title.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:600;background:transparent;")
+        tog_desc = QLabel(
+            "When OFF, CPU runs at stock max frequency and GPU OC is reset. "
+            "Toggle ON to apply saved OC settings immediately."
+        )
+        tog_desc.setWordWrap(True)
+        tog_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        tog_text.addWidget(tog_title); tog_text.addWidget(tog_desc)
+        tog_row.addLayout(tog_text, 1)
+        oc_enabled = self._cfg.get("oc_enabled", False)
+        self._oc_toggle = ToggleSwitch(
+            path=None,
+            on_change=self._on_oc_toggle,
+            read_val="1" if oc_enabled else "0"
+        )
+        tog_row.addWidget(self._oc_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        tl.addLayout(tog_row)
+        self._oc_status = QLabel("")
+        self._oc_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+        tl.addWidget(self._oc_status)
+        root.addWidget(tc)
+
+        # Container for all OC controls — hidden when toggle is OFF
+        self._oc_controls = QWidget(); self._oc_controls.setStyleSheet("background:transparent;")
+        oc_root = QVBoxLayout(self._oc_controls)
+        oc_root.setContentsMargins(0,0,0,0); oc_root.setSpacing(10)
+        self._oc_controls.setVisible(oc_enabled)
+
+        def _spin(lo, hi, val, suffix=" MHz", step=100, color=C_TEXT):
+            sp = QSpinBox()
+            sp.setRange(lo, hi); sp.setSuffix(suffix)
+            sp.setValue(val); sp.setSingleStep(step)
+            sp.setStyleSheet(
+                f"QSpinBox{{background:{C_CARD2};color:{color};border:1px solid {C_BORDER};"
+                f"border-radius:6px;padding:6px;font-size:13px;min-width:120px;}}"
+                f"QSpinBox::up-button,QSpinBox::down-button{{width:22px;background:{C_CARD2};}}"
+            )
+            return sp
+
+        def _row(label, widget, color=C_TEXT):
+            r = QHBoxLayout(); r.setSpacing(12)
+            lb = QLabel(label); lb.setFixedWidth(200)
+            lb.setStyleSheet(f"color:{color};font-size:12px;background:transparent;")
+            r.addWidget(lb); r.addWidget(widget); r.addStretch()
+            return r
+
+        # ── CPU section ────────────────────────────────────────────────────────
+        _cpu_label = "CPU"
+        try:
+            for line in Path("/proc/cpuinfo").read_text().splitlines():
+                if "model name" in line.lower():
+                    _cpu_label = "CPU — " + line.split(":")[1].strip()[:40]
+                    break
+        except: pass
+        cc, cl = make_card(_cpu_label)
+        cl.addWidget(InfoRow("Hardware Max Turbo", f"{self._hw_max} MHz"))
+        cur_pl1, cur_pl2 = get_cpu_tdp()
+
+        self.cpu_freq_spin = _spin(800, self._hw_max,
+                                   self._cfg.get("cpu_max_freq_mhz", self._hw_max))
+        cl.addLayout(_row("Max Frequency:", self.cpu_freq_spin, C_RED))
+        self.cpu_freq_sl = QSlider(Qt.Orientation.Horizontal)
+        self.cpu_freq_sl.setRange(800, self._hw_max)
+        self.cpu_freq_sl.setValue(self.cpu_freq_spin.value()); self.cpu_freq_sl.setSingleStep(100)
+        self.cpu_freq_sl.setStyleSheet(
+            f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+            f"QSlider::handle:horizontal{{background:{C_RED};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
+            f"QSlider::sub-page:horizontal{{background:{C_RED};border-radius:3px;}}"
+        )
+        self.cpu_freq_sl.valueChanged.connect(self.cpu_freq_spin.setValue)
+        self.cpu_freq_spin.valueChanged.connect(self.cpu_freq_sl.setValue)
+        cl.addWidget(self.cpu_freq_sl)
+
+        # Min freq
+        self.cpu_min_spin = _spin(400, 2000,
+                                  self._cfg.get("cpu_min_freq_mhz", get_cpu_min_freq_mhz()),
+                                  color=C_TEXT2)
+        cl.addLayout(_row("Min Frequency:", self.cpu_min_spin, C_TEXT2))
+
+        # TDP PL1
+        self.pl1_spin = _spin(5, 54, self._cfg.get("pl1_w", cur_pl1 or 35),
+                              suffix=" W", step=1, color=C_ORANGE)
+        cl.addLayout(_row("TDP — PL1 (sustained):", self.pl1_spin, C_ORANGE))
+        self.pl1_sl = QSlider(Qt.Orientation.Horizontal)
+        self.pl1_sl.setRange(5, 54); self.pl1_sl.setValue(self.pl1_spin.value())
+        self.pl1_sl.setStyleSheet(
+            f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+            f"QSlider::handle:horizontal{{background:{C_ORANGE};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
+            f"QSlider::sub-page:horizontal{{background:{C_ORANGE};border-radius:3px;}}"
+        )
+        self.pl1_sl.valueChanged.connect(self.pl1_spin.setValue)
+        self.pl1_spin.valueChanged.connect(self.pl1_sl.setValue)
+        cl.addWidget(self.pl1_sl)
+
+        # TDP PL2
+        self.pl2_spin = _spin(5, 54, self._cfg.get("pl2_w", cur_pl2 or 54),
+                              suffix=" W", step=1, color=C_ORANGE)
+        cl.addLayout(_row("TDP — PL2 (boost peak):", self.pl2_spin, C_ORANGE))
+        self.pl2_sl = QSlider(Qt.Orientation.Horizontal)
+        self.pl2_sl.setRange(5, 54); self.pl2_sl.setValue(self.pl2_spin.value())
+        self.pl2_sl.setStyleSheet(
+            f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+            f"QSlider::handle:horizontal{{background:{C_ORANGE};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
+            f"QSlider::sub-page:horizontal{{background:{C_ORANGE};border-radius:3px;}}"
+        )
+        self.pl2_sl.valueChanged.connect(self.pl2_spin.setValue)
+        self.pl2_spin.valueChanged.connect(self.pl2_sl.setValue)
+        cl.addWidget(self.pl2_sl)
+
+        cpu_tdp_hint = QLabel("PL1 = sustained TDP  ·  PL2 = short boost ceiling  ·  Reset on reboot")
+        cpu_tdp_hint.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
+        cl.addWidget(cpu_tdp_hint)
+
+        cpu_btn_row = QHBoxLayout(); cpu_btn_row.setSpacing(8)
+        for label, slot, bg in [
+            ("Apply CPU", self._apply_cpu, C_ACCENT),
+            (f"Reset Freq ({self._hw_max})", self._reset_cpu, C_CARD2),
+        ]:
+            b = QPushButton(label); b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet(
+                f"background:{bg};color:{'#fff' if bg!=C_CARD2 else C_TEXT};"
+                f"border:{'none' if bg!=C_CARD2 else f'1px solid {C_BORDER}'};"
+                f"border-radius:6px;font-size:12px;padding:8px 14px;"
+            )
+            b.clicked.connect(slot); cpu_btn_row.addWidget(b)
+        cpu_btn_row.addStretch()
+        cl.addLayout(cpu_btn_row)
+        self.cpu_status = QLabel("")
+        self.cpu_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+        cl.addWidget(self.cpu_status)
+        oc_root.addWidget(cc)
+        _gpu_label = "GPU"
+        try:
+            r = subprocess.run(["lspci"], capture_output=True, text=True, timeout=3)
+            for line in r.stdout.splitlines():
+                if "VGA" in line or "3D" in line:
+                    _gpu_label = "GPU — " + line.split(":",2)[-1].strip()[:45]
+                    break
+        except: pass
+        gc, gl = make_card(_gpu_label)
+
+        # Requirements note
+        req_lbl = QLabel(
+            "Clock offsets require nvidia-settings (AUR: nvidia-settings) + "
+            "Option \"Coolbits\" \"28\" in /etc/X11/xorg.conf.d/10-nvidia.conf\n"
+            "Power limit (nvidia-smi) works without Coolbits."
+        )
+        req_lbl.setWordWrap(True)
+        req_lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        gl.addWidget(req_lbl)
+
+        # Live GPU stats row
+        self.gpu_live = QLabel("Querying…")
+        self.gpu_live.setStyleSheet(f"color:{C_TEXT3};font-size:12px;background:transparent;")
+        gl.addWidget(self.gpu_live)
+        gl.addWidget(make_div())
+
+        for attr, label, lo, hi, default, suffix, color in [
+            ("gpu_core_spin",  "Core Clock Offset",   -500,  500,
+             self._cfg.get("gpu_core_offset", 0),  " MHz", C_BLUE),
+            ("gpu_mem_spin",   "Mem Transfer Offset", -1000, 2000,
+             self._cfg.get("gpu_mem_offset",  0),  " MHz", C_PURPLE),
+            ("gpu_pl_spin",    "Power Limit",           50,  130,
+             self._cfg.get("gpu_power_limit", 115), " W",  C_ORANGE),
+            ("gpu_temp_spin",  "Temp Target (nvidia-smi)", 60, 95,
+             self._cfg.get("gpu_temp_target", 83),  " °C", C_RED),
+            ("gpu_fan_spin",   "GPU Fan Override",       0,  100,
+             self._cfg.get("gpu_fan_pct",     0),   " %",  C_GREEN),
+        ]:
+            sp = _spin(lo, hi, default, suffix, step=1 if "W" in suffix or "°C" in suffix else 50, color=color)
+            setattr(self, attr, sp)
+            gl.addLayout(_row(label + ":", sp, color))
+
+        fan_hint = QLabel("Fan Override = 0 means auto (GPU-controlled). Set >0 for manual speed.")
+        fan_hint.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
+        gl.addWidget(fan_hint)
+
+        gpu_btn_row = QHBoxLayout(); gpu_btn_row.setSpacing(8)
+        for label, slot, bg in [
+            ("Apply GPU OC", self._apply_gpu, C_BLUE),
+            ("Reset GPU OC", self._reset_gpu_oc, C_CARD2),
+        ]:
+            b = QPushButton(label); b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet(
+                f"background:{bg};color:{'#fff' if bg!=C_CARD2 else C_TEXT};"
+                f"border:{'none' if bg!=C_CARD2 else f'1px solid {C_BORDER}'};"
+                f"border-radius:6px;font-size:12px;padding:8px 14px;"
+            )
+            b.clicked.connect(slot); gpu_btn_row.addWidget(b)
+        gpu_btn_row.addStretch()
+        gl.addLayout(gpu_btn_row)
+        self.gpu_status = QLabel("")
+        self.gpu_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+        gl.addWidget(self.gpu_status)
+        oc_root.addWidget(gc)
+
+        # ── Live GPU timer ─────────────────────────────────────────────────────
+        self._gpu_timer = QTimer(self)
+        self._gpu_timer.timeout.connect(self._refresh_gpu_live)
+        self._gpu_timer.start(2000)
+        self._refresh_gpu_live()
+
+        root.addWidget(self._oc_controls)
+        root.addStretch()
+
+    def _on_oc_toggle(self, enabled: bool):
+        self._oc_controls.setVisible(enabled)
+        self._cfg["oc_enabled"] = enabled
+        save_oc_config(self._cfg)
+        if enabled:
+            # Re-apply saved OC settings
+            self._apply_cpu()
+            self._apply_gpu()
+            self._oc_status.setText("✓ Overclock enabled — settings applied")
+        else:
+            # Reset everything to stock
+            self._reset_cpu()
+            self._reset_gpu_oc()
+            self._oc_status.setText("✓ Overclock disabled — stock settings restored")
+        QTimer.singleShot(4000, lambda: self._oc_status.setText(""))
+
+    def _refresh_gpu_live(self):
+        g = get_gpu_info()
+        if g.get("available"):
+            self.gpu_live.setText(
+                f"Util {g['util']}%  ·  {g['temp']}°C  ·  "
+                f"{g['freq']} MHz  ·  {g['mem_used']}/{g['mem_total']} MB  ·  "
+                f"{g['power']:.0f}W  ·  {g['pstate']}"
+            )
+            self.gpu_live.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        else:
+            self.gpu_live.setText("nvidia-smi not available")
+            self.gpu_live.setStyleSheet(f"color:{C_TEXT3};font-size:12px;background:transparent;")
+
+    def _apply_cpu(self):
+        mhz     = self.cpu_freq_spin.value()
+        min_mhz = self.cpu_min_spin.value()
+        pl1     = self.pl1_spin.value()
+        pl2     = self.pl2_spin.value()
+        apply_cpu_freq(mhz)
+        apply_cpu_min_freq(min_mhz)
+        set_cpu_tdp(pl1, pl2)
+        self._cfg.update({"cpu_max_freq_mhz": mhz, "cpu_min_freq_mhz": min_mhz,
+                          "pl1_w": pl1, "pl2_w": pl2})
+        save_oc_config(self._cfg)
+        self.cpu_status.setText(f"✓ Max {mhz} MHz · Min {min_mhz} MHz · PL1 {pl1}W · PL2 {pl2}W")
+        QTimer.singleShot(4000, lambda: self.cpu_status.setText(""))
+
+    def _reset_cpu(self):
+        self.cpu_freq_spin.setValue(self._hw_max)
+        self.cpu_min_spin.setValue(400)
+        self.pl1_spin.setValue(35); self.pl2_spin.setValue(54)
+        apply_cpu_freq(self._hw_max)
+        apply_cpu_min_freq(400)
+        set_cpu_tdp(35, 54)
+        self._cfg.update({"cpu_max_freq_mhz": self._hw_max, "cpu_min_freq_mhz": 400,
+                          "pl1_w": 35, "pl2_w": 54})
+        save_oc_config(self._cfg)
+        self.cpu_status.setText(f"✓ CPU reset — Max {self._hw_max} MHz · PL1 35W · PL2 54W")
+        QTimer.singleShot(4000, lambda: self.cpu_status.setText(""))
+
+    def _apply_gpu(self):
+        core = self.gpu_core_spin.value()
+        mem  = self.gpu_mem_spin.value()
+        pl   = self.gpu_pl_spin.value()
+        temp = self.gpu_temp_spin.value()
+        fan  = self.gpu_fan_spin.value()
+        apply_gpu_oc_full(core, mem, pl, temp, fan)
+        self._cfg.update({"gpu_core_offset": core, "gpu_mem_offset": mem,
+                          "gpu_power_limit": pl, "gpu_temp_target": temp,
+                          "gpu_fan_pct": fan})
+        save_oc_config(self._cfg)
+        self.gpu_status.setText(f"✓ Core +{core}  Mem +{mem}  PL {pl}W  Temp {temp}°C  Fan {fan}%")
+        QTimer.singleShot(4000, lambda: self.gpu_status.setText(""))
+
+    def _reset_gpu_oc(self):
+        for sp, val in [(self.gpu_core_spin, 0), (self.gpu_mem_spin, 0),
+                        (self.gpu_pl_spin, 115), (self.gpu_temp_spin, 83),
+                        (self.gpu_fan_spin, 0)]:
+            sp.setValue(val)
+        reset_gpu_oc_full()
+        self._cfg.update({"gpu_core_offset": 0, "gpu_mem_offset": 0,
+                          "gpu_power_limit": 115, "gpu_temp_target": 83, "gpu_fan_pct": 0})
+        save_oc_config(self._cfg)
+        self.gpu_status.setText("✓ GPU OC reset to defaults")
+        QTimer.singleShot(3000, lambda: self.gpu_status.setText(""))
+
+    def refresh(self, d=None): pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FAN CURVE PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class FanWidget(QWidget):
+    """Animated fan icon — spins faster as RPM increases."""
+    def __init__(self, color: str, size: int = 64, parent=None):
+        super().__init__(parent)
+        self._color  = QColor(color)
+        self._dim    = QColor(color)
+        self._dim.setAlphaF(0.25)
+        self._angle  = 0.0
+        self._speed  = 0.0   # degrees per timer tick (60fps)
+        self._rpm    = 0
+        self.setFixedSize(size, size)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(16)   # ~60 fps
+
+    def set_rpm(self, rpm: int):
+        self._rpm = rpm
+        # Map RPM → degrees per frame
+        # 0 RPM = 0 deg/frame,  5000 RPM = 12 deg/frame (2 full rotations/sec)
+        self._speed = min(rpm / 5000 * 12.0, 14.0)
+
+    def _tick(self):
+        if self._speed > 0:
+            self._angle = (self._angle + self._speed) % 360
+            self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        s = self.width()
+        cx, cy, r = s / 2, s / 2, s * 0.44
+
+        p.translate(cx, cy)
+        p.rotate(self._angle)
+
+        # Draw 3 blades, each 120° apart
+        BLADES = 3
+        for i in range(BLADES):
+            p.save()
+            p.rotate(i * (360 / BLADES))
+            # Blade: a rounded ellipse offset from center
+            blade_w = r * 0.52
+            blade_h = r * 0.78
+            grad = __import__('PyQt6.QtGui', fromlist=['QRadialGradient']).QRadialGradient(
+                0, -r * 0.35, r * 0.55)
+            grad.setColorAt(0.0, self._color)
+            grad.setColorAt(1.0, self._dim)
+            p.setBrush(grad)
+            p.setPen(Qt.PenStyle.NoPen)
+            # Offset blade away from center
+            p.translate(r * 0.28, -r * 0.38)
+            p.drawEllipse(
+                int(-blade_w / 2), int(-blade_h / 2),
+                int(blade_w), int(blade_h)
+            )
+            p.restore()
+
+        # Hub circle
+        hub_r = int(r * 0.22)
+        p.setBrush(self._color)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(-hub_r, -hub_r, hub_r * 2, hub_r * 2)
+
+        # Inner hub dot
+        inner = max(2, int(r * 0.08))
+        bg = QColor(C_BG)
+        p.setBrush(bg)
+        p.drawEllipse(-inner, -inner, inner * 2, inner * 2)
+
+        p.end()
+
+
+class FanPage(QWidget):
+    _fan_result = pyqtSignal(bool, str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._fan_result.connect(self._on_fan_result)
+        self._mode = "auto"   # "auto" or "full"
+        self._build()
+        self._fan_timer = QTimer(self)
+        self._fan_timer.timeout.connect(self._refresh_rpm)
+        self._fan_timer.start(1500)
+
+    def _on_fan_result(self, ok: bool, msg: str):
+        color = C_GREEN if ok else C_ORANGE
+        self._status.setStyleSheet(
+            f"color:{color};font-size:12px;font-weight:600;background:transparent;")
+        self._status.setText(msg)
+
+    def _emit(self, ok: bool, msg: str):
+        self._fan_result.emit(ok, msg)
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # ── Live RPM ──────────────────────────────────────────────────────────
+        rc, rl = make_card("Live Fan Speed")
+        rpm_row = QHBoxLayout(); rpm_row.setSpacing(48)
+        rpm_row.addStretch()
+        for attr, fan_attr, label, color in [
+            ("cpu_rpm_lbl", "cpu_fan_widget", "CPU Fan", C_BLUE),
+            ("gpu_rpm_lbl", "gpu_fan_widget", "GPU Fan", C_RED),
+        ]:
+            col = QVBoxLayout(); col.setSpacing(6)
+            col.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+            fan_w = FanWidget(color, size=64)
+            setattr(self, fan_attr, fan_w)
+            fan_w_wrap = QHBoxLayout()
+            fan_w_wrap.addStretch(); fan_w_wrap.addWidget(fan_w); fan_w_wrap.addStretch()
+
+            lbl = QLabel("— RPM")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet(
+                f"color:{color};font-size:22px;font-weight:600;background:transparent;")
+            name = QLabel(label)
+            name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+            setattr(self, attr, lbl)
+            col.addLayout(fan_w_wrap); col.addWidget(lbl); col.addWidget(name)
+            rpm_row.addLayout(col)
+        rpm_row.addStretch()
+        rl.addLayout(rpm_row)
+        self.fan_mode_badge = QLabel("Mode: Auto")
+        self.fan_mode_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.fan_mode_badge.setStyleSheet(
+            f"color:{C_TEXT3};font-size:12px;background:transparent;")
+        rl.addWidget(self.fan_mode_badge)
+        root.addWidget(rc)
+
+        # ── Fan Control ───────────────────────────────────────────────────────
+        cc, cl = make_card("Fan Control")
+
+        # Info note - enhanced LLL status
+        lll_status = get_lll_status()
+        lll_available = is_lll_available()
+        info = _fan_hwmon_info()
+        fs_ok = FAN_FULLSPEED.exists()
+        curve_text = ""
+        if lll_available:
+            curve_text = read_fancurve_from_hw()
+        has_curve = curve_text and "fan curve points size:" in curve_text
+        
+        note_lines = []
+        if lll_available:
+            note_lines.append(get_fan_status_message())
+            note_lines.append(f"✓  fan_fullspeed: {FAN_FULLSPEED}")
+            if has_curve:
+                note_lines.append(f"✓  Custom fan curve: available")
+            note_lines.append("")
+            note_lines.append("Use Power Mode (Quiet / Balanced / Performance)")
+            note_lines.append("or custom fan curve (LLL required).")
+        elif lll_status["module_loaded"]:
+            note_lines.append("⚠  LLL module loaded but device NOT bound")
+            note_lines.append(f"  Kernel: {Path('/proc/sys/kernel/osrelease').read_text().split()[0]}")
+            note_lines.append("")
+            note_lines.append("The module loaded but no hwmon device was created.")
+            note_lines.append("This usually means kernel 7.x is not supported yet.")
+            note_lines.append("")
+            note_lines.append("Try force loading:")
+            note_lines.append("  sudo modprobe -r legion_laptop")
+            note_lines.append("  sudo modprobe legion_laptop force=1")
+            note_lines.append("")
+            note_lines.append("OR downgrade to kernel 6.x:")
+            note_lines.append("  sudo pacman -S linux-cachyos#6.19.2")
+        else:
+            note_lines.append("⚠  LLL not loaded — limited fan control")
+            note_lines.append("")
+            note_lines.append("For full fan control, install lenovolegionlinux:")
+            note_lines.append("  sudo pacman -S cachyos/lenovolegionlinux")
+            note_lines.append("  sudo modprobe legion_laptop")
+            note_lines.append("")
+            note_lines.append("OR if module loads but no device:")
+            note_lines.append("  sudo modprobe legion_laptop force=1")
+        
+        note = QLabel("\n".join(note_lines))
+        note.setWordWrap(True)
+        note.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        cl.addWidget(note)
+        cl.addWidget(make_div())
+
+        # Two big buttons: Auto and Full Speed
+        btn_row = QHBoxLayout(); btn_row.setSpacing(12)
+
+        self._auto_btn = QPushButton("🌡️  Auto / Dynamic")
+        self._auto_btn.setCheckable(True); self._auto_btn.setChecked(True)
+        self._auto_btn.setFixedHeight(48)
+        self._auto_btn.setStyleSheet(
+            f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+            f"border:1px solid {C_BORDER};border-radius:8px;"
+            f"font-size:13px;font-weight:600;}}"
+            f"QPushButton:checked{{background:transparent;color:{C_GREEN};"
+            f"border:2px solid {C_GREEN};}}"
+            f"QPushButton:hover:!checked{{border:1px solid #555;color:{C_TEXT};}}"
+        )
+        self._auto_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._auto_btn.clicked.connect(lambda: self._set_mode("auto"))
+
+        self._full_btn = QPushButton("🌀  Full Speed")
+        self._full_btn.setCheckable(True); self._full_btn.setChecked(False)
+        self._full_btn.setFixedHeight(48)
+        self._full_btn.setStyleSheet(
+            f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+            f"border:1px solid {C_BORDER};border-radius:8px;"
+            f"font-size:13px;font-weight:600;}}"
+            f"QPushButton:checked{{background:transparent;color:{C_RED};"
+            f"border:2px solid {C_RED};}}"
+            f"QPushButton:hover:!checked{{border:1px solid #555;color:{C_TEXT};}}"
+        )
+        self._full_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._full_btn.clicked.connect(lambda: self._set_mode("full"))
+
+        # Lock Fan Controller button
+        lock_enabled = get_fan_lock_status()
+        self._lockfan_btn = QPushButton("🔒  Lock")
+        self._lockfan_btn.setCheckable(True)
+        self._lockfan_btn.setChecked(lock_enabled)
+        self._lockfan_btn.setFixedHeight(48)
+        self._lockfan_btn.setStyleSheet(
+            f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+            f"border:1px solid {C_BORDER};border-radius:8px;"
+            f"font-size:13px;font-weight:600;}}"
+            f"QPushButton:checked{{background:{C_RED};color:{C_BG};}}"
+            f"QPushButton:hover:!checked{{border:1px solid {C_RED};}}"
+        )
+        self._lockfan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._lockfan_btn.clicked.connect(lambda: self._apply_lockfan(self._lockfan_btn.isChecked()))
+
+        # Mini Fan Curve button
+        mini_enabled = get_minifancurve_status()
+        self._minifan_btn = QPushButton("🌡️  Mini")
+        self._minifan_btn.setCheckable(True)
+        self._minifan_btn.setChecked(mini_enabled)
+        self._minifan_btn.setFixedHeight(48)
+        self._minifan_btn.setStyleSheet(
+            f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+            f"border:1px solid {C_BORDER};border-radius:8px;"
+            f"font-size:13px;font-weight:600;}}"
+            f"QPushButton:checked{{background:{C_GREEN};color:{C_BG};}}"
+            f"QPushButton:hover:!checked{{border:1px solid {C_GREEN};}}"
+        )
+        self._minifan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._minifan_btn.clicked.connect(lambda: self._apply_minifan(self._minifan_btn.isChecked()))
+
+        btn_row.addWidget(self._auto_btn); btn_row.addWidget(self._full_btn)
+        btn_row.addWidget(self._lockfan_btn); btn_row.addWidget(self._minifan_btn)
+        cl.addLayout(btn_row)
+
+        self._mode_desc = QLabel(
+            "Firmware controls fans based on CPU/GPU temperature. Recommended.")
+        self._mode_desc.setStyleSheet(
+            f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        self._mode_desc.setWordWrap(True)
+        cl.addWidget(self._mode_desc)
+
+        # Status
+        self._status = QLabel("")
+        self._status.setStyleSheet(
+            f"color:{C_GREEN};font-size:12px;background:transparent;")
+        cl.addWidget(self._status)
+        
+        # ── 10-Point Fan Curve Editor ──────────────────────────────────────────────────
+        if has_curve and lll_available:
+            fce, fcel = make_card("🎛️  Custom Fan Curve Editor")
+            
+            # Instructions
+            fcel.addWidget(_mk_lbl(
+                "Edit each point: temperature (°C) where fan speed changes.\n"
+                "PWM = fan speed (0-255), Accel/Decel = speed change rate.",
+                C_TEXT2, size=11))
+            
+            # Create table for 10 points
+            curve_scroll = QScrollArea()
+            curve_scroll.setWidgetResizable(True)
+            curve_scroll.setFixedHeight(280)
+            
+            curve_widget = QWidget()
+            curve_layout = QVBoxLayout()
+            
+            # Headers
+            header = QLabel("Pt | CPU Temp | Fan1 PWM | Fan2 PWM | Accel | Decel")
+            header.setStyleSheet(f"color:{C_ACCENT};font-weight:600;font-size:12px;")
+            curve_layout.addWidget(header)
+            
+            # Parse current curve
+            current_points = parse_fancurve(curve_text) if curve_text else []
+            
+            # Create 10 input rows
+            self._curve_points = []
+            for i in range(10):
+                row = QHBoxLayout()
+                
+                # Point label
+                lbl = QLabel(f"{i+1}")
+                lbl.setFixedWidth(25)
+                row.addWidget(lbl)
+                
+                # CPU Temp (threshold to switch to this fan speed)
+                temp_spin = QSpinBox()
+                temp_spin.setRange(30, 95)
+                temp_spin.setValue(current_points[i].get("cpu_max", 50) if i < len(current_points) else 40 + i*5)
+                temp_spin.setFixedWidth(60)
+                row.addWidget(QLabel("°C")); row.addWidget(temp_spin)
+                row.addStretch()
+                
+                # Fan1 PWM
+                pwm1_spin = QSpinBox()
+                pwm1_spin.setRange(0, 255)
+                pwm1_spin.setValue(current_points[i].get("fan1_pwm", 50 + i*20) if i < len(current_points) else min(255, 50 + i*20))
+                pwm1_spin.setFixedWidth(60)
+                row.addWidget(QLabel("F1")); row.addWidget(pwm1_spin)
+                row.addStretch()
+                
+                # Fan2 PWM  
+                pwm2_spin = QSpinBox()
+                pwm2_spin.setRange(0, 255)
+                pwm2_spin.setValue(current_points[i].get("fan2_pwm", 50 + i*20) if i < len(current_points) else min(255, 50 + i*20))
+                pwm2_spin.setFixedWidth(60)
+                row.addWidget(QLabel("F2")); row.addWidget(pwm2_spin)
+                row.addStretch()
+                
+                # Accel
+                accel_spin = QSpinBox()
+                accel_spin.setRange(1, 10)
+                accel_spin.setValue(current_points[i].get("accel", 5) if i < len(current_points) else 5)
+                accel_spin.setFixedWidth(45)
+                row.addWidget(QLabel("Acc")); row.addWidget(accel_spin)
+                
+                # Decel
+                decel_spin = QSpinBox()
+                decel_spin.setRange(1, 10)
+                decel_spin.setValue(current_points[i].get("decel", 5) if i < len(current_points) else 5)
+                decel_spin.setFixedWidth(45)
+                row.addWidget(QLabel("Dec")); row.addWidget(decel_spin)
+                
+                self._curve_points.append({
+                    "temp": temp_spin,
+                    "pwm1": pwm1_spin,
+                    "pwm2": pwm2_spin,
+                    "accel": accel_spin,
+                    "decel": decel_spin,
+                })
+                curve_layout.addLayout(row)
+            
+            # Buttons for save/load/apply
+            btn_row = QHBoxLayout()
+            btn_row.setSpacing(8)
+            
+            apply_btn = QPushButton("💾  Apply to Hardware")
+            apply_btn.setStyleSheet(f"background:{C_ACCENT};color:{C_BG};border-radius:6px;padding:8px;")
+            apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            apply_btn.clicked.connect(self._apply_fan_curve_editor)
+            btn_row.addWidget(apply_btn)
+            
+            save_preset_btn = QPushButton("💾  Save Preset")
+            save_preset_btn.setStyleSheet(f"background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};border-radius:6px;padding:8px;")
+            save_preset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            save_preset_btn.clicked.connect(lambda: self._save_fan_preset("custom"))
+            btn_row.addWidget(save_preset_btn)
+            
+            load_preset_btn = QPushButton("📂  Load Preset")
+            load_preset_btn.setStyleSheet(f"background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};border-radius:6px;padding:8px;")
+            load_preset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            load_preset_btn.clicked.connect(lambda: self._load_fan_preset("custom"))
+            btn_row.addWidget(load_preset_btn)
+            
+            curve_layout.addLayout(btn_row)
+            curve_widget.setLayout(curve_layout)
+            curve_scroll.setWidget(curve_widget)
+            fcel.addWidget(curve_scroll)
+            
+            # Store reference to hide/show based on fan mode
+            self._fancurve_editor = fce
+            self._fancurve_editor.setVisible(False)  # Hidden by default (use Auto mode)
+            
+            root.addWidget(fce)
+            root.addWidget(make_div())
+
+        root.addWidget(cc)
+
+        # ── Info card ─────────────────────────────────────────────────────────
+        ic, il = make_card("ℹ️  Fan Curve Control")
+        info_text = QLabel(
+            "To adjust fan aggressiveness, change your Power Mode:\n\n"
+            "🔵  Quiet          —  Minimal fan noise, lower temps acceptable\n"
+            "⚪  Balanced      —  Balanced fan curve for everyday use\n"
+            "🔴  Performance  —  Aggressive cooling for sustained loads\n"
+            "🩷  Custom        —  Maximum fan speed, loudest\n\n"
+            "Each profile has its own firmware-defined fan curve baked in."
+        )
+        info_text.setWordWrap(True)
+        info_text.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        il.addWidget(info_text)
+        root.addWidget(ic)
+
+        # ── ThinkPad fan levels (only on ThinkPad) ────────────────────────────
+        if HW.get("tp_fan_control"):
+            tfc, tfl = make_card("🌀  ThinkPad Fan Control")
+            tfl.addWidget(_mk_lbl(
+                "ThinkPad fan levels via /proc/acpi/ibm/fan.\n"
+                "Level 0 = off  ·  1–7 = increasing speed  ·  Auto = firmware control",
+                C_TEXT2, size=11))
+            tfl.addWidget(make_div())
+
+            # Read current level
+            def _get_tp_fan() -> str:
+                try:
+                    txt = Path("/proc/acpi/ibm/fan").read_text()
+                    for line in txt.splitlines():
+                        if line.startswith("level:"): return line.split(":")[1].strip()
+                except: pass
+                return "auto"
+
+            level_row = QHBoxLayout(); level_row.setSpacing(12)
+            lv_lbl = QLabel("Fan Level:")
+            lv_lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+            self._tp_fan_combo = QComboBox()
+            self._tp_fan_combo.setStyleSheet(combo_style())
+            self._tp_fan_combo.setFixedHeight(34)
+            levels = ["auto", "0", "1", "2", "3", "4", "5", "6", "7", "disengaged"]
+            level_labels = {
+                "auto": "Auto (firmware)", "0": "0 — Off",
+                "1": "1 — Very quiet", "2": "2 — Quiet",
+                "3": "3 — Low", "4": "4 — Medium",
+                "5": "5 — High", "6": "6 — Very high",
+                "7": "7 — Maximum", "disengaged": "Disengaged (max RPM)"
+            }
+            cur_lv = _get_tp_fan()
+            for lv in levels:
+                self._tp_fan_combo.addItem(level_labels.get(lv, lv), lv)
+            cur_idx = levels.index(cur_lv) if cur_lv in levels else 0
+            self._tp_fan_combo.setCurrentIndex(cur_idx)
+            level_row.addWidget(lv_lbl); level_row.addWidget(self._tp_fan_combo); level_row.addStretch()
+            tfl.addLayout(level_row)
+
+            tp_fan_apply = QPushButton("Apply Fan Level")
+            tp_fan_apply.setFixedHeight(32)
+            tp_fan_apply.setStyleSheet(
+                f"background:{C_ACCENT};color:#fff;border:none;"
+                f"border-radius:6px;font-size:12px;padding:0 16px;")
+            tp_fan_apply.setCursor(Qt.CursorShape.PointingHandCursor)
+            tp_fan_apply.clicked.connect(self._apply_tp_fan)
+            self._tp_fan_status = QLabel("")
+            self._tp_fan_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+            tp_btn_row = QHBoxLayout()
+            tp_btn_row.addWidget(tp_fan_apply); tp_btn_row.addWidget(self._tp_fan_status); tp_btn_row.addStretch()
+            tfl.addLayout(tp_btn_row)
+            root.addWidget(tfc)
+
+        root.addStretch()
+        self._refresh_rpm()
+
+    def _apply_gsync(self, enable: bool):
+        """Apply G-Sync/Hybrid mode toggle."""
+        ok, msg = set_gsync(enable)
+        if ok:
+            self._gsync_btn.setText("🔄  G-Sync  ✓" if enable else "🔄  G-Sync  ○")
+            send_notif("G-Sync", msg, "display")
+        else:
+            send_notif("G-Sync Error", msg, "dialog-error")
+
+    def _apply_lockfan(self, lock: bool):
+        """Apply fan lock toggle."""
+        ok, msg = set_fan_lock(lock)
+        if ok:
+            send_notif("Fan Controller", msg, "computer")
+        else:
+            send_notif("Fan Lock Error", msg, "dialog-error")
+
+    def _apply_minifan(self, enable: bool):
+        """Apply mini fan curve toggle."""
+        ok, msg = set_minifancurve(enable)
+        if ok:
+            send_notif("Mini Fan Curve", msg, "computer")
+        else:
+            send_notif("Mini Fan Error", msg, "dialog-error")
+
+    def _apply_fan_curve_editor(self):
+        """Apply the custom fan curve from the editor."""
+        points = []
+        for pt in self._curve_points:
+            points.append({
+                "fan1_pwm": pt["pwm1"].value(),
+                "fan2_pwm": pt["pwm2"].value(),
+                "cpu_temp": pt["temp"].value(),
+                "accel": pt["accel"].value(),
+                "decel": pt["decel"].value(),
+            })
+        
+        ok, msg = write_fancurve_to_hw(points)
+        if ok:
+            self._status.setText(f"✓  {msg}")
+            send_notif("Fan Curve", msg, "computer")
+        else:
+            self._status.setText(f"✗  {msg}")
+            send_notif("Fan Curve Error", msg, "dialog-error")
+
+    def _save_fan_preset(self, name: str):
+        """Save current fan curve to a preset file."""
+        points = []
+        for pt in self._curve_points:
+            points.append({
+                "fan1_pwm": pt["pwm1"].value(),
+                "fan2_pwm": pt["pwm2"].value(),
+                "cpu_temp": pt["temp"].value(),
+                "accel": pt["accel"].value(),
+                "decel": pt["decel"].value(),
+            })
+        
+        if save_fancurve_to_file(points, name):
+            send_notif("Fan Curve", f"Saved preset: {name}", "computer")
+        else:
+            send_notif("Save Error", "Failed to save preset", "dialog-error")
+
+    def _load_fan_preset(self, name: str):
+        """Load a fan curve preset into the editor."""
+        points = load_fancurve_from_file(name)
+        if not points:
+            send_notif("Load Error", f"No preset found: {name}", "dialog-error")
+            return
+        
+        # Update the UI
+        for i, pt in enumerate(points[:10]):
+            if i < len(self._curve_points):
+                self._curve_points[i]["temp"].setValue(pt.get("cpu_temp", 50))
+                self._curve_points[i]["pwm1"].setValue(pt.get("fan1_pwm", 100))
+                self._curve_points[i]["pwm2"].setValue(pt.get("fan2_pwm", 100))
+                self._curve_points[i]["accel"].setValue(pt.get("accel", 5))
+                self._curve_points[i]["decel"].setValue(pt.get("decel", 5))
+        
+        send_notif("Fan Curve", f"Loaded preset: {name}", "computer")
+
+    def _apply_tp_fan(self):
+        level = self._tp_fan_combo.currentData()
+        def _do():
+            try:
+                r = subprocess.run(
+                    ["pkexec", "sh", "-c",
+                     f"echo 'level {level}' > /proc/acpi/ibm/fan"],
+                    capture_output=True, text=True, timeout=8
+                )
+                if r.returncode == 0:
+                    self._tp_fan_status.setText(f"✓  Fan level → {level}")
+                    send_notif("ThinkPad Fan", f"Fan level set to {level}", "computer")
+                else:
+                    self._tp_fan_status.setText(f"✗  {r.stderr.strip()[:80]}")
+            except Exception as e:
+                self._tp_fan_status.setText(f"✗  {e}")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _set_mode(self, mode: str):
+        self._mode = mode
+        self._auto_btn.setChecked(mode == "auto")
+        self._full_btn.setChecked(mode == "full")
+        self._mode_desc.setText(
+            "Firmware controls fans based on CPU/GPU temperature. Recommended."
+            if mode == "auto" else
+            "Both fans locked to 100% — maximum cooling, louder."
+        )
+        
+        # Show/hide fan curve editor based on mode
+        if hasattr(self, '_fancurve_editor'):
+            self._fancurve_editor.setVisible(mode != "auto")
+        
+        self._on_fan_result(False, f"⏳  Applying…")
+
+        def _do():
+            if mode == "auto":
+                ok, msg = _write_fan_auto()
+                self._emit(ok, "✓  Auto fan control active" if ok else f"✗  {msg}")
+            else:
+                ok, msg = _write_fan_fullspeed(True)
+                self._emit(ok, "✓  Full speed active" if ok else f"✗  {msg}")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _refresh_rpm(self):
+        rpm1, rpm2 = get_fan_rpm()
+        # Update animated fan widgets
+        self.cpu_fan_widget.set_rpm(rpm1)
+        self.gpu_fan_widget.set_rpm(rpm2)
+        # Update labels
+        self.cpu_rpm_lbl.setText(f"{rpm1:,}" if rpm1 > 0 else "—")
+        self.gpu_rpm_lbl.setText(f"{rpm2:,}" if rpm2 > 0 else "—")
+        mode_label = "Full Speed" if self._mode == "full" else "Auto"
+        self.fan_mode_badge.setText(f"Mode: {mode_label}")
+        for lbl, rpm, base_col in [
+            (self.cpu_rpm_lbl, rpm1, C_BLUE),
+            (self.gpu_rpm_lbl, rpm2, C_RED),
+        ]:
+            c = C_RED if rpm > 5000 else C_ORANGE if rpm > 2500 else base_col
+            lbl.setStyleSheet(
+                f"color:{c};font-size:22px;font-weight:600;background:transparent;")
+
+    def refresh(self, d=None):
+        self._refresh_rpm()
+
+# ══════════════════════════════════════════════════════════════════════════════
+class ActionsPage(QWidget):
+
+    def refresh(self, d=None):
+        self._refresh_rpm()
+
+# ══════════════════════════════════════════════════════════════════════════════
+        color = C_GREEN if ok else C_ORANGE
+        self._status.setStyleSheet(
+            f"color:{color};font-size:12px;font-weight:600;background:transparent;")
+        self._status.setText(msg)
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        # ── Driver status banner ──────────────────────────────────────────────
+        info = _fan_hwmon_info()
+        fc, fl = make_card("Fan Control")
+        if info["found"]:
+            has_pwm = info["pwm1"] or info["pwm2"]
+            has_en  = info["pwm1_enable"] or info["pwm2_enable"]
+            fs_ok   = FAN_FULLSPEED.exists()
+            lines = [
+                f"✓  legion_hwmon found: {info['path']}",
+                f"   PWM files: {'pwm1 pwm2' if has_pwm else '— not available (read-only RPM only)'}",
+                f"   PWM enable: {'pwm1_enable pwm2_enable' if has_en else '— not available'}",
+                f"   fan_fullspeed: {'✓' if fs_ok else '✗  not found'} {FAN_FULLSPEED}",
+            ]
+            if not has_pwm:
+                lines.append("")
+                lines.append("⚠  Manual speed via PWM not available on this driver version.")
+                lines.append("   Auto / Full Speed still work. Presets use Full Speed toggle.")
+            status_lbl = QLabel("\n".join(lines))
+            status_lbl.setStyleSheet(
+                f"color:{C_TEXT2};font-size:10px;font-family:monospace;background:transparent;")
+        else:
+            status_lbl = QLabel(
+                "⚠  legion_hwmon not found.\n"
+                "Make sure lenovo_legion_laptop module is loaded:\n"
+                "sudo modprobe lenovo_legion_laptop")
+            status_lbl.setStyleSheet(f"color:{C_ORANGE};font-size:12px;background:transparent;")
+        status_lbl.setWordWrap(True)
+        fl.addWidget(status_lbl)
+        root.addWidget(fc)
+
+        # ── Live RPM ──────────────────────────────────────────────────────────
+        rc, rl = make_card("Live Fan Speed")
+        rpm_row = QHBoxLayout(); rpm_row.setSpacing(32)
+        for attr, label, color in [
+            ("cpu_rpm_lbl","CPU Fan",C_BLUE),
+            ("gpu_rpm_lbl","GPU Fan",C_RED),
+        ]:
+            col = QVBoxLayout(); col.setSpacing(4)
+            icon = QLabel("🌀"); icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon.setStyleSheet("font-size:22px;background:transparent;")
+            lbl = QLabel("— RPM"); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet(f"color:{color};font-size:20px;font-weight:600;background:transparent;")
+            name = QLabel(label); name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+            setattr(self, attr, lbl)
+            col.addWidget(icon); col.addWidget(lbl); col.addWidget(name)
+            rpm_row.addLayout(col)
+        rl.addLayout(rpm_row)
+        self.fan_mode_badge = QLabel("Mode: Auto")
+        self.fan_mode_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.fan_mode_badge.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        rl.addWidget(self.fan_mode_badge)
+        root.addWidget(rc)
+
+        # ── Mode selector ─────────────────────────────────────────────────────
+        mc, ml = make_card("Fan Control Mode")
+        mode_row = QHBoxLayout(); mode_row.setSpacing(8)
+        self._mode_btns = {}
+        for mode_name, mode_key, color in [
+            ("Auto / Dynamic", "auto",   C_GREEN),
+            ("Manual Speed",   "manual", C_ORANGE),
+            ("Full Speed",     "full",   C_RED),
+        ]:
+            btn = QPushButton(mode_name)
+            btn.setCheckable(True); btn.setFixedHeight(36)
+            btn.setChecked(self._cfg.get("mode","auto") == mode_key)
+            btn.setStyleSheet(
+                f"QPushButton{{background:{C_CARD2};color:{C_TEXT2};"
+                f"border:1px solid {C_BORDER};border-radius:6px;"
+                f"font-size:12px;font-weight:600;padding:0 8px;}}"
+                f"QPushButton:checked{{background:transparent;color:{color};"
+                f"border:2px solid {color};}}"
+                f"QPushButton:hover:!checked{{border:1px solid #555;color:{C_TEXT};}}"
+            )
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda chk, k=mode_key: self._set_mode(k))
+            self._mode_btns[mode_key] = btn; mode_row.addWidget(btn)
+        ml.addLayout(mode_row)
+        self._mode_desc = QLabel(self._mode_hint(self._cfg.get("mode","auto")))
+        self._mode_desc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        self._mode_desc.setWordWrap(True)
+        ml.addWidget(self._mode_desc)
+        root.addWidget(mc)
+
+        # ── Presets ───────────────────────────────────────────────────────────
+        pc, pl = make_card("Fan Presets")
+        pl.addWidget(_mk_lbl(
+            "Quick presets. If manual PWM is available, sets exact speed.\n"
+            "Otherwise maps to Auto or Full Speed.", C_TEXT2, size=12))
+        preset_wrap = QWidget()
+        preset_wrap.setStyleSheet("background:transparent;")
+        preset_lay = QVBoxLayout(preset_wrap)
+        preset_lay.setContentsMargins(0, 8, 0, 0)
+        preset_lay.setSpacing(8)
+        preset_list = list(FAN_PRESETS.items())
+        for row_i in range(0, len(preset_list), 3):
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            for col_i in range(3):
+                idx = row_i + col_i
+                if idx >= len(preset_list):
+                    row.addStretch()
+                    continue
+                pname, (cpu_pct, gpu_pct) = preset_list[idx]
+                color = [C_BLUE, C_GREEN, C_ORANGE, C_RED, "#ff0000"][idx % 5]
+                btn = QPushButton(f"{pname}  —  {cpu_pct}% CPU / {gpu_pct}% GPU")
+                btn.setFixedHeight(42)
+                btn.setStyleSheet(
+                    f"QPushButton{{background:{C_CARD2};color:{C_TEXT};"
+                    f"border:1px solid {C_BORDER};border-radius:8px;font-size:12px;font-weight:500;"
+                    f"border-left:3px solid {color};padding-left:12px;}}"
+                    f"QPushButton:hover{{background:{color}22;border-color:{color};}}"
+                    f"QPushButton:pressed{{background:{color}44;}}"
+                )
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.clicked.connect(lambda chk, pn=pname, cp=cpu_pct, gp=gpu_pct:
+                                    self._apply_preset(pn, cp, gp))
+                row.addWidget(btn, 1)
+            preset_lay.addLayout(row)
+        pl.addWidget(preset_wrap)
+        root.addWidget(pc)
+
+        # ── Manual sliders ────────────────────────────────────────────────────
+        self._manual_card, ml2 = make_card("Manual Fan Speed")
+        ml2.addWidget(_mk_lbl(
+            "Set exact fan speed. Requires writable PWM files in legion_hwmon.", C_TEXT2, size=11))
+
+        def _slider_row(label, color, default):
+            row = QHBoxLayout(); row.setSpacing(12)
+            lb = QLabel(label); lb.setFixedWidth(70)
+            lb.setStyleSheet(f"color:{color};font-size:12px;font-weight:600;background:transparent;")
+            sl = QSlider(Qt.Orientation.Horizontal)
+            sl.setRange(0,100); sl.setValue(default)
+            sl.setStyleSheet(
+                f"QSlider::groove:horizontal{{background:{C_BORDER};height:8px;border-radius:4px;}}"
+                f"QSlider::handle:horizontal{{background:{color};width:18px;height:18px;"
+                f"border-radius:9px;margin:-5px 0;}}"
+                f"QSlider::sub-page:horizontal{{background:{color};border-radius:4px;}}"
+            )
+            vl = QLabel(f"{default}%"); vl.setFixedWidth(40)
+            vl.setStyleSheet(f"color:{color};font-size:12px;font-weight:600;background:transparent;")
+            sl.valueChanged.connect(lambda v, l=vl: l.setText(f"{v}%"))
+            row.addWidget(lb); row.addWidget(sl); row.addWidget(vl)
+            return row, sl
+
+        cpu_row, self.cpu_fan_sl = _slider_row("CPU Fan", C_BLUE,  self._cfg.get("cpu_pct",50))
+        gpu_row, self.gpu_fan_sl = _slider_row("GPU Fan", C_RED,   self._cfg.get("gpu_pct",50))
+        ml2.addLayout(cpu_row); ml2.addLayout(gpu_row)
+
+        apply_btn = QPushButton("Apply Manual Speed")
+        apply_btn.setFixedHeight(34)
+        apply_btn.setStyleSheet(
+            f"background:{C_ORANGE};color:#000;font-weight:600;"
+            f"border:none;border-radius:6px;font-size:12px;padding:0 16px;")
+        apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_btn.clicked.connect(self._apply_manual)
+        btn_rl = QHBoxLayout(); btn_rl.addWidget(apply_btn); btn_rl.addStretch()
+        ml2.addLayout(btn_rl)
+        root.addWidget(self._manual_card)
+
+        # Status label
+        self._fan_status = QLabel("")
+        self._fan_status.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+        root.addWidget(self._fan_status)
+        root.addStretch()
+
+        self._update_manual_visibility(self._cfg.get("mode","auto"))
+        self._refresh_rpm()
+
+    def _mode_hint(self, mode: str) -> str:
+        return {
+            "auto":   "Firmware controls fans via thermal curves. Recommended for daily use.",
+            "manual": "Set exact fan speed. Uses PWM files in legion_hwmon.",
+            "full":   "Both fans locked to 100% — loudest, maximum cooling.",
+        }.get(mode, "")
+
+    def _set_mode(self, mode: str):
+        for k, b in self._mode_btns.items():
+            b.setChecked(k == mode)
+        self._mode_desc.setText(self._mode_hint(mode))
+        
+        # Show/hide fan curve editor based on mode
+        # Editor visible for manual or full mode (NOT auto)
+        if hasattr(self, '_fancurve_editor'):
+            self._fancurve_editor.setVisible(mode in ("manual", "full"))
+        
+        self._cfg["mode"] = mode
+        save_fan_config(self._cfg)
+        self._update_manual_visibility(mode)
+        self._on_fan_result(False, f"⏳  Applying {mode} mode…")
+        def _do():
+            if mode == "auto":
+                ok, msg = _write_fan_auto()
+                self._emit(ok, "✓  Auto fan control active" if ok else f"✗  {msg}")
+            elif mode == "full":
+                ok, msg = _write_fan_fullspeed(True)
+                self._emit(ok, "✓  Full speed active" if ok else f"✗  {msg}")
+            elif mode == "manual":
+                self._emit(True, "↑  Set speed with sliders above → Apply")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _update_manual_visibility(self, mode: str):
+        self._manual_card.setVisible(mode == "manual")
+
+    def _apply_preset(self, name: str, cpu_pct: int, gpu_pct: int):
+        self.cpu_fan_sl.setValue(cpu_pct)
+        self.gpu_fan_sl.setValue(gpu_pct)
+        for k, b in self._mode_btns.items():
+            b.setChecked(k == "manual")
+        self._update_manual_visibility("manual")
+        self._cfg.update({"mode":"manual","cpu_pct":cpu_pct,"gpu_pct":gpu_pct,"preset":name})
+        save_fan_config(self._cfg)
+        self._on_fan_result(False, f"⏳  Applying {name}…")
+        def _do():
+            ok, msg = _write_fan_pwm(cpu_pct, gpu_pct)
+            if ok:
+                self._emit(True, f"✓  {name} — CPU {cpu_pct}%  GPU {gpu_pct}%")
+            else:
+                if cpu_pct >= 90:
+                    ok2, msg2 = _write_fan_fullspeed(True)
+                    self._emit(ok2, f"✓  {name} (full speed)" if ok2 else f"✗  {msg2}")
+                else:
+                    ok2, msg2 = _write_fan_auto()
+                    self._emit(ok2,
+                        f"✓  {name} (auto — PWM not available)" if ok2 else f"✗  {msg2}")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _apply_manual(self):
+        cpu_pct = self.cpu_fan_sl.value()
+        gpu_pct = self.gpu_fan_sl.value()
+        self._cfg.update({"mode":"manual","cpu_pct":cpu_pct,"gpu_pct":gpu_pct})
+        save_fan_config(self._cfg)
+        self._on_fan_result(False, f"⏳  Applying CPU {cpu_pct}%  GPU {gpu_pct}%…")
+        def _do():
+            ok, msg = _write_fan_pwm(cpu_pct, gpu_pct)
+            self._emit(ok, f"✓  CPU {cpu_pct}%  GPU {gpu_pct}%" if ok else f"✗  {msg}")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _refresh_rpm(self):
+        rpm1, rpm2 = get_fan_rpm()
+        self.cpu_rpm_lbl.setText(f"{rpm1:,}" if rpm1 > 0 else "—")
+        self.gpu_rpm_lbl.setText(f"{rpm2:,}" if rpm2 > 0 else "—")
+        mode = self._cfg.get("mode","auto")
+        mode_labels = {"auto":"Auto","manual":"Manual","full":"Full Speed"}
+        self.fan_mode_badge.setText(f"Mode: {mode_labels.get(mode, mode)}")
+        for lbl, rpm, col in [(self.cpu_rpm_lbl,rpm1,C_BLUE),(self.gpu_rpm_lbl,rpm2,C_RED)]:
+            c = C_RED if rpm>5000 else C_ORANGE if rpm>2500 else col
+            lbl.setStyleSheet(
+                f"color:{c};font-size:20px;font-weight:600;background:transparent;")
+
+    def refresh(self, d=None):
+        self._refresh_rpm()
+# ══════════════════════════════════════════════════════════════════════════════
+class ActionsPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._actions = load_actions()
+        self._build()
+
+    def _build(self):
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none;background:transparent;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setStyleSheet(f"background:{C_BG};")
+        root = QVBoxLayout(inner); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(scroll)
+        scroll.setWidget(inner)
+
+        ac, al = make_card("Automatic Power Mode Switching")
+        adesc = QLabel(
+            "Automatically switch power profile when AC adapter is plugged or unplugged. "
+            "The background sampler applies changes immediately — no separate daemon needed."
+        )
+        adesc.setWordWrap(True)
+        adesc.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        al.addWidget(adesc); al.addWidget(make_div())
+
+        sw = QHBoxLayout()
+        swc = QVBoxLayout(); swc.setSpacing(2)
+        st = QLabel("Enable Auto Switching")
+        st.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:600;background:transparent;")
+        sd = QLabel("Automatically change profile when charger is plugged/unplugged.")
+        sd.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        swc.addWidget(st); swc.addWidget(sd)
+        sw.addLayout(swc); sw.addStretch()
+        self.auto_toggle = ToggleSwitch(
+            path=None, on_change=self._on_auto,
+            read_val="1" if self._actions.get("auto_switch") else "0"
+        )
+        sw.addWidget(self.auto_toggle, alignment=Qt.AlignmentFlag.AlignVCenter)
+        al.addLayout(sw); al.addWidget(make_div())
+
+        for attr, label, key in [
+            ("ac_combo",  "On AC Connect  →", "on_ac"),
+            ("bat_combo", "On Battery      →", "on_battery"),
+        ]:
+            row = QHBoxLayout(); row.setSpacing(16)
+            lbl = QLabel(label); lbl.setFixedWidth(180)
+            lbl.setStyleSheet(f"color:{C_TEXT};font-size:13px;background:transparent;")
+            row.addWidget(lbl)
+            combo = QComboBox(); combo.setStyleSheet(combo_style())
+            cur = self._actions.get(key,"balanced")
+            for p in PROFILES: combo.addItem(PROFILE_LABELS[p], p)
+            if cur in PROFILES: combo.setCurrentIndex(PROFILES.index(cur))
+            combo.currentIndexChanged.connect(self._save)
+            setattr(self, attr, combo); row.addWidget(combo); row.addStretch()
+            al.addLayout(row)
+
+        test_row = QHBoxLayout()
+        test_btn = QPushButton("Test Now — Apply correct profile")
+        test_btn.setStyleSheet(f"background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+                               f"border-radius:6px;padding:8px 16px;font-size:12px;")
+        test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        test_btn.clicked.connect(self._test_now)
+        test_row.addWidget(test_btn); test_row.addStretch()
+        al.addLayout(test_row)
+
+        self.save_lbl = QLabel("")
+        self.save_lbl.setStyleSheet(f"color:{C_GREEN};font-size:12px;background:transparent;")
+        al.addWidget(self.save_lbl); root.addWidget(ac)
+
+        cs, csl = make_card("Current Status")
+        self.ac_status   = InfoRow("Power Source","—"); csl.addWidget(self.ac_status)
+        self.prof_status = InfoRow("Active Profile","—"); csl.addWidget(self.prof_status)
+        self.auto_status = InfoRow("Auto Switch","—"); csl.addWidget(self.auto_status)
+        root.addWidget(cs)
+
+        nc, nl = make_card("ℹ️  How It Works")
+        note = QLabel(
+            "The background thread checks AC state every second. "
+            "When power source changes and Auto Switch is ON, the profile is applied immediately "
+            "and a desktop notification is shown.\n\n"
+            "Config: ~/.config/legion-toolkit/actions.json"
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
+        nl.addWidget(note); root.addWidget(nc)
+        root.addStretch()
+
+    def _on_auto(self, val):
+        self._actions["auto_switch"] = val; self._save_data()
+
+    def _save(self):
+        self._actions["on_ac"]       = self.ac_combo.currentData()
+        self._actions["on_battery"]  = self.bat_combo.currentData()
+        self._actions["auto_switch"] = self.auto_toggle.isChecked()
+        self._save_data()
+
+    def _save_data(self):
+        save_actions(self._actions)
+        self.save_lbl.setText("✓ Saved")
+        QTimer.singleShot(2000, lambda: self.save_lbl.setText(""))
+
+    def _test_now(self):
+        apply_actions_now()
+        self.save_lbl.setText("✓ Profile applied")
+        QTimer.singleShot(2000, lambda: self.save_lbl.setText(""))
+
+    def refresh(self, d=None):
+        if d:
+            ac      = d.get("ac", False)
+            profile = d.get("profile", "balanced")
+        else:
+            ac      = get_ac_connected()
+            profile = _read_powermode()
+        self.ac_status.set_value("AC Adapter" if ac else "Battery")
+        self.prof_status.set_value(PROFILE_LABELS.get(profile, "—"))
+        self.auto_status.set_value(
+            "✓ Active" if self._actions.get("auto_switch") else "✗ Disabled"
+        )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABOUT PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+class AboutPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background:{C_BG};")
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self); root.setContentsMargins(24,24,24,24); root.setSpacing(12)
+        card, lay = make_card()
+
+        # Header section with logo and title
+        header_w = QWidget()
+        header_w.setStyleSheet("background:transparent;")
+        header_l = QVBoxLayout(header_w)
+        header_l.setContentsMargins(0,0,0,8)
+        header_l.setSpacing(8)
+        header_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        from PyQt6.QtGui import QPixmap as _QP
+        import base64 as _b64
+        pm = _QP(); pm.loadFromData(_b64.b64decode(_LEGION_ICON_B64))
+        logo = QLabel(); logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo.setPixmap(pm.scaled(64, 78, Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation))
+        logo.setStyleSheet("background:transparent;")
+        header_l.addWidget(logo)
+
+        title = QLabel("Legion Linux Toolkit")
+        title.setStyleSheet(f"color:{C_TEXT};font-size:22px;font-weight:700;background:transparent;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_l.addWidget(title)
+
+        ver = QLabel("v0.6.3 · BETA 20260504")
+        ver.setStyleSheet(f"color:{C_TEXT2};font-size:12px;font-weight:500;background:transparent;")
+        ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_l.addWidget(ver)
+
+        lay.addWidget(header_w)
+
+        # Read system info dynamically
+        brand = HW.get("brand", "unknown").upper() if HW else _dmi("product_family").upper() or "LENOVO"
+        model = HW.get("model", _dmi("product_name")) if HW else _dmi("product_name") or "Unknown"
+
+        cpu_name = "Unknown"
+        try:
+            for line in Path("/proc/cpuinfo").read_text().splitlines():
+                if "model name" in line.lower():
+                    cpu_name = line.split(":")[1].strip()
+                    break
+        except: pass
+
+        gpu_name = "Unknown"
+        try:
+            r = subprocess.run(["lspci"], capture_output=True, text=True, timeout=3)
+            gpus = []
+            for line in r.stdout.splitlines():
+                if any(k in line for k in ["VGA","3D","Display"]):
+                    g = line.split(":",2)[-1].strip()
+                    if len(g) > 55: g = g[:55] + "…"
+                    gpus.append(g)
+            gpu_name = " + ".join(gpus) if gpus else "Unknown"
+        except: pass
+
+        os_name = "Linux"
+        try:
+            for line in Path("/etc/os-release").read_text().splitlines():
+                if line.startswith("PRETTY_NAME="):
+                    os_name = line.split("=",1)[1].strip().strip('"')
+                    break
+        except: pass
+
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "") or \
+                  os.environ.get("DESKTOP_SESSION", "Unknown")
+        wayland = "Wayland" if os.environ.get("WAYLAND_DISPLAY") else "X11"
+        desktop_str = f"{desktop} ({wayland})" if desktop else wayland
+
+        drivers = []
+        try:
+            mods = subprocess.run(["lsmod"], capture_output=True, text=True, timeout=3).stdout
+            if "ideapad_acpi" in mods:  drivers.append("ideapad_acpi")
+            if "legion_laptop" in mods: drivers.append("legion_laptop")
+            if "thinkpad_acpi" in mods: drivers.append("thinkpad_acpi")
+        except: pass
+        driver_str = " + ".join(drivers) if drivers else "ideapad_acpi"
+
+        info_rows = [
+            ("Brand",   brand),
+            ("Model",   model),
+            ("CPU",     cpu_name),
+            ("GPU",     gpu_name),
+            ("OS",      os_name),
+            ("Desktop", desktop_str),
+            ("Driver",  driver_str),
+            ("Config",  "~/.config/legion-toolkit/"),
+            ("GitHub",  "github.com/v4cachy/legion-linux-toolkit"),
+        ]
+        for label, value in info_rows:
+            row = QWidget()
+            row.setStyleSheet("background:transparent;")
+            row.setFixedHeight(32)
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 2, 0, 2)
+            rl.setSpacing(16)
+            lbl = QLabel(label)
+            lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;font-weight:500;background:transparent;")
+            lbl.setFixedWidth(80)
+            val = QLabel(value)
+            val.setStyleSheet(f"color:{C_TEXT};font-size:12px;font-weight:500;background:transparent;")
+            val.setWordWrap(True)
+            rl.addWidget(lbl)
+            rl.addWidget(val, 1)
+            lay.addWidget(row)
+
+        root.addWidget(card); root.addStretch()
+
+    def refresh(self, d=None): pass
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN WINDOW
+# ══════════════════════════════════════════════════════════════════════════════
+_sampler = None   # created in main() after QApplication exists
+
+class LegionDashboard(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Legion Linux Toolkit")
+        self.setWindowIcon(_legion_icon())
+        self.setMinimumSize(1060, 680); self.resize(1160, 740)
+        self._build()
+        global _sampler
+        _sampler = DataSampler()
+        _sampler.data_ready.connect(self._on_data)
+        _sampler.start()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.timer.start(2000)
+        # Start Fn+Space watcher
+        self._start_fnspace_watcher()
+
+    def _build(self):
+        self.setStyleSheet(
+            f"QMainWindow{{background:{C_BG};}}"
+            f"QToolTip{{background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+            f"padding:8px;font-size:12px;border-radius:6px;}}"
+            f"QScrollBar:vertical{{background:{C_BG};width:8px;border-radius:4px;}}"
+            f"QScrollBar::handle:vertical{{background:{C_TEXT3};border-radius:4px;min-height:40px;}}"
+            f"QScrollBar::handle:vertical:hover{{background:{C_TEXT2};}}"
+            f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}}"
+            f"QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{{background:transparent;}}"
+            f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+            f"QSlider::sub-page:horizontal{{background:{C_ACCENT};border-radius:3px;}}"
+            f"QSlider::handle:horizontal{{background:{C_ACCENT};width:18px;height:18px;"
+            f"border-radius:9px;margin:-6px 0;}}"
+            f"QSlider::handle:horizontal:hover{{background:{C_TEXT};}}"
+            f"QPushButton{{background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+            f"border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;}}"
+            f"QPushButton:hover{{background:{C_ACCENT};color:#fff;border-color:{C_ACCENT};}}"
+            f"QComboBox{{background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+            f"border-radius:8px;padding:8px 14px;font-size:13px;}}"
+            f"QComboBox::drop-down{{border:none;width:24px;}}"
+            f"QComboBox QAbstractItemView{{background:{C_CARD2};color:{C_TEXT};"
+            f"border:1px solid {C_BORDER};selection-background-color:{C_ACCENT};selection-color:#fff;"
+            f"padding:4px;}}"
+            f"QSpinBox,QDoubleSpinBox{{background:{C_CARD2};color:{C_TEXT};"
+            f"border:1px solid {C_BORDER};border-radius:8px;padding:6px 10px;font-size:13px;}}"
+            f"QLineEdit{{background:{C_CARD2};color:{C_TEXT};border:1px solid {C_BORDER};"
+            f"border-radius:8px;padding:8px 12px;font-size:13px;selection-background-color:{C_ACCENT};}}"
+        )
+        rw = QWidget(); self.setCentralWidget(rw)
+        main = QHBoxLayout(rw); main.setContentsMargins(0,0,0,0); main.setSpacing(0)
+
+        # Sidebar — wider, LLT-style
+        sb = QWidget(); sb.setFixedWidth(220)
+        sb.setStyleSheet(f"background:{C_SIDEBAR};")
+        sbl = QVBoxLayout(sb); sbl.setContentsMargins(0,0,0,0); sbl.setSpacing(0)
+
+        # Top bar with logo and title
+        top_logo = QWidget()
+        top_logo.setFixedHeight(64)
+        top_logo.setStyleSheet(f"background:{C_SIDEBAR};")
+        top_logo_lay = QHBoxLayout(top_logo)
+        top_logo_lay.setContentsMargins(16,10,16,10)
+        top_logo_lay.setSpacing(10)
+
+        import base64 as _b64
+        from PyQt6.QtGui import QPixmap as _QP2
+        _pm2 = _QP2(); _pm2.loadFromData(_b64.b64decode(_LEGION_ICON_B64))
+        logo_lbl = QLabel()
+        logo_lbl.setPixmap(_pm2.scaled(28, 34, Qt.AspectRatioMode.KeepAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation))
+        logo_lbl.setStyleSheet("background:transparent;")
+        logo_lbl.setFixedSize(32, 38)
+
+        title_lbl = QLabel("Legion Toolkit")
+        title_lbl.setStyleSheet(f"color:{C_TEXT};font-size:15px;font-weight:700;background:transparent;")
+
+        top_logo_lay.addWidget(logo_lbl, alignment=Qt.AlignmentFlag.AlignVCenter)
+        top_logo_lay.addWidget(title_lbl, alignment=Qt.AlignmentFlag.AlignVCenter)
+        top_logo_lay.addStretch()
+        sbl.addWidget(top_logo)
+
+        # Nav buttons
+        self.nav_btns = []
+        nav = [("🏠","Home"),("🔋","Battery"),("⚡","Performance"),
+               ("🖥️","Display"),("⌨️","Keyboard"),("⚙️","System"),
+               ("🚀","Overclock"),("🌀","Fan Control"),("🎯","Actions"),("ℹ️","About")]
+        nav_area = QWidget()
+        nav_area.setStyleSheet(f"background:{C_SIDEBAR};")
+        nav_area_lay = QVBoxLayout(nav_area)
+        nav_area_lay.setContentsMargins(8,8,8,8)
+        nav_area_lay.setSpacing(4)
+
+        for icon, label in nav:
+            btn = SidebarBtn(icon, label)
+            btn.clicked.connect(lambda chk, i=len(self.nav_btns): self._switch(i))
+            self.nav_btns.append(btn)
+            nav_area_lay.addWidget(btn)
+        nav_area_lay.addStretch()
+        sbl.addWidget(nav_area)
+
+        # Bottom section with theme toggle
+        bottom_area = QWidget()
+        bottom_area.setStyleSheet(f"background:{C_SIDEBAR};")
+        bottom_lay = QVBoxLayout(bottom_area)
+        bottom_lay.setContentsMargins(8,8,8,8)
+        bottom_lay.setSpacing(4)
+        bottom_lay.addStretch()
+        sbl.addWidget(bottom_area)
+        main.addWidget(sb)
+
+        # Right side
+        right = QVBoxLayout(); right.setContentsMargins(0,0,0,0); right.setSpacing(0)
+        topbar = QWidget(); topbar.setFixedHeight(60)
+        topbar.setStyleSheet(
+            f"background:{C_BG};"
+        )
+        tbl = QHBoxLayout(topbar); tbl.setContentsMargins(28,0,28,0); tbl.setSpacing(12)
+
+        # Page title
+        self.page_title = QLabel("Home")
+        self.page_title.setStyleSheet(
+            f"color:{C_TEXT};font-size:20px;font-weight:700;letter-spacing:0px;")
+        tbl.addWidget(self.page_title)
+        tbl.addStretch()
+
+        # Hidden badge kept for _refresh_badge compat — not shown
+        self.badge = QLabel(""); self.badge.hide()
+        self.ac_ind = QLabel(""); self.ac_ind.hide()
+        self._refresh_badge(_read_powermode())
+        right.addWidget(topbar)
+
+        self.stack = QStackedWidget()
+        self.stack.setStyleSheet(f"background:{C_BG};")
+        self.home_page = HomePage()
+        self.home_page._page_request_cb = self._switch
+        self.pages = [
+            self.home_page, BatteryPage(), PerformancePage(),
+            DisplayPage(), KeyboardPage(), SystemPage(),
+            OverclockPage(), FanPage(), ActionsPage(), AboutPage()
+        ]
+        self.home_page._sync_battery_cb = self.pages[1].sync_charging
+        self.pages[1]._sync_home_cb = self._sync_bat_combo
+        for pg in self.pages: self.stack.addWidget(pg)
+        right.addWidget(self.stack); main.addLayout(right)
+        self._switch(0)
+
+    def _start_fnspace_watcher(self):
+        """
+        Watch kbd_backlight brightness for changes — fires when Fn+Space is pressed.
+        Fn+Space cycles brightness 0→1→2→0, we intercept and also cycle RGB effect.
+        """
+        from PyQt6.QtCore import QMetaObject
+        self._fnspace_signal = pyqtSignal()
+
+        kbd_path = KBD_BACKLIGHT_PATH
+        if kbd_path is None or not Path(str(kbd_path)).exists():
+            return  # No backlight path — skip
+
+        def _watch():
+            last = None
+            while True:
+                try:
+                    val = Path(str(kbd_path)).read_text().strip()
+                    if last is not None and val != last:
+                        # Brightness changed — Fn+Space was pressed
+                        QMetaObject.invokeMethod(
+                            self, "_on_fnspace",
+                            Qt.ConnectionType.QueuedConnection
+                        )
+                    last = val
+                except: pass
+                time.sleep(0.15)
+
+        threading.Thread(target=_watch, daemon=True).start()
+
+    from PyQt6.QtCore import pyqtSlot
+
+    @pyqtSlot()
+    def _on_fnspace(self):
+        """Called on main thread when Fn+Space is detected."""
+        # Cycle the keyboard effect
+        kb_page = self.pages[4]   # KeyboardPage is index 4
+        if hasattr(kb_page, "cycle_effect"):
+            kb_page.cycle_effect()
+        # If keyboard page is not visible, show a brief notification
+        if self.stack.currentIndex() != 4:
+            cur = getattr(kb_page, "_current_effect", "Static")
+            send_notif("Keyboard RGB", f"Effect → {cur}", "input-keyboard")
+
+    def _sync_bat_combo(self, idx: int):
+        """Sync Home page battery combo when Battery page toggle changes."""
+        self.home_page.bat_combo.blockSignals(True)
+        self.home_page.bat_combo.setCurrentIndex(idx)
+        self.home_page.bat_combo.blockSignals(False)
+
+    def _switch(self, idx):
+        self.stack.setCurrentIndex(idx)
+        titles = ["Home","Battery","Performance","Display","Keyboard",
+                  "System","Overclock","Fan","Actions","About"]
+        self.page_title.setText(titles[idx])
+        for i, btn in enumerate(self.nav_btns):
+            btn.setChecked(i == idx); btn.update()
+
+    def _refresh_badge(self, profile):
+        color = PROFILE_COLORS.get(profile, C_ACCENT)
+        label = PROFILE_LABELS.get(profile, profile)
+        self.badge.setText(label)
+        self.badge.setStyleSheet(
+            f"color:{color};font-size:10px;font-weight:600;letter-spacing:1px;"
+            f"padding:4px 12px;border:1px solid {color};border-radius:10px;"
+        )
+
+    def _on_data(self, d):
+        """Main-thread signal handler — safe to update UI. Called every 1s."""
+        # Always update home (visible or not — keeps badges/OC bar in sync)
+        self.home_page.refresh(d)
+        self._refresh_badge(d["profile"])
+        ac = d["ac"]
+        self.ac_ind.setText("⚡ AC" if ac else "🔋 Battery")
+        self.ac_ind.setStyleSheet(
+            f"color:{C_GREEN if ac else C_ORANGE};font-size:12px;margin-left:12px;"
+        )
+        # Feed currently visible page if it can accept sampler data
+        idx = self.stack.currentIndex()
+        if idx == 2:    # PerformancePage
+            self.pages[2].refresh(d)
+        elif idx == 3:  # DisplayPage — VRR status
+            self.pages[3].refresh(d)
+        elif idx == 7:  # FanPage — live RPM
+            self.pages[7].refresh(d)
+        elif idx == 8:  # ActionsPage — power source status
+            self.pages[8].refresh(d)
+
+    def _tick(self):
+        """Light 2s timer for pages that need periodic refresh but not sampler data."""
+        idx = self.stack.currentIndex()
+        # Battery page — detailed stats not in sampler
+        if idx == 1:
+            self.pages[1].refresh()
+        # Actions page — AC poll
+        elif idx == 8:
+            self.pages[8].refresh()
+
+    def closeEvent(self, e):
+        global _sampler
+        if _sampler:
+            _sampler.stop()
+        super().closeEvent(e)
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName("Legion Toolkit")
+    app.setQuitOnLastWindowClosed(True)
+
+    # Load saved language
+    load_language()
+
+    # Load or run hardware detection
+    global HW
+    if FIRST_RUN_FLAG.exists():
+        # Returning user — load saved hardware profile silently
+        HW = load_hardware()
+        if not HW:
+            HW = detect_hardware()
+            save_hardware(HW)
+    else:
+        # First run — show wizard
+        wizard = FirstRunWizard()
+        wizard.exec()
+        HW = load_hardware()
+        if not HW:
+            HW = detect_hardware()
+            save_hardware(HW)
+        FIRST_RUN_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        FIRST_RUN_FLAG.touch()
+
+    win = LegionDashboard()
+    win.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
