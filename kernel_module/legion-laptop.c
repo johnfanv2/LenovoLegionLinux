@@ -251,6 +251,7 @@ struct model_config {
 	phys_addr_t ramio_physical_start;
 	size_t ramio_size;
 	const char *acpi_paths[ACPI_PATH_MAX];
+	bool has_fancurve_defaults;
 };
 
 /* =================================== */
@@ -1033,7 +1034,8 @@ static const struct model_config model_lzcn = {
 	.acpi_paths = {
 		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
-	}
+	},
+	.has_fancurve_defaults = true
 };
 
 // LOQ Model 2024
@@ -1079,7 +1081,8 @@ static const struct model_config model_nzcn = {
 	.acpi_paths = {
 		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
-	}
+	},
+	.has_fancurve_defaults = true
 };
 
 // Legion Slim 5 16AHP9 (2024) - Model 83DH
@@ -1124,7 +1127,8 @@ static const struct model_config model_r3cn = {
 	.acpi_paths = {
 		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
-	}
+	},
+	.has_fancurve_defaults = true
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -2677,6 +2681,9 @@ struct legion_private {
 	struct ecram_memoryio ec_memoryio;
 };
 
+// keep state of fancurve defaults powermode
+static int fancurve_defaults_powermode;
+
 // shared between different drivers: WMI, platform and protected by mutex
 static struct legion_private *legion_shared;
 static struct legion_private _priv;
@@ -3208,6 +3215,46 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 		       true);
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
 			   WMI_METHOD_ID_FAN_SET_TABLE, buffer, sizeof(buffer));
+	return err;
+}
+
+static ssize_t wmi_write_fancurve_defaults(struct legion_private *priv, int value)
+{
+	int err = -1;
+	struct {
+		u8 F000; /* Thermal Mode/Powermode */
+		u8 notused0[5]; /* F001 - F002 */
+		u16 F003; /* Index Point 1 */
+		u16 F004; /* 2 */
+		u16 F005; /* 3 */
+		u16 F006; /* 4 */
+		u16 F007; /* 5 */
+		u16 F008; /* 6 */
+		u16 F009; /* 7 */
+		u16 F00A; /* 8 */
+		u16 F00B; /* 9 */
+		u16 F00C; /* Index Point 10 */
+		u8 notused1[26]; /* F00D - F019 */
+} __packed fan_table = { 0 };
+
+	if (!priv->conf->has_fancurve_defaults) {
+		pr_info("fancurve_defaults_powermode not supported for your model\n");
+		return err;
+	};
+	fan_table.F000 = value;
+	fan_table.F003 = 0x01;
+	fan_table.F004 = 0x02;
+	fan_table.F005 = 0x03;
+	fan_table.F006 = 0x04;
+	fan_table.F007 = 0x05;
+	fan_table.F008 = 0x06;
+	fan_table.F009 = 0x07;
+	fan_table.F00A = 0x08;
+	fan_table.F00B = 0x09;
+	fan_table.F00C = 0x0A;
+
+	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
+						WMI_METHOD_ID_FAN_SET_TABLE, (u8 *)&fan_table, sizeof(fan_table));
 	return err;
 }
 
@@ -5713,6 +5760,63 @@ error:
 	return count;
 }
 
+static ssize_t fancurve_defaults_powermode_store(struct device *dev,
+				  struct device_attribute *devattr,
+				  const char *buf, size_t count)
+{
+	int value;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtoint(buf, 0, &value);
+	if (err) {
+		err = -1;
+		pr_info("Parsing fancurve_defaults_powermode store failed: error:%d\n", err);
+		goto error;
+	}
+
+	if (!(value == LEGION_WMI_POWERMODE_LOW_POWER ||
+	      value == LEGION_WMI_POWERMODE_PERFORMANCE ||
+	      value == LEGION_WMI_POWERMODE_BALANCED ||
+	      value == LEGION_WMI_POWERMODE_CUSTOM ||
+	      value == LEGION_WMI_POWERMODE_MAX_POWER)) {
+		err = -1;
+		pr_info("Parsing fancurve_defaults_powermode store failed invalid powermode id %d: error:%d\n", value, err);
+		goto error;
+	}
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_write_fancurve_defaults(priv, value);
+	if (err) {
+		err = -1;
+		pr_info("Failed to write auto points defaults\n");
+		goto error_unlock;
+	}
+	fancurve_defaults_powermode = value;
+	mutex_unlock(&priv->fancurve_mutex);
+	return count;
+
+error_unlock:
+	mutex_unlock(&priv->fancurve_mutex);
+error:
+	return err;
+}
+
+static ssize_t fancurve_defaults_powermode_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int power_mode;
+
+	mutex_lock(&priv->fancurve_mutex);
+	read_powermode(priv, &power_mode);
+	mutex_unlock(&priv->fancurve_mutex);
+	// set to 0 if not in CUSTOM mode (pressed Fn-Q)
+	if (power_mode != LEGION_WMI_POWERMODE_CUSTOM)
+		fancurve_defaults_powermode = 0;
+	return sprintf(buf, "%d\n", fancurve_defaults_powermode);
+}
+
 // pwm1
 static SENSOR_DEVICE_ATTR_RO(fan1_max, fan_max, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_pwm, autopoint,
@@ -5927,6 +6031,7 @@ static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_decel, autopoint,
 			       FANCURVE_ATTR_DECEL, 9);
 //size
 static SENSOR_DEVICE_ATTR_2_RW(auto_points_size, autopoint, FANCURVE_SIZE, 0);
+static SENSOR_DEVICE_ATTR_2_RW(fancurve_defaults_powermode, fancurve_defaults_powermode, 0, 0);
 
 static ssize_t minifancurve_show(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -6089,6 +6194,7 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	//
 	&sensor_dev_attr_auto_points_size.dev_attr.attr,
 	&sensor_dev_attr_minifancurve.dev_attr.attr,
+	&sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr,
 	NULL
 };
 
@@ -6164,9 +6270,8 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 
 	acpi_path = get_model_acpi_path(_model, ACPI_PATH_WRITE_RAPIDCHARGE);
 	priv->adev = adev;
-	if (!priv->adev) {
+	if (!priv->adev)
 		dev_info(dev, "No ACPI handle, will use FQN paths\n");
-	}
 	skip_acpi_sta_check = force || (!priv->conf->acpi_check_dev);
 	if (!skip_acpi_sta_check) {
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_STA);
