@@ -121,6 +121,29 @@ class LockFanControllerFeatureCommand(CLIFeatureCommand):
         return 0
 
 
+class FanUnlockFeatureCommand(CLIFeatureCommand):
+    """Lift the firmware-imposed fan ceiling. See FanUnlock in legion.py."""
+
+    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+        super().__init__("fan-unlock", parser_subcommands, cmd_group)
+        self.model = model
+
+    def exists(self) -> bool:
+        return self.model.fan_unlock.exists()
+
+    def command_status(self, **_) -> int:
+        print(self.model.fan_unlock.get())
+        return 0
+
+    def command_enable(self, **_) -> int:
+        self.model.fan_unlock.set(True)
+        return 0
+
+    def command_disable(self, **_) -> int:
+        self.model.fan_unlock.set(False)
+        return 0
+
+
 class MaximumFanSpeedFeatureCommand(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("maximumfanspeed", parser_subcommands, cmd_group)
@@ -472,6 +495,7 @@ def main():
     cmd_group = []
     MiniFancurveFeatureCommand(subcommands, None, cmd_group)
     LockFanControllerFeatureCommand(subcommands, None, cmd_group)
+    FanUnlockFeatureCommand(subcommands, None, cmd_group)
     MaximumFanSpeedFeatureCommand(subcommands, None, cmd_group)
     BatteryConservationFeatureCommand(subcommands, None, cmd_group)
     FnLockFeatureCommand(subcommands, None, cmd_group)
