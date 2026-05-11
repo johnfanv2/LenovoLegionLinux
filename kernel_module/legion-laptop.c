@@ -2076,7 +2076,7 @@ static ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
  * Return status because of commong signature for alle
  * methods to access EC RAM.
  */
-static ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
+static __maybe_unused ssize_t ecram_memoryio_write(const struct ecram_memoryio *ec_memoryio,
 				    u16 ec_offset, u8 value)
 {
 	if (ec_offset < ec_memoryio->physical_ec_start) {
@@ -5249,9 +5249,11 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 	case LEGION_WMI_POWERMODE_LOW_POWER:
 		*profile = PLATFORM_PROFILE_LOW_POWER;
 		break;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	case LEGION_WMI_POWERMODE_CUSTOM:
 		*profile = PLATFORM_PROFILE_CUSTOM;
 		break;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	case LEGION_WMI_POWERMODE_MAX_POWER:
 		*profile = PLATFORM_PROFILE_MAX_POWER;
@@ -5290,9 +5292,11 @@ static int legion_platform_profile_set(struct platform_profile_handler *pprof,
 	case PLATFORM_PROFILE_LOW_POWER:
 		powermode = LEGION_WMI_POWERMODE_LOW_POWER;
 		break;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	case PLATFORM_PROFILE_CUSTOM:
 		powermode = LEGION_WMI_POWERMODE_CUSTOM;
 		break;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	case PLATFORM_PROFILE_MAX_POWER:
 		powermode = LEGION_WMI_POWERMODE_MAX_POWER;
@@ -5315,8 +5319,10 @@ static int legion_platform_profile_probe(void *drvdata, unsigned long *choices)
 	set_bit(PLATFORM_PROFILE_LOW_POWER, choices);
 	set_bit(PLATFORM_PROFILE_BALANCED, choices);
 	set_bit(PLATFORM_PROFILE_PERFORMANCE, choices);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	if (conf_has_custom_powermode && conf_access_method_powermode == ACCESS_METHOD_WMI)
 		set_bit(PLATFORM_PROFILE_CUSTOM, choices);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	if (conf_has_extreme_powermode && conf_access_method_powermode == ACCESS_METHOD_WMI)
 		set_bit(PLATFORM_PROFILE_MAX_POWER, choices);
@@ -5358,16 +5364,20 @@ static int legion_platform_profile_init(struct legion_private *priv)
 		priv->platform_profile_handler.choices);
 	set_bit(PLATFORM_PROFILE_PERFORMANCE,
 		priv->platform_profile_handler.choices);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	if (priv->conf->has_custom_powermode &&
 	    priv->conf->access_method_powermode == ACCESS_METHOD_WMI) {
 		set_bit(PLATFORM_PROFILE_CUSTOM,
 			priv->platform_profile_handler.choices);
 	}
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	if (priv->conf->has_extreme_powermode &&
 	    priv->conf->access_method_powermode == ACCESS_METHOD_WMI) {
 		set_bit(PLATFORM_PROFILE_MAX_POWER,
 			priv->platform_profile_handler.choices);
 	}
+#endif
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
