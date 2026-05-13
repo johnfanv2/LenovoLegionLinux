@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Legion Linux Toolkit
+Icon=/usr/share/pixmaps/legion_logo_toolkit.png
+Exec=legion_gui_toolkit
+Comment=Lenovo Legion Linux Toolkit GUI
+Categories=System;
+Terminal=false
