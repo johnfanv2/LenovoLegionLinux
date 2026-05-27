@@ -5338,6 +5338,11 @@ static int legion_platform_profile_set(struct platform_profile_handler *pprof,
 		powermode = LEGION_WMI_POWERMODE_LOW_POWER;
 		break;
 	case PLATFORM_PROFILE_CUSTOM:
+	case PLATFORM_PROFILE_BALANCED_PERFORMANCE:
+		/* Accept both names: "custom" (matches lenovo-wmi-gamezone) and
+		 * "balanced-performance" (the kernel's standard naming used by
+		 * TLP, power-profiles-daemon, and pre-existing user scripts).
+		 */
 		powermode = LEGION_WMI_POWERMODE_CUSTOM;
 		break;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
@@ -5362,8 +5367,12 @@ static int legion_platform_profile_probe(void *drvdata, unsigned long *choices)
 	set_bit(PLATFORM_PROFILE_LOW_POWER, choices);
 	set_bit(PLATFORM_PROFILE_BALANCED, choices);
 	set_bit(PLATFORM_PROFILE_PERFORMANCE, choices);
-	if (conf_has_custom_powermode && conf_access_method_powermode == ACCESS_METHOD_WMI)
+	if (conf_has_custom_powermode && conf_access_method_powermode == ACCESS_METHOD_WMI) {
 		set_bit(PLATFORM_PROFILE_CUSTOM, choices);
+		/* Expose "balanced-performance" as an alias so userspace tools
+		 * that pre-date the rename to "custom" keep working unchanged. */
+		set_bit(PLATFORM_PROFILE_BALANCED_PERFORMANCE, choices);
+	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	if (conf_has_extreme_powermode && conf_access_method_powermode == ACCESS_METHOD_WMI)
 		set_bit(PLATFORM_PROFILE_MAX_POWER, choices);
@@ -5408,6 +5417,10 @@ static int legion_platform_profile_init(struct legion_private *priv)
 	if (priv->conf->has_custom_powermode &&
 	    priv->conf->access_method_powermode == ACCESS_METHOD_WMI) {
 		set_bit(PLATFORM_PROFILE_CUSTOM,
+			priv->platform_profile_handler.choices);
+		/* Expose "balanced-performance" as an alias so userspace tools
+		 * that pre-date the rename to "custom" keep working unchanged. */
+		set_bit(PLATFORM_PROFILE_BALANCED_PERFORMANCE,
 			priv->platform_profile_handler.choices);
 	}
 	if (priv->conf->has_extreme_powermode &&
