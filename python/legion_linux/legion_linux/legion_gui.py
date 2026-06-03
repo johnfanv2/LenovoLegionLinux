@@ -14,7 +14,8 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
 from PyQt6.QtGui import QAction, QGuiApplication
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QLabel, \
     QVBoxLayout, QGridLayout, QLineEdit, QPushButton, QComboBox, QGroupBox, \
-    QCheckBox, QSystemTrayIcon, QMenu, QScrollArea, QMessageBox, QSpinBox, QTextBrowser, QHBoxLayout, QFileDialog
+    QCheckBox, QSystemTrayIcon, QMenu, QScrollArea, QMessageBox, QSpinBox, \
+    QTextBrowser, QHBoxLayout, QFileDialog, QColorDialog
 # Make it possible to run without installation
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
@@ -1328,6 +1329,123 @@ class OtherOptionsTab(QWidget):
         self.power_all_layout.addWidget(self.power_note_label)
 
 
+class KeyboardTab(QWidget):
+    def __init__(self, controller: LegionController):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        self.rgb_group = QGroupBox("Spectrum RGB")
+        self.rgb_layout = QVBoxLayout()
+        self.rgb_group.setLayout(self.rgb_layout)
+
+        self.rgb_mode = QComboBox()
+        self.rgb_mode.addItems(["Off", "Static", "Breath", "Wave", "Hue"])
+        self.rgb_brightness = QComboBox()
+        self.rgb_brightness.addItems(["Low", "High"])
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
+        mode_row.addWidget(self.rgb_mode)
+        mode_row.addWidget(QLabel("Brightness:"))
+        mode_row.addWidget(self.rgb_brightness)
+        mode_row.addStretch()
+        self.rgb_layout.addLayout(mode_row)
+
+        self.rgb_color_btns = []
+        self.rgb_color_labels = ["#ff0000", "#00ff00", "#0000ff", "#ffffff"]
+        color_row = QHBoxLayout()
+        for i in range(4):
+            btn = QPushButton(f"Zone {i+1}")
+            btn.setStyleSheet(f"background-color: {self.rgb_color_labels[i]}; min-width: 50px;")
+            btn.clicked.connect(lambda checked, idx=i: self._pick_rgb_color(idx))
+            self.rgb_color_btns.append(btn)
+            color_row.addWidget(btn)
+        color_row.addStretch()
+        self.rgb_layout.addLayout(color_row)
+        self._update_rgb_color_visibility()
+
+        extra_row = QHBoxLayout()
+        self.rgb_speed_label = QLabel("Speed (1-4):")
+        self.rgb_speed = QSpinBox()
+        self.rgb_speed.setMinimum(1)
+        self.rgb_speed.setMaximum(4)
+        self.rgb_speed.setValue(2)
+        extra_row.addWidget(self.rgb_speed_label)
+        extra_row.addWidget(self.rgb_speed)
+        self.rgb_dir_label = QLabel("Direction:")
+        self.rgb_direction = QComboBox()
+        self.rgb_direction.addItems(["Left", "Right"])
+        extra_row.addWidget(self.rgb_dir_label)
+        extra_row.addWidget(self.rgb_direction)
+        extra_row.addStretch()
+        self.rgb_layout.addLayout(extra_row)
+
+        self.rgb_apply = QPushButton("Apply")
+        self.rgb_apply.clicked.connect(self._apply_rgb)
+        self.rgb_layout.addWidget(self.rgb_apply)
+
+        self.rgb_status = QLabel("")
+        self.rgb_layout.addWidget(self.rgb_status)
+
+        self.rgb_mode.currentTextChanged.connect(self._on_rgb_mode_changed)
+        self._on_rgb_mode_changed(self.rgb_mode.currentText())
+
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.rgb_group)
+        self.main_layout.addStretch()
+        self.setLayout(self.main_layout)
+
+    def _update_rgb_color_visibility(self):
+        mode = self.rgb_mode.currentText()
+        visible = mode in ("Static", "Breath")
+        for btn in self.rgb_color_btns:
+            btn.setVisible(visible)
+
+    def _on_rgb_mode_changed(self, mode):
+        is_speed = mode in ("Breath", "Wave", "Hue")
+        is_direction = mode == "Wave"
+        self.rgb_speed_label.setVisible(is_speed)
+        self.rgb_speed.setVisible(is_speed)
+        self.rgb_dir_label.setVisible(is_direction)
+        self.rgb_direction.setVisible(is_direction)
+        self._update_rgb_color_visibility()
+
+    def _pick_rgb_color(self, idx):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.rgb_color_labels[idx] = color.name()
+            self.rgb_color_btns[idx].setStyleSheet(
+                f"background-color: {color.name()}; min-width: 50px;")
+
+    def _apply_rgb(self):
+        mode = self.rgb_mode.currentText()
+        brightness = 2 if self.rgb_brightness.currentIndex() else 1
+        speed = self.rgb_speed.value()
+        direction = "ltr" if self.rgb_direction.currentText() == "Left" else "rtl"
+        colors = self.rgb_color_labels[:4]
+
+        ok, err = None, "not available"
+        if mode == "Off":
+            ok, err = self.controller.model.spectrum_rgb.turn_off()
+        elif mode == "Static":
+            ok, err = self.controller.model.spectrum_rgb.set_static(colors, brightness)
+        elif mode == "Breath":
+            ok, err = self.controller.model.spectrum_rgb.set_breath(colors, speed, brightness)
+        elif mode == "Wave":
+            ok, err = self.controller.model.spectrum_rgb.set_wave(direction, speed, brightness)
+        elif mode == "Hue":
+            ok, err = self.controller.model.spectrum_rgb.set_hue(speed, brightness)
+
+        if ok:
+            self.rgb_status.setText("Applied successfully")
+            self.rgb_status.setStyleSheet("color: green;")
+        else:
+            self.rgb_status.setText(f"Error: {err}")
+            self.rgb_status.setStyleSheet("color: red;")
+
+
 class AutomationTab(QWidget):
     def __init__(self, controller: LegionController):
         super().__init__()
@@ -1441,6 +1559,7 @@ class Tabs(QTabWidget):
         self.tabs = (
             ("Fan Curve", FanCurveTab(controller)),
             ("Other Options", OtherOptionsTab(controller)),
+            ("Keyboard", KeyboardTab(controller)),
             ("Automation", AutomationTab(controller)),
             ("Log", LogTab(controller)),
             ("About", AboutTab(controller))

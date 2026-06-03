@@ -1,6 +1,8 @@
 # pylint: disable=too-many-lines
 import os
 import glob
+import ctypes
+import fcntl
 from dataclasses import asdict, dataclass
 import shutil
 import time
@@ -627,6 +629,157 @@ class YLogoLight(BoolFileFeature):
 class IOPortLight(BoolFileFeature):
     def __init__(self):
         super().__init__("/sys/class/leds/platform::ioport/brightness")
+
+
+class _USBCtrlTransfer(ctypes.Structure):
+    _fields_ = [
+        ('bRequestType', ctypes.c_uint8),
+        ('bRequest', ctypes.c_uint8),
+        ('wValue', ctypes.c_uint16),
+        ('wIndex', ctypes.c_uint16),
+        ('wLength', ctypes.c_uint16),
+        ('timeout', ctypes.c_uint32),
+        ('data', ctypes.c_void_p),
+    ]
+
+
+class SpectrumRGB:
+    USBDEVFS_CONTROL = (3 << 30) | (ord('U') << 8) | 0 | (ctypes.sizeof(_USBCtrlTransfer) << 16)
+    HIDRAW_GLOB = '/sys/class/hidraw/hidraw*/device/uevent'
+
+    def __init__(self):
+        self._fd = None
+        self._device_path = None
+
+    def _find_device(self):
+        candidates = []
+        for uevent in glob.glob(self.HIDRAW_GLOB):
+            try:
+                with open(uevent) as f:
+                    content = f.read()
+                if 'HID_ID=0003:0000048D:' not in content:
+                    continue
+                # Check report descriptor size — the keyboard RGB controller
+                # has a simple feature-report-only HID (~25 bytes), other ITE
+                # devices (touchpad etc.) have much longer descriptors.
+                rep_desc = os.path.join(os.path.dirname(uevent), 'report_descriptor')
+                if os.path.exists(rep_desc):
+                    with open(rep_desc, 'rb') as f:
+                        desc_len = len(f.read())
+                    if desc_len > 40:
+                        continue
+                hidraw_dir = os.path.dirname(uevent)
+                candidates.append(hidraw_dir)
+            except Exception:
+                continue
+
+        if not candidates:
+            return None
+
+        # For each candidate, find the corresponding USB device path
+        for cand in candidates:
+            try:
+                real = os.path.realpath(cand)
+            except OSError:
+                continue
+            # Walk the resolved path to find the USB device (e.g. 'usb3/3-3')
+            # real looks like: /sys/devices/pci.../usb3/3-3/3-3:1.1/...
+            parts = real.strip('/').split('/')
+            usb_sys = None
+            for i, part in enumerate(parts):
+                if part.startswith('usb') and '-' not in part:
+                    if i + 1 < len(parts):
+                        usb_sys = '/' + '/'.join(parts[:i+2])
+                    break
+            if usb_sys is None:
+                continue
+            try:
+                with open(os.path.join(usb_sys, 'busnum')) as f:
+                    busnum = int(f.read().strip())
+                with open(os.path.join(usb_sys, 'devnum')) as f:
+                    devnum = int(f.read().strip())
+            except Exception:
+                continue
+            usb_dev = f'/dev/bus/usb/{busnum:03d}/{devnum:03d}'
+            if os.path.exists(usb_dev):
+                return usb_dev
+        return None
+
+    def is_available(self):
+        return self._find_device() is not None
+
+    def _send_report(self, data: bytes):
+        if self._fd is None:
+            path = self._find_device()
+            if path is None:
+                return False, "ITE keyboard not found"
+            try:
+                self._fd = os.open(path, os.O_RDWR)
+            except OSError as e:
+                self._fd = None
+                return False, str(e)
+        try:
+            buf = ctypes.create_string_buffer(data)
+            ctrl = _USBCtrlTransfer(
+                bRequestType=0x21,
+                bRequest=0x09,
+                wValue=0x03CC,
+                wIndex=0x0000,
+                wLength=len(data),
+                timeout=5000,
+                data=ctypes.cast(buf, ctypes.c_void_p).value,
+            )
+            fcntl.ioctl(self._fd, self.USBDEVFS_CONTROL, ctrl)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def _build_report(self, effect, speed=1, brightness=2,
+                      colors=None, wave_ltr=0, wave_rtl=0):
+        buf = bytearray(32)
+        buf[0] = 0xCC
+        buf[1] = 0x16
+        buf[2] = effect
+        buf[3] = speed & 0xFF
+        buf[4] = brightness & 0xFF
+        if colors:
+            for i in range(min(4, len(colors))):
+                c = colors[i].lstrip('#')
+                r, g, b = bytes.fromhex(c[:2] + c[2:4] + c[4:6])
+                buf[5 + i * 3] = r
+                buf[6 + i * 3] = g
+                buf[7 + i * 3] = b
+        buf[18] = wave_rtl & 0xFF
+        buf[19] = wave_ltr & 0xFF
+        return bytes(buf)
+
+    def set_static(self, colors, brightness=2):
+        data = self._build_report(0x01, colors=colors, brightness=brightness)
+        return self._send_report(data)
+
+    def set_breath(self, colors, speed=2, brightness=2):
+        data = self._build_report(0x03, speed=speed, colors=colors, brightness=brightness)
+        return self._send_report(data)
+
+    def set_wave(self, direction="ltr", speed=2, brightness=2):
+        ltr = 1 if direction == "ltr" else 0
+        rtl = 1 if direction == "rtl" else 0
+        data = self._build_report(0x04, speed=speed, brightness=brightness,
+                                  wave_ltr=ltr, wave_rtl=rtl)
+        return self._send_report(data)
+
+    def set_hue(self, speed=2, brightness=2):
+        data = self._build_report(0x06, speed=speed, brightness=brightness)
+        return self._send_report(data)
+
+    def turn_off(self):
+        data = self._build_report(0x01, colors=["#000000"] * 4)
+        return self._send_report(data)
+
+    def close(self):
+        if self._fd is not None:
+            os.close(self._fd)
+            self._fd = None
 
 
 class NVIDIAGPUIsRunning(BoolFileFeature):
@@ -1441,6 +1594,7 @@ class LegionModelFacade:
         # light
         self.ylogo_light = YLogoLight()
         self.ioport_light = IOPortLight()
+        self.spectrum_rgb = SpectrumRGB()
 
         # services
         self.power_profiles_deamon_service = PowerProfilesDeamonService()
