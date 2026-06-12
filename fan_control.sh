@@ -6,9 +6,9 @@
 case "$1" in
     "enable")
         echo "🔥 Enabling high-performance fan mode..."
+        # fan_fullspeed is only honored by the EC in custom power mode (255)
+        echo 255 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/powermode > /dev/null
         echo 1 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed > /dev/null
-        echo 1 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_maxspeed > /dev/null
-        echo 2 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/powermode > /dev/null
         echo "✅ High-performance fan mode enabled!"
         echo "📊 Current fan speeds:"
         sensors legion_hwmon-isa-0000
@@ -16,7 +16,6 @@ case "$1" in
     "disable")
         echo "🌡️ Disabling high-performance fan mode..."
         echo 0 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed > /dev/null
-        echo 0 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_maxspeed > /dev/null
         echo 3 | sudo tee /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/powermode > /dev/null
         echo "✅ Automatic fan mode restored!"
         echo "📊 Current fan speeds:"
@@ -29,7 +28,6 @@ case "$1" in
         echo ""
         echo "🎛️ Current Settings:"
         echo "Fan Full Speed: $(cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed)"
-        echo "Fan Max Speed:  $(cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_maxspeed)"
         echo "Power Mode:     $(cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/powermode)"
         ;;
     *)
