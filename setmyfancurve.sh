@@ -7,7 +7,11 @@ echo "BIOS"
 dmidecode -s bios-version
 echo ""
 
-hwmondir=`find /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon -mindepth 1 -name "hwmon*"`
+hwmondir=$(find /sys/class/hwmon -mindepth 1 -maxdepth 1 -name "hwmon*" -exec sh -c 'cat "$1/name" 2>/dev/null | grep -q legion_hwmon && echo "$1"' _ {} \;)
+if [ -z "${hwmondir}" ]; then
+    echo "Error: Could not find legion hwmon directory. Is the legion_laptop module loaded?"
+    exit 1
+fi
 echo "Using hwmon directory: ${hwmondir}" 
 
 # Disable (0) or Enable (1) switching to minifancurve when everything seems very cool
