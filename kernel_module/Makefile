@@ -25,7 +25,7 @@ install: all
 	@rm --force --verbose $(INSTALLDIR)/legion-laptop.ko
 	@mkdir --parent --verbose $(MODDESTDIR)
 	@install --preserve-timestamps -D --mode=644 *.ko $(INSTALLDIR)
-	@depmod --all $(KVER)
+	@depmod --all $(KERNELVERSION)
 	@printf "%s\n" "Installion finished."
 
 uninstall:
