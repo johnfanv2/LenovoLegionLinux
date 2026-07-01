@@ -2655,6 +2655,8 @@ struct legion_private {
 	// TODO: maybe refactor and keep only local to each function
 	// last known fan curve
 	struct fancurve fancurve;
+	// true if fancurve contains a valid curve (read or written)
+	bool fancurve_valid;
 	// configured fan curve from user space
 	struct fancurve fancurve_configured;
 
@@ -2698,6 +2700,7 @@ static int legion_shared_init(struct legion_private *priv)
 	if (!legion_shared) {
 		legion_shared = priv;
 		mutex_init(&legion_shared->fancurve_mutex);
+		priv->fancurve_valid = false;
 		ret = 0;
 	} else {
 		pr_warn("Found multiple platform devices\n");
@@ -3584,47 +3587,83 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 
 static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 {
+	int err;
+
 	// TODO: use enums or function pointers?
 	pr_info("Reading fancurve"); // TODO: remove that
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
-		return ec_read_fancurve_legion(&priv->ecram, priv->conf,
-					       fancurve);
+		err = ec_read_fancurve_legion(&priv->ecram, priv->conf,
+					      fancurve);
+		break;
 	case ACCESS_METHOD_EC2:
-		return ec_read_fancurve_ideapad(&priv->ecram, priv->conf,
-						fancurve);
+		err = ec_read_fancurve_ideapad(&priv->ecram, priv->conf,
+					       fancurve);
+		break;
 	case ACCESS_METHOD_EC3:
-		return ec_read_fancurve_loq(&priv->ecram, priv->conf, fancurve);
+		err = ec_read_fancurve_loq(&priv->ecram, priv->conf, fancurve);
+		break;
 	case ACCESS_METHOD_WMI3:
-		return wmi_read_fancurve_custom(priv->conf, fancurve);
+		err = wmi_read_fancurve_custom(priv->conf, fancurve);
+		break;
 	default:
 		pr_info("No access method for fancurve: %d\n",
 			priv->conf->access_method_fancurve);
 		return -EINVAL;
 	}
+
+	if (!err) {
+		priv->fancurve = *fancurve;
+		priv->fancurve_valid = true;
+	} else if (priv->fancurve_valid) {
+		pr_info("Hardware fan curve read failed; returning cached curve\n");
+		*fancurve = priv->fancurve;
+		err = 0;
+	} else {
+		pr_info("Hardware fan curve read failed; returning zeroed curve\n");
+		memset(fancurve, 0, sizeof(*fancurve));
+		fancurve->size = MAXFANCURVESIZE;
+		fancurve->fan_speed_unit = FAN_SPEED_UNIT_PERCENT;
+		err = 0;
+	}
+
+	return err;
 }
 
 static int write_fancurve(struct legion_private *priv,
 			  const struct fancurve *fancurve, bool write_size)
 {
+	int err;
+
 	// TODO: use enums or function pointers?
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
-		return ec_write_fancurve_legion(&priv->ecram, priv->conf,
-						fancurve, write_size);
+		err = ec_write_fancurve_legion(&priv->ecram, priv->conf,
+					       fancurve, write_size);
+		break;
 	case ACCESS_METHOD_EC2:
-		return ec_write_fancurve_ideapad(&priv->ecram, priv->conf,
-						 fancurve);
+		err = ec_write_fancurve_ideapad(&priv->ecram, priv->conf,
+						fancurve);
+		break;
 	case ACCESS_METHOD_EC3:
-		return ec_write_fancurve_loq(&priv->ecram, priv->conf,
-					     fancurve);
+		err = ec_write_fancurve_loq(&priv->ecram, priv->conf,
+					    fancurve);
+		break;
 	case ACCESS_METHOD_WMI3:
-		return wmi_write_fancurve_custom(priv->conf, fancurve);
+		err = wmi_write_fancurve_custom(priv->conf, fancurve);
+		break;
 	default:
 		pr_info("No access method for fancurve: %d\n",
 			priv->conf->access_method_fancurve);
 		return -EINVAL;
 	}
+
+	if (!err) {
+		priv->fancurve = *fancurve;
+		priv->fancurve_valid = true;
+	}
+
+	return err;
 }
 
 #define MINIFANCUVE_ON_COOL_ON 0x04
