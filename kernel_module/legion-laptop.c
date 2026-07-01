@@ -1336,7 +1336,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_bhcn
 	},
 	{
-		// e.g. Lenovo 7 16IAX7
+		// e.g. Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW)
 		.ident = "K1CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
