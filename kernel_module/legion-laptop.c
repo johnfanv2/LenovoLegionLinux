@@ -4792,6 +4792,11 @@ static ssize_t gpu_temperature_limit_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimit == ACCESS_METHOD_WMI3)
+		return show_other_method_attribute(dev, attr, buf,
+			OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
 	return show_simple_wmi_attribute(
 		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_GPU_GET_TEMPERATURE_LIMIT, false, 1);
@@ -4801,6 +4806,11 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimit == ACCESS_METHOD_WMI3)
+		return store_other_method_attribute(dev, attr, buf, count,
+			OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
@@ -4971,9 +4981,29 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct legion_private *priv = dev_get_drvdata(dev);
+	bool wmi3_power = priv->conf->access_method_powerlimit ==
+			  ACCESS_METHOD_WMI3;
 
 	if (attr == &dev_attr_fan_maxspeed.attr && priv->conf->no_fan_maxspeed)
 		return 0;
+
+	/*
+	 * WMAE-only firmware may retain the legacy CPU/GPU GUIDs as stubs.
+	 * Do not advertise attributes which are not routed through WMAE: reads
+	 * either fail with an unexpected ACPI result or return placeholder data,
+	 * while setters can report success without changing hardware state.
+	 */
+	if (wmi3_power &&
+	    (attr == &dev_attr_cpu_oc.attr ||
+	     attr == &dev_attr_cpu_apu_sppt_powerlimit.attr ||
+	     attr == &dev_attr_cpu_default_powerlimit.attr ||
+	     attr == &dev_attr_cpu_peak_powerlimit.attr ||
+	     attr == &dev_attr_gpu_oc.attr ||
+	     attr == &dev_attr_gpu_ctgp2_powerlimit.attr ||
+	     attr == &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr ||
+	     attr == &dev_attr_gpu_boost_clock.attr))
+		return 0;
+
 	return attr->mode;
 }
 
