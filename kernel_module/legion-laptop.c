@@ -230,6 +230,9 @@ struct model_config {
 	// set to true if the legacy fan maxspeed WMI method is a stub that
 	// does not reflect fan state; hides the fan_maxspeed attribute
 	bool no_fan_maxspeed;
+	// hide hwmon values which bypass the configured access methods and
+	// read the legacy EXT_IC_TEMP_INPUT/EXT_FAN*_TARGET_RPM EC offsets
+	bool no_legacy_ec_hwmon;
 
 	bool acpi_check_dev;
 
@@ -1070,6 +1073,10 @@ static const struct model_config model_q7cn = {
 	// Legacy fan maxspeed method answers but does not track WMAE
 	// fullspeed state; there is no separate maxspeed feature in WMAE
 	.no_fan_maxspeed = true,
+	// The Q7CN DSDT only defines WMAE access for CPU/GPU temperatures and
+	// current fan speeds; legacy IC-temperature and fan-target offsets are
+	// not verified on this EC generation.
+	.no_legacy_ec_hwmon = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE500400,
 	.ramio_size = 0xC00
@@ -5484,6 +5491,22 @@ static struct attribute *sensor_hwmon_attributes[] = {
 	NULL
 };
 
+static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
+					      struct attribute *attr, int idx)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->no_legacy_ec_hwmon &&
+	    (attr == &sensor_dev_attr_temp3_input.dev_attr.attr ||
+	     attr == &sensor_dev_attr_temp3_label.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan1_target.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan2_target.dev_attr.attr))
+		return 0;
+
+	return attr->mode;
+}
+
 static ssize_t fan_max_show(struct device *dev,
 			    struct device_attribute *devattr, char *buf)
 {
@@ -6133,7 +6156,7 @@ static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 
 static const struct attribute_group legion_hwmon_sensor_group = {
 	.attrs = sensor_hwmon_attributes,
-	.is_visible = NULL
+	.is_visible = legion_hwmon_sensor_is_visible
 };
 
 static const struct attribute_group legion_hwmon_fancurve_group = {
