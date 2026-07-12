@@ -854,7 +854,10 @@ class LegionController:
     def update_fancurve_gui(self):
         self.view_fancurve.set_fancurve(self.model.fan_curve,
                                         self.model.fancurve_io.has_minifancurve(),
-                                        self.model.fancurve_io.exists())
+                                        self.model.fancurve_io.exists(),
+                                        self.model.fancurve_io.has_fan_2_speed(),
+                                        self.model.fancurve_io.has_temperature_curve(),
+                                        self.model.fancurve_io.has_acceleration_curve())
 
     def update_automation(self):
         self.power_profiles_deamon_service_controller.update_view_from_feature()
@@ -964,17 +967,19 @@ class FanCurveEntryView():
         self.accel_edit.setText(str(entry.acceleration))
         self.decel_edit.setText(str(entry.deceleration))
 
-    def set_disabled(self, value: bool):
+    def set_disabled(self, value: bool, has_fan_2_speed: bool,
+                     has_temperature_curve: bool,
+                     has_acceleration_curve: bool):
         self.fan_speed1_edit.setDisabled(value)
-        self.fan_speed2_edit.setDisabled(value)
-        self.cpu_lower_temp_edit.setDisabled(value)
-        self.cpu_upper_temp_edit.setDisabled(value)
-        self.gpu_lower_temp_edit.setDisabled(value)
-        self.gpu_upper_temp_edit.setDisabled(value)
-        self.ic_lower_temp_edit.setDisabled(value)
-        self.ic_upper_temp_edit.setDisabled(value)
-        self.accel_edit.setDisabled(value)
-        self.decel_edit.setDisabled(value)
+        self.fan_speed2_edit.setDisabled(value or not has_fan_2_speed)
+        self.cpu_lower_temp_edit.setDisabled(value or not has_temperature_curve)
+        self.cpu_upper_temp_edit.setDisabled(value or not has_temperature_curve)
+        self.gpu_lower_temp_edit.setDisabled(value or not has_temperature_curve)
+        self.gpu_upper_temp_edit.setDisabled(value or not has_temperature_curve)
+        self.ic_lower_temp_edit.setDisabled(value or not has_temperature_curve)
+        self.ic_upper_temp_edit.setDisabled(value or not has_temperature_curve)
+        self.accel_edit.setDisabled(value or not has_acceleration_curve)
+        self.decel_edit.setDisabled(value or not has_acceleration_curve)
 
     def get(self) -> FanCurveEntry:
         fan1_speed = float(self.fan_speed1_edit.text())
@@ -1004,11 +1009,16 @@ class FanCurveTab(QWidget):
 
         self.controller.view_fancurve = self
 
-    def set_fancurve(self, fancurve: FanCurve, has_minifancurve: bool, enabled: bool):
+    def set_fancurve(self, fancurve: FanCurve, has_minifancurve: bool,
+                     enabled: bool, has_fan_2_speed: bool,
+                     has_temperature_curve: bool,
+                     has_acceleration_curve: bool):
         self.minfancurve_check.setDisabled(not has_minifancurve)
         for i, entry in enumerate(fancurve.entries):
             self.entry_edits[i].set(entry)
-            self.entry_edits[i].set_disabled(not enabled)
+            self.entry_edits[i].set_disabled(
+                not enabled, has_fan_2_speed, has_temperature_curve,
+                has_acceleration_curve)
         self.load_button.setDisabled(not enabled)
         self.write_button.setDisabled(not enabled)
 

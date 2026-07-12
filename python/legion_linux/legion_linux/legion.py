@@ -766,6 +766,23 @@ class FanCurveIO(Feature):
             return has_point1
         return False
 
+    def _has_point_file(self, pattern):
+        return self.hwmon_path is not None and os.path.exists(
+            self.hwmon_path + pattern.format(1))
+
+    def has_fan_2_speed(self):
+        return self._has_point_file(self.pwm2_fan_speed)
+
+    def has_temperature_curve(self):
+        return all(self._has_point_file(pattern) for pattern in [
+            self.pwm1_temp_hyst, self.pwm1_temp,
+            self.pwm2_temp_hyst, self.pwm2_temp,
+            self.pwm3_temp_hyst, self.pwm3_temp])
+
+    def has_acceleration_curve(self):
+        return (self._has_point_file(self.pwm1_accel) and
+                self._has_point_file(self.pwm1_decel))
+
     def _find_hwmon_dir(self):
         matches = glob.glob(self.hwmon_dir_pattern)
         if matches:
@@ -942,6 +959,10 @@ class FanCurveIO(Feature):
         if self.use_legion_cli_to_write:
             write_file_with_legion_cli(self.name(), [str(fan_curve.to_yaml())])
             return
+
+        has_fan_2_speed = self.has_fan_2_speed()
+        has_temperature_curve = self.has_temperature_curve()
+        has_acceleration_curve = self.has_acceleration_curve()
         try:
             log.info(
                 "Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
@@ -952,30 +973,49 @@ class FanCurveIO(Feature):
         for index, entry in enumerate(fan_curve.entries):
             point_id = index + 1
             self.set_fan_1_speed_rpm(point_id, entry.fan1_speed)
-            self.set_fan_2_speed_rpm(point_id, entry.fan2_speed)
-            self.set_lower_cpu_temperature(point_id, entry.cpu_lower_temp)
-            self.set_upper_cpu_temperature(point_id, entry.cpu_upper_temp)
-            self.set_lower_gpu_temperature(point_id, entry.gpu_lower_temp)
-            self.set_upper_gpu_temperature(point_id, entry.gpu_upper_temp)
-            self.set_lower_ic_temperature(point_id, entry.ic_lower_temp)
-            self.set_upper_ic_temperature(point_id, entry.ic_upper_temp)
-            self.set_acceleration(point_id, entry.acceleration)
-            self.set_deceleration(point_id, entry.deceleration)
+            if has_fan_2_speed:
+                self.set_fan_2_speed_rpm(point_id, entry.fan2_speed)
+            if has_temperature_curve:
+                self.set_lower_cpu_temperature(point_id, entry.cpu_lower_temp)
+                self.set_upper_cpu_temperature(point_id, entry.cpu_upper_temp)
+                self.set_lower_gpu_temperature(point_id, entry.gpu_lower_temp)
+                self.set_upper_gpu_temperature(point_id, entry.gpu_upper_temp)
+                self.set_lower_ic_temperature(point_id, entry.ic_lower_temp)
+                self.set_upper_ic_temperature(point_id, entry.ic_upper_temp)
+            if has_acceleration_curve:
+                self.set_acceleration(point_id, entry.acceleration)
+                self.set_deceleration(point_id, entry.deceleration)
 
     def read_fan_curve(self) -> FanCurve:
         """Reads a fan curve object from the file system"""
         entries = []
+        has_fan_2_speed = self.has_fan_2_speed()
+        has_temperature_curve = self.has_temperature_curve()
+        has_acceleration_curve = self.has_acceleration_curve()
         for point_id in range(1, 11):
             fan1_speed = self.get_fan_1_speed_rpm(point_id)
-            fan2_speed = self.get_fan_2_speed_rpm(point_id)
-            cpu_lower_temp = self.get_lower_cpu_temperature(point_id)
-            cpu_upper_temp = self.get_upper_cpu_temperature(point_id)
-            gpu_lower_temp = self.get_lower_gpu_temperature(point_id)
-            gpu_upper_temp = self.get_upper_gpu_temperature(point_id)
-            ic_lower_temp = self.get_lower_ic_temperature(point_id)
-            ic_upper_temp = self.get_upper_ic_temperature(point_id)
-            acceleration = self.get_acceleration(point_id)
-            deceleration = self.get_deceleration(point_id)
+            fan2_speed = (self.get_fan_2_speed_rpm(point_id)
+                          if has_fan_2_speed else fan1_speed)
+            if has_temperature_curve:
+                cpu_lower_temp = self.get_lower_cpu_temperature(point_id)
+                cpu_upper_temp = self.get_upper_cpu_temperature(point_id)
+                gpu_lower_temp = self.get_lower_gpu_temperature(point_id)
+                gpu_upper_temp = self.get_upper_gpu_temperature(point_id)
+                ic_lower_temp = self.get_lower_ic_temperature(point_id)
+                ic_upper_temp = self.get_upper_ic_temperature(point_id)
+            else:
+                cpu_lower_temp = 0
+                cpu_upper_temp = 0
+                gpu_lower_temp = 0
+                gpu_upper_temp = 0
+                ic_lower_temp = 0
+                ic_upper_temp = 0
+            if has_acceleration_curve:
+                acceleration = self.get_acceleration(point_id)
+                deceleration = self.get_deceleration(point_id)
+            else:
+                acceleration = 0
+                deceleration = 0
             entry = FanCurveEntry(fan1_speed=fan1_speed, fan2_speed=fan2_speed,
                                   cpu_lower_temp=cpu_lower_temp, cpu_upper_temp=cpu_upper_temp,
                                   gpu_lower_temp=gpu_lower_temp, gpu_upper_temp=gpu_upper_temp,
