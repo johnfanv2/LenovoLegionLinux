@@ -1131,6 +1131,32 @@ static const struct model_config model_r3cn = {
 	.has_fancurve_defaults = true
 };
 
+// Legion 5 15IAX10 (83F0) - same EC Chip ID (0x5508) as R3CN (LOQ 15IRX10)
+static const struct model_config model_s2cn = {
+	.registers = &ec_register_offsets_loq_v1,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_EC3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0F00,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\\\_SB.PC00.LPCB.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\\\_SB.PC00.LPCB.EC0.VPC0._CFG"
+	},
+	.has_fancurve_defaults = true
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -1533,6 +1559,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "R3CN"),
 		},
 		.driver_data = (void *)&model_r3cn
+	},
+	{
+		// Legion 5 15IAX10 (83F0)
+		.ident = "S2CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "S2CN"),
+		},
+		.driver_data = (void *)&model_s2cn
 	},
 	{}
 };
