@@ -79,6 +79,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
   - Switch between different fan profiles depending on the power profile (See: [Lenovo Legion Laptop Support Daemon](#lenovo-legion-laptop-support-daemonlegiond))
 - [X] Monitor fan speeds and temperatures (CPU, GPU, IC) using the now available sensors
 - [X] Enable or disable automatic switching to a "Mini Fan Curve" if temperatures are low for a long time
+- [X] **SmartFan** — lightweight shell-based fan daemon for Legion 7 Gen 10+ using `acpi_call` (no full kernel module needed). 4 modes, smooth ramping, LED sync, TUI switcher. See [`extra/smartfan/`](extra/smartfan/)
 
 ## :mega: Overview
 
