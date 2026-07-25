@@ -656,8 +656,16 @@ static const struct model_config model_nmcn = {
 	.access_method_fancurve = ACCESS_METHOD_EC4,
 	.access_method_fanfullspeed = ACCESS_METHOD_EC4,
 	.acpi_check_dev = false,
+	.access_method_oc = ACCESS_METHOD_OC_OTHER_METHOD,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		/* rapidcharge EC at \_SB.PC00.LPCB.EC0, not v0 \_SB.PCI0.LPC0.EC0 */
+		[ACPI_PATH_READ_RAPIDCHARGE] =
+			"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] =
+			"\\_SB.PC00.LPCB.EC0.VPC0.SBMC",
+	}
 };
 
 static const struct model_config model_m0cn = {
