@@ -1507,6 +1507,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_nzcn
 	},
 	{
+		//e.g. LOQ 15ARP9 (83JC, AMD Ryzen 7 7435HS + RTX 4050)
+		.ident = "PQCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "PQCN"),
+		},
+		.driver_data = (void *)&model_nzcn
+	},
+	{
 		// e.g. Legion Pro 5 16IRX9 (83DF)
 		.ident = "N0CN",
 		.matches = {
