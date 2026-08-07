@@ -253,6 +253,8 @@ struct model_config {
 	size_t ramio_size;
 	const char *acpi_paths[ACPI_PATH_MAX];
 	bool has_fancurve_defaults;
+	bool wmi_fancurve_speed_only;
+	bool require_unlocked_fan_controller;
 };
 
 /* =================================== */
@@ -635,6 +637,33 @@ static const struct model_config model_g8cn = {
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
+};
+
+static const struct model_config model_n2cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC"
+	},
+	.wmi_fancurve_speed_only = true,
+	.require_unlocked_fan_controller = true
 };
 
 static const struct model_config model_nxcn = {
@@ -1633,6 +1662,16 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_g8cn
 	},
 	{
+		// Legion Pro 7 16IRX9H (83DE)
+		.ident = "N2CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83DE"),
+			DMI_MATCH(DMI_BIOS_VERSION, "N2CN"),
+		},
+		.driver_data = (void *)&model_n2cn
+	},
+	{
 		// e.g. Legion 9 16IRX9 (83G0)
 		.ident = "NXCN",
 		.matches = {
@@ -1743,6 +1782,19 @@ static int exec_simple_method(struct acpi_device *adev, const char *name,
 	return ACPI_FAILURE(status) ? -EIO : 0;
 }
 
+static bool acpi_method_exists(struct acpi_device *adev, const char *name)
+{
+	acpi_handle handle;
+	acpi_status status;
+
+	if (!name)
+		return false;
+	status = acpi_get_handle(adev ? adev->handle : NULL, (char *)name,
+				 &handle);
+
+	return ACPI_SUCCESS(status);
+}
+
 // function from ideapad-laptop.c
 static int exec_sbmc(struct acpi_device *adev, unsigned long arg)
 {
@@ -1840,6 +1892,9 @@ static int wmi_exec_ints(const char *guid, u8 instance, u32 method_id,
 	acpi_status status;
 	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
 
+	if (!wmi_has_guid(guid))
+		return -ENODEV;
+
 	status = wmi_evaluate_method(guid, instance, method_id, params,
 				     &out_buffer);
 	return acpi_process_buffer_to_ints(guid, method_id, status, &out_buffer,
@@ -1854,6 +1909,9 @@ static int wmi_exec_int(const char *guid, u8 instance, u32 method_id,
 	// set to NULL and call kfree on NULL if next function call fails
 	union acpi_object *out = NULL;
 	int error = 0;
+
+	if (!wmi_has_guid(guid))
+		return -ENODEV;
 
 	status = wmi_evaluate_method(guid, instance, method_id, params,
 				     &out_buffer);
@@ -1896,14 +1954,75 @@ static int wmi_exec_noarg_int(const char *guid, u8 instance, u32 method_id,
 	return wmi_exec_int(guid, instance, method_id, &params, res);
 }
 
-static int wmi_exec_noarg_ints(const char *guid, u8 instance, u32 method_id,
-			       u8 *res, size_t ressize)
+static int wmi_exec_noarg_int_or_buffer(const char *guid, u8 instance,
+					u32 method_id, size_t ressize,
+					size_t index, unsigned long *res)
 {
 	struct acpi_buffer params;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+	union acpi_object *out = NULL;
+	acpi_status status;
+	int error = 0;
 
 	params.length = 0;
 	params.pointer = NULL;
-	return wmi_exec_ints(guid, instance, method_id, &params, res, ressize);
+	if (!wmi_has_guid(guid))
+		return -ENODEV;
+
+	status = wmi_evaluate_method(guid, instance, method_id, &params,
+				     &out_buffer);
+	if (ACPI_FAILURE(status)) {
+		pr_info("WMI evaluation error for: %s:%d\n", guid, method_id);
+		error = -EIO;
+		goto out;
+	}
+
+	out = out_buffer.pointer;
+	if (!out) {
+		pr_info("Unexpected WMI result for %s:%d\n", guid, method_id);
+		error = -EIO;
+		goto out;
+	}
+
+	switch (out->type) {
+	case ACPI_TYPE_INTEGER:
+		if (index) {
+			pr_info("Unexpected WMI result for %s:%d: integer value %llu cannot satisfy byte index %zu\n",
+				guid, method_id, out->integer.value, index);
+			error = -EINVAL;
+			break;
+		}
+		*res = out->integer.value;
+		break;
+	case ACPI_TYPE_BUFFER:
+		if (out->buffer.length != ressize) {
+			pr_info("Unexpected WMI result for %s:%d: expected buffer length %zu but got %u\n",
+				guid, method_id, ressize, out->buffer.length);
+			if (out->buffer.length)
+				print_hex_dump(KERN_INFO, "WMI result: ",
+					       DUMP_PREFIX_OFFSET, 16, 1,
+					       out->buffer.pointer,
+					       min_t(u32, out->buffer.length, 64), false);
+			error = -EINVAL;
+			break;
+		}
+		*res = out->buffer.pointer[index];
+		break;
+	case ACPI_TYPE_PACKAGE:
+		pr_info("Unexpected WMI result for %s:%d: type %u, package size %u\n",
+			guid, method_id, out->type, out->package.count);
+		error = -EINVAL;
+		break;
+	default:
+		pr_info("Unexpected WMI result for %s:%d: type %u\n", guid,
+			method_id, out->type);
+		error = -EINVAL;
+		break;
+	}
+
+out:
+	kfree(out);
+	return error;
 }
 
 static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
@@ -1914,6 +2033,9 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 
 	params.length = arg_size;
 	params.pointer = arg;
+	if (!wmi_has_guid(guid))
+		return -ENODEV;
+
 	status = wmi_evaluate_method(guid, instance, method_id, &params, NULL);
 
 	if (ACPI_FAILURE(status))
@@ -2111,13 +2233,23 @@ static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 	return error;
 }
 
-static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id, int value, int *output)
+struct wmi_other_method_value {
+	u32 feature_id;
+	u32 value;
+};
+
+static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id,
+					  int value, int *output)
 {
 	struct acpi_buffer params;
 	int error;
-	unsigned long val;
 	unsigned long res;
-  // WMI Call 0x12 (18) struct:
+	struct wmi_other_method_value input = {
+		.feature_id = feature_id,
+		.value = value,
+	};
+
+	// WMI Call 0x12 (18) struct:
 	//
 	// CreateWordField (Arg2, Zero, TYP1)
 	// CreateByteField (Arg2, 0x02, FEA1)
@@ -2129,10 +2261,8 @@ static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id, in
 	// FEA0 = 0x02
 	// DEV0 = 0x04
 	// DAT1 = 0xXXXXXXXX = parameter to add
-	// val = OtherMethodXX + Param = 0x4020000 | (DAT1 << 32)
-	val = (unsigned long)feature_id | ((unsigned long)(u32)value << 32);
-	params.length = sizeof(val);
-	params.pointer = &val;
+	params.length = sizeof(input);
+	params.pointer = &input;
 	error = wmi_exec_int(LEGION_WMI_LENOVO_OTHER_METHOD_GUID, 0,
 					WMI_METHOD_ID_SET_FEATURE_VALUE, &params, &res);
 	if (error)
@@ -2481,6 +2611,7 @@ enum fan_speed_unit {
 	FAN_SPEED_UNIT_PERCENT = 1,
 	FAN_SPEED_UNIT_PWM = 2,
 	FAN_SPEED_UNIT_RPM_HUNDRED = 3,
+	FAN_SPEED_UNIT_PERCENT_NEAREST = 4,
 };
 
 struct fancurve_point {
@@ -2575,6 +2706,10 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 	case FAN_SPEED_UNIT_PERCENT:
 		*speed = clamp_t(u8, value * 100 / 255, 0, 255);
 		return true;
+	case FAN_SPEED_UNIT_PERCENT_NEAREST:
+		*speed = clamp_t(u8, (value * 100 + (255 / 2)) / 255,
+				 0, 100);
+		return true;
 	case FAN_SPEED_UNIT_PWM:
 		*speed = clamp_t(u8, value, 0, 255);
 		return true;
@@ -2594,32 +2729,25 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 {
 	int speed;
 
-	pr_info("%s 1 point id=%d, fancurve=%p, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
-		__func__, point_id, (void *)fancurve, fancurve->fan_speed_unit,
-		fancurve->size);
-
 	if (!(point_id < fancurve->size && fan_id >= 0 && fan_id < 2)) {
 		pr_err("Reading point id %d, fan id %d not valid for fancurve with size %ld",
 		       point_id, fan_id, fancurve->size);
 		return false;
 	}
-	pr_info("%s 2", __func__);
 
 	speed = fan_id == 0 ? fancurve->points[point_id].speed1 :
 			      fancurve->points[point_id].speed2;
 
 	switch (fancurve->fan_speed_unit) {
 	case FAN_SPEED_UNIT_PERCENT:
+	case FAN_SPEED_UNIT_PERCENT_NEAREST:
 		*value = speed * 255 / 100;
-		pr_info("%s 3a", __func__);
 		return true;
 	case FAN_SPEED_UNIT_PWM:
 		*value = speed;
-		pr_info("%s 3b", __func__);
 		return true;
 	case FAN_SPEED_UNIT_RPM_HUNDRED:
 		*value = speed * 255 * 100 / MAX_RPM;
-		pr_info("%s 3c", __func__);
 		return true;
 	default:
 		pr_info("No method to get for fan_speed_unit %d.",
@@ -3253,74 +3381,58 @@ static ssize_t read_temperature(struct legion_private *priv, int sensor_id,
  * It is only available on newer models.
  */
 
-struct WMIFanTable {
-	u8 FSTM; //FSMD
-	u8 FSID;
-	u32 FSTL; //FSST
-	u16 FSS0;
-	u16 FSS1;
-	u16 FSS2;
-	u16 FSS3;
-	u16 FSS4;
-	u16 FSS5;
-	u16 FSS6;
-	u16 FSS7;
-	u16 FSS8;
-	u16 FSS9;
-} __packed;
-
-struct WMIFanTableRead {
-	u32 FSFL;
-	u32 FSS0;
-	u32 FSS1;
-	u32 FSS2;
-	u32 FSS3;
-	u32 FSS4;
-	u32 FSS5;
-	u32 FSS6;
-	u32 FSS7;
-	u32 FSS8;
-	u32 FSS9;
-	u32 FSSA;
+struct wmi_fan_table_read {
+	__le32 fan_table_length;
+	__le32 fan_speed[MAXFANCURVESIZE];
+	__le32 sensor_table_length;
+	__le32 sensor_value[MAXFANCURVESIZE];
 } __packed;
 
 static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 					struct fancurve *fancurve)
 {
-	u8 buffer[88];
-	u8 in_params[2] = { 0 };
-	struct acpi_buffer params = { .length = sizeof(in_params),
-				      .pointer = in_params };
+	struct wmi_fan_table_read fan_table;
+	u8 params_data[2] = { 0, 0 };
+	struct acpi_buffer params = {
+		.length = sizeof(params_data),
+		.pointer = params_data,
+	};
+	size_t size;
+	size_t i;
 	int err;
 
-	// The output buffer from the ACPI call is 88 bytes and larger
-	// than the returned object
-	pr_info("Size of object: %lu\n", sizeof(struct WMIFanTableRead));
+	// Pass two zero parameter bytes: required by some firmwares
+	// (e.g. NXCN / Legion 9 16IRX9, see #393), ignored by others.
 	err = wmi_exec_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
-			    WMI_METHOD_ID_FAN_GET_TABLE, &params, buffer,
-			    sizeof(buffer));
-	print_hex_dump(KERN_DEBUG, "legion_laptop fan table wmi buffer",
-		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
-		       true);
-	if (!err) {
-		struct WMIFanTableRead *fantable =
-			(struct WMIFanTableRead *)&buffer[0];
-		fancurve->current_point_i = 0;
-		fancurve->size = 10;
-		fancurve->fan_speed_unit = FAN_SPEED_UNIT_PERCENT;
-		fancurve->points[0].speed1 = fantable->FSS0;
-		fancurve->points[1].speed1 = fantable->FSS1;
-		fancurve->points[2].speed1 = fantable->FSS2;
-		fancurve->points[3].speed1 = fantable->FSS3;
-		fancurve->points[4].speed1 = fantable->FSS4;
-		fancurve->points[5].speed1 = fantable->FSS5;
-		fancurve->points[6].speed1 = fantable->FSS6;
-		fancurve->points[7].speed1 = fantable->FSS7;
-		fancurve->points[8].speed1 = fantable->FSS8;
-		fancurve->points[9].speed1 = fantable->FSS9;
-		//fancurve->points[10].speed1 = fantable->FSSA;
+			    WMI_METHOD_ID_FAN_GET_TABLE, &params,
+			    (u8 *)&fan_table, sizeof(fan_table));
+	if (err)
+		return err;
+
+	if (model == &model_n2cn) {
+		size = min_t(u32, le32_to_cpu(fan_table.fan_table_length),
+			     MAXFANCURVESIZE);
+		if (!size)
+			return -EIO;
+	} else {
+		size = MAXFANCURVESIZE;
 	}
-	return err;
+
+	memset(fancurve, 0, sizeof(*fancurve));
+	fancurve->current_point_i = 0;
+	fancurve->size = size;
+	fancurve->fan_speed_unit = model == &model_n2cn ?
+		FAN_SPEED_UNIT_PERCENT_NEAREST : FAN_SPEED_UNIT_PERCENT;
+
+	for (i = 0; i < size; i++) {
+		u32 speed = le32_to_cpu(fan_table.fan_speed[i]);
+
+		if (speed > U8_MAX)
+			return -ERANGE;
+		fancurve->points[i].speed1 = speed;
+	}
+
+	return 0;
 }
 
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
@@ -3362,6 +3474,22 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 		       true);
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
 			   WMI_METHOD_ID_FAN_SET_TABLE, buffer, sizeof(buffer));
+	if (err || model != &model_n2cn)
+		return err;
+
+	{
+		struct fancurve readback;
+		size_t i;
+
+		err = wmi_read_fancurve_custom(model, &readback);
+		if (err)
+			return err;
+		for (i = 0; i < MAXFANCURVESIZE; i++) {
+			if (readback.points[i].speed1 != fancurve->points[i].speed1)
+				return -EIO;
+		}
+	}
+
 	return err;
 }
 
@@ -3732,7 +3860,6 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 {
 	// TODO: use enums or function pointers?
-	pr_info("Reading fancurve"); // TODO: remove that
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
 		return ec_read_fancurve_legion(&priv->ecram, priv->conf,
@@ -3840,6 +3967,21 @@ static int ec_read_lockfancontroller(struct ecram *ecram,
 		return -1;
 	}
 	return 0;
+}
+
+static int fan_control_write_allowed(struct legion_private *priv)
+{
+	bool locked;
+	int err;
+
+	if (!priv->conf->require_unlocked_fan_controller)
+		return 0;
+
+	err = ec_read_lockfancontroller(&priv->ecram, priv->conf, &locked);
+	if (err)
+		return err;
+
+	return locked ? -EBUSY : 0;
 }
 
 #define EC_FANFULLSPEED_ON 0x40
@@ -4227,9 +4369,11 @@ static int legion_wmi_light_get(struct legion_private *priv, u8 light_id,
 
 	value = result[1];
 	if (!(value >= min_value && value <= max_value)) {
+		if (light_id == LIGHT_ID_IOPORT && value == 0)
+			return -ENODEV;
 		pr_info("Error WMI call for reading brightness: expected a value between %u and %u, but got %d\n",
 			min_value, max_value, value);
-		return -EFAULT;
+		return -ERANGE;
 	}
 
 	return value - min_value;
@@ -4533,7 +4677,7 @@ static int show_simple_wmi_attribute(struct device *dev,
 	mutex_unlock(&priv->fancurve_mutex);
 
 	if (err)
-		return -EINVAL;
+		return err;
 
 	return sysfs_emit(buf, "%lu\n", state);
 }
@@ -4545,28 +4689,23 @@ static int show_simple_wmi_attribute_from_buffer(struct device *dev,
 						 size_t ressize, size_t i,
 						 int scale)
 {
-	u8 res[16];
 	int err;
-	int out;
+	unsigned long value;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (ressize > ARRAY_SIZE(res)) {
-		pr_info("Buffer too small for WMI result\n");
-		return -EINVAL;
-	}
 	if (i >= ressize) {
 		pr_info("Index not within buffer size\n");
 		return -EINVAL;
 	}
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = wmi_exec_noarg_ints(guid, instance, method_id, res, ressize);
+	err = wmi_exec_noarg_int_or_buffer(guid, instance, method_id, ressize,
+					     i, &value);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
-		return -EINVAL;
+		return err;
 
-	out = scale * res[i];
-	return sysfs_emit(buf, "%d\n", out);
+	return sysfs_emit(buf, "%lu\n", scale * value);
 }
 
 static int store_simple_wmi_attribute(struct device *dev,
@@ -4641,7 +4780,7 @@ static ssize_t rapidcharge_show(struct device *dev,
 	err = acpi_read_rapidcharge(priv->adev, &state);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
-		return -EINVAL;
+		return err;
 
 	return sysfs_emit(buf, "%d\n", state);
 }
@@ -4662,7 +4801,7 @@ static ssize_t rapidcharge_store(struct device *dev,
 	err = acpi_write_rapidcharge(priv->adev, state);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
-		return -EINVAL;
+		return err;
 
 	return count;
 }
@@ -5292,10 +5431,12 @@ static ssize_t fan_fullspeed_store(struct device *dev,
 		return err;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = write_fanfullspeed(priv, state);
+	err = fan_control_write_allowed(priv);
+	if (!err)
+		err = write_fanfullspeed(priv, state);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
-		return -EINVAL;
+		return err;
 
 	return count;
 }
@@ -5416,8 +5557,59 @@ static struct attribute *legion_sysfs_attributes[] = {
 	NULL
 };
 
+static bool legion_rapidcharge_is_supported(struct legion_private *priv)
+{
+	return acpi_method_exists(
+		priv->adev, get_model_acpi_path(priv->conf,
+						 ACPI_PATH_READ_RAPIDCHARGE)) &&
+	       acpi_method_exists(
+		priv->adev, get_model_acpi_path(priv->conf,
+						 ACPI_PATH_WRITE_RAPIDCHARGE));
+}
+
+static bool legion_attribute_uses_cpu_wmi(const struct attribute *attr)
+{
+	return attr == &dev_attr_cpu_oc.attr ||
+	       attr == &dev_attr_cpu_shortterm_powerlimit.attr ||
+	       attr == &dev_attr_cpu_longterm_powerlimit.attr ||
+	       attr == &dev_attr_cpu_default_powerlimit.attr;
+}
+
+static bool legion_attribute_uses_gpu_wmi(const struct attribute *attr)
+{
+	return attr == &dev_attr_cpu_apu_sppt_powerlimit.attr ||
+	       attr == &dev_attr_cpu_peak_powerlimit.attr ||
+	       attr == &dev_attr_cpu_cross_loading_powerlimit.attr ||
+	       attr == &dev_attr_gpu_oc.attr ||
+	       attr == &dev_attr_gpu_ppab_powerlimit.attr ||
+	       attr == &dev_attr_gpu_ctgp_powerlimit.attr ||
+	       attr == &dev_attr_gpu_ctgp2_powerlimit.attr ||
+	       attr == &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr ||
+	       attr == &dev_attr_gpu_temperature_limit.attr ||
+	       attr == &dev_attr_gpu_boost_clock.attr;
+}
+
+static umode_t legion_sysfs_is_visible(struct kobject *kobj,
+				       struct attribute *attr, int idx)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (attr == &dev_attr_rapidcharge.attr)
+		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
+	if (legion_attribute_uses_cpu_wmi(attr) &&
+	    !wmi_has_guid(WMI_GUID_LENOVO_CPU_METHOD))
+		return 0;
+	if (legion_attribute_uses_gpu_wmi(attr) &&
+	    !wmi_has_guid(WMI_GUID_LENOVO_GPU_METHOD))
+		return 0;
+
+	return attr->mode;
+}
+
 static const struct attribute_group legion_attribute_group = {
-	.attrs = legion_sysfs_attributes
+	.attrs = legion_sysfs_attributes,
+	.is_visible = legion_sysfs_is_visible
 };
 
 static int legion_sysfs_init(struct legion_private *priv)
@@ -5939,17 +6131,9 @@ static ssize_t autopoint_show(struct device *dev,
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 	bool ok = true;
 
-	pr_info("%s 1 point id=%d, fancurve_attr_id id=%d, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
-		__func__, point_id, fancurve_attr_id, fancurve.fan_speed_unit,
-		fancurve.size);
-
 	mutex_lock(&priv->fancurve_mutex);
 	err = read_fancurve(priv, &fancurve);
 	mutex_unlock(&priv->fancurve_mutex);
-
-	pr_info("%s 2 point id=%d, fancurve_attr_id id=%d, err=%d, fancurve.fan_speed_unit=%d, fancurve.size=%ld",
-		__func__, point_id, fancurve_attr_id, err,
-		fancurve.fan_speed_unit, fancurve.size);
 
 	if (err) {
 		pr_info("Failed to read fancurve\n");
@@ -5963,16 +6147,10 @@ static ssize_t autopoint_show(struct device *dev,
 
 	switch (fancurve_attr_id) {
 	case FANCURVE_ATTR_PWM1:
-		pr_info("%s ->3a pwm1 point id=%d, fancurve_attr_id id=%d",
-			__func__, point_id, fancurve_attr_id);
 		ok = fancurve_get_speed_pwm(&fancurve, point_id, 0, &value);
-		pr_info("%s ok: %d->3a2", __func__, ok);
 		break;
 	case FANCURVE_ATTR_PWM2:
-		pr_info("%s ->3b pwm2 point id=%d, fancurve_attr_id id=%d",
-			__func__, point_id, fancurve_attr_id);
 		ok = fancurve_get_speed_pwm(&fancurve, point_id, 1, &value);
-		pr_info("%s ok: %d->3b2", __func__, ok);
 		break;
 	case FANCURVE_ATTR_CPU_TEMP:
 		value = fancurve.points[point_id].cpu_max_temp_celsius;
@@ -6007,10 +6185,8 @@ static ssize_t autopoint_show(struct device *dev,
 		return -EOPNOTSUPP;
 	}
 	if (!ok) {
-		pr_info("%s 4a: error!", __func__);
 		value = 0;
 	}
-	pr_info("%s 4b XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", __func__);
 	return sprintf(buf, "%d\n", value);
 }
 
@@ -6027,6 +6203,10 @@ static ssize_t autopoint_store(struct device *dev,
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 	bool write_fancurve_size = false;
 
+	if (priv->conf->wmi_fancurve_speed_only &&
+	    fancurve_attr_id != FANCURVE_ATTR_PWM1)
+		return -EOPNOTSUPP;
+
 	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
 		pr_info("Failed to read fancurve due to wrong point id: %d\n",
 			point_id);
@@ -6042,6 +6222,9 @@ static ssize_t autopoint_store(struct device *dev,
 	}
 
 	mutex_lock(&priv->fancurve_mutex);
+	err = fan_control_write_allowed(priv);
+	if (err)
+		goto error_mutex;
 	err = read_fancurve(priv, &fancurve);
 
 	if (err) {
@@ -6113,7 +6296,7 @@ static ssize_t autopoint_store(struct device *dev,
 error_mutex:
 	mutex_unlock(&priv->fancurve_mutex);
 error:
-	return count;
+	return err;
 }
 
 static ssize_t fancurve_defaults_powermode_store(struct device *dev,
@@ -6554,6 +6737,21 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	NULL
 };
 
+static bool legion_wmi_fancurve_speed_attribute(const struct attribute *attr)
+{
+	return attr == &sensor_dev_attr_fan1_max.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point3_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point4_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point5_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point6_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr;
+}
+
 static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 				       struct attribute *attr, int idx)
 {
@@ -6561,8 +6759,13 @@ static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 	struct device *dev = kobj_to_dev(kobj);
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	if (priv->conf->wmi_fancurve_speed_only &&
+	    !legion_wmi_fancurve_speed_attribute(attr))
+		return 0;
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;
+	if (attr == &sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr)
+		supported = priv->conf->has_fancurve_defaults;
 
 	supported = supported && (priv->conf->access_method_fancurve !=
 				  ACCESS_METHOD_NO_ACCESS);
@@ -6780,6 +6983,8 @@ static int legion_light_init(struct legion_private *priv,
 	brightness = legion_wmi_light_get(priv, light_ins->light_id,
 					  light_ins->lower_limit,
 					  light_ins->upper_limit);
+	if (brightness == -ENODEV)
+		return brightness;
 	if (brightness < 0) {
 		pr_info("Error reading brightness for light: %u\n",
 			light_ins->light_id);
@@ -6998,7 +7203,7 @@ static int legion_add(struct platform_device *pdev)
 	pr_info("Init IO-Port LED driver\n");
 	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 0, 2,
 				"platform::ioport");
-	if (err) {
+	if (err && err != -ENODEV) {
 		dev_info(&pdev->dev,
 			 "Failed to init IO-Port LED driver. Skipping ...\n");
 	}
