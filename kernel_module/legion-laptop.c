@@ -246,6 +246,14 @@ struct model_config {
 	enum access_method access_method_fanfullspeed;
 	enum access_method access_method_powerlimits;
 	bool three_state_keyboard;
+	bool skip_ic_temp;
+	bool skip_oc_controls;
+	bool acpi_fanspeed_is_rpm;
+	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
+	bool fan_target_is_duty;
+	bool has_four_fans;
+	bool skip_ylogo_light;
+	bool skip_ioport_light;
 
 	bool acpi_check_dev;
 
@@ -293,6 +301,42 @@ static const struct ec_register_offsets ec_register_offsets_v0 = {
 	.EXT_POWERMODE = 0xc420,
 	.EXT_FAN1_TARGET_RPM = 0xc600,
 	.EXT_FAN2_TARGET_RPM = 0xc601,
+	.EXT_MAXIMUMFANSPEED = 0xBD,
+	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
+};
+
+/* RZCN: fan target bytes are duty-cycle (0-100) at 0xC5A0/0xC5A1,
+ * not the power-limit setpoints at 0xC600/0xC601 used by v0.
+ */
+static const struct ec_register_offsets ec_register_offsets_rzcn = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN_CUR_POINT = 0xC534,
+	.EXT_FAN_POINTS_SIZE = 0xC535,
+	.EXT_FAN1_BASE = 0xC540,
+	.EXT_FAN2_BASE = 0xC550,
+	.EXT_FAN_ACC_BASE = 0xC560,
+	.EXT_FAN_DEC_BASE = 0xC570,
+	.EXT_CPU_TEMP = 0xC580,
+	.EXT_CPU_TEMP_HYST = 0xC590,
+	.EXT_GPU_TEMP = 0xC5A0,
+	.EXT_GPU_TEMP_HYST = 0xC5B0,
+	.EXT_VRM_TEMP = 0xC5C0,
+	.EXT_VRM_TEMP_HYST = 0xC5D0,
+	.EXT_FAN1_RPM_LSB = 0xC5E0,
+	.EXT_FAN1_RPM_MSB = 0xC5E1,
+	.EXT_FAN2_RPM_LSB = 0xC5E2,
+	.EXT_FAN2_RPM_MSB = 0xC5E3,
+	.EXT_MINIFANCURVE_ON_COOL = 0xC536,
+	.EXT_LOCKFANCONTROLLER = 0xC4AB,
+	.EXT_CPU_TEMP_INPUT = 0xC538,
+	.EXT_GPU_TEMP_INPUT = 0xC539,
+	.EXT_IC_TEMP_INPUT = 0xC5E8,
+	.EXT_POWERMODE = 0xC420,
+	.EXT_FAN1_TARGET_RPM = 0xC5A0,
+	.EXT_FAN2_TARGET_RPM = 0xC5A1,
 	.EXT_MAXIMUMFANSPEED = 0xBD,
 	.EXT_WHITE_KEYBOARD_BACKLIGHT = (0x3B + 0xC400)
 };
@@ -775,6 +819,32 @@ static const struct model_config model_k1cn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600
+};
+
+static const struct model_config model_rzcn = {
+	.registers = &ec_register_offsets_rzcn,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5263,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_ACPI,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanfullspeed = ACCESS_METHOD_NO_ACCESS,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.acpi_fanspeed_is_rpm = true,
+	.fan_target_is_duty = true,
+	.has_four_fans = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
@@ -1480,6 +1550,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "NSCN"),
 		},
 		.driver_data = (void *)&model_nscn
+	},
+	{
+		// e.g. Legion 9 18IAX10 (83EY)
+		.ident = "RZCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "RZCN"),
+		},
+		.driver_data = (void *)&model_rzcn
 	},
 	{
 		// e.g. Legion Y720
@@ -2598,7 +2677,9 @@ enum SENSOR_ATTR {
 	SENSOR_FAN1_RPM_ID = 4,
 	SENSOR_FAN2_RPM_ID = 5,
 	SENSOR_FAN1_TARGET_RPM_ID = 6,
-	SENSOR_FAN2_TARGET_RPM_ID = 7
+	SENSOR_FAN2_TARGET_RPM_ID = 7,
+	SENSOR_FAN3_RPM_ID = 8,
+	SENSOR_FAN4_RPM_ID = 9
 };
 
 /* ============================= */
@@ -3067,10 +3148,13 @@ static int ec_read_sensor_values(struct ecram *ecram,
 				 const struct model_config *model,
 				 struct sensor_values *values)
 {
+	int fan_target_mult = model->fan_target_is_duty ? 100 :
+			      (model->acpi_fanspeed_is_rpm ? 1 : 100);
+
 	values->fan1_target_rpm =
-		100 * ecram_read(ecram, model->registers->EXT_FAN1_TARGET_RPM);
+		fan_target_mult * ecram_read(ecram, model->registers->EXT_FAN1_TARGET_RPM);
 	values->fan2_target_rpm =
-		100 * ecram_read(ecram, model->registers->EXT_FAN2_TARGET_RPM);
+		fan_target_mult * ecram_read(ecram, model->registers->EXT_FAN2_TARGET_RPM);
 
 	values->fan1_rpm =
 		ecram_read(ecram, model->registers->EXT_FAN1_RPM_LSB) +
@@ -3145,6 +3229,10 @@ static ssize_t ec_read_fanspeed(struct ecram *ecram,
 // #define ACPI_PATH_FAN_SPEED1 "FANS"
 // '\_SB.PCI0.LPC0.EC0.FA2S
 // #define ACPI_PATH_FAN_SPEED2 "FA2S"
+// '\_SB.PCI0.LPC0.EC0.FA3S
+#define ACPI_PATH_FAN_SPEED3 "FA3S"
+// '\_SB.PCI0.LPC0.EC0.FA4S
+#define ACPI_PATH_FAN_SPEED4 "FA4S"
 
 static ssize_t acpi_read_fanspeed(struct legion_private *priv, int fan_id,
 				  int *value)
@@ -3155,15 +3243,18 @@ static ssize_t acpi_read_fanspeed(struct legion_private *priv, int fan_id,
 
 	if (fan_id == 0) {
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_READ_FANSPEED1);
-	} else if (fan_id == 1) {
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_READ_FANSPEED2);
+	} else if (fan_id == 2) {
+		acpi_path = ACPI_PATH_FAN_SPEED3;
+	} else if (fan_id == 3) {
+		acpi_path = ACPI_PATH_FAN_SPEED4;
 	} else {
-		// TODO: use all correct error codes
-		return -EEXIST;
+		return -EINVAL;
 	}
 	err = eval_int(priv->adev, acpi_path, &acpi_value);
 	if (!err)
-		*value = (int)acpi_value * 100;
+		*value = priv->conf->acpi_fanspeed_is_rpm ?
+			 (int)acpi_value : (int)acpi_value * 100;
 	return err;
 }
 
@@ -5628,6 +5719,9 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	struct device *dev = kobj_to_dev(kobj);
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	if (!priv)
+		return attr->mode;
+
 	if (attr == &dev_attr_rapidcharge.attr)
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
 	if (legion_attribute_uses_cpu_wmi(attr) &&
@@ -5635,6 +5729,27 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return 0;
 	if (legion_attribute_uses_gpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_GPU_METHOD))
+		return 0;
+
+	if (attr == &dev_attr_fan_fullspeed.attr &&
+	    priv->conf->access_method_fanfullspeed == ACCESS_METHOD_NO_ACCESS)
+		return 0;
+
+	if (priv->conf->skip_oc_controls &&
+	    (attr == &dev_attr_cpu_oc.attr ||
+	     attr == &dev_attr_gpu_oc.attr ||
+	     attr == &dev_attr_cpu_shortterm_powerlimit.attr ||
+	     attr == &dev_attr_cpu_longterm_powerlimit.attr ||
+	     attr == &dev_attr_cpu_peak_powerlimit.attr ||
+	     attr == &dev_attr_cpu_default_powerlimit.attr ||
+	     attr == &dev_attr_cpu_apu_sppt_powerlimit.attr ||
+	     attr == &dev_attr_cpu_cross_loading_powerlimit.attr ||
+	     attr == &dev_attr_gpu_ppab_powerlimit.attr ||
+	     attr == &dev_attr_gpu_ctgp_powerlimit.attr ||
+	     attr == &dev_attr_gpu_ctgp2_powerlimit.attr ||
+	     attr == &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr ||
+	     attr == &dev_attr_gpu_temperature_limit.attr ||
+	     attr == &dev_attr_gpu_boost_clock.attr))
 		return 0;
 
 	return attr->mode;
@@ -6055,6 +6170,12 @@ static ssize_t sensor_label_show(struct device *dev,
 	case SENSOR_FAN2_RPM_ID:
 		label = "Fan 2\n";
 		break;
+	case SENSOR_FAN3_RPM_ID:
+		label = "Fan 3\n";
+		break;
+	case SENSOR_FAN4_RPM_ID:
+		label = "Fan 4\n";
+		break;
 	case SENSOR_FAN1_TARGET_RPM_ID:
 		label = "Fan 1 Target\n";
 		break;
@@ -6098,6 +6219,12 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 	case SENSOR_FAN2_RPM_ID:
 		err = read_fanspeed(priv, 1, &outval);
 		break;
+	case SENSOR_FAN3_RPM_ID:
+		err = read_fanspeed(priv, 2, &outval);
+		break;
+	case SENSOR_FAN4_RPM_ID:
+		err = read_fanspeed(priv, 3, &outval);
+		break;
 	case SENSOR_FAN1_TARGET_RPM_ID:
 		ec_read_sensor_values(&priv->ecram, priv->conf, &values);
 		outval = values.fan1_target_rpm;
@@ -6128,6 +6255,10 @@ static SENSOR_DEVICE_ATTR_RO(fan1_input, sensor, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan1_label, sensor_label, SENSOR_FAN1_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_input, sensor, SENSOR_FAN2_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_label, sensor_label, SENSOR_FAN2_RPM_ID);
+static SENSOR_DEVICE_ATTR_RO(fan3_input, sensor, SENSOR_FAN3_RPM_ID);
+static SENSOR_DEVICE_ATTR_RO(fan3_label, sensor_label, SENSOR_FAN3_RPM_ID);
+static SENSOR_DEVICE_ATTR_RO(fan4_input, sensor, SENSOR_FAN4_RPM_ID);
+static SENSOR_DEVICE_ATTR_RO(fan4_label, sensor_label, SENSOR_FAN4_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan1_target, sensor, SENSOR_FAN1_TARGET_RPM_ID);
 static SENSOR_DEVICE_ATTR_RO(fan2_target, sensor, SENSOR_FAN2_TARGET_RPM_ID);
 
@@ -6142,6 +6273,10 @@ static struct attribute *sensor_hwmon_attributes[] = {
 	&sensor_dev_attr_fan1_label.dev_attr.attr,
 	&sensor_dev_attr_fan2_input.dev_attr.attr,
 	&sensor_dev_attr_fan2_label.dev_attr.attr,
+	&sensor_dev_attr_fan3_input.dev_attr.attr,
+	&sensor_dev_attr_fan3_label.dev_attr.attr,
+	&sensor_dev_attr_fan4_input.dev_attr.attr,
+	&sensor_dev_attr_fan4_label.dev_attr.attr,
 	&sensor_dev_attr_fan1_target.dev_attr.attr,
 	&sensor_dev_attr_fan2_target.dev_attr.attr,
 	NULL
@@ -6784,8 +6919,30 @@ static bool legion_wmi_fancurve_speed_attribute(const struct attribute *attr)
 	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr;
 }
 
-static umode_t legion_hwmon_is_visible(struct kobject *kobj,
-				       struct attribute *attr, int idx)
+static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
+					      struct attribute *attr,
+					      int idx)
+{
+	bool supported = true;
+	struct device *dev = kobj_to_dev(kobj);
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (attr == &sensor_dev_attr_temp3_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_temp3_label.dev_attr.attr)
+		supported = supported && !priv->conf->skip_ic_temp;
+
+	if (attr == &sensor_dev_attr_fan3_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan3_label.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan4_label.dev_attr.attr)
+		supported = supported && priv->conf->has_four_fans;
+
+	return supported ? attr->mode : 0;
+}
+
+static umode_t legion_hwmon_fancurve_is_visible(struct kobject *kobj,
+						struct attribute *attr,
+						int idx)
 {
 	bool supported = true;
 	struct device *dev = kobj_to_dev(kobj);
@@ -6807,12 +6964,12 @@ static umode_t legion_hwmon_is_visible(struct kobject *kobj,
 
 static const struct attribute_group legion_hwmon_sensor_group = {
 	.attrs = sensor_hwmon_attributes,
-	.is_visible = NULL
+	.is_visible = legion_hwmon_sensor_is_visible
 };
 
 static const struct attribute_group legion_hwmon_fancurve_group = {
 	.attrs = fancurve_hwmon_attributes,
-	.is_visible = legion_hwmon_is_visible,
+	.is_visible = legion_hwmon_fancurve_is_visible,
 };
 
 static const struct attribute_group *legion_hwmon_groups[] = {
@@ -7224,20 +7381,24 @@ static int legion_add(struct platform_device *pdev)
 			"Failed to init keyboard backlight LED driver. Skipping ...\n");
 	}
 
-	pr_info("Init Y-Logo LED driver\n");
-	err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO, 0, 1,
-				"platform::ylogo");
-	if (err) {
-		dev_info(&pdev->dev,
-			 "Failed to init Y-Logo LED driver. Skipping ...\n");
+	if (!priv->conf->skip_ylogo_light) {
+		pr_info("Init Y-Logo LED driver\n");
+		err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO,
+					0, 1, "platform::ylogo");
+		if (err) {
+			dev_info(&pdev->dev,
+				 "Failed to init Y-Logo LED driver. Skipping ...\n");
+		}
 	}
 
-	pr_info("Init IO-Port LED driver\n");
-	err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT, 0, 2,
-				"platform::ioport");
-	if (err && err != -ENODEV) {
-		dev_info(&pdev->dev,
-			 "Failed to init IO-Port LED driver. Skipping ...\n");
+	if (!priv->conf->skip_ioport_light) {
+		pr_info("Init IO-Port LED driver\n");
+		err = legion_light_init(priv, &priv->iport_light, LIGHT_ID_IOPORT,
+					0, 2, "platform::ioport");
+		if (err && err != -ENODEV) {
+			dev_info(&pdev->dev,
+				 "Failed to init IO-Port LED driver. Skipping ...\n");
+		}
 	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
