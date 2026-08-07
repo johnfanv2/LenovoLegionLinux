@@ -27,6 +27,7 @@ Requires:     PyQt6
 Requires:     python-yaml
 Requires:     python-argcomplete
 Requires:     python-darkdetect
+Requires:     python3-pillow
 
 %description
 See documenation of LenovoLegionLinux
