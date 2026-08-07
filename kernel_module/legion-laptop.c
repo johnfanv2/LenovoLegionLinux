@@ -634,6 +634,25 @@ static const struct model_config model_g8cn = {
 	.ramio_size = 0x600
 };
 
+static const struct model_config model_nxcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5263,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600
+};
+
 static const struct model_config model_m0cn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -1549,6 +1568,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "N0CN"),
 		},
 		.driver_data = (void *)&model_g8cn
+	},
+	{
+		// e.g. Legion 9 16IRX9 (83G0)
+		.ident = "NXCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "NXCN"),
+		},
+		.driver_data = (void *)&model_nxcn
 	},
 	{
 		// e.g. Legion Slim 5 16AHP9 (2024) - Model 83DH
@@ -3188,14 +3216,17 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 					struct fancurve *fancurve)
 {
 	u8 buffer[88];
+	u8 in_params[2] = { 0 };
+	struct acpi_buffer params = { .length = sizeof(in_params),
+				      .pointer = in_params };
 	int err;
 
 	// The output buffer from the ACPI call is 88 bytes and larger
 	// than the returned object
 	pr_info("Size of object: %lu\n", sizeof(struct WMIFanTableRead));
-	err = wmi_exec_noarg_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
-				  WMI_METHOD_ID_FAN_GET_TABLE, buffer,
-				  sizeof(buffer));
+	err = wmi_exec_ints(WMI_GUID_LENOVO_FAN_METHOD, 0,
+			    WMI_METHOD_ID_FAN_GET_TABLE, &params, buffer,
+			    sizeof(buffer));
 	print_hex_dump(KERN_DEBUG, "legion_laptop fan table wmi buffer",
 		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),
 		       true);
