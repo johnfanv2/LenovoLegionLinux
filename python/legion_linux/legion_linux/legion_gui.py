@@ -393,16 +393,10 @@ class EnumFeatureTrayController:
                         # there are more actions than values, so hide it
                         action.setVisible(False)
             else:
-                for i, action in enumerate(self.actions):
-                    if i< len(values):
-                        value, name = values[i]
-                        action.setText(f"Set {name}")
-                        action.setCheckable(True)
-                        action.setChecked(False)
-                        action.setDisabled(True)
-                    else:
-                        # there are more actions than values, so hide it
-                        action.setVisible(False)
+                # feature not available: disable all actions
+                for action in self.actions:
+                    action.setChecked(False)
+                    action.setDisabled(True)
         # pylint: disable=broad-except
         except Exception as ex:
             log_error(ex)
