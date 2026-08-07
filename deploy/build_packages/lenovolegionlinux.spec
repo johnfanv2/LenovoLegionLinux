@@ -3,7 +3,7 @@
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
-Version: 0.0.20
+Version: 0.0.21
 Release: 0
 Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 License: GPL-2.0
@@ -99,5 +99,8 @@ echo "Command: sudo cp -r /usr/share/legion_linux /etc/legion_linux"
 echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
 
 %changelog
+* Fri Aug 07 2026 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.21
+- 0.0.21 release; add python3-pillow dependency.
+
 * Mon Apr 8 2024 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.15
 - Various fix to the gui and migrate to legiond daemon
