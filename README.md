@@ -927,6 +927,8 @@ A graphical GNOME applet uses `power-profiles-daemon` to change the power mode u
 
 For KDE, there is the graphical tool `powerdevil`, which also uses `power-profiles-daemon` internally.
 
+If KDE only shows `balanced` and `performance` in `/sys/firmware/acpi/platform_profile_choices` but the Legion device (for example `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`) includes `quiet`, check whether `lenovo_wmi_gamezone` is also loaded. If both providers are active, the global profile choices are the intersection of both providers and quiet mode might disappear. In that case, unload or blacklist `lenovo_wmi_gamezone` and keep `legion_laptop` as the single provider for power mode.
+
 ### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
 
 First, try to [reset the embedded controller](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem) OR do a BIOS update/downgrade to reset everything.
