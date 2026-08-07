@@ -320,7 +320,7 @@ Unexpected result:
 - `insmod: ERROR: could not insert module legion-laptop.ko: Invalid module format` after running `make reloadmodule`
 - `legion PNP0C09:00: legion_laptop not loaded for this device`. The kernel module was not loaded properly. Redo first test.
 - `insmod: ERROR: could not insert module legion-laptop.ko: Key was rejected by service`: because you enable secure boot, you cannot load kernel modules.   Disable secure boot (in BIOS) or sign the kernel module with a private key.
-- if you see the following, the driver was not tested for your laptop model; please raise an issue with the maintainer if you think it should be compatible. If you want to try it anyhow with your model use `sudo make forcereloadmodule`
+- if you see the following, the driver was not tested for your laptop model; please [create an issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/new/choose) with the maintainer if you think it should be compatible. If you want to try it anyhow with your model use `sudo make forcereloadmodule`
 
 ```text
 [126675.495983] legion PNP0C09:00: Module not usable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.
