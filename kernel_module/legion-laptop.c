@@ -6184,9 +6184,8 @@ static ssize_t autopoint_show(struct device *dev,
 			fancurve_attr_id);
 		return -EOPNOTSUPP;
 	}
-	if (!ok) {
+	if (!ok)
 		value = 0;
-	}
 	return sprintf(buf, "%d\n", value);
 }
 

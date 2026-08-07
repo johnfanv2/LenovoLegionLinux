@@ -8,11 +8,10 @@ from typing import Callable, List, Optional, Tuple, Dict
 from pathlib import Path
 import logging
 import subprocess
-import yaml
-import sys
 import struct
 import zlib
 from datetime import datetime
+import yaml
 from PIL import Image
 # import jsonrpyc
 # import inotify.adapters
@@ -891,10 +890,12 @@ class FanCurveIO(Feature):
         return self._read_file(file_path)
 
     def get_fan_1_speed_rpm(self, point_id):
-        return round(((self.get_fan_1_speed_pwm(point_id) * self.get_fan_1_max_rpm() + (100 * 255) - 1) // (100 * 255)) * 100 , ndigits=2)
+        pwm = self.get_fan_1_speed_pwm(point_id)
+        return round(((pwm * self.get_fan_1_max_rpm() + (100 * 255) - 1) // (100 * 255)) * 100, ndigits=2)
 
     def get_fan_2_speed_rpm(self, point_id):
-        return round(((self.get_fan_2_speed_pwm(point_id) * self.get_fan_2_max_rpm()  + (100 * 225) - 1) // (100 * 255)) * 100, ndigits=2)
+        pwm = self.get_fan_2_speed_pwm(point_id)
+        return round(((pwm * self.get_fan_2_max_rpm() + (100 * 225) - 1) // (100 * 255)) * 100, ndigits=2)
 
     def get_lower_cpu_temperature(self, point_id):
         point_id = self._validate_point_id(point_id)
@@ -1519,7 +1520,7 @@ class LegionModelFacade:
 
         backup_path = os.path.join("/tmp", f"{base_name}_{timestamp}.bak")
         shutil.copy(file_path, backup_path)
-        log.info(f"Backup of {base_name} created: {backup_path}")
+        log.info("Backup of %s created: %s", base_name, backup_path)
         return tmp_path, backup_path
 
     def _calculate_crc32(self, file_path, length=512):
@@ -1535,8 +1536,8 @@ class LegionModelFacade:
         with Image.open(image_path) as img:
             img_width, img_height = img.size
             img_format = img.format.lower()
-            if (expected_width != 0 and img_width != expected_width) or \
-               (expected_height != 0 and img_height != expected_height):
+            if expected_width not in (0, img_width) or \
+               expected_height not in (0, img_height):
                 raise ValueError(
                     f"Image dimensions do not match: expect {expected_width}x{expected_height}, "
                     f"got {img_width}x{img_height}."
@@ -1551,7 +1552,7 @@ class LegionModelFacade:
         try:
             data = self._read_file(LBLDESP_FILE)
         except (IOError, OSError) as e:
-            log.warning(f"Could not read LBLDESP_FILE ({LBLDESP_FILE}): {e}")
+            log.warning("Could not read LBLDESP_FILE (%s): %s", LBLDESP_FILE, e)
             return False, 0, 0
 
         if len(data) < 13:
@@ -1561,12 +1562,12 @@ class LegionModelFacade:
         fifth_byte = data[4]
         width = int.from_bytes(data[5:9], byteorder='little')
         height = int.from_bytes(data[9:13], byteorder='little')
-        is_on = (fifth_byte == 0x01)
+        is_on = fifth_byte == 0x01
         return is_on, width, height
 
     def enable_boot_logo(self, image_path):
         is_on, expected_width, expected_height = self.get_boot_logo_status()
-        log.info(f"Current LBLDESP is ON={is_on}, required size={expected_width}x{expected_height}")
+        log.info("Current LBLDESP is ON=%s, required size=%sx%s", is_on, expected_width, expected_height)
         img_w, img_h, img_fmt = self._check_image_dimensions_and_format(image_path, expected_width, expected_height)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         tmp_lbldvc, _ = self._backup_file(LBLDVC_FILE, timestamp)
@@ -1580,19 +1581,19 @@ class LegionModelFacade:
             f.write(b'\x01')
         self._replace_efi_file(LBLDVC_FILE, tmp_lbldvc)
         self._replace_efi_file(LBLDESP_FILE, tmp_lbldesp)
-        self.boot_dir = "/boot"
-        self.logo_dir = "/EFI/Lenovo/Logo"
+        boot_dir = "/boot"
+        logo_dir = "/EFI/Lenovo/Logo"
         os.remove(tmp_lbldvc)
         os.remove(tmp_lbldesp)
         log.info("Boot logo has been enabled successfully in EFIVars.")
-        full_logo_dir = os.path.join(self.boot_dir, self.logo_dir.lstrip("/"))
+        full_logo_dir = os.path.join(boot_dir, logo_dir.lstrip("/"))
         if os.path.exists(full_logo_dir):
             shutil.rmtree(full_logo_dir)
         os.makedirs(full_logo_dir, exist_ok=True)
         dest_filename = f"mylogo_{img_w}x{img_h}.{img_fmt}"
         dest_path = os.path.join(full_logo_dir, dest_filename)
         shutil.copy(image_path, dest_path)
-        log.info(f"Image copied to {dest_path}")
+        log.info("Image copied to %s", dest_path)
 
     def restore_boot_logo(self):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

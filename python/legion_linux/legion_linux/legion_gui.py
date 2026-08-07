@@ -1210,7 +1210,7 @@ class OtherOptionsTab(QWidget):
         self.update_bootlogo_view()
 
     def update_bootlogo_view(self):
-        is_on, w, h = self.controller.model.get_boot_logo_status()
+        is_on, _w, _h = self.controller.model.get_boot_logo_status()
         self.bootlogo_checkbox.setChecked(is_on)
 
     def on_bootlogo_toggled(self):
@@ -1220,7 +1220,7 @@ class OtherOptionsTab(QWidget):
             try:
                 self.controller.model.restore_boot_logo()
                 QMessageBox.information(self, "Success", "Boot Logo restored.")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 QMessageBox.critical(self, "Error", f"Restore failed: {e}")
             self.update_bootlogo_view()
 
@@ -1230,7 +1230,7 @@ class OtherOptionsTab(QWidget):
             try:
                 self.controller.model.enable_boot_logo(path)
                 QMessageBox.information(self, "Success", f"Boot Logo enabled with {path}.")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 QMessageBox.critical(self, "Error", f"Enable failed: {e}")
                 self.bootlogo_checkbox.setChecked(False)
             self.update_bootlogo_view()
