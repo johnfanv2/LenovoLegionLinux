@@ -175,6 +175,10 @@ jobs:
       shell: bash
 
   test-packages:
+    # COPR package (external, maintained by mrduarte) is currently built
+    # against python 3.13 and uninstallable on fedora 43/44 until rebuilt
+    # there; do not block CI on it.
+    continue-on-error: true
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout
