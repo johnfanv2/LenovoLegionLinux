@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.0.22)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate version
+      run: |
+        VERSION="${{ inputs.version }}"
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Invalid version: $VERSION (expected X.Y.Z)"
+          exit 1
+        fi
+        if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+          echo "Tag v$VERSION already exists"
+          exit 1
+        fi
+
+    - name: Bump versions
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -ex
+        DATE=$(date '+%a %b %d %Y')
+        AUTHOR="github-actions <actions@github.com>"
+
+        sed -i -E "s/^(Version:\s*)[0-9.]+\$/\1$VERSION/" \
+          deploy/build_packages/lenovolegionlinux.spec \
+          deploy/build_packages/lenovolegionlinux-dkms.spec
+        sed -i -E "s/^(version = )[0-9.]+\$/\1$VERSION/" \
+          python/legion_linux/setup.cfg
+
+        sed -i "/^%changelog$/a * $DATE $AUTHOR - $VERSION\n- $VERSION release; add python3-pillow dependency." \
+          deploy/build_packages/lenovolegionlinux.spec
+        sed -i "/^%changelog$/a * $DATE $AUTHOR - $VERSION-0\n- $VERSION release of LenovoLegionLinux DKMS module." \
+          deploy/build_packages/lenovolegionlinux-dkms.spec
+
+        grep -n "$VERSION" deploy/build_packages/*.spec python/legion_linux/setup.cfg
+
+    - name: Commit, tag and push
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -ex
+        git config user.name "github-actions"
+        git config user.email "actions@github.com"
+        git add -A
+        git commit -m "Release $VERSION: bump versions in specs and setup.cfg"
+        git tag -a "v$VERSION" -m "Release v$VERSION"
+        git push origin HEAD:main
+        git push origin "v$VERSION"
+
+    - name: Create release
+      env:
+        VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "v$VERSION" --title "v$VERSION" --generate-notes
