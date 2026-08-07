@@ -3893,12 +3893,6 @@ static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 		pr_info("Hardware fan curve read failed; returning cached curve\n");
 		*fancurve = priv->fancurve;
 		err = 0;
-	} else {
-		pr_info("Hardware fan curve read failed; returning zeroed curve\n");
-		memset(fancurve, 0, sizeof(*fancurve));
-		fancurve->size = MAXFANCURVESIZE;
-		fancurve->fan_speed_unit = FAN_SPEED_UNIT_PERCENT;
-		err = 0;
 	}
 
 	return err;
