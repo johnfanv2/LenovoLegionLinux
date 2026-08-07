@@ -2089,6 +2089,13 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 #define WMI_METHOD_ID_ISSUPPORTSMARTFAN 49
 #define WMI_METHOD_ID_GETSMARTFANMODE 45
 #define WMI_METHOD_ID_SETSMARTFANMODE 44
+// Fan ceiling unlock (discovered on KWCN54WW / Legion Pro 7 16IRX8H, May 2026).
+// WMAA(0, 0x0D, arg) toggles NCMD(0x59, 0x77) on the EC's alt-namespace
+// command port. arg=1 raises the firmware fan ceiling from the default
+// Linux cap (~4400 RPM in Performance mode on this firmware) to the EC's
+// high-end fan curve subtable (~7000-7100 RPM observed on i9-13900HX +
+// RTX 4080 Laptop). arg=0 reverts. See johnfanv2/LenovoLegionLinux #429.
+#define WMI_METHOD_ID_FAN_EXTREME_TOGGLE 13
 // power charge mode
 #define WMI_METHOD_ID_GETPOWERCHARGEMODE 47
 // overdrive of display to reduce latency
@@ -4769,6 +4776,44 @@ static ssize_t lockfancontroller_store(struct device *dev,
 
 static DEVICE_ATTR_RW(lockfancontroller);
 
+// Fan ceiling unlock — see WMI_METHOD_ID_FAN_EXTREME_TOGGLE comment for context.
+// Cached state because the firmware exposes no clean read-back path; the value
+// reflects the last value successfully written through this attribute.
+static u8 fan_unlock_state;
+
+static ssize_t fan_unlock_show(struct device *dev, struct device_attribute *attr,
+			       char *buf)
+{
+	return sysfs_emit(buf, "%d\n", fan_unlock_state);
+}
+
+static ssize_t fan_unlock_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool enable;
+	u8 arg;
+	int err;
+
+	err = kstrtobool(buf, &enable);
+	if (err)
+		return err;
+
+	arg = enable ? 1 : 0;
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
+			   WMI_METHOD_ID_FAN_EXTREME_TOGGLE, &arg, sizeof(arg));
+	if (!err)
+		fan_unlock_state = arg;
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EIO;
+	return count;
+}
+
+static DEVICE_ATTR_RW(fan_unlock);
+
 static ssize_t rapidcharge_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -5519,6 +5564,7 @@ static DEVICE_ATTR_RW(powermode);
 static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_powermode.attr,
 	&dev_attr_lockfancontroller.attr,
+	&dev_attr_fan_unlock.attr,
 	&dev_attr_rapidcharge.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
