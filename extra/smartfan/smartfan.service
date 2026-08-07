@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart Fan Control Daemon
+After=multi-user.target
+Wants=acpi_call.service
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/smartfan start quiet
+ExecStop=/usr/local/bin/smartfan stop
+PIDFile=/tmp/smartfan.pid
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
