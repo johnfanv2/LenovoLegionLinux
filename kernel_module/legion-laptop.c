@@ -1807,6 +1807,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_r3cn
 	},
 	{
+		// e.g. LOQ Essential 15IRX11 (83SC, Intel i5-13450HX + RTX 5050)
+		.ident = "SECN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "SECN"),
+		},
+		.driver_data = (void *)&model_r3cn
+	},
+	{
 		// Legion 7 16IAX10 (83KY) - Intel Core Ultra 7 255HX + RTX 5060
 		.ident = "RXCN",
 		.matches = {
@@ -3943,49 +3952,76 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 				 const struct fancurve *fancurve)
 {
 	size_t i;
-	int valr1;
-	int valr2;
+	int valr1, valr2, valcpu, valgpu, valic;
 	u8 cmrd;
 	size_t struct_offset_ecramsys = 6;
+	int err = 0;
 
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		const struct fancurve_point *point = &fancurve->points[i];
 
 		ecram_write(ecram, model->registers->EXT_FAN1_BASE
-							+ (i * struct_offset_ecramsys), point->speed1);
-		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE
-							+ (i * struct_offset_ecramsys));
+						+ (i * struct_offset_ecramsys), point->speed1);
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE
+						+ (i * struct_offset_ecramsys) - 1, point->cpu_max_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_FAN1_BASE
+						+ (i * struct_offset_ecramsys) - 2, point->cpu_min_temp_celsius);
 
 		ecram_write(ecram, model->registers->EXT_FAN2_BASE
-							+ (i * struct_offset_ecramsys), point->speed2);
-		valr2 = ecram_read(ecram, model->registers->EXT_FAN2_BASE +
-						  (i * struct_offset_ecramsys));
+						+ (i * struct_offset_ecramsys), point->speed2);
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE
+						+ (i * struct_offset_ecramsys) - 1, point->gpu_max_temp_celsius);
+		ecram_write(ecram, model->registers->EXT_FAN2_BASE
+						+ (i * struct_offset_ecramsys) - 2, point->gpu_min_temp_celsius);
 
-		pr_info("Writing fan1: %d; reading fan1: %d\n", point->speed1,
-			valr1);
-		pr_info("Writing fan2: %d; reading fan2: %d\n", point->speed2,
-			valr2);
-
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP
-							+ (i * struct_offset_ecramsys), point->cpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST
-							+ (i * struct_offset_ecramsys), point->cpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP
-							+ (i * struct_offset_ecramsys), point->gpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST
-							+ (i * struct_offset_ecramsys), point->gpu_min_temp_celsius);
 		ecram_write(ecram, model->registers->EXT_VRM_TEMP
-							+ (i * struct_offset_ecramsys), point->ic_max_temp_celsius);
+						+ (i * struct_offset_ecramsys), point->ic_max_temp_celsius);
 		ecram_write(ecram, model->registers->EXT_VRM_TEMP_HYST
-							+ (i * struct_offset_ecramsys), point->ic_min_temp_celsius);
+						+ (i * struct_offset_ecramsys), point->ic_min_temp_celsius);
 
+		valr1 = ecram_read(ecram, model->registers->EXT_FAN1_BASE
+						+ (i * struct_offset_ecramsys));
+		valr2 = ecram_read(ecram, model->registers->EXT_FAN2_BASE
+						+ (i * struct_offset_ecramsys));
+		valcpu = ecram_read(ecram, model->registers->EXT_FAN1_BASE
+						+ (i * struct_offset_ecramsys) - 1);
+		valgpu = ecram_read(ecram, model->registers->EXT_FAN2_BASE
+						+ (i * struct_offset_ecramsys) - 1);
+		valic = ecram_read(ecram, model->registers->EXT_VRM_TEMP
+						+ (i * struct_offset_ecramsys));
+
+		if (valr1 != point->speed1) {
+			pr_err("fancurve_loq: verify failed point %zu fan1: wrote %d read %d\n",
+				i, point->speed1, valr1);
+			err = -EIO;
+		}
+		if (valr2 != point->speed2) {
+			pr_err("fancurve_loq: verify failed point %zu fan2: wrote %d read %d\n",
+				i, point->speed2, valr2);
+			err = -EIO;
+		}
+		if (valcpu != point->cpu_max_temp_celsius) {
+			pr_err("fancurve_loq: verify failed point %zu cpu_temp: wrote %d read %d\n",
+				i, point->cpu_max_temp_celsius, valcpu);
+			err = -EIO;
+		}
+		if (valgpu != point->gpu_max_temp_celsius) {
+			pr_err("fancurve_loq: verify failed point %zu gpu_temp: wrote %d read %d\n",
+				i, point->gpu_max_temp_celsius, valgpu);
+			err = -EIO;
+		}
+		if (valic != point->ic_max_temp_celsius) {
+			pr_err("fancurve_loq: verify failed point %zu ic_temp: wrote %d read %d\n",
+				i, point->ic_max_temp_celsius, valic);
+			err = -EIO;
+		}
 	}
-	// execute
+
 	cmrd = ecram_read(ecram, LOQ_CMDR_ADDR);
 	cmrd |= (1 << 4);
 	ecram_write(ecram, LOQ_CMDR_ADDR, cmrd);
 
-	return 0;
+	return err;
 }
 
 
@@ -7735,6 +7771,8 @@ static struct platform_driver legion_driver = {
 	},
 };
 
+static bool created_virtual_pdev;
+
 static int __init legion_init(void)
 {
 	int err;
@@ -7748,11 +7786,16 @@ static int __init legion_init(void)
 		return err;
 	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
-	legion_pdev = platform_device_register_simple("legion", -1, NULL, 0);
-	if (IS_ERR(legion_pdev)) {
-		pr_err("Failed to allocate virtual legion device\n");
-		platform_driver_unregister(&legion_driver);
-		return PTR_ERR(legion_pdev);
+	if (!bus_find_device_by_name(&platform_bus_type, NULL, "legion")) {
+		legion_pdev = platform_device_register_simple("legion", -1, NULL, 0);
+		if (IS_ERR(legion_pdev)) {
+			pr_err("Failed to allocate virtual legion device\n");
+			platform_driver_unregister(&legion_driver);
+			return PTR_ERR(legion_pdev);
+		}
+		created_virtual_pdev = true;
+	} else {
+		pr_info("legion platform device already exists, skipping virtual device creation\n");
 	}
 #endif
 	return 0;
@@ -7764,7 +7807,8 @@ static void __exit legion_exit(void)
 {
 	platform_driver_unregister(&legion_driver);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
-	platform_device_unregister(_priv.platform_device);
+	if (created_virtual_pdev)
+		platform_device_unregister(_priv.platform_device);
 #endif
 	pr_info("legion_laptop exit\n");
 }
