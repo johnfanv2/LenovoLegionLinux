@@ -1297,6 +1297,7 @@ static const struct model_config model_r3cn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_EC3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0F00,
 	.ramio_size = 0x600,
@@ -3080,6 +3081,10 @@ struct legion_private {
 
 	// TODO: remove, only for reverse enginnering
 	struct ecram_memoryio ec_memoryio;
+
+	// cached power limit values (EC 0x5508 GetFeatureValue returns 0)
+	int cached_pl1; // longterm powerlimit
+	int cached_pl2; // shortterm powerlimit
 };
 
 // keep state of fancurve defaults powermode
@@ -5377,7 +5382,7 @@ static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 
 	switch (priv->conf->access_method_powerlimits) {
 	case ACCESS_METHOD_WMI3:
-		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		return sysfs_emit(buf, "%d\n", priv->cached_pl2);
 	default:
 		err = show_simple_wmi_attribute_from_buffer(
 				dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
@@ -5390,11 +5395,19 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 					      struct device_attribute *attr,
 					      const char *buf, size_t count)
 {
+	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		err = kstrtoint(buf, 0, &value);
+		if (err)
+			return err;
+		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		if (err > 0)
+			priv->cached_pl2 = value;
+		return err > 0 ? count : err;
+	}
 
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
@@ -5412,7 +5425,7 @@ static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
 
 	switch (priv->conf->access_method_powerlimits) {
 	case ACCESS_METHOD_WMI3:
-		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		return sysfs_emit(buf, "%d\n", priv->cached_pl1);
 	default:
 	  err = show_simple_wmi_attribute_from_buffer(
 				dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
@@ -5425,11 +5438,19 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
+	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		err = kstrtoint(buf, 0, &value);
+		if (err)
+			return err;
+		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		if (err > 0)
+			priv->cached_pl1 = value;
+		return err > 0 ? count : err;
+	}
 
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
