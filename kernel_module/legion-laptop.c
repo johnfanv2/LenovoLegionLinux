@@ -3083,9 +3083,6 @@ struct legion_private {
 	// TODO: remove, only for reverse enginnering
 	struct ecram_memoryio ec_memoryio;
 
-	// cached power limit values (EC 0x5508 GetFeatureValue returns 0)
-	int cached_pl1; // longterm powerlimit
-	int cached_pl2; // shortterm powerlimit
 };
 
 // keep state of fancurve defaults powermode
@@ -5500,7 +5497,8 @@ static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 
 	switch (priv->conf->access_method_powerlimits) {
 	case ACCESS_METHOD_WMI3:
-		return sysfs_emit(buf, "%d\n", priv->cached_pl2);
+		return wmi_common_method_other_show(priv, buf,
+				OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
 	default:
 		err = show_simple_wmi_attribute_from_buffer(
 				dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
@@ -5522,10 +5520,8 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 			return err;
 		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
-		if (err > 0) {
-			priv->cached_pl2 = value;
+		if (err > 0)
 			rapl_set_pl2_watts(value);
-		}
 		return err > 0 ? count : err;
 	}
 
@@ -5545,9 +5541,10 @@ static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
 
 	switch (priv->conf->access_method_powerlimits) {
 	case ACCESS_METHOD_WMI3:
-		return sysfs_emit(buf, "%d\n", priv->cached_pl1);
+		return wmi_common_method_other_show(priv, buf,
+				OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
 	default:
-	  err = show_simple_wmi_attribute_from_buffer(
+		err = show_simple_wmi_attribute_from_buffer(
 				dev, attr, buf, WMI_GUID_LENOVO_CPU_METHOD, 0,
 				WMI_METHOD_ID_CPU_GET_LONGTERM_POWERLIMIT, 16, 0, 1);
 	}
@@ -5567,10 +5564,8 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 			return err;
 		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
-		if (err > 0) {
-			priv->cached_pl1 = value;
+		if (err > 0)
 			rapl_set_pl1_watts(value);
-		}
 		return err > 0 ? count : err;
 	}
 
@@ -7830,17 +7825,6 @@ static int legion_add(struct platform_device *pdev)
 			dev_info(&pdev->dev,
 				 "Failed to init IO-Port LED driver. Skipping ...\n");
 		}
-	}
-
-	/* Populate power limit cache from WMI at boot */
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
-		int val;
-		wmi_other_method_get_value(OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, &val);
-		priv->cached_pl1 = val;
-		wmi_other_method_get_value(OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT, &val);
-		priv->cached_pl2 = val;
-		dev_info(&pdev->dev, "Cached power limits: PL1=%dW PL2=%dW\n",
-			 priv->cached_pl1, priv->cached_pl2);
 	}
 
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
