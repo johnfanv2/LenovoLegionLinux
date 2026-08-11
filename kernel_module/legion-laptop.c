@@ -5511,13 +5511,26 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 					      struct device_attribute *attr,
 					      const char *buf, size_t count)
 {
-	int value, err;
+	int value, err, pl1;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
 		err = kstrtoint(buf, 0, &value);
 		if (err)
 			return err;
+
+		/* PL2 must not be lower than PL1. If PL1 > new PL2,
+		 * clamp PL1 down to match (matches Windows behavior).
+		 */
+		if (!wmi_other_method_get_value(
+			    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, &pl1)
+		    && pl1 > value) {
+			err = wmi_common_method_other_store(priv, buf, count,
+					OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+			if (err > 0)
+				rapl_set_pl1_watts(value);
+		}
+
 		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
 		if (err > 0)
@@ -5555,13 +5568,30 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
-	int value, err;
+	int value, err, pl2;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
 		err = kstrtoint(buf, 0, &value);
 		if (err)
 			return err;
+
+		/* PL1 must not exceed PL2. If new PL1 > PL2,
+		 * also raise PL2 to match (matches Windows behavior).
+		 */
+		if (!wmi_other_method_get_value(
+			    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT, &pl2)
+		    && value > pl2) {
+			char pl2_buf[16];
+
+			snprintf(pl2_buf, sizeof(pl2_buf), "%d", value);
+			err = wmi_common_method_other_store(priv, pl2_buf,
+					strlen(pl2_buf),
+					OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+			if (err > 0)
+				rapl_set_pl2_watts(value);
+		}
+
 		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
 		if (err > 0)
