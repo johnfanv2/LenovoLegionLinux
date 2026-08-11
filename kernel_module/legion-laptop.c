@@ -7702,6 +7702,17 @@ static int legion_add(struct platform_device *pdev)
 		}
 	}
 
+	/* Populate power limit cache from WMI at boot */
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		int val;
+		wmi_other_method_get_value(OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, &val);
+		priv->cached_pl1 = val;
+		wmi_other_method_get_value(OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT, &val);
+		priv->cached_pl2 = val;
+		dev_info(&pdev->dev, "Cached power limits: PL1=%dW PL2=%dW\n",
+			 priv->cached_pl1, priv->cached_pl2);
+	}
+
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
