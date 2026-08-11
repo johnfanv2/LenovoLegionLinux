@@ -75,6 +75,7 @@
 #include <linux/types.h>
 #include <linux/wmi.h>
 #include <linux/version.h>
+#include <asm/msr.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("johnfan");
@@ -5338,6 +5339,123 @@ static ssize_t cpu_oc_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR_RW(cpu_oc);
 
+/*
+ * MSR 0x610 (IA32_PKG_POWER_LIMIT) layout:
+ * Bits [14:0]   = PL1 power limit (watts * 8)
+ * Bit  15       = PL1 clamp enable
+ * Bit  16       = PL1 enable
+ * Bits [21:17]  = PL1 time window Y (5 bits)
+ * Bits [23:22]  = PL1 time window Z (2 bits)
+ * Bits [46:32]  = PL2 power limit (watts * 8)
+ * Bit  47       = PL2 clamp enable
+ * Bit  48       = PL2 enable
+ * Bits [53:49]  = PL2 time window Y (5 bits)
+ * Bits [55:54]  = PL2 time window Z (2 bits)
+ * Bit  63       = RAPL lock
+ */
+
+/**
+ * rapl_set_pl1_watts - Set PL1 via MSR 0x610
+ * @watts: Power limit in watts, or -1 to skip
+ *
+ * The WMI ACPI handler writes PL1 to EC RAM and to the PMC MMIO register,
+ * but on EC 0x5508 the MMIO write does not propagate to MSR 0x610.
+ * This function directly writes the MSR to ensure the hardware limit is set.
+ */
+static int rapl_set_pl1_watts(int watts)
+{
+	u32 lo, hi;
+	int ret;
+
+	if (watts < 0)
+		return 0;
+
+	ret = rdmsr_safe(MSR_PKG_POWER_LIMIT, &lo, &hi);
+	if (ret)
+		return ret;
+
+	lo &= ~0x7FFF;
+	lo |= (watts * 8) & 0x7FFF;
+	lo |= BIT(15); /* clamp */
+	lo |= BIT(16); /* enable */
+
+	return wrmsr_safe(MSR_PKG_POWER_LIMIT, lo, hi);
+}
+
+/**
+ * rapl_set_pl2_watts - Set PL2 via MSR 0x610
+ * @watts: Power limit in watts, or -1 to skip
+ */
+static int rapl_set_pl2_watts(int watts)
+{
+	u32 lo, hi;
+	int ret;
+
+	if (watts < 0)
+		return 0;
+
+	ret = rdmsr_safe(MSR_PKG_POWER_LIMIT, &lo, &hi);
+	if (ret)
+		return ret;
+
+	hi &= ~0x7FFF;
+	hi |= (watts * 8) & 0x7FFF;
+	hi |= BIT(15); /* clamp */
+	hi |= BIT(16); /* enable */
+
+	return wrmsr_safe(MSR_PKG_POWER_LIMIT, lo, hi);
+}
+
+/**
+ * rapl_set_tau - Set PL1 time window via MSR 0x610
+ * @tau: Time window value (Lenovo TAU units), or -1 to skip
+ *
+ * Encodes the TAU value into Intel RAPL Y/Z time window format:
+ *   Time = 2^Y * (1 + Z/4) * (1/1024) seconds
+ */
+static int rapl_set_tau(int tau)
+{
+	u32 lo, hi;
+	int ret;
+	u64 local0;
+	int exp, y, z;
+	u64 base;
+
+	if (tau < 0)
+		return 0;
+
+	ret = rdmsr_safe(MSR_PKG_POWER_LIMIT, &lo, &hi);
+	if (ret)
+		return ret;
+
+	/* Encode tau into RAPL time window Y/Z format */
+	local0 = (u64)tau * 1024;
+	exp = 0;
+	{
+		u64 tmp = local0;
+		while (tmp > 1 && exp < 31) {
+			tmp >>= 1;
+			exp++;
+		}
+	}
+	y = exp;
+	base = 1ULL << exp;
+	z = 0;
+	if (base > 0) {
+		u64 rem = local0 - base;
+		z = (int)((rem * 8 + base) / (2 * base));
+		if (z > 3) z = 3;
+		if (z < 0) z = 0;
+	}
+
+	/* Clear and set PL1 time window bits [23:17] */
+	lo &= ~(0x7F << 17);
+	lo |= (y & 0x1F) << 17;
+	lo |= (z & 0x03) << 22;
+
+	return wrmsr_safe(MSR_PKG_POWER_LIMIT, lo, hi);
+}
+
 static ssize_t wmi_common_method_other_show(struct legion_private *priv, char *buf,
 				      int feature_id)
 {
@@ -5404,8 +5522,10 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 			return err;
 		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
-		if (err > 0)
+		if (err > 0) {
 			priv->cached_pl2 = value;
+			rapl_set_pl2_watts(value);
+		}
 		return err > 0 ? count : err;
 	}
 
@@ -5447,8 +5567,10 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 			return err;
 		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
-		if (err > 0)
+		if (err > 0) {
 			priv->cached_pl1 = value;
+			rapl_set_pl1_watts(value);
+		}
 		return err > 0 ? count : err;
 	}
 
@@ -5773,11 +5895,19 @@ static ssize_t cpu_l1_tau_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
+	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		err = kstrtoint(buf, 0, &value);
+		if (err)
+			return err;
+		err = wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_L1_TAU);
+		if (err > 0)
+			rapl_set_tau(value);
+		return err > 0 ? count : err;
+	}
 
 	return -EINVAL;
 }
