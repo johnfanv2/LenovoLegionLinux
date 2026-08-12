@@ -4280,6 +4280,11 @@ class KeyboardPage(QWidget):
         root.addWidget(bc)
         root.addStretch()
 
+        # Poll brightness every 2s to detect Fn+Space changes
+        self._poll_timer = QTimer(self)
+        self._poll_timer.timeout.connect(self.refresh)
+        self._poll_timer.start(2000)
+
     def _on_brightness(self, val):
         set_kbd_brightness(val)
         bri_max = get_kbd_max_brightness()
@@ -4292,10 +4297,11 @@ class KeyboardPage(QWidget):
         """Read actual keyboard brightness from sysfs and update slider."""
         cur = get_kbd_brightness()
         bri_max = get_kbd_max_brightness()
-        self._bri_sl.blockSignals(True)
-        self._bri_sl.setValue(cur)
-        self._bri_sl.blockSignals(False)
-        self._bri_val.setText(f"Level {cur} / {bri_max}")
+        if self._bri_sl.value() != cur:
+            self._bri_sl.blockSignals(True)
+            self._bri_sl.setValue(cur)
+            self._bri_sl.blockSignals(False)
+            self._bri_val.setText(f"Level {cur} / {bri_max}")
 
 class SystemPage(QWidget):
     def __init__(self, parent=None):
