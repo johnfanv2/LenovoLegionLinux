@@ -44,4 +44,16 @@ fi
 sudo install -m 0755 "$SRC/tools/legion-ctl" "/usr/local/bin/legion-ctl"
 sudo install -m 0755 "$SRC/tools/legion-gui" "/usr/local/bin/legion-gui"
 
+# User systemd unit for the tray (needs a display session, so a *user* service,
+# not a system service). Install it for the real invoking user, not root.
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+USER_UNIT_DIR="$REAL_HOME/.config/systemd/user"
+sudo -u "$REAL_USER" install -m 0755 -d "$USER_UNIT_DIR"
+sudo -u "$REAL_USER" install -m 0644 "$SRC/systemd/legion-tray.service" "$USER_UNIT_DIR/legion-tray.service"
+# Enable (and start now if a session is active). `|| true` so a headless/sudo
+# environment without a running user service manager doesn't abort the install.
+sudo -u "$REAL_USER" --preserve-env=XDG_RUNTIME_DIR \
+    systemctl --user enable --now legion-tray.service 2>/dev/null || true
+
 echo ">> Installed. Verify with:  legion-ctl --help"

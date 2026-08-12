@@ -1,0 +1,13 @@
+[Unit]
+Description=Legion Toolkit System Tray
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/lib/legion-toolkit/legion-tray.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

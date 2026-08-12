@@ -61,6 +61,15 @@ upstream Legion Linux CLI/GUI.
 Hardware-writing commands need root — prefix with `pkexec`, e.g.
 `pkexec legion-ctl tdp 55`.
 
+## Tray autostart
+
+`install.sh` installs `systemd/legion-tray.service` as a **user** unit
+(`~/.config/systemd/user/legion-tray.service`, `WantedBy=default.target`) and
+enables it, so the tray starts automatically on login. It is intentionally a
+*user* service (not a system service) because the tray needs a display session.
+If no user session manager is running at install time, enable later with
+`systemctl --user enable --now legion-tray.service`.
+
 ## Desktop environment / compositor support
 
 The toolkit is DE-agnostic for all core functions (power, fan, battery,
