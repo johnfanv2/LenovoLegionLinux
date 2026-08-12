@@ -402,6 +402,104 @@ def cpu_ecore_freq(legion: LegionModelFacade, freq: int = None, **_) -> int:
     print(f"E-core max set to {freq} MHz")
     return 0
 
+# ── LOQ 83SC power limit controls ────────────────────────────────────────────
+
+LEGION_BASE = "/sys/devices/platform/legion"
+
+def _read_feature(name):
+    try: return int(Path(f"{LEGION_BASE}/{name}").read_text().strip())
+    except: return None
+
+def _write_feature(name, val):
+    p = f"{LEGION_BASE}/{name}"
+    try:
+        Path(p).write_text(str(val))
+    except PermissionError:
+        subprocess.run(["pkexec", "sh", "-c", f"echo {val} > {p}"],
+                       capture_output=True, timeout=5)
+
+def tdp_cmd(legion, pl1=None, pl2=None, **_):
+    """Get or set PL1/PL2 with constraint: PL2 >= PL1."""
+    if pl1 is None and pl2 is None:
+        cur_pl1 = _read_feature("cpu_longterm_powerlimit")
+        cur_pl2 = _read_feature("cpu_shortterm_powerlimit")
+        print(f"PL1: {cur_pl1}W  PL2: {cur_pl2}W")
+        return 0
+    cur_pl1 = _read_feature("cpu_longterm_powerlimit") or 55
+    cur_pl2 = _read_feature("cpu_shortterm_powerlimit") or 80
+    if pl1 is not None:
+        if pl2 is None:
+            pl2 = cur_pl2
+        if pl1 > pl2:
+            pl2 = pl1
+    elif pl2 is not None:
+        if pl2 < cur_pl1:
+            pl1 = pl2
+        else:
+            pl1 = cur_pl1
+    _write_feature("cpu_longterm_powerlimit", pl1)
+    _write_feature("cpu_shortterm_powerlimit", pl2)
+    actual_pl1 = _read_feature("cpu_longterm_powerlimit")
+    actual_pl2 = _read_feature("cpu_shortterm_powerlimit")
+    print(f"PL1: {actual_pl1}W  PL2: {actual_pl2}W")
+    return 0
+
+def cpu_tau_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"TAU: {_read_feature('cpu_l1_tau')}s")
+    else:
+        _write_feature("cpu_l1_tau", value)
+        print(f"TAU set to: {_read_feature('cpu_l1_tau')}s")
+    return 0
+
+def cpu_crossload_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"Cross Loading: {_read_feature('cpu_cross_loading_powerlimit')}W")
+    else:
+        _write_feature("cpu_cross_loading_powerlimit", value)
+        print(f"Cross Loading set to: {_read_feature('cpu_cross_loading_powerlimit')}W")
+    return 0
+
+def cpu_temp_limit_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"CPU Temp Limit: {_read_feature('cpu_temperature_limit')}°C")
+    else:
+        _write_feature("cpu_temperature_limit", value)
+        print(f"CPU Temp Limit set to: {_read_feature('cpu_temperature_limit')}°C")
+    return 0
+
+def gpu_dynamic_boost_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"Dynamic Boost: {_read_feature('gpu_ppab_powerlimit')}W")
+    else:
+        _write_feature("gpu_ppab_powerlimit", value)
+        print(f"Dynamic Boost set to: {_read_feature('gpu_ppab_powerlimit')}W")
+    return 0
+
+def gpu_ctgp_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"cTGP: {_read_feature('gpu_ctgp_powerlimit')}W")
+    else:
+        _write_feature("gpu_ctgp_powerlimit", value)
+        print(f"cTGP set to: {_read_feature('gpu_ctgp_powerlimit')}W")
+    return 0
+
+def gpu_ppab_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"Power Boost: {_read_feature('gpu_ppab_powerlimit')}W")
+    else:
+        _write_feature("gpu_ppab_powerlimit", value)
+        print(f"Power Boost set to: {_read_feature('gpu_ppab_powerlimit')}W")
+    return 0
+
+def gpu_power_offset_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"Total Proc Power: {_read_feature('gpu_power_target_offset')}W")
+    else:
+        _write_feature("gpu_power_target_offset", value)
+        print(f"Total Proc Power set to: {_read_feature('gpu_power_target_offset')}W")
+    return 0
+
 def create_argparser()->argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Legion CLI')
     parser.add_argument(
@@ -487,6 +585,39 @@ def create_argparser()->argparse.ArgumentParser:
         'freq', type=int, nargs='?', default=None,
         help='Frequency in MHz (omit to read current)')
     ecore_freq_cmd.set_defaults(func=cpu_ecore_freq)
+
+    tdp_cmd_parser = subcommands.add_parser('tdp', help='Get or set PL1/PL2 (enforces PL2 >= PL1)')
+    tdp_cmd_parser.add_argument('--pl1', type=int, default=None, help='PL1 in watts')
+    tdp_cmd_parser.add_argument('--pl2', type=int, default=None, help='PL2 in watts')
+    tdp_cmd_parser.set_defaults(func=tdp_cmd)
+
+    tau_cmd_parser = subcommands.add_parser('cpu-tau', help='Get or set TAU (PL1 duration)')
+    tau_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Duration in seconds')
+    tau_cmd_parser.set_defaults(func=cpu_tau_cmd)
+
+    cl_cmd_parser = subcommands.add_parser('cpu-crossload', help='Get or set cross loading limit')
+    cl_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts')
+    cl_cmd_parser.set_defaults(func=cpu_crossload_cmd)
+
+    ct_cmd_parser = subcommands.add_parser('cpu-temp-limit', help='Get or set CPU temperature limit')
+    ct_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Temperature in °C')
+    ct_cmd_parser.set_defaults(func=cpu_temp_limit_cmd)
+
+    db_cmd_parser = subcommands.add_parser('gpu-dynamic-boost', help='Get or set GPU dynamic boost')
+    db_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (step 5)')
+    db_cmd_parser.set_defaults(func=gpu_dynamic_boost_cmd)
+
+    ctgp_cmd_parser = subcommands.add_parser('gpu-ctgp', help='Get or set cTGP limit')
+    ctgp_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (step 5)')
+    ctgp_cmd_parser.set_defaults(func=gpu_ctgp_cmd)
+
+    ppab_cmd_parser = subcommands.add_parser('gpu-ppab', help='Get or set GPU power boost (PPAB)')
+    ppab_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts')
+    ppab_cmd_parser.set_defaults(func=gpu_ppab_cmd)
+
+    poff_cmd_parser = subcommands.add_parser('gpu-power-offset', help='Get or set total processing power target')
+    poff_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (step 5)')
+    poff_cmd_parser.set_defaults(func=gpu_power_offset_cmd)
 
     return parser, subcommands
 

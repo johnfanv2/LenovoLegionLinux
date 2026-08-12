@@ -21,10 +21,15 @@ if "XDG_RUNTIME_DIR" not in os.environ:
     os.environ["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
 
 # ── Legion logo icon (embedded, no external file) ────────────────────────────
+_LEGION_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAJXUlEQVR4nOVbfYxU1RX/nXPfzOzMDizsAkpZFhYWQUjVViw2RfshVRpbbJUQY43WrNImSlqbtv9YRWr/qZim1VQrEWsM/QhqFRvURq3SatKI+JHWtd3PWVh32e/Z2Z3ZmXnv3tPcmR3cEsD9mN3Hwm8ymZn73r3nnt8799xzz71DOAH+tHLlt89h3dRNje9sqUMWMxR7V68OVohc2sGRyhs/OPSHE93DJyqcrfXTsyAbzjM1v/3bedUXAiDMLNBLq6s/t0ZSj0SJ1pdnBp456Y04Cd6++OKAHuy/Yx68Hw8QP9WV9B7a2NbWBEBw+oJeWj5/+SIu3RYhfV2vqPu5IfbIWsA9aQWcAtsBZ+OyJZsqHf1EFjrRhdLH3nEGHri9rjt5uhHxcFXV3HUl+P488W4V4tkx4Oau+rbntwD6VPVoDG3TgeoVl1U76SdIsktcDrW2GdnZ5Kk/3hKLxeEznl06Z05lqOzaedq9JyiyOMOhWCcCN3y+oeGtsTwkGqMceq1m0brFkN1BI6uIICkVfLtf1M5h1+z/ciyWxjTjtaVLS8qU/mYZ4wdKzCWONhgKBt5rpcDWq/7T9M5YLZTGI/SFmprlVew+NdfNXqgJpNl4GS55pSOr7++Otf3jk8ytGNgLqIWrai5baNyfBLTZQPAcBiSunHdjUrLl6w0NzeNpj8bbgT01iyov5ZJHQ3poo4FDBAPDGBpCeH+9xvZrm5vrMTWgPy9fvuZ8lruiMny1CEVJNIiUJFXgxUMu197Q0tI57kYxAewpL599cXn0oRDpGxxjlDKAIRHDgXScaFdXBg+9cfhwbAdgMElsB3j9iqqli5i3RbW7FUaHDTEcyRHvDXD4yfd7Wn54Yx8SE2mfJtqxRxcujFxUWvKLhchsNYKAbYtgRIEky077ANHDh131+DUtLV0TnTH+cl7lokXs1JYZfVtQu58yVgQMOUaJ60imS0p+824yfc93OzpSE9WDMAn8srIyfHk0dHuFzvxcGTdowLaHIIgALC5TfY8K/Kq1N/n7Ld3dQ2Ntd+/8+dHVFaWbQ56+Oyi6mkVgKN9XAxIiynRy6K4X6psf3AF4k9FBTabyXxMJb2FP/1vnlC/4aBbxl0h0KGcJFmLAwvOiBhvnRwJXbi6r6FvS399w4BTDwjq4bSuWXbsygl1RD7cx3AplDBm2j55AIgIHiTiFb22ub/7dHUVwuoQiQOw0uXLxpmpjHmGNc4U9gnHA0BCytiAi5CDhBF4/ovGz+Y0Vb67FIXd01Dk40PuF8gB2lHuZ9aKF7MtG6jLSSTYkGYfbmymy9cr6+heLFYhRMRoptPX36upLFjiZpyKaFwvp3HAoIKdIjgg1PKhKnmn1nAd3Nv/3vZ8uW/yZJQ5vCxrvOkebsJd72jiupkhWBeo/ROCmb9S3HCxmFEooMl5eseT8asKTIZ35rAExWXeQk0IjLEDs8PBUoC8t/GYEZj1Ezx25eEx5gdiVmggIwyp4qM2Y669oPGLXIkUFYQrw9IoFy9ZweHfEy14OCFsxVlDBnO0nww5oq+eI3yxcPdYje1WZ4aC8GnNRe1VT+5Gp6Kuaikb39iX7186au2+uctZE4NVYv205KOiW/7Q/8+W5gtxPW56nRQimL8DPHswEb9rccsROpZgxBFjsi8fT62bPea40GJofhncRC1hGkVBAfjCLndzyBUQCVtk4OY89F5i99c6GBrvyxIwjwGJfPO6tcIKvLygtMaVG1glp53gOyEYMIDvP28EiBE4nSe046B3ZcWdDdwZTDDXVAl5OJt21PfE3yyrm9EZEfYWgnby9fww7QhxjbCg93KsC3+ttaN31rfj0pOII0wQ7FxxYtfj6Gs/bYwyxkMkN/sJ8xiDz72B48z8/bNpXjDXEWMHTJcgy3eXKQXckuPl/iLhEXsfA8NvTqfy0EmC1zPanujxWSZCR0T7AwhCnzo20T5m3Px0IQHl5X8aIzkCUHfijIkQSB+ZoVXD684w8ncKqgqslzKqZoG2AlwfZrwKteLAOq3FGE1BXV4eUlw/9jseQFm2vn9EEANAu42huGhwx9kL4o4mPyCTX9qc9AR8AMsh60CZOCprnVwA2l4SOe33Ya+DpFGYVnOdRnbLLwQLykaCEicad0JyJQwCDdgoc7QRy60BCCnpCSc0ZR4DH0pb/9rG123WA4zhTstw97QhIOiUD+UxAXrSNAQRG4mlO0plOAAEShWk0xDqf4czDYzYlSn3kx4YrT7fAxBAknw0t6Co2LDKt2TFnzWc2AeK4Q4rQb9cAI5khBAg9pSF1djjBRCjoalC6kACy0ETJQegpT36cFgRE+9KJINB+LAUGgTLcGx3EhLe3ZhQBnehEOp/tHoGNAUymN9QxrXkA3wh4oxNZ16Cv4ALtyshR6qNbYpj2Qxa+ELALcDU7cZsILUyNw6J9Ud4XAux+fylRI0t+PWAJCCtq2e5DXyx8EepqyS177TAwAPW7+d9nBQH3ApKE7jQj24CWAMNOUU6TzAgCCJBex4vrvP/LGUHCZH2ZAn0bArM8bldkhu0GoCKkykTa4RMcP4R6kLQm6JFcgMQ/3h85Oyygm7MpFpXJ6U0qQSXhbpxNBHhUkdBEKRsOZ8jo9iF90sPMZyQBbalUnyYM2P1BI6ovFov14GzyAQNtba6uqfTs4cKMEXOgiG1/bY/MZhc/EoNrQFieKxQ0EWOfCeCBF2+khO8WUAfYyKefhU0ogNYvFikGuHq3bKAs/iWCu0G4AEBp7k24wJbZa/Ye3wnYm9sLpR57GiQlZqAY+wFWMSG8bHfgTnFblb1n4xNyha8EWISAJhFDEeYWKoLZC2H3WO9ng8dtHfhFgFU4aSgNFvS4o3NDE4Md85/w5I9H1Ugd+GYB/Z7J2JPPGoGWyWaDcw5vvHUEm/wkQDgkzQoOXHiTT4YWvP24quTrMHwCCR9VjOEoqdZjCWIfwD7JJW14yIPI4Wz2hOcFxgXBuI/QCvJ1GD4hZpLJFFEmETBtk/UBNsgZdx3C8776gAGec3SInOE34t6k84E2wgNweBxVWpXBTl8t4NzGxmRIpG53T8+k98RseEuC2rHebxi1z9fSoK8EbAFM+0hitBjYX0uvkOCrn2AJhw1jw0vfoVcLBQyfYAd9D2Nc//EbCwkSxKeJcB+A9wkYsu/cd8J99tpo5eEn7NT364tW3ez3P9P/B3WqLVdxvc4JAAAAAElFTkSuQmCC"
 
 def _legion_icon():
+    import base64 as _b64
+    from PyQt6.QtGui import QPixmap as _px
+    data = _b64.b64decode(_LEGION_ICON_B64)
+    pm = _px(); pm.loadFromData(data)
     from PyQt6.QtGui import QIcon as _ic
-    return _ic.fromTheme("computer")
+    return _ic(pm)
 
 
 
@@ -745,6 +750,7 @@ C_BLUE   = "#4a9eff"
 C_ORANGE = "#ffa724"
 C_RED    = "#ff4757"
 C_PURPLE = "#a855f7"
+C_YELLOW = "#facc15"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # NOTIFICATION
@@ -1889,10 +1895,26 @@ def _rapl_power_paths():
     return None, None
 
 def set_cpu_tdp(pl1_w: int, pl2_w: int):
-    """Set CPU TDP via legion sysfs or RAPL."""
+    """Set CPU TDP via legion sysfs or RAPL.
+    Enforces: PL2 >= PL1 (firmware constraint).
+    If PL1 > current PL2, both are set to PL1.
+    If PL2 < current PL1, both are set to PL2.
+    """
+    from lib.lll_adapter import (get_cpu_longterm_powerlimit, get_cpu_shortterm_powerlimit,
+                                  set_cpu_longterm_powerlimit, set_cpu_shortterm_powerlimit)
+    cur_pl1 = get_cpu_longterm_powerlimit()
+    cur_pl2 = get_cpu_shortterm_powerlimit()
+    # Enforce PL2 >= PL1
+    if pl1_w > pl2_w:
+        pl2_w = pl1_w
+    # If new PL1 > current PL2, raise PL2
+    if cur_pl2 > 0 and pl1_w > cur_pl2:
+        pl2_w = pl1_w
+    # If new PL2 < current PL1, lower PL1
+    if cur_pl1 > 0 and pl2_w < cur_pl1:
+        pl1_w = pl2_w
     # Try legion sysfs first
     try:
-        from lib.lll_adapter import set_cpu_longterm_powerlimit, set_cpu_shortterm_powerlimit
         set_cpu_longterm_powerlimit(pl1_w)
         if pl2_w > 0:
             set_cpu_shortterm_powerlimit(pl2_w)
@@ -2326,6 +2348,7 @@ class BarFill(QWidget):
         self._anim = QPropertyAnimation(self, b"pct_prop", self)
         self._anim.setDuration(500)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._user_toggled = False
 
     @pyqtProperty(float)
     def pct_prop(self): return self._pct
@@ -2448,8 +2471,9 @@ class FirstRunWizard(QDialog):
         # ── Logo + App name ───────────────────────────────────────────────────
         logo_row = QHBoxLayout()
         logo_lbl = QLabel()
+        import base64 as _b64
         from PyQt6.QtGui import QPixmap as _QPixmap
-        pm = _QPixmap()
+        pm = _QPixmap(); pm.loadFromData(_b64.b64decode(_LEGION_ICON_B64))
         logo_lbl.setPixmap(pm.scaled(44, 52, Qt.AspectRatioMode.KeepAspectRatio,
                                      Qt.TransformationMode.SmoothTransformation))
         logo_row.addWidget(logo_lbl)
@@ -2768,6 +2792,7 @@ class ToggleSwitch(QWidget):
             self.on_change(val)
 
     def mousePressEvent(self, e):
+        self._user_toggled = True
         if self.getter:
             actual = self.getter()
             self.setChecked(not actual)
@@ -3838,7 +3863,10 @@ class PerformancePage(QWidget):
             self.freq_row.set_value(f"{get_cpu_freq_ghz()} GHz")
             self.temp_row.set_value(f"{get_cpu_temp()} °C")
             epp = get_epp()
-        self.boost_toggle.setChecked(boost == "1", write=False)
+        if not getattr(self.boost_toggle, '_user_toggled', False):
+            self.boost_toggle.setChecked(boost == "1", write=False)
+        else:
+            QTimer.singleShot(2000, lambda: setattr(self.boost_toggle, '_user_toggled', False))
         self.boost_row.set_value("ON ✓" if boost=="1" else "OFF ✗")
         if epp in EPP_VALUES:
             self.epp_combo.blockSignals(True)
@@ -4260,7 +4288,14 @@ class KeyboardPage(QWidget):
     def cycle_effect(self):
         pass
 
-    def refresh(self, d=None): pass
+    def refresh(self, d=None):
+        """Read actual keyboard brightness from sysfs and update slider."""
+        cur = get_kbd_brightness()
+        bri_max = get_kbd_max_brightness()
+        self._bri_sl.blockSignals(True)
+        self._bri_sl.setValue(cur)
+        self._bri_sl.blockSignals(False)
+        self._bri_val.setText(f"Level {cur} / {bri_max}")
 
 class SystemPage(QWidget):
     def __init__(self, parent=None):
@@ -4607,11 +4642,11 @@ class OverclockPage(QWidget):
 
 
         # TDP PL1
-        self.pl1_spin = _spin(5, 55, self._cfg.get("pl1_w", cur_pl1 or 55),
+        self.pl1_spin = _spin(25, 60, self._cfg.get("pl1_w", cur_pl1 or 55),
                               suffix=" W", step=1, color=C_ORANGE)
         cl.addLayout(_row("TDP — PL1 (sustained):", self.pl1_spin, C_ORANGE))
         self.pl1_sl = QSlider(Qt.Orientation.Horizontal)
-        self.pl1_sl.setRange(5, 55); self.pl1_sl.setValue(self.pl1_spin.value())
+        self.pl1_sl.setRange(25, 60); self.pl1_sl.setValue(self.pl1_spin.value())
         self.pl1_sl.setStyleSheet(
             f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
             f"QSlider::handle:horizontal{{background:{C_ORANGE};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
@@ -4619,14 +4654,16 @@ class OverclockPage(QWidget):
         )
         self.pl1_sl.valueChanged.connect(self.pl1_spin.setValue)
         self.pl1_spin.valueChanged.connect(self.pl1_sl.setValue)
+        # PL1/PL2 constraint: PL2 >= PL1
+        self.pl1_spin.valueChanged.connect(self._pl1_changed)
         cl.addWidget(self.pl1_sl)
 
         # TDP PL2
-        self.pl2_spin = _spin(5, 80, self._cfg.get("pl2_w", cur_pl2 or 80),
+        self.pl2_spin = _spin(40, 85, self._cfg.get("pl2_w", cur_pl2 or 80),
                               suffix=" W", step=1, color=C_ORANGE)
         cl.addLayout(_row("TDP — PL2 (boost peak):", self.pl2_spin, C_ORANGE))
         self.pl2_sl = QSlider(Qt.Orientation.Horizontal)
-        self.pl2_sl.setRange(5, 80); self.pl2_sl.setValue(self.pl2_spin.value())
+        self.pl2_sl.setRange(40, 85); self.pl2_sl.setValue(self.pl2_spin.value())
         self.pl2_sl.setStyleSheet(
             f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
             f"QSlider::handle:horizontal{{background:{C_ORANGE};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
@@ -4634,7 +4671,24 @@ class OverclockPage(QWidget):
         )
         self.pl2_sl.valueChanged.connect(self.pl2_spin.setValue)
         self.pl2_spin.valueChanged.connect(self.pl2_sl.setValue)
+        # PL1/PL2 constraint: PL2 >= PL1
+        self.pl2_spin.valueChanged.connect(self._pl2_changed)
         cl.addWidget(self.pl2_sl)
+
+        # TAU (PL1 Tau Duration)
+        self.tau_spin = _spin(0, 56, self._cfg.get("cpu_tau", 56),
+                              suffix=" s", step=1, color=C_YELLOW)
+        cl.addLayout(_row("Tau Duration (PL1):", self.tau_spin, C_YELLOW))
+
+        # Cross Loading
+        self.crossload_spin = _spin(20, 30, self._cfg.get("cpu_crossload", 30),
+                                    suffix=" W", step=1, color=C_YELLOW)
+        cl.addLayout(_row("Cross Loading Limit:", self.crossload_spin, C_YELLOW))
+
+        # CPU Temperature Limit
+        self.cpu_temp_lim_spin = _spin(85, 100, self._cfg.get("cpu_temp_lim", 94),
+                                      suffix=" °C", step=1, color=C_RED)
+        cl.addLayout(_row("CPU Temp Limit:", self.cpu_temp_lim_spin, C_RED))
 
         cpu_tdp_hint = QLabel("PL1 = sustained TDP  ·  PL2 = short boost ceiling  ·  Reset on reboot")
         cpu_tdp_hint.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
@@ -4696,7 +4750,7 @@ class OverclockPage(QWidget):
              self._cfg.get("gpu_core_offset", 0),  " MHz", C_BLUE),
             ("gpu_mem_spin",   "Mem Transfer Offset", -1000, 2000,
              self._cfg.get("gpu_mem_offset",  0),  " MHz", C_PURPLE),
-            ("gpu_pl_spin",    "Power Limit",           50,  130,
+            ("gpu_pl_spin",    "Power Limit (nvidia-smi)", 50,  130,
              self._cfg.get("gpu_power_limit", 115), " W",  C_ORANGE),
             ("gpu_temp_spin",  "Temp Target (nvidia-smi)", 60, 95,
              self._cfg.get("gpu_temp_target", 83),  " °C", C_RED),
@@ -4706,6 +4760,25 @@ class OverclockPage(QWidget):
             sp = _spin(lo, hi, default, suffix, step=1 if "W" in suffix or "°C" in suffix else 50, color=color)
             setattr(self, attr, sp)
             gl.addLayout(_row(label + ":", sp, color))
+
+        # GPU WMI power controls
+        gl.addWidget(make_div())
+
+        self.gpu_dynboost_spin = _spin(0, 15, self._cfg.get("gpu_dynboost", 15),
+                                      suffix=" W", step=5, color=C_ORANGE)
+        gl.addLayout(_row("Dynamic Boost:", self.gpu_dynboost_spin, C_ORANGE))
+
+        self.gpu_ctgp_spin = _spin(35, 50, self._cfg.get("gpu_ctgp", 45),
+                                  suffix=" W", step=5, color=C_ORANGE)
+        gl.addLayout(_row("cTGP Limit:", self.gpu_ctgp_spin, C_ORANGE))
+
+        self.gpu_ppab_spin = _spin(10, 15, self._cfg.get("gpu_ppab", 15),
+                                  suffix=" W", step=1, color=C_ORANGE)
+        gl.addLayout(_row("Power Boost (PPAB):", self.gpu_ppab_spin, C_ORANGE))
+
+        self.gpu_power_offset_spin = _spin(10, 45, self._cfg.get("gpu_power_offset", 30),
+                                          suffix=" W", step=5, color=C_ORANGE)
+        gl.addLayout(_row("Total Proc Power Target:", self.gpu_power_offset_spin, C_ORANGE))
 
         fan_hint = QLabel("Fan Override = 0 means auto (GPU-controlled). Set >0 for manual speed.")
         fan_hint.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
@@ -4755,6 +4828,22 @@ class OverclockPage(QWidget):
             self._oc_status.setText("✓ Overclock disabled — stock settings restored")
         QTimer.singleShot(4000, lambda: self._oc_status.setText(""))
 
+    def _pl1_changed(self, val):
+        """Enforce PL2 >= PL1: if PL1 > PL2, raise PL2."""
+        if val > self.pl2_spin.value():
+            self.pl2_spin.blockSignals(True)
+            self.pl2_spin.setValue(val)
+            self.pl2_sl.setValue(val)
+            self.pl2_spin.blockSignals(False)
+
+    def _pl2_changed(self, val):
+        """Enforce PL2 >= PL1: if PL2 < PL1, lower PL1."""
+        if val < self.pl1_spin.value():
+            self.pl1_spin.blockSignals(True)
+            self.pl1_spin.setValue(val)
+            self.pl1_sl.setValue(val)
+            self.pl1_spin.blockSignals(False)
+
     def _refresh_gpu_live(self):
         g = get_gpu_info()
         if g.get("available"):
@@ -4769,64 +4858,150 @@ class OverclockPage(QWidget):
             self.gpu_live.setStyleSheet(f"color:{C_TEXT3};font-size:12px;background:transparent;")
 
     def _apply_cpu(self):
+        from lib.lll_adapter import (set_cpu_l1_tau, set_cpu_cross_loading_powerlimit,
+                                      set_cpu_temperature_limit, get_cpu_longterm_powerlimit,
+                                      get_cpu_shortterm_powerlimit)
         pcore_mhz  = self.cpu_freq_spin.value()
         ecore_mhz  = self.ecore_freq_spin.value()
         pl1        = self.pl1_spin.value()
         pl2        = self.pl2_spin.value()
+        tau        = self.tau_spin.value()
+        crossload  = self.crossload_spin.value()
+        cpu_temp   = self.cpu_temp_lim_spin.value()
         apply_cpu_freq(pcore_mhz)
         apply_ecore_freq(ecore_mhz)
         set_cpu_tdp(pl1, pl2)
+        set_cpu_l1_tau(tau)
+        set_cpu_cross_loading_powerlimit(crossload)
+        set_cpu_temperature_limit(cpu_temp)
+        # Read back actual values from kernel
+        actual_pl1 = get_cpu_longterm_powerlimit()
+        actual_pl2 = get_cpu_shortterm_powerlimit()
+        self.pl1_spin.blockSignals(True); self.pl1_spin.setValue(actual_pl1 or pl1)
+        self.pl1_sl.setValue(actual_pl1 or pl1); self.pl1_spin.blockSignals(False)
+        self.pl2_spin.blockSignals(True); self.pl2_spin.setValue(actual_pl2 or pl2)
+        self.pl2_sl.setValue(actual_pl2 or pl2); self.pl2_spin.blockSignals(False)
         self._cfg.update({"cpu_max_freq_mhz": pcore_mhz,
                           "ecore_max_freq_mhz": ecore_mhz,
-                          "pl1_w": pl1, "pl2_w": pl2})
+                          "pl1_w": actual_pl1 or pl1, "pl2_w": actual_pl2 or pl2,
+                          "cpu_tau": tau, "cpu_crossload": crossload,
+                          "cpu_temp_lim": cpu_temp})
         save_oc_config(self._cfg)
         self.cpu_status.setText(
-            f"✓ P {pcore_mhz} MHz · E {ecore_mhz} MHz · PL1 {pl1}W · PL2 {pl2}W")
+            f"✓ P {pcore_mhz} MHz · E {ecore_mhz} MHz · PL1 {actual_pl1 or pl1}W · PL2 {actual_pl2 or pl2}W")
         QTimer.singleShot(4000, lambda: self.cpu_status.setText(""))
 
     def _reset_cpu(self):
+        from lib.lll_adapter import set_cpu_l1_tau, set_cpu_cross_loading_powerlimit, set_cpu_temperature_limit
         ecore_max = get_ecore_hw_max_mhz()
         self.cpu_freq_spin.setValue(self._hw_max)
         self.ecore_freq_spin.setValue(ecore_max)
         self.pl1_spin.setValue(55); self.pl2_spin.setValue(80)
+        self.tau_spin.setValue(56); self.crossload_spin.setValue(30)
+        self.cpu_temp_lim_spin.setValue(94)
         apply_cpu_freq(self._hw_max)
         apply_ecore_freq(ecore_max)
         set_cpu_tdp(55, 80)
+        set_cpu_l1_tau(56)
+        set_cpu_cross_loading_powerlimit(30)
+        set_cpu_temperature_limit(94)
         self._cfg.update({"cpu_max_freq_mhz": self._hw_max,
                           "ecore_max_freq_mhz": ecore_max,
-                          "pl1_w": 55, "pl2_w": 80})
+                          "pl1_w": 55, "pl2_w": 80,
+                          "cpu_tau": 56, "cpu_crossload": 30,
+                          "cpu_temp_lim": 94})
         save_oc_config(self._cfg)
         self.cpu_status.setText(
             f"✓ CPU reset — P {self._hw_max} MHz · E {ecore_max} MHz · PL1 55W · PL2 80W")
         QTimer.singleShot(4000, lambda: self.cpu_status.setText(""))
 
     def _apply_gpu(self):
+        from lib.lll_adapter import (set_gpu_ppab_powerlimit, set_gpu_power_target_offset,
+                                      get_gpu_ppab_powerlimit, get_gpu_power_target_offset,
+                                      get_gpu_ctgp_powerlimit)
         core = self.gpu_core_spin.value()
         mem  = self.gpu_mem_spin.value()
         pl   = self.gpu_pl_spin.value()
         temp = self.gpu_temp_spin.value()
         fan  = self.gpu_fan_spin.value()
+        dynboost = self.gpu_dynboost_spin.value()
+        ctgp     = self.gpu_ctgp_spin.value()
+        ppab     = self.gpu_ppab_spin.value()
+        poffset  = self.gpu_power_offset_spin.value()
         apply_gpu_oc_full(core, mem, pl, temp, fan)
+        set_gpu_ppab_powerlimit(ppab)
+        set_gpu_power_target_offset(poffset)
+        # Read back actual values from kernel
+        actual_ppab = get_gpu_ppab_powerlimit()
+        actual_poff = get_gpu_power_target_offset()
+        actual_ctgp = get_gpu_ctgp_powerlimit()
+        self.gpu_ppab_spin.setValue(actual_ppab or ppab)
+        self.gpu_power_offset_spin.setValue(actual_poff or poffset)
+        self.gpu_ctgp_spin.setValue(actual_ctgp or ctgp)
         self._cfg.update({"gpu_core_offset": core, "gpu_mem_offset": mem,
                           "gpu_power_limit": pl, "gpu_temp_target": temp,
-                          "gpu_fan_pct": fan})
+                          "gpu_fan_pct": fan,
+                          "gpu_dynboost": dynboost, "gpu_ctgp": actual_ctgp or ctgp,
+                          "gpu_ppab": actual_ppab or ppab, "gpu_power_offset": actual_poff or poffset})
         save_oc_config(self._cfg)
-        self.gpu_status.setText(f"✓ Core +{core}  Mem +{mem}  PL {pl}W  Temp {temp}°C  Fan {fan}%")
+        self.gpu_status.setText(f"✓ Core +{core}  Mem +{mem}  PL {pl}W  Temp {temp}°C")
         QTimer.singleShot(4000, lambda: self.gpu_status.setText(""))
 
     def _reset_gpu_oc(self):
+        from lib.lll_adapter import set_gpu_ppab_powerlimit, set_gpu_power_target_offset
         for sp, val in [(self.gpu_core_spin, 0), (self.gpu_mem_spin, 0),
                         (self.gpu_pl_spin, 115), (self.gpu_temp_spin, 83),
-                        (self.gpu_fan_spin, 0)]:
+                        (self.gpu_fan_spin, 0),
+                        (self.gpu_dynboost_spin, 15), (self.gpu_ctgp_spin, 45),
+                        (self.gpu_ppab_spin, 15), (self.gpu_power_offset_spin, 30)]:
             sp.setValue(val)
         reset_gpu_oc_full()
+        set_gpu_ppab_powerlimit(15)
+        set_gpu_power_target_offset(30)
         self._cfg.update({"gpu_core_offset": 0, "gpu_mem_offset": 0,
-                          "gpu_power_limit": 115, "gpu_temp_target": 83, "gpu_fan_pct": 0})
+                          "gpu_power_limit": 115, "gpu_temp_target": 83, "gpu_fan_pct": 0,
+                          "gpu_dynboost": 15, "gpu_ctgp": 45,
+                          "gpu_ppab": 15, "gpu_power_offset": 30})
         save_oc_config(self._cfg)
         self.gpu_status.setText("✓ GPU OC reset to defaults")
         QTimer.singleShot(3000, lambda: self.gpu_status.setText(""))
 
-    def refresh(self, d=None): pass
+    def refresh(self, d=None):
+        """Read actual values from kernel and update all controls to match."""
+        try:
+            from lib.lll_adapter import (get_cpu_longterm_powerlimit, get_cpu_shortterm_powerlimit,
+                                          get_cpu_l1_tau, get_cpu_cross_loading_powerlimit,
+                                          get_cpu_temperature_limit, get_gpu_ppab_powerlimit,
+                                          get_gpu_power_target_offset, get_gpu_ctgp_powerlimit,
+                                          read_powermode)
+            cur_pl1 = get_cpu_longterm_powerlimit()
+            cur_pl2 = get_cpu_shortterm_powerlimit()
+            if cur_pl1 > 0:
+                self.pl1_spin.blockSignals(True); self.pl1_spin.setValue(cur_pl1)
+                self.pl1_sl.setValue(cur_pl1); self.pl1_spin.blockSignals(False)
+            if cur_pl2 > 0:
+                self.pl2_spin.blockSignals(True); self.pl2_spin.setValue(cur_pl2)
+                self.pl2_sl.setValue(cur_pl2); self.pl2_spin.blockSignals(False)
+            cur_tau = get_cpu_l1_tau()
+            if cur_tau > 0:
+                self.tau_spin.setValue(cur_tau)
+            cur_cl = get_cpu_cross_loading_powerlimit()
+            if cur_cl > 0:
+                self.crossload_spin.setValue(cur_cl)
+            cur_ct = get_cpu_temperature_limit()
+            if cur_ct > 0:
+                self.cpu_temp_lim_spin.setValue(cur_ct)
+            cur_ppab = get_gpu_ppab_powerlimit()
+            if cur_ppab > 0:
+                self.gpu_ppab_spin.setValue(cur_ppab)
+            cur_poff = get_gpu_power_target_offset()
+            if cur_poff > 0:
+                self.gpu_power_offset_spin.setValue(cur_poff)
+            cur_ctgp = get_gpu_ctgp_powerlimit()
+            if cur_ctgp > 0:
+                self.gpu_ctgp_spin.setValue(cur_ctgp)
+        except Exception:
+            pass
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FAN CURVE PAGE
@@ -5852,9 +6027,7 @@ class AboutPage(QWidget):
 
         from PyQt6.QtGui import QPixmap as _QP
         import base64 as _b64
-        from PyQt6.QtGui import QIcon as _Icon
-        _tmp = _Icon.fromTheme("computer")
-        pm = _QP()
+        pm = _QP(); pm.loadFromData(_b64.b64decode(_LEGION_ICON_B64))
         logo = QLabel(); logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo.setPixmap(pm.scaled(64, 78, Qt.AspectRatioMode.KeepAspectRatio,
                                  Qt.TransformationMode.SmoothTransformation))
@@ -6020,9 +6193,7 @@ class LegionDashboard(QMainWindow):
 
         import base64 as _b64
         from PyQt6.QtGui import QPixmap as _QP2
-        from PyQt6.QtGui import QIcon as _Icon2
-        _tmp2 = _Icon2.fromTheme("computer")
-        pm2 = _QP2()
+        _pm2 = _QP2(); _pm2.loadFromData(_b64.b64decode(_LEGION_ICON_B64))
         logo_lbl = QLabel()
         logo_lbl.setPixmap(_pm2.scaled(28, 34, Qt.AspectRatioMode.KeepAspectRatio,
                                        Qt.TransformationMode.SmoothTransformation))
@@ -6158,6 +6329,11 @@ class LegionDashboard(QMainWindow):
         self.page_title.setText(titles[idx])
         for i, btn in enumerate(self.nav_btns):
             btn.setChecked(i == idx); btn.update()
+        # Refresh pages that don't get sampler data (read-once on switch)
+        if idx == 4:    # KeyboardPage
+            self.pages[4].refresh()
+        elif idx == 6:  # OverclockPage
+            self.pages[6].refresh()
 
     def _refresh_badge(self, profile):
         color = PROFILE_COLORS.get(profile, C_ACCENT)
@@ -6178,6 +6354,16 @@ class LegionDashboard(QMainWindow):
         self.ac_ind.setStyleSheet(
             f"color:{C_GREEN if ac else C_ORANGE};font-size:12px;margin-left:12px;"
         )
+        # Always sync power combo (Fn+Space may change it from any page)
+        cur_profile = d["profile"]
+        perf_page = self.pages[2]
+        if hasattr(perf_page, 'power_combo'):
+            perf_page.power_combo.blockSignals(True)
+            for i in range(perf_page.power_combo.count()):
+                if perf_page.power_combo.itemData(i, Qt.ItemDataRole.UserRole) == cur_profile:
+                    perf_page.power_combo.setCurrentIndex(i)
+                    break
+            perf_page.power_combo.blockSignals(False)
         # Feed currently visible page if it can accept sampler data
         idx = self.stack.currentIndex()
         if idx == 2:    # PerformancePage
@@ -6188,6 +6374,8 @@ class LegionDashboard(QMainWindow):
             self.pages[7].refresh(d)
         elif idx == 8:  # ActionsPage — power source status
             self.pages[8].refresh(d)
+        # NOTE: OverclockPage (6) and KeyboardPage (4) are NOT refreshed here
+        # to avoid overwriting user edits. They refresh on page switch + 30s timer.
 
     def _tick(self):
         """Light 2s timer for pages that need periodic refresh but not sampler data."""

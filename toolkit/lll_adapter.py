@@ -275,6 +275,41 @@ def get_gpu_temperature_limit() -> int:
 def set_gpu_temperature_limit(val: int):
     _write_sysfs(_lll_feature_path("gpu_temperature_limit"), str(val))
 
+def get_cpu_l1_tau() -> int:
+    try: return int(_read_sysfs(_lll_feature_path("cpu_l1_tau")))
+    except: return 0
+
+def set_cpu_l1_tau(val: int):
+    _write_sysfs(_lll_feature_path("cpu_l1_tau"), str(val))
+
+def get_cpu_cross_loading_powerlimit() -> int:
+    try: return int(_read_sysfs(_lll_feature_path("cpu_cross_loading_powerlimit")))
+    except: return 0
+
+def set_cpu_cross_loading_powerlimit(val: int):
+    _write_sysfs(_lll_feature_path("cpu_cross_loading_powerlimit"), str(val))
+
+def get_cpu_temperature_limit() -> int:
+    try: return int(_read_sysfs(_lll_feature_path("cpu_temperature_limit")))
+    except: return 0
+
+def set_cpu_temperature_limit(val: int):
+    _write_sysfs(_lll_feature_path("cpu_temperature_limit"), str(val))
+
+def get_gpu_ppab_powerlimit() -> int:
+    try: return int(_read_sysfs(_lll_feature_path("gpu_ppab_powerlimit")))
+    except: return 0
+
+def set_gpu_ppab_powerlimit(val: int):
+    _write_sysfs(_lll_feature_path("gpu_ppab_powerlimit"), str(val))
+
+def get_gpu_power_target_offset() -> int:
+    try: return int(_read_sysfs(_lll_feature_path("gpu_power_target_offset")))
+    except: return 0
+
+def set_gpu_power_target_offset(val: int):
+    _write_sysfs(_lll_feature_path("gpu_power_target_offset"), str(val))
+
 # ── CPU / system info ─────────────────────────────────────────────────
 _NO_TURBO = "/sys/devices/system/cpu/intel_pstate/no_turbo"
 _ACPI_BOOST = "/sys/devices/system/cpu/cpufreq/boost"
