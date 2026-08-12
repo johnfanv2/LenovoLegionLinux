@@ -23,8 +23,25 @@ _candidates = [
 ]
 LEGION_SYS_BASEPATH = next((p for p in _candidates if Path(p).exists()), _candidates[0])
 
-_POWERMODE_MAP = {1: "quiet", 2: "balanced", 3: "performance", 255: "custom"}
-_POWERMODE_MAP_REV = {"quiet": 1, "balanced": 2, "performance": 3, "custom": 255}
+# ── Power Mode Constants ──────────────────────────────────────────────────────
+POWERMODE_QUIET = 1
+POWERMODE_BALANCED = 2
+POWERMODE_PERFORMANCE = 3
+POWERMODE_CUSTOM = 255
+POWERMODE_CUSTOM_STR = "custom"
+
+_POWERMODE_MAP = {
+    POWERMODE_QUIET: "quiet",
+    POWERMODE_BALANCED: "balanced",
+    POWERMODE_PERFORMANCE: "performance",
+    POWERMODE_CUSTOM: "custom",
+}
+_POWERMODE_MAP_REV = {
+    "quiet": POWERMODE_QUIET,
+    "balanced": POWERMODE_BALANCED,
+    "performance": POWERMODE_PERFORMANCE,
+    "custom": POWERMODE_CUSTOM,
+}
 
 def _pkexec(cmd: list) -> tuple[bool, str]:
     try:

@@ -492,6 +492,14 @@ def gpu_total_proc_cmd(legion, value=None, **_):
         print(f"Total Proc Power (Offset) set to: {_read_feature('gpu_power_target_offset')}W")
     return 0
 
+def gpu_temp_limit_cmd(legion, value=None, **_):
+    if value is None:
+        print(f"GPU Temp Limit: {_read_feature('gpu_temperature_limit')}°C")
+    else:
+        _write_feature("gpu_temperature_limit", value)
+        print(f"GPU Temp Limit set to: {_read_feature('gpu_temperature_limit')}°C")
+    return 0
+
 def create_argparser()->argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Legion CLI')
     parser.add_argument(
@@ -606,6 +614,10 @@ def create_argparser()->argparse.ArgumentParser:
     poff_cmd_parser = subcommands.add_parser('gpu-total-proc', help='Get or set total processing power target (offset)')
     poff_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (10-45, step 5)')
     poff_cmd_parser.set_defaults(func=gpu_total_proc_cmd)
+
+    gtemp_cmd_parser = subcommands.add_parser('gpu-temp-limit', help='Get or set GPU temperature limit')
+    gtemp_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Temperature in °C (75-87)')
+    gtemp_cmd_parser.set_defaults(func=gpu_temp_limit_cmd)
 
     return parser, subcommands
 

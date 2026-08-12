@@ -662,6 +662,22 @@ PROFILE_COLORS = {
     "custom":      "#ff69b4",
 }
 
+# ── Power Mode Preset Values ──────────────────────────────────────────────────
+# Applied when switching FROM Custom TO a standard power mode.
+# These match the firmware defaults per WMI capability data.
+POWERMODE_QUIET = {"pl1": 30, "pl2": 45, "tau": 56, "crossload": 25, "cpu_temp": 94,
+                   "ctgp": 45, "ppab": 10, "total_proc": 25, "gpu_temp": 87}
+POWERMODE_BALANCED = {"pl1": 45, "pl2": 65, "tau": 56, "crossload": 30, "cpu_temp": 94,
+                      "ctgp": 45, "ppab": 15, "total_proc": 30, "gpu_temp": 87}
+POWERMODE_PERFORMANCE = {"pl1": 55, "pl2": 80, "tau": 56, "crossload": 30, "cpu_temp": 94,
+                         "ctgp": 50, "ppab": 15, "total_proc": 30, "gpu_temp": 87}
+
+POWERMODE_PRESETS = {
+    "quiet": POWERMODE_QUIET,
+    "balanced": POWERMODE_BALANCED,
+    "performance": POWERMODE_PERFORMANCE,
+}
+
 EPP_VALUES = ["default","performance","balance_performance","balance_power","power"]
 EPP_LABELS = {"default":"Default","performance":"Performance",
               "balance_performance":"Balance Performance",
@@ -3316,6 +3332,7 @@ class HomePage(QWidget):
         root.addStretch()
         self._page_request_cb = None
         self._sync_battery_cb = None   # set by LegionDashboard to sync Battery page
+        self._oc_sync_cb = None         # set by LegionDashboard to sync OverclockPage
 
     def _request_page(self, idx):
         if self._page_request_cb:
@@ -3329,6 +3346,10 @@ class HomePage(QWidget):
         ok, msg = apply_profile(p)
         send_notif(f"Power Mode: {PROFILE_LABELS.get(p,p)}",
                    msg if not ok else PROFILE_DESCS.get(p,""), "battery" if ok else "dialog-error")
+        # Notify OverclockPage to check power mode + apply presets / greyout
+        oc_page = getattr(self, '_oc_sync_cb', None)
+        if oc_page:
+            oc_page()
 
     def _on_bat_combo(self, idx):
         """Battery Mode: 0=Normal 1=Conservation 2=Rapid"""
@@ -4522,6 +4543,8 @@ class OverclockPage(QWidget):
         self.setStyleSheet(f"background:{C_BG};")
         self._cfg    = load_oc_config()
         self._hw_max = get_cpu_hw_max_mhz()
+        self._last_powermode = None  # track to detect transitions
+        self._oc_spinboxes = []  # filled in _build
         self._build()
 
     def _build(self):
@@ -4738,8 +4761,7 @@ class OverclockPage(QWidget):
         # Requirements note
         req_lbl = QLabel(
             "Clock offsets require nvidia-settings (AUR: nvidia-settings) + "
-            "Option \"Coolbits\" \"28\" in /etc/X11/xorg.conf.d/10-nvidia.conf\n"
-            "Power limit (nvidia-smi) works without Coolbits."
+            "Option \"Coolbits\" \"28\" in /etc/X11/xorg.conf.d/10-nvidia.conf"
         )
         req_lbl.setWordWrap(True)
         req_lbl.setStyleSheet(f"color:{C_TEXT2};font-size:12px;background:transparent;")
@@ -4756,14 +4778,8 @@ class OverclockPage(QWidget):
              self._cfg.get("gpu_core_offset", 0),  " MHz", C_BLUE),
             ("gpu_mem_spin",   "Mem Transfer Offset", -1000, 2000,
              self._cfg.get("gpu_mem_offset",  0),  " MHz", C_PURPLE),
-            ("gpu_pl_spin",    "Power Limit (nvidia-smi)", 50,  130,
-             self._cfg.get("gpu_power_limit", 115), " W",  C_ORANGE),
-            ("gpu_temp_spin",  "Temp Target (nvidia-smi)", 60, 95,
-             self._cfg.get("gpu_temp_target", 83),  " °C", C_RED),
-            ("gpu_fan_spin",   "GPU Fan Override",       0,  100,
-             self._cfg.get("gpu_fan_pct",     0),   " %",  C_GREEN),
         ]:
-            sp = _spin(lo, hi, default, suffix, step=1 if "W" in suffix or "°C" in suffix else 50, color=color)
+            sp = _spin(lo, hi, default, suffix, step=50, color=color)
             setattr(self, attr, sp)
             gl.addLayout(_row(label + ":", sp, color))
 
@@ -4779,12 +4795,12 @@ class OverclockPage(QWidget):
         gl.addLayout(_row("cTGP Limit:", self.gpu_ctgp_spin, C_ORANGE))
 
         self.gpu_total_proc_spin = _spin(10, 45, self._cfg.get("gpu_total_proc", 30),
-                                          suffix=" W", step=5, color=C_ORANGE)
+                                           suffix=" W", step=5, color=C_ORANGE)
         gl.addLayout(_row("Total Proc Power (Offset):", self.gpu_total_proc_spin, C_ORANGE))
 
-        fan_hint = QLabel("Fan Override = 0 means auto (GPU-controlled). Set >0 for manual speed.")
-        fan_hint.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
-        gl.addWidget(fan_hint)
+        self.gpu_temp_spin = _spin(75, 87, self._cfg.get("gpu_temp_limit", 87),
+                                   suffix=" °C", step=1, color=C_RED)
+        gl.addLayout(_row("GPU Temp Limit:", self.gpu_temp_spin, C_RED))
 
         gpu_btn_row = QHBoxLayout(); gpu_btn_row.setSpacing(8)
         for label, slot, bg in [
@@ -4845,6 +4861,89 @@ class OverclockPage(QWidget):
             self.pl1_spin.setValue(val)
             self.pl1_sl.setValue(val)
             self.pl1_spin.blockSignals(False)
+
+    def _collect_oc_spins(self):
+        """Collect all OC spinboxes/sliders for grey-out."""
+        if not self._oc_spinboxes:
+            self._oc_spinboxes = [
+                self.pl1_spin, self.pl1_sl,
+                self.pl2_spin, self.pl2_sl,
+                self.tau_spin, self.crossload_spin, self.cpu_temp_lim_spin,
+                self.gpu_core_spin, self.gpu_mem_spin,
+                self.gpu_dynboost_ppab_spin, self.gpu_ctgp_spin,
+                self.gpu_total_proc_spin, self.gpu_temp_spin,
+            ]
+
+    def _set_oc_enabled(self, enabled: bool):
+        """Enable or disable all OC controls."""
+        self._collect_oc_spins()
+        for sp in self._oc_spinboxes:
+            sp.setEnabled(enabled)
+
+    def _apply_preset(self, profile: str):
+        """Apply firmware preset values for the given power mode."""
+        presets = {
+            "quiet": POWERMODE_QUIET,
+            "balanced": POWERMODE_BALANCED,
+            "performance": POWERMODE_PERFORMANCE,
+        }
+        p = presets.get(profile)
+        if not p:
+            return
+        from lib.lll_adapter import (set_cpu_longterm_powerlimit, set_cpu_shortterm_powerlimit,
+                                      set_cpu_l1_tau, set_cpu_cross_loading_powerlimit,
+                                      set_cpu_temperature_limit, set_gpu_oc_powerlimit,
+                                      set_gpu_ctgp_powerlimit, set_gpu_power_target_offset,
+                                      set_gpu_temperature_limit)
+        set_cpu_longterm_powerlimit(p["pl1"])
+        set_cpu_shortterm_powerlimit(p["pl2"])
+        set_cpu_l1_tau(p["tau"])
+        set_cpu_cross_loading_powerlimit(p["crossload"])
+        set_cpu_temperature_limit(p["cpu_temp"])
+        set_gpu_oc_powerlimit(p["ppab"])
+        set_gpu_ctgp_powerlimit(p["ctgp"])
+        set_gpu_power_target_offset(p["total_proc"])
+        set_gpu_temperature_limit(p["gpu_temp"])
+        # Update spinbox display
+        self.pl1_spin.blockSignals(True); self.pl1_spin.setValue(p["pl1"])
+        self.pl1_sl.setValue(p["pl1"]); self.pl1_spin.blockSignals(False)
+        self.pl2_spin.blockSignals(True); self.pl2_spin.setValue(p["pl2"])
+        self.pl2_sl.setValue(p["pl2"]); self.pl2_spin.blockSignals(False)
+        self.tau_spin.setValue(p["tau"])
+        self.crossload_spin.setValue(p["crossload"])
+        self.cpu_temp_lim_spin.setValue(p["cpu_temp"])
+        self.gpu_dynboost_ppab_spin.setValue(p["ppab"])
+        self.gpu_ctgp_spin.setValue(p["ctgp"])
+        self.gpu_total_proc_spin.setValue(p["total_proc"])
+        self.gpu_temp_spin.blockSignals(True)
+        self.gpu_temp_spin.setValue(p["gpu_temp"])
+        self.gpu_temp_spin.blockSignals(False)
+        self._cfg.update({
+            "pl1_w": p["pl1"], "pl2_w": p["pl2"], "cpu_tau": p["tau"],
+            "cpu_crossload": p["crossload"], "cpu_temp_lim": p["cpu_temp"],
+            "gpu_dynboost_ppab": p["ppab"], "gpu_ctgp": p["ctgp"],
+            "gpu_total_proc": p["total_proc"], "gpu_temp_limit": p["gpu_temp"],
+        })
+        save_oc_config(self._cfg)
+        self.cpu_status.setText(f"✓ Preset: {profile.title()} — PL1 {p['pl1']}W · PL2 {p['pl2']}W")
+        QTimer.singleShot(4000, lambda: self.cpu_status.setText(""))
+
+    def check_powermode(self):
+        """Check current power mode, grey out controls if not custom,
+        and apply presets on exit from Custom mode."""
+        from lib.lll_adapter import read_powermode
+        try:
+            mode = read_powermode()
+        except Exception:
+            return
+        is_custom = (mode == POWERMODE_CUSTOM_STR)
+        self._set_oc_enabled(is_custom)
+        # Detect transition: was custom, now standard → apply preset
+        if self._last_powermode == POWERMODE_CUSTOM_STR and mode != POWERMODE_CUSTOM_STR:
+            self._apply_preset(mode)
+        elif self._last_powermode == POWERMODE_CUSTOM_STR and mode == POWERMODE_CUSTOM_STR:
+            pass  # still in custom
+        self._last_powermode = mode
 
     def _refresh_gpu_live(self):
         g = get_gpu_info()
@@ -4919,57 +5018,67 @@ class OverclockPage(QWidget):
 
     def _apply_gpu(self):
         from lib.lll_adapter import (set_gpu_oc_powerlimit, set_gpu_power_target_offset,
+                                      set_gpu_ctgp_powerlimit, set_gpu_temperature_limit,
                                       get_gpu_oc_powerlimit, get_gpu_power_target_offset,
-                                      get_gpu_ctgp_powerlimit)
-        core = self.gpu_core_spin.value()
-        mem  = self.gpu_mem_spin.value()
-        pl   = self.gpu_pl_spin.value()
-        temp = self.gpu_temp_spin.value()
-        fan  = self.gpu_fan_spin.value()
+                                      get_gpu_ctgp_powerlimit, get_gpu_temperature_limit)
+        # Clock offsets commented out — not reliable on this model
+        # core = self.gpu_core_spin.value()
+        # mem  = self.gpu_mem_spin.value()
+        # apply_gpu_oc_full(core, mem, 0, 0, 0)
         dynboost_ppab = self.gpu_dynboost_ppab_spin.value()
         ctgp     = self.gpu_ctgp_spin.value()
         total_proc = self.gpu_total_proc_spin.value()
-        apply_gpu_oc_full(core, mem, pl, temp, fan)
+        gpu_temp = self.gpu_temp_spin.value()
         set_gpu_oc_powerlimit(dynboost_ppab)
         set_gpu_power_target_offset(total_proc)
+        set_gpu_ctgp_powerlimit(ctgp)
+        set_gpu_temperature_limit(gpu_temp)
         # Read back actual values from kernel
         actual_ppab = get_gpu_oc_powerlimit()
         actual_poff = get_gpu_power_target_offset()
         actual_ctgp = get_gpu_ctgp_powerlimit()
+        actual_temp = get_gpu_temperature_limit()
         self.gpu_dynboost_ppab_spin.setValue(actual_ppab or dynboost_ppab)
         self.gpu_total_proc_spin.setValue(actual_poff or total_proc)
         self.gpu_ctgp_spin.setValue(actual_ctgp or ctgp)
+        self.gpu_temp_spin.blockSignals(True)
+        self.gpu_temp_spin.setValue(actual_temp or gpu_temp)
+        self.gpu_temp_spin.blockSignals(False)
+        core = self.gpu_core_spin.value()
+        mem  = self.gpu_mem_spin.value()
         self._cfg.update({"gpu_core_offset": core, "gpu_mem_offset": mem,
-                          "gpu_power_limit": pl, "gpu_temp_target": temp,
-                          "gpu_fan_pct": fan,
                           "gpu_dynboost_ppab": actual_ppab or dynboost_ppab,
                           "gpu_ctgp": actual_ctgp or ctgp,
-                          "gpu_total_proc": actual_poff or total_proc})
+                          "gpu_total_proc": actual_poff or total_proc,
+                          "gpu_temp_limit": actual_temp or gpu_temp})
         save_oc_config(self._cfg)
-        self.gpu_status.setText(f"✓ Core +{core}  Mem +{mem}  PL {pl}W  Temp {temp}°C")
+        self.gpu_status.setText(f"✓ PPAB {actual_ppab or dynboost_ppab}W  cTGP {actual_ctgp or ctgp}W  Temp {actual_temp or gpu_temp}°C")
         QTimer.singleShot(4000, lambda: self.gpu_status.setText(""))
 
     def _reset_gpu_oc(self):
-        from lib.lll_adapter import set_gpu_oc_powerlimit, set_gpu_power_target_offset
+        from lib.lll_adapter import set_gpu_oc_powerlimit, set_gpu_power_target_offset, set_gpu_ctgp_powerlimit, set_gpu_temperature_limit
+        # Clock offsets commented out
+        # for sp, val in [(self.gpu_core_spin, 0), (self.gpu_mem_spin, 0),
+        #                 (self.gpu_pl_spin, 115), (self.gpu_temp_spin, 83),
+        #                 (self.gpu_fan_spin, 0),
         for sp, val in [(self.gpu_core_spin, 0), (self.gpu_mem_spin, 0),
-                        (self.gpu_pl_spin, 115), (self.gpu_temp_spin, 83),
-                        (self.gpu_fan_spin, 0),
                         (self.gpu_dynboost_ppab_spin, 15), (self.gpu_ctgp_spin, 45),
-                        (self.gpu_total_proc_spin, 30)]:
+                        (self.gpu_total_proc_spin, 30), (self.gpu_temp_spin, 87)]:
             sp.setValue(val)
-        reset_gpu_oc_full()
         set_gpu_oc_powerlimit(15)
         set_gpu_power_target_offset(30)
+        set_gpu_ctgp_powerlimit(45)
+        set_gpu_temperature_limit(87)
         self._cfg.update({"gpu_core_offset": 0, "gpu_mem_offset": 0,
-                          "gpu_power_limit": 115, "gpu_temp_target": 83, "gpu_fan_pct": 0,
                           "gpu_dynboost_ppab": 15, "gpu_ctgp": 45,
-                          "gpu_total_proc": 30})
+                          "gpu_total_proc": 30, "gpu_temp_limit": 87})
         save_oc_config(self._cfg)
         self.gpu_status.setText("✓ GPU OC reset to defaults")
         QTimer.singleShot(3000, lambda: self.gpu_status.setText(""))
 
     def refresh(self, d=None):
-        """Read actual values from kernel and update all controls to match."""
+        """Check power mode for grey-out + presets, read actual values from kernel."""
+        self.check_powermode()
         try:
             from lib.lll_adapter import (get_cpu_longterm_powerlimit, get_cpu_shortterm_powerlimit,
                                           get_cpu_l1_tau, get_cpu_cross_loading_powerlimit,
@@ -6271,6 +6380,7 @@ class LegionDashboard(QMainWindow):
         ]
         self.home_page._sync_battery_cb = self.pages[1].sync_charging
         self.pages[1]._sync_home_cb = self._sync_bat_combo
+        self.pages[2]._oc_sync_cb = self.pages[6].check_powermode
         for pg in self.pages: self.stack.addWidget(pg)
         right.addWidget(self.stack); main.addLayout(right)
         self._switch(0)
