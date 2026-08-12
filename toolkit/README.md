@@ -61,6 +61,22 @@ upstream Legion Linux CLI/GUI.
 Hardware-writing commands need root — prefix with `pkexec`, e.g.
 `pkexec legion-ctl tdp 55`.
 
+## Packaging (Arch)
+
+`PKGBUILD` builds the toolkit as `legion-toolkit-loq83sc`. It does **not** bundle
+the kernel driver — it declares `lenovolegionlinux-git` as a dependency (the
+LenovoLegionLinux package that, at PR #490, adds LOQ 83SC support: EC + sysfs
+mappings). Build/install with:
+
+```bash
+makepkg -si          # from the toolkit/ directory
+```
+
+This installs the toolkit under `/usr/lib/legion-toolkit/`, the `legion-ctl` /
+`legion-gui` launchers to `/usr/bin`, and the tray user unit to
+`/usr/lib/systemd/user/legion-tray.service`. Enable the tray per-user with
+`systemctl --user enable --now legion-tray.service`.
+
 ## Tray autostart
 
 `install.sh` installs `systemd/legion-tray.service` as a **user** unit

@@ -1,0 +1,44 @@
+# Maintainer: LOQ 83SC toolkit maintainer
+pkgname=legion-toolkit-loq83sc
+_pkgver=0.6.3
+pkgver=${_pkgver}
+pkgrel=1
+pkgdesc="Lenovo LOQ 83SC model-gated control toolkit (GUI/CLI/tray) built on LenovoLegionLinux"
+arch=('any')
+url="https://github.com/johnfanv2/LenovoLegionLinux"
+license=('GPL')
+# The kernel side is NOT bundled here: it is provided by LenovoLegionLinux, which
+# (at PR #490) adds LOQ 83SC support (EC + sysfs mappings). The toolkit is a pure
+# userspace layer that talks to the legion-laptop module / legiond exposed by it.
+depends=(
+  'lenovolegionlinux-git'   # legion-laptop kernel module + legiond + LLL python lib (LOQ 83SC support, PR #490)
+  'python'
+  'qt6-base'
+  'qt6-wayland'
+  'python-pyqt6'
+)
+# For a local fork build, makepkg copies these files from the directory holding
+# this PKGBUILD ($startdir). To publish on the AUR, replace with a git source:
+#   source=("git+https://github.com/<your-fork>/LenovoLegionLinux.git#branch=add-loq-83sc-support")
+source=()
+md5sums=()
+
+package() {
+  local DEST="$pkgdir/usr/lib/legion-toolkit"
+  install -d "$DEST"
+
+  # Copy the structured source tree, then regenerate the model-gated dispatchers
+  # in place (build_combined.py writes to its own parent dir = DEST).
+  cp -r custom lib upstream legion-tray.py tools README.md "$DEST/"
+  find "$DEST" -name __pycache__ -type d -exec rm -rf {} +
+  ( cd "$DEST" && python3 tools/build_combined.py )
+
+  # PATH launchers (thin wrappers onto the dispatcher).
+  install -Dm755 tools/legion-ctl "$pkgdir/usr/bin/legion-ctl"
+  install -Dm755 tools/legion-gui "$pkgdir/usr/bin/legion-gui"
+
+  # Tray: a USER unit (needs a display session). Install system-wide under
+  # /usr/lib/systemd/user; enable per-user with:
+  #   systemctl --user enable --now legion-tray.service
+  install -Dm644 systemd/legion-tray.service "$pkgdir/usr/lib/systemd/user/legion-tray.service"
+}
