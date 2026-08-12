@@ -4283,7 +4283,7 @@ class KeyboardPage(QWidget):
         # Poll brightness every 2s to detect Fn+Space changes
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self.refresh)
-        self._poll_timer.start(2000)
+        self._poll_timer.start(500)
 
     def _on_brightness(self, val):
         set_kbd_brightness(val)
