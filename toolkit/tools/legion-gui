@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#
+# legion-gui — graphical entry point for the Legion Toolkit.
+#
+# Thin launcher: delegates to the model-gated dispatcher at
+# /usr/lib/legion-toolkit/legion-gui.py, which runs the LOQ 83SC custom
+# dashboard on this laptop and the upstream Legion Linux GUI on any other model.
+#
+# No Qt platform / display is forced; Qt auto-selects Wayland or X11.
+exec python3 /usr/lib/legion-toolkit/legion-gui.py "$@"

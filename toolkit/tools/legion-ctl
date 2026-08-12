@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#
+# legion-ctl — command-line entry point for the Legion Toolkit.
+#
+# Thin launcher: delegates to the model-gated dispatcher at
+# /usr/lib/legion-toolkit/legion-cli.py, which runs the LOQ 83SC custom
+# CLI on this laptop and the upstream Legion Linux CLI on any other model.
+#
+# Hardware-writing commands need root; prefix with pkexec when required, e.g.:
+#   pkexec legion-ctl tdp 55
+exec python3 /usr/lib/legion-toolkit/legion-cli.py "$@"

@@ -37,4 +37,11 @@ if [ -f "$DESKTOP" ]; then
     sudo sed -i 's|^Exec=env QT_QPA_PLATFORM=wayland python3 /usr/lib/legion-toolkit/legion-gui.py|Exec=python3 /usr/lib/legion-toolkit/legion-gui.py|' "$DESKTOP"
 fi
 
-echo ">> Installed. Verify with:  python3 $DEST/legion-cli.py --help"
+# PATH entry points so users run `legion-ctl` / `legion-gui` directly.
+# These supersede any legacy upstream wrapper of the same name: the toolkit
+# dispatcher is model-gated, so on 83SC it runs the custom CLI/GUI and on any
+# other model it transparently runs the upstream Legion Linux CLI/GUI.
+sudo install -m 0755 "$SRC/tools/legion-ctl" "/usr/local/bin/legion-ctl"
+sudo install -m 0755 "$SRC/tools/legion-gui" "/usr/local/bin/legion-gui"
+
+echo ">> Installed. Verify with:  legion-ctl --help"

@@ -50,9 +50,16 @@ Edit `custom/` or `upstream/`, then rebuild — never hand-edit the generated
 
 ## CLI custom commands
 
-`legion-cli.py --help` lists generic commands under *Commands* and the LOQ 83SC
-specific power controls (e.g. `tdp`, `cpu-tau`, `gpu-ctgp`) in a separate
-*LOQ 83SC custom power controls* section.
+`legion-ctl --help` (or `legion-cli.py --help`) lists generic commands under
+*Commands* and the LOQ 83SC specific power controls (e.g. `tdp`, `cpu-tau`,
+`gpu-ctgp`) in a separate *LOQ 83SC custom power controls* section. The
+`legion-ctl` / `legion-gui` commands are installed to `/usr/local/bin` by
+`install.sh`; both are thin launchers onto the model-gated dispatcher, so on
+83SC they run the custom build and on any other model they transparently run the
+upstream Legion Linux CLI/GUI.
+
+Hardware-writing commands need root — prefix with `pkexec`, e.g.
+`pkexec legion-ctl tdp 55`.
 
 ## Desktop environment / compositor support
 
