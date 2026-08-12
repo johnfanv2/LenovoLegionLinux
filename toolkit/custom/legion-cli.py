@@ -507,7 +507,7 @@ def create_argparser()->argparse.ArgumentParser:
     parser.add_argument('--loglevel', type=str,
                         help='Level of log output', choices=loglevels, default='ERROR')
 
-    subcommands = parser.add_subparsers(title='subcommands', dest='subcommand')
+    subcommands = parser.add_subparsers(title='Commands', dest='subcommand')
 
     autocomplete_install_parser = subcommands.add_parser(
         'autocomplete-install', help='Install autocompletion in shell for this tool')
@@ -618,6 +618,18 @@ def create_argparser()->argparse.ArgumentParser:
     gtemp_cmd_parser = subcommands.add_parser('gpu-temp-limit', help='Get or set GPU temperature limit')
     gtemp_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Temperature in °C (75-87)')
     gtemp_cmd_parser.set_defaults(func=gpu_temp_limit_cmd)
+
+    # LOQ 83SC-specific power controls, surfaced as a separate help section so
+    # they are clearly distinguished from the generic upstream-style commands.
+    _loq83sc_cmds = [
+        "tdp", "cpu-tau", "cpu-crossload", "cpu-temp-limit",
+        "gpu-dynamic-boost", "gpu-ctgp", "gpu-total-proc", "gpu-temp-limit",
+        "custom-conservation-mode-apply",
+    ]
+    parser.epilog = (
+        "LOQ 83SC custom power controls (available on this build only):\n  "
+        + ", ".join(_loq83sc_cmds)
+    )
 
     return parser, subcommands
 

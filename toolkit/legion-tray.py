@@ -9,15 +9,16 @@ Right-click  → full menu
 import os, sys, subprocess, socket
 from pathlib import Path
 
-os.environ["QT_QPA_PLATFORM"]                 = "xcb"
-os.environ["QT_WAYLAND_DISABLE_WINDOWDECORATION"] = "1"
-os.environ.setdefault("WAYLAND_DISPLAY", "wayland-0")
+# No forced QT_QPA_PLATFORM / WAYLAND_DISPLAY: Qt auto-selects Wayland or X11.
+# Honor an explicit QT_QPA_PLATFORM if the user sets one; otherwise let Qt decide.
 if "XDG_RUNTIME_DIR" not in os.environ:
     os.environ["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
 
+_LEGION_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABH0lEQVR42u2b2xGEMAhFgdk6tP+ytBG3gnWjxvDI4Vdnwj3BJxcRgiBmDh252LIsR8t5+75rCQCtgj2BaGThI0BoBuFvgtBMwt8AYVnF91pbMwrvWQ1WQfyTnKyC+Ce5WRXxd3O0SuLv5GoifAt0Ibpt289j67qGfTJYpdK/k/v0l4BV3f1WDVRA5d1v0UIFVN/9f5qoAAAAoP71f6aNCgAAAAAAAAAAAAAAEAdzggT4SUoFAAAAviYl7ybJZ8TiZ12jK/FGh8kiWNU8W2TcA6IYFr0apFRAJNtqyPZ4VgitOXd7DHqZIIa9CWaqgiu5WhTXtpdh0iJZ1z3cohbNvz/aKquZzdI9NsMiT3OMWJuBCWFkRhiakonH5giCmDu+P9eMFLTPfWwAAAAASUVORK5CYII="
 
 try:
-    from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+    from PyQt6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
+                                  QWidget, QPushButton, QVBoxLayout)
     from PyQt6.QtGui import (QIcon, QPixmap, QColor, QPainter,
                               QBrush, QFont, QAction, QActionGroup)
     from PyQt6.QtCore import Qt, QTimer
@@ -31,7 +32,7 @@ if not (_lib / "lll_adapter.py").exists():
 sys.path.insert(0, str(_lib))
 import lll_adapter as lll
 
-GUI_BIN = Path(__file__).parent / "legion-gui.py"
+GUI_BIN = Path("/usr/lib/legion-toolkit/legion-gui.py")
 
 def _send_notif(title, body, icon="dialog-information"):
     """Send a desktop notification via notify-send."""
@@ -47,10 +48,10 @@ def _send_notif(title, body, icon="dialog-information"):
                         *hint, "-t", "3000", title, body])
 
 _PROFILE_INFO = {
-    "quiet":       {"label": "Quiet",       "icon": "🔵", "color": "#4a9eff", "letter": "Q", "desc": "15W · Silent"},
-    "balanced":    {"label": "Balanced",    "icon": "⚪", "color": "#e0e0e0", "letter": "B", "desc": "35W · Everyday"},
-    "performance": {"label": "Performance", "icon": "🔴", "color": "#ff4757", "letter": "P", "desc": "54W · Gaming"},
-    "custom":      {"label": "Custom",      "icon": "🩷", "color": "#ff69b4", "letter": "C", "desc": "54W · Custom"},
+    "quiet":       {"label": "Quiet",       "icon": "🔵", "color": "#4a9eff", "letter": "Q", "desc": "Silent"},
+    "balanced":    {"label": "Balanced",    "icon": "⚪", "color": "#e0e0e0", "letter": "B", "desc": "Everyday"},
+    "performance": {"label": "Performance", "icon": "🔴", "color": "#ff4757", "letter": "P", "desc": "Gaming"},
+    "custom":      {"label": "Custom",      "icon": "🩷", "color": "#ff69b4", "letter": "C", "desc": "Custom"},
 }
 
 def _get_profiles() -> list[str]:
@@ -63,24 +64,20 @@ def _color(name: str) -> str:
     return _PROFILE_INFO.get(name, {}).get("color", "#888888")
 
 def _make_legion_tray_icon(profile: str) -> QIcon:
-    """Colored circle tray icon — no custom branding."""
+    import base64 as _b64
     size = 64
+    logo_data = _b64.b64decode(_LEGION_ICON_B64)
+    src = QPixmap()
+    src.loadFromData(logo_data)
     px = QPixmap(size, size)
     px.fill(Qt.GlobalColor.transparent)
     p = QPainter(px)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    color = QColor(_color(profile))
-    p.setBrush(QBrush(color))
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    p.drawPixmap(0, 0, size, size, src)
+    dot = 14
+    p.setBrush(QBrush(QColor(_color(profile))))
     p.setPen(Qt.PenStyle.NoPen)
-    p.drawEllipse(2, 2, size - 4, size - 4)
-    from PyQt6.QtGui import QPen, QFont
-    p.setPen(QPen(QColor("#ffffff")))
-    f = QFont()
-    f.setPixelSize(28)
-    f.setBold(True)
-    p.setFont(f)
-    letter = {"quiet": "Q", "balanced": "B", "performance": "P", "custom": "C"}.get(profile, "?")
-    p.drawText(px.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+    p.drawEllipse(size - dot - 1, size - dot - 1, dot, dot)
     p.end()
     return QIcon(px)
 
@@ -356,11 +353,12 @@ class LegionTray:
         current = lll.read_powermode()
         if current != self._profile:
             lll.set_cpu_boost(current in ("balanced", "performance"))
+            _ICONS = "/usr/share/icons/legion-toolkit"
             icon_map = {
-                "quiet": "power-profile-balanced",
-                "balanced": "power-profile-balanced",
-                "performance": "power-profile-performance",
-                "custom": "power-profile-custom",
+                "quiet": f"{_ICONS}/power-quiet.png",
+                "balanced": f"{_ICONS}/power-balanced.png",
+                "performance": f"{_ICONS}/power-performance.png",
+                "custom": f"{_ICONS}/power-custom.png",
             }
             icon = icon_map.get(current, "dialog-information")
             label = _PROFILE_INFO.get(current, {}).get("label", current.title())
@@ -371,14 +369,58 @@ class LegionTray:
         else:
             self._update_tooltip()
 
+class _FallbackTray(QWidget):
+    """
+    Architectural fallback for desktops without a StatusNotifierItem host (stock
+    GNOME, etc.): a small always-on-top button that opens the same tray menu. This
+    is what lets the toolkit stay reachable on those environments without requiring
+    an external extension such as gnome-shell-extension-appindicator.
+    """
+    def __init__(self, menu):
+        super().__init__()
+        self._menu = menu
+        self.setWindowTitle("Legion Toolkit")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        self.setStyleSheet("background:#0d0d0d;")
+        btn = QPushButton("Legion")
+        btn.setStyleSheet("background:#3060d0;color:#ffffff;border-radius:6px;"
+                          "padding:6px 16px;font-size:13px;")
+        btn.clicked.connect(self._popup)
+        lay = QVBoxLayout(self)
+        lay.addWidget(btn)
+        lay.setContentsMargins(8, 8, 8, 8)
+        self.resize(110, 44)
+        self.show()
+
+    def _popup(self):
+        self._menu.popup(self.geometry().bottomLeft())
+
+
+def _show_fallback(menu):
+    _FallbackTray(menu)
+
+
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Legion Toolkit")
     app.setQuitOnLastWindowClosed(False)
+
+    tray = LegionTray(app)
+
     if not QSystemTrayIcon.isSystemTrayAvailable():
-        _send_notif("Legion Toolkit", "System tray not available — running silently", "dialog-warning")
-        # Don't exit — keep running so notifications still work
-    LegionTray(app)
+        # Fallback so the app stays reachable; warn with a compositor-specific hint.
+        desktop = (os.environ.get("XDG_CURRENT_DESKTOP") or "").lower()
+        if "gnome" in desktop:
+            _send_notif("Legion Toolkit",
+                        "No system tray on GNOME — install "
+                        "'gnome-shell-extension-appindicator' for a tray icon, "
+                        "or use the floating Legion button.", "dialog-warning")
+        else:
+            _send_notif("Legion Toolkit",
+                        "System tray not available — running with a floating "
+                        "Legion button instead.", "dialog-warning")
+        _show_fallback(tray.menu)
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":
