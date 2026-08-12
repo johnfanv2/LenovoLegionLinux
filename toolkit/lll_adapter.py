@@ -275,6 +275,13 @@ def get_gpu_temperature_limit() -> int:
 def set_gpu_temperature_limit(val: int):
     _write_sysfs(_lll_feature_path("gpu_temperature_limit"), str(val))
 
+def get_gpu_oc_powerlimit() -> int:
+    try: return int(_read_sysfs(_lll_feature_path("gpu_oc")))
+    except: return 0
+
+def set_gpu_oc_powerlimit(val: int):
+    _write_sysfs(_lll_feature_path("gpu_oc"), str(val))
+
 def get_cpu_l1_tau() -> int:
     try: return int(_read_sysfs(_lll_feature_path("cpu_l1_tau")))
     except: return 0

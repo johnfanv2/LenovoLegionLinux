@@ -470,10 +470,10 @@ def cpu_temp_limit_cmd(legion, value=None, **_):
 
 def gpu_dynamic_boost_cmd(legion, value=None, **_):
     if value is None:
-        print(f"Dynamic Boost: {_read_feature('gpu_ppab_powerlimit')}W")
+        print(f"Dynamic Boost (PPAB): {_read_feature('gpu_oc')}W")
     else:
-        _write_feature("gpu_ppab_powerlimit", value)
-        print(f"Dynamic Boost set to: {_read_feature('gpu_ppab_powerlimit')}W")
+        _write_feature("gpu_oc", value)
+        print(f"Dynamic Boost (PPAB) set to: {_read_feature('gpu_oc')}W")
     return 0
 
 def gpu_ctgp_cmd(legion, value=None, **_):
@@ -484,20 +484,12 @@ def gpu_ctgp_cmd(legion, value=None, **_):
         print(f"cTGP set to: {_read_feature('gpu_ctgp_powerlimit')}W")
     return 0
 
-def gpu_ppab_cmd(legion, value=None, **_):
+def gpu_total_proc_cmd(legion, value=None, **_):
     if value is None:
-        print(f"Power Boost: {_read_feature('gpu_ppab_powerlimit')}W")
-    else:
-        _write_feature("gpu_ppab_powerlimit", value)
-        print(f"Power Boost set to: {_read_feature('gpu_ppab_powerlimit')}W")
-    return 0
-
-def gpu_power_offset_cmd(legion, value=None, **_):
-    if value is None:
-        print(f"Total Proc Power: {_read_feature('gpu_power_target_offset')}W")
+        print(f"Total Proc Power (Offset): {_read_feature('gpu_power_target_offset')}W")
     else:
         _write_feature("gpu_power_target_offset", value)
-        print(f"Total Proc Power set to: {_read_feature('gpu_power_target_offset')}W")
+        print(f"Total Proc Power (Offset) set to: {_read_feature('gpu_power_target_offset')}W")
     return 0
 
 def create_argparser()->argparse.ArgumentParser:
@@ -603,21 +595,17 @@ def create_argparser()->argparse.ArgumentParser:
     ct_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Temperature in °C')
     ct_cmd_parser.set_defaults(func=cpu_temp_limit_cmd)
 
-    db_cmd_parser = subcommands.add_parser('gpu-dynamic-boost', help='Get or set GPU dynamic boost')
-    db_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (step 5)')
+    db_cmd_parser = subcommands.add_parser('gpu-dynamic-boost', help='Get or set GPU dynamic boost / PPAB (via gpu_oc)')
+    db_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (0-15, step 5)')
     db_cmd_parser.set_defaults(func=gpu_dynamic_boost_cmd)
 
     ctgp_cmd_parser = subcommands.add_parser('gpu-ctgp', help='Get or set cTGP limit')
-    ctgp_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (step 5)')
+    ctgp_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (35-50, step 5)')
     ctgp_cmd_parser.set_defaults(func=gpu_ctgp_cmd)
 
-    ppab_cmd_parser = subcommands.add_parser('gpu-ppab', help='Get or set GPU power boost (PPAB)')
-    ppab_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts')
-    ppab_cmd_parser.set_defaults(func=gpu_ppab_cmd)
-
-    poff_cmd_parser = subcommands.add_parser('gpu-power-offset', help='Get or set total processing power target')
-    poff_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (step 5)')
-    poff_cmd_parser.set_defaults(func=gpu_power_offset_cmd)
+    poff_cmd_parser = subcommands.add_parser('gpu-total-proc', help='Get or set total processing power target (offset)')
+    poff_cmd_parser.add_argument('value', type=int, nargs='?', default=None, help='Power in watts (10-45, step 5)')
+    poff_cmd_parser.set_defaults(func=gpu_total_proc_cmd)
 
     return parser, subcommands
 

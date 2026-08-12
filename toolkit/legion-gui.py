@@ -4770,21 +4770,17 @@ class OverclockPage(QWidget):
         # GPU WMI power controls
         gl.addWidget(make_div())
 
-        self.gpu_dynboost_spin = _spin(0, 15, self._cfg.get("gpu_dynboost", 15),
+        self.gpu_dynboost_ppab_spin = _spin(0, 15, self._cfg.get("gpu_dynboost_ppab", 15),
                                       suffix=" W", step=5, color=C_ORANGE)
-        gl.addLayout(_row("Dynamic Boost:", self.gpu_dynboost_spin, C_ORANGE))
+        gl.addLayout(_row("Dynamic Boost (PPAB):", self.gpu_dynboost_ppab_spin, C_ORANGE))
 
         self.gpu_ctgp_spin = _spin(35, 50, self._cfg.get("gpu_ctgp", 45),
                                   suffix=" W", step=5, color=C_ORANGE)
         gl.addLayout(_row("cTGP Limit:", self.gpu_ctgp_spin, C_ORANGE))
 
-        self.gpu_ppab_spin = _spin(10, 15, self._cfg.get("gpu_ppab", 15),
-                                  suffix=" W", step=1, color=C_ORANGE)
-        gl.addLayout(_row("Power Boost (PPAB):", self.gpu_ppab_spin, C_ORANGE))
-
-        self.gpu_power_offset_spin = _spin(10, 45, self._cfg.get("gpu_power_offset", 30),
+        self.gpu_total_proc_spin = _spin(10, 45, self._cfg.get("gpu_total_proc", 30),
                                           suffix=" W", step=5, color=C_ORANGE)
-        gl.addLayout(_row("Total Proc Power Target:", self.gpu_power_offset_spin, C_ORANGE))
+        gl.addLayout(_row("Total Proc Power (Offset):", self.gpu_total_proc_spin, C_ORANGE))
 
         fan_hint = QLabel("Fan Override = 0 means auto (GPU-controlled). Set >0 for manual speed.")
         fan_hint.setStyleSheet(f"color:{C_TEXT3};font-size:10px;background:transparent;")
@@ -4922,52 +4918,52 @@ class OverclockPage(QWidget):
         QTimer.singleShot(4000, lambda: self.cpu_status.setText(""))
 
     def _apply_gpu(self):
-        from lib.lll_adapter import (set_gpu_ppab_powerlimit, set_gpu_power_target_offset,
-                                      get_gpu_ppab_powerlimit, get_gpu_power_target_offset,
+        from lib.lll_adapter import (set_gpu_oc_powerlimit, set_gpu_power_target_offset,
+                                      get_gpu_oc_powerlimit, get_gpu_power_target_offset,
                                       get_gpu_ctgp_powerlimit)
         core = self.gpu_core_spin.value()
         mem  = self.gpu_mem_spin.value()
         pl   = self.gpu_pl_spin.value()
         temp = self.gpu_temp_spin.value()
         fan  = self.gpu_fan_spin.value()
-        dynboost = self.gpu_dynboost_spin.value()
+        dynboost_ppab = self.gpu_dynboost_ppab_spin.value()
         ctgp     = self.gpu_ctgp_spin.value()
-        ppab     = self.gpu_ppab_spin.value()
-        poffset  = self.gpu_power_offset_spin.value()
+        total_proc = self.gpu_total_proc_spin.value()
         apply_gpu_oc_full(core, mem, pl, temp, fan)
-        set_gpu_ppab_powerlimit(ppab)
-        set_gpu_power_target_offset(poffset)
+        set_gpu_oc_powerlimit(dynboost_ppab)
+        set_gpu_power_target_offset(total_proc)
         # Read back actual values from kernel
-        actual_ppab = get_gpu_ppab_powerlimit()
+        actual_ppab = get_gpu_oc_powerlimit()
         actual_poff = get_gpu_power_target_offset()
         actual_ctgp = get_gpu_ctgp_powerlimit()
-        self.gpu_ppab_spin.setValue(actual_ppab or ppab)
-        self.gpu_power_offset_spin.setValue(actual_poff or poffset)
+        self.gpu_dynboost_ppab_spin.setValue(actual_ppab or dynboost_ppab)
+        self.gpu_total_proc_spin.setValue(actual_poff or total_proc)
         self.gpu_ctgp_spin.setValue(actual_ctgp or ctgp)
         self._cfg.update({"gpu_core_offset": core, "gpu_mem_offset": mem,
                           "gpu_power_limit": pl, "gpu_temp_target": temp,
                           "gpu_fan_pct": fan,
-                          "gpu_dynboost": dynboost, "gpu_ctgp": actual_ctgp or ctgp,
-                          "gpu_ppab": actual_ppab or ppab, "gpu_power_offset": actual_poff or poffset})
+                          "gpu_dynboost_ppab": actual_ppab or dynboost_ppab,
+                          "gpu_ctgp": actual_ctgp or ctgp,
+                          "gpu_total_proc": actual_poff or total_proc})
         save_oc_config(self._cfg)
         self.gpu_status.setText(f"✓ Core +{core}  Mem +{mem}  PL {pl}W  Temp {temp}°C")
         QTimer.singleShot(4000, lambda: self.gpu_status.setText(""))
 
     def _reset_gpu_oc(self):
-        from lib.lll_adapter import set_gpu_ppab_powerlimit, set_gpu_power_target_offset
+        from lib.lll_adapter import set_gpu_oc_powerlimit, set_gpu_power_target_offset
         for sp, val in [(self.gpu_core_spin, 0), (self.gpu_mem_spin, 0),
                         (self.gpu_pl_spin, 115), (self.gpu_temp_spin, 83),
                         (self.gpu_fan_spin, 0),
-                        (self.gpu_dynboost_spin, 15), (self.gpu_ctgp_spin, 45),
-                        (self.gpu_ppab_spin, 15), (self.gpu_power_offset_spin, 30)]:
+                        (self.gpu_dynboost_ppab_spin, 15), (self.gpu_ctgp_spin, 45),
+                        (self.gpu_total_proc_spin, 30)]:
             sp.setValue(val)
         reset_gpu_oc_full()
-        set_gpu_ppab_powerlimit(15)
+        set_gpu_oc_powerlimit(15)
         set_gpu_power_target_offset(30)
         self._cfg.update({"gpu_core_offset": 0, "gpu_mem_offset": 0,
                           "gpu_power_limit": 115, "gpu_temp_target": 83, "gpu_fan_pct": 0,
-                          "gpu_dynboost": 15, "gpu_ctgp": 45,
-                          "gpu_ppab": 15, "gpu_power_offset": 30})
+                          "gpu_dynboost_ppab": 15, "gpu_ctgp": 45,
+                          "gpu_total_proc": 30})
         save_oc_config(self._cfg)
         self.gpu_status.setText("✓ GPU OC reset to defaults")
         QTimer.singleShot(3000, lambda: self.gpu_status.setText(""))
@@ -4977,7 +4973,7 @@ class OverclockPage(QWidget):
         try:
             from lib.lll_adapter import (get_cpu_longterm_powerlimit, get_cpu_shortterm_powerlimit,
                                           get_cpu_l1_tau, get_cpu_cross_loading_powerlimit,
-                                          get_cpu_temperature_limit, get_gpu_ppab_powerlimit,
+                                          get_cpu_temperature_limit, get_gpu_oc_powerlimit,
                                           get_gpu_power_target_offset, get_gpu_ctgp_powerlimit,
                                           read_powermode)
             cur_pl1 = get_cpu_longterm_powerlimit()
@@ -4997,12 +4993,12 @@ class OverclockPage(QWidget):
             cur_ct = get_cpu_temperature_limit()
             if cur_ct > 0:
                 self.cpu_temp_lim_spin.setValue(cur_ct)
-            cur_ppab = get_gpu_ppab_powerlimit()
+            cur_ppab = get_gpu_oc_powerlimit()
             if cur_ppab > 0:
-                self.gpu_ppab_spin.setValue(cur_ppab)
+                self.gpu_dynboost_ppab_spin.setValue(cur_ppab)
             cur_poff = get_gpu_power_target_offset()
             if cur_poff > 0:
-                self.gpu_power_offset_spin.setValue(cur_poff)
+                self.gpu_total_proc_spin.setValue(cur_poff)
             cur_ctgp = get_gpu_ctgp_powerlimit()
             if cur_ctgp > 0:
                 self.gpu_ctgp_spin.setValue(cur_ctgp)
