@@ -440,16 +440,16 @@ if _is_custom:
 
     # ── LOQ 83SC power limit controls ────────────────────────────────────────────
 
-    LEGION_BASE = "/sys/devices/platform/legion"
+    from lib.lll_adapter import legion_sysfs_base
 
     def _read_feature(name):
-        try: return int(Path(f"{LEGION_BASE}/{name}").read_text().strip())
+        try: return int((legion_sysfs_base() / name).read_text().strip())
         except: return None
 
     def _write_feature(name, val):
-        p = f"{LEGION_BASE}/{name}"
+        p = legion_sysfs_base() / name
         try:
-            Path(p).write_text(str(val))
+            p.write_text(str(val))
         except PermissionError:
             subprocess.run(["pkexec", "sh", "-c", f"echo {val} > {p}"],
                            capture_output=True, timeout=5)

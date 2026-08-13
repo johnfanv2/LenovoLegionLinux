@@ -82,22 +82,22 @@ if _is_custom:
     # ══════════════════════════════════════════════════════════════════════════════
     # PATHS
     # ══════════════════════════════════════════════════════════════════════════════
-    LEGION_SYS_BASEPATH = Path(lll.LEGION_SYS_BASEPATH)
+    from lib.lll_adapter import legion_sysfs_base
     IDEAPAD_SYS_BASEPATH = Path(lll.IDEAPAD_SYS_BASEPATH)
-    LEGION_POWERMODE    = LEGION_SYS_BASEPATH / "powermode"
+    LEGION_POWERMODE    = legion_sysfs_base() / "powermode"
     AMD_BOOST           = Path("/sys/devices/system/cpu/cpufreq/boost")
 
     CONSERVATION_MODE = IDEAPAD_SYS_BASEPATH / "conservation_mode"
     CAMERA_POWER      = IDEAPAD_SYS_BASEPATH / "camera_power"
     FN_LOCK           = IDEAPAD_SYS_BASEPATH / "fn_lock"
     USB_CHARGING      = IDEAPAD_SYS_BASEPATH / "usb_charging"
-    RAPID_CHARGE      = LEGION_SYS_BASEPATH / "rapidcharge"
-    WINKEY            = LEGION_SYS_BASEPATH / "winkey"
-    OVERDRIVE         = LEGION_SYS_BASEPATH / "overdrive"
-    GSYNC             = LEGION_SYS_BASEPATH / "gsync"
-    TOUCHPAD          = LEGION_SYS_BASEPATH / "touchpad"
-    POWER_CHARGE_MODE = LEGION_SYS_BASEPATH / "powerchargemode"
-    THERMAL_MODE      = LEGION_SYS_BASEPATH / "thermalmode"
+    RAPID_CHARGE      = legion_sysfs_base() / "rapidcharge"
+    WINKEY            = legion_sysfs_base() / "winkey"
+    OVERDRIVE         = legion_sysfs_base() / "overdrive"
+    GSYNC             = legion_sysfs_base() / "gsync"
+    TOUCHPAD          = legion_sysfs_base() / "touchpad"
+    POWER_CHARGE_MODE = legion_sysfs_base() / "powerchargemode"
+    THERMAL_MODE      = legion_sysfs_base() / "thermalmode"
     NVIDIA_BACKLIGHT  = Path("/sys/class/backlight/nvidia_wmi_ec_backlight/brightness")
 
     BAT = next(
@@ -564,8 +564,8 @@ if _is_custom:
             # Fan
             "fan_fullspeed": FAN_FULLSPEED.exists(),
             "thermalmode":   THERMAL_MODE.exists(),
-            "lockfancontroller": ex(LEGION_SYS_BASEPATH / "lockfancontroller"),
-            "minifancurve":    ex(LEGION_SYS_BASEPATH / "minifancurve"),
+            "lockfancontroller": ex(legion_sysfs_base() / "lockfancontroller"),
+            "minifancurve":    ex(legion_sysfs_base() / "minifancurve"),
 
             # Backlight
             "kbd_backlight":    ex("/sys/class/leds/platform::kbd_backlight/brightness"),
@@ -962,7 +962,7 @@ if _is_custom:
 
     # ── LLL (LenovoLegionLinux) Integration ───────────────────────────────────────────────
     LLL_FANCURVE_DEBUGFS = Path("/sys/kernel/debug/legion/fancurve")
-    FAN_FULLSPEED = LEGION_SYS_BASEPATH / "fan_fullspeed"
+    FAN_FULLSPEED = legion_sysfs_base() / "fan_fullspeed"
 
     def is_lll_module_loaded() -> bool:
         """Check if LLL kernel module is loaded."""
@@ -1117,7 +1117,7 @@ if _is_custom:
 
     def get_fan_lock_status() -> bool:
         """Check if fan controller is locked (read-only, firmware level)."""
-        lock_path = LEGION_SYS_BASEPATH / "lockfancontroller"
+        lock_path = legion_sysfs_base() / "lockfancontroller"
         if not lock_path.exists():
             return False
         try:
@@ -1127,7 +1127,7 @@ if _is_custom:
 
     def set_fan_lock(lock: bool) -> tuple[bool, str]:
         """Lock/unlock fan controller. Requires LLL."""
-        lock_path = LEGION_SYS_BASEPATH / "lockfancontroller"
+        lock_path = legion_sysfs_base() / "lockfancontroller"
         if not lock_path.exists():
             if not is_lll_available():
                 return False, "LLL not loaded"
@@ -1146,7 +1146,7 @@ if _is_custom:
 
     def get_minifancurve_status() -> bool:
         """Check if mini fan curve (cold) is enabled."""
-        mini_path = LEGION_SYS_BASEPATH / "minifancurve"
+        mini_path = legion_sysfs_base() / "minifancurve"
         if not mini_path.exists():
             return False
         try:
@@ -1156,7 +1156,7 @@ if _is_custom:
 
     def set_minifancurve(enable: bool) -> tuple[bool, str]:
         """Enable/disable mini fan curve when cold. Requires LLL."""
-        mini_path = LEGION_SYS_BASEPATH / "minifancurve"
+        mini_path = legion_sysfs_base() / "minifancurve"
         if not mini_path.exists():
             if not is_lll_available():
                 return False, "LLL not loaded"

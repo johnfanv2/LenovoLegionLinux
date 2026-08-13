@@ -16,12 +16,52 @@ from typing import Optional
 
 IDEAPAD_SYS_BASEPATH = "/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00"
 
-_candidates = [
-    "/sys/bus/platform/drivers/legion/VPC2004:00",
-    "/sys/module/legion_laptop/drivers/platform:legion/VPC2004:00",
-    "/sys/module/legion_laptop/drivers/platform:legion/legion",
-]
-LEGION_SYS_BASEPATH = next((p for p in _candidates if Path(p).exists()), _candidates[0])
+
+def _legion_driver_dir() -> Path:
+    return Path("/sys/bus/platform/drivers/legion")
+
+
+def _resolve_legion_base() -> Path:
+    """Discover the legion control interface directory.
+
+    The legion_laptop driver binds to exactly one platform device, but which
+    device wins the probe varies between boots: the ACPI node ``VPC2004:00``
+    or a virtual ``legion`` platform device. Whichever probes first is the node
+    that exposes the control attributes, so the sysfs path is not stable
+    across reboots. Discover it dynamically (matching the test harness: pick
+    the first bound device dir that exposes the ``gpu_oc`` sentinel) instead
+    of hardcoding.
+    """
+    driver_dir = _legion_driver_dir()
+    if not driver_dir.is_dir():
+        raise FileNotFoundError("legion platform driver is not loaded")
+    for dev in sorted(driver_dir.iterdir()):
+        if dev.is_dir() and (dev / "gpu_oc").exists():
+            return dev
+    raise FileNotFoundError(
+        "legion control interface not found under " + str(driver_dir)
+    )
+
+
+_LEGION_BASE: "Optional[Path]" = None
+
+
+def legion_sysfs_base() -> Path:
+    """Return (and cache) the legion control sysfs directory.
+
+    Re-resolves if the cached path has disappeared or stopped exposing the
+    control attributes (e.g. the interface flipped on a driver reload), so a
+    mid-session path change is handled gracefully.
+    """
+    global _LEGION_BASE
+    if _LEGION_BASE is not None and _legion_base_alive(_LEGION_BASE):
+        return _LEGION_BASE
+    _LEGION_BASE = _resolve_legion_base()
+    return _LEGION_BASE
+
+
+def _legion_base_alive(base: Path) -> bool:
+    return base.exists() and (base / "gpu_oc").exists()
 
 # ── Power Mode Constants ──────────────────────────────────────────────────────
 POWERMODE_QUIET = 1
@@ -62,7 +102,10 @@ def is_lll_loaded() -> bool:
     return Path("/sys/module/legion_laptop").exists()
 
 def is_lll_device_bound() -> bool:
-    return Path(LEGION_SYS_BASEPATH).exists()
+    try:
+        return _legion_base_alive(legion_sysfs_base())
+    except FileNotFoundError:
+        return False
 
 def force_load_lll() -> tuple[bool, str]:
     ok, out = _pkexec(["modprobe", "legion_laptop", "force=1"])
@@ -106,7 +149,7 @@ def _write_sysfs(path: str, value: str) -> bool:
     return ok
 
 def _lll_feature_path(name: str) -> str:
-    return f"{LEGION_SYS_BASEPATH}/{name}"
+    return str(legion_sysfs_base() / name)
 
 def _ideapad_feature_path(name: str) -> str:
     return f"{IDEAPAD_SYS_BASEPATH}/{name}"
@@ -406,7 +449,7 @@ def write_fancurve(points: list[dict]) -> tuple[bool, str]:
     for pt in points:
         try:
             _pkexec(["sh", "-c",
-                f"echo {pt.get('fan1_pwm', 0)} > {LEGION_SYS_BASEPATH}/hwmon/hwmon*/pwm1_auto_point1_pwm"])
+                f"echo {pt.get('fan1_pwm', 0)} > {legion_sysfs_base()}/hwmon/hwmon*/pwm1_auto_point1_pwm"])
         except Exception:
             pass
     return True, "OK"
@@ -414,16 +457,16 @@ def write_fancurve(points: list[dict]) -> tuple[bool, str]:
 def get_fan_rpm() -> tuple[int, int]:
     import glob as _g
     fan1, fan2 = 0, 0
-    for h in _g.glob(f"{LEGION_SYS_BASEPATH}/hwmon/hwmon*/fan1_input"):
+    for h in _g.glob(f"{legion_sysfs_base()}/hwmon/hwmon*/fan1_input"):
         try: fan1 = int(Path(h).read_text().strip())
         except: pass
-    for h in _g.glob(f"{LEGION_SYS_BASEPATH}/hwmon/hwmon*/fan2_input"):
+    for h in _g.glob(f"{legion_sysfs_base()}/hwmon/hwmon*/fan2_input"):
         try: fan2 = int(Path(h).read_text().strip())
         except: pass
     return fan1, fan2
 
 def get_ic_temp() -> int:
-    for h in glob.glob(f"{LEGION_SYS_BASEPATH}/hwmon/hwmon*/temp1_input"):
+    for h in glob.glob(f"{legion_sysfs_base()}/hwmon/hwmon*/temp1_input"):
         try: return int(Path(h).read_text().strip()) // 1000
         except: pass
     for h in glob.glob("/sys/class/hwmon/hwmon*/temp*_input"):
@@ -482,11 +525,11 @@ def get_gpu_info() -> dict:
 
 # ── Hardware detection ────────────────────────────────────────────────
 def find_feature_path(name: str) -> Optional[str]:
-    bases = [
-        IDEAPAD_SYS_BASEPATH,
-        LEGION_SYS_BASEPATH,
-        "/sys/bus/platform/devices/VPC2004:00",
-    ]
+    bases = [IDEAPAD_SYS_BASEPATH, "/sys/bus/platform/devices/VPC2004:00"]
+    try:
+        bases.insert(1, str(legion_sysfs_base()))
+    except FileNotFoundError:
+        pass
     for b in bases:
         p = f"{b}/{name}"
         if Path(p).exists():
@@ -499,7 +542,7 @@ def detect_hardware() -> dict:
         "platform_profile": ex("/sys/firmware/acpi/platform_profile"),
         "lll_loaded": is_lll_loaded(),
         "lll_bound": is_lll_device_bound(),
-        "powermode": ex(f"{LEGION_SYS_BASEPATH}/powermode"),
+        "powermode": ex(f"{legion_sysfs_base()}/powermode"),
         "conservation_mode": ex(_ideapad_feature_path("conservation_mode")),
         "rapidcharge": ex(_lll_feature_path("rapidcharge")),
         "fn_lock": ex(_ideapad_feature_path("fn_lock")),
@@ -524,19 +567,19 @@ def detect_hardware() -> dict:
 # ── Power mode ────────────────────────────────────────────────────────
 def read_powermode() -> str:
     try:
-        val = int(Path(f"{LEGION_SYS_BASEPATH}/powermode").read_text().strip())
+        val = int(Path(f"{legion_sysfs_base()}/powermode").read_text().strip())
         return _POWERMODE_MAP.get(val, "balanced")
     except Exception:
         return "balanced"
 
 def write_powermode(profile: str):
     val = _POWERMODE_MAP_REV.get(profile, 2)
-    _write_sysfs(f"{LEGION_SYS_BASEPATH}/powermode", str(val))
+    _write_sysfs(f"{legion_sysfs_base()}/powermode", str(val))
 
 def apply_profile(name: str):
     rev = {"quiet": 1, "balanced": 2, "performance": 3, "custom": 255}
     val = rev.get(name, 2)
-    _write_sysfs(f"{LEGION_SYS_BASEPATH}/powermode", str(val))
+    _write_sysfs(f"{legion_sysfs_base()}/powermode", str(val))
     set_cpu_boost(name in ("balanced", "performance"))
 
 def get_available_profiles() -> list[str]:
