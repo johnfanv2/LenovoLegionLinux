@@ -6,15 +6,13 @@ import argparse
 import logging
 import sys
 import os
-# Make it possible to run without installationimport
-# pylint: disable=# pylint: disable=wrong-import-position
+# Make it possible to run without installation
+# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
-import legion_linux.legion
-from legion_linux.legion import LegionModelFacade
 from pathlib import Path
 import subprocess
 logging.basicConfig()
-log = logging.getLogger(legion_linux.legion.__name__)
+log = logging.getLogger("legion_linux.legion")
 loglevels = ['NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']
 # will be set in main to user defined level after parsing
 log.setLevel('ERROR')
@@ -43,7 +41,7 @@ class CLIFeatureCommand:
         if cmd_group is not None:
             cmd_group.append(self)
 
-    def set_model(self, model: LegionModelFacade):
+    def set_model(self, model: "LegionModelFacade"):
         self.model = model
 
     def check_if_exist(self):
@@ -86,7 +84,7 @@ class CLIFeatureCommand:
 
 
 class MiniFancurveFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("minifancurve", parser_subcommands, cmd_group)
         self.model = model
 
@@ -107,7 +105,7 @@ class MiniFancurveFeatureCommand(CLIFeatureCommand):
 
 
 class LockFanControllerFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("lockfancontroller", parser_subcommands, cmd_group)
         self.model = model
 
@@ -128,7 +126,7 @@ class LockFanControllerFeatureCommand(CLIFeatureCommand):
 
 
 class MaximumFanSpeedFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("maximumfanspeed", parser_subcommands, cmd_group)
         self.model = model
 
@@ -149,7 +147,7 @@ class MaximumFanSpeedFeatureCommand(CLIFeatureCommand):
 
 
 class BatteryConservationFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("batteryconservation", parser_subcommands, cmd_group)
         self.model = model
 
@@ -170,7 +168,7 @@ class BatteryConservationFeatureCommand(CLIFeatureCommand):
 
 
 class FnLockFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("fnlock", parser_subcommands, cmd_group)
         self.model = model
 
@@ -191,7 +189,7 @@ class FnLockFeatureCommand(CLIFeatureCommand):
 
 
 class TouchpadFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("touchpad", parser_subcommands, cmd_group)
         self.model = model
 
@@ -212,7 +210,7 @@ class TouchpadFeatureCommand(CLIFeatureCommand):
 
 
 class CameraPowerFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("camera-power", parser_subcommands, cmd_group, False)
         self.model = model
 
@@ -225,7 +223,7 @@ class CameraPowerFeatureCommand(CLIFeatureCommand):
 
 
 class OnPowerSupplyFeatureCommand(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("on-power-supply", parser_subcommands, cmd_group, False)
         self.model = model
 
@@ -238,7 +236,7 @@ class OnPowerSupplyFeatureCommand(CLIFeatureCommand):
 
 
 class AlwaysOnUsbCharging(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("always-on-usb-charging", parser_subcommands, cmd_group)
         self.model = model
 
@@ -259,7 +257,7 @@ class AlwaysOnUsbCharging(CLIFeatureCommand):
 
 
 class RapidCharging(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("rapid-charging", parser_subcommands, cmd_group)
         self.model = model
 
@@ -280,7 +278,7 @@ class RapidCharging(CLIFeatureCommand):
 
 
 class HybridMode(CLIFeatureCommand):
-    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+    def __init__(self, parser_subcommands, model: "LegionModelFacade", cmd_group: list):
         super().__init__("hybrid-mode", parser_subcommands, cmd_group)
         self.model = model
 
@@ -309,54 +307,54 @@ def autocomplete_install(_, **__) -> int:
     print(cmd)
 
 
-def fancurve_write_preset_to_hw(legion: LegionModelFacade, presetname: str, **_) -> int:
+def fancurve_write_preset_to_hw(legion: "LegionModelFacade", presetname: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_preset_to_hw(presetname, write_minifancurve=True)
     print(f'Successfully wrote preset {presetname} to hardware')
     return 0
 
 
-def fancurve_write_hw_to_preset(legion: LegionModelFacade, presetname: str, **_) -> int:
+def fancurve_write_hw_to_preset(legion: "LegionModelFacade", presetname: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_hw_to_preset(presetname)
     print(f'Successfully wrote hardware to preset {presetname}')
     return 0
 
 
-def fancurve_write_file_to_hw(legion: LegionModelFacade, filename: str, **_) -> int:
+def fancurve_write_file_to_hw(legion: "LegionModelFacade", filename: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_file_to_hw(filename, write_minifancurve=True)
     print(f'Successfully wrote fan curve from file {filename} to hardware')
     return 0
 
 
-def fancurve_write_hw_to_file(legion: LegionModelFacade, filename: str, **_) -> int:
+def fancurve_write_hw_to_file(legion: "LegionModelFacade", filename: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_hw_to_file(filename)
     print(f'Successfully wrote fan curve from hardware to file {filename}')
     return 0
 
 
-def fancurve_write_preset_for_current_profile(legion: LegionModelFacade, **_) -> int:
+def fancurve_write_preset_for_current_profile(legion: "LegionModelFacade", **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_preset_for_current_profile(write_minifancurve=True)
     return 0
 
 
-def conservation_apply_mode_for_current_battery_capacity(legion: LegionModelFacade,
+def conservation_apply_mode_for_current_battery_capacity(legion: "LegionModelFacade",
                                                          lowerlimit=50, upperlimit=60, **_) -> int:
     print(legion.conservation_apply_mode_for_current_battery_capacity(
         lowerlimit, upperlimit))
     return 0
 
 
-def monitor(legion: LegionModelFacade, period=None, **_) -> int:
+def monitor(legion: "LegionModelFacade", period=None, **_) -> int:
     print("Starting monitoring:")
     legion.run_monitors(period_s=period)
     return 0
 
 
-def set_feature(legion: LegionModelFacade, name, values, **_) -> int:
+def set_feature(legion: "LegionModelFacade", name, values, **_) -> int:
     log.setLevel('INFO')
     if legion.set_feature_to_str_value(name, values):
         return 0
@@ -371,7 +369,7 @@ _PCORES = [i for i in range(16) if Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq
 _ECORES = [i for i in range(16) if Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/cpuinfo_max_freq").exists()
            and int(Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/cpuinfo_max_freq").read_text()) < 4500000]
 
-def cpu_pcore_freq(legion: LegionModelFacade, freq: int = None, **_) -> int:
+def cpu_pcore_freq(legion: "LegionModelFacade", freq: int = None, **_) -> int:
     if freq is None:
         # status: show current
         for i in _PCORES[:1]:
@@ -387,7 +385,7 @@ def cpu_pcore_freq(legion: LegionModelFacade, freq: int = None, **_) -> int:
     print(f"P-core max set to {freq} MHz")
     return 0
 
-def cpu_ecore_freq(legion: LegionModelFacade, freq: int = None, **_) -> int:
+def cpu_ecore_freq(legion: "LegionModelFacade", freq: int = None, **_) -> int:
     if freq is None:
         for i in _ECORES[:1]:
             p = Path(f"/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_max_freq")
@@ -658,11 +656,16 @@ def main():
     if args.subcommand is None:
         parser.print_help()
     else:
-        legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon)
+        legion = None
+        try:
+            from legion_linux.legion import LegionModelFacade
+            legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon)
+        except Exception as e:  # model/hwmon init can fail on some driver states
+            log.warning("LegionModelFacade unavailable (%s); LOQ controls still work", e)
         for cmd in cmd_group:
             cmd.set_model(legion)
         # set global options
-        if "preset_dir" in args and args.preset_dir is not None:
+        if legion is not None and "preset_dir" in args and args.preset_dir is not None:
             legion.set_preset_folder(args.preset_dir)
 
         args.func(legion, **vars(args))
