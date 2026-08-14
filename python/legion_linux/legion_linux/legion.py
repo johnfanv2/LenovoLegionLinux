@@ -62,6 +62,23 @@ class FanCurveEntry:
     acceleration: int
     deceleration: int
 
+    def is_empty(self):
+        """Returns True if the entry holds no data (all values are zero).
+
+        Such entries are read back for fan curve points beyond the size
+        supported by the EC and must not be written back to the EC.
+        """
+        return (self.fan1_speed == 0
+                and self.fan2_speed == 0
+                and self.cpu_lower_temp == 0
+                and self.cpu_upper_temp == 0
+                and self.gpu_lower_temp == 0
+                and self.gpu_upper_temp == 0
+                and self.ic_lower_temp == 0
+                and self.ic_upper_temp == 0
+                and self.acceleration == 0
+                and self.deceleration == 0)
+
 
 class Serializable:
     def __init__(self) -> None:
@@ -957,8 +974,18 @@ class FanCurveIO(Feature):
 
     def write_fan_curve(self, fan_curve: FanCurve, _=False):
         """Writes a fan curve object to the file system and sets minifancurve if enabled"""
+        entries = list(fan_curve.entries)
+        while entries and entries[-1].is_empty():
+            entries.pop()
+        if not entries:
+            log.warning("Fan curve has no writable points, skipping")
+            return
+
         if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(self.name(), [str(fan_curve.to_yaml())])
+            trimmed_curve = FanCurve(
+                fan_curve.name, entries, fan_curve.enable_minifancurve)
+            write_file_with_legion_cli(
+                self.name(), [str(trimmed_curve.to_yaml())])
             return
 
         has_fan_2_speed = self.has_fan_2_speed()
@@ -971,7 +998,7 @@ class FanCurveIO(Feature):
         # pylint: disable=broad-except
         except BaseException as error:
             log.error(str(error))
-        for index, entry in enumerate(fan_curve.entries):
+        for index, entry in enumerate(entries):
             point_id = index + 1
             self.set_fan_1_speed_rpm(point_id, entry.fan1_speed)
             if has_fan_2_speed:
@@ -1023,6 +1050,8 @@ class FanCurveIO(Feature):
                                   ic_lower_temp=ic_lower_temp, ic_upper_temp=ic_upper_temp,
                                   acceleration=acceleration, deceleration=deceleration)
             entries.append(entry)
+        while entries and entries[-1].is_empty():
+            entries.pop()
         fancurve = FanCurve(name='unknown', entries=entries)
         try:
             fancurve.enable_minifancurve = self.get_minifancuve()
