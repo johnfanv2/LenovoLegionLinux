@@ -10,10 +10,6 @@ services:
       dockerfile: deploy/package_testing/Dockerfile.arch
       args:
         - "BASE_IMAGE=manjarolinux/base"
-  legion-fedora:
-    build:
-      context: ../..
-      dockerfile: deploy/package_testing/Dockerfile.fedora
   legion-ubuntu:
     build:
       context: ../..

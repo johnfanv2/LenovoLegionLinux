@@ -105,7 +105,9 @@ jobs:
             - 'kernel_module/*'
 
   release-kernel-patch:
-    needs: [check-kernel-module-change]
+    needs: [check-kernel-module-change, test-in-docker-container]
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
@@ -124,7 +126,7 @@ jobs:
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build kernel patch
-      if: steps.check-kernel-module-change.workflows == 'true' || steps.check_if_tagged.outputs.hastag == 1
+      if: needs.check-kernel-module-change.outputs.output1 == 'true' || steps.check_if_tagged.outputs.hastag == '1'
       run: ./deploy/build_kernelpatch.sh
       shell: bash
     - name: Set tag name
@@ -174,9 +176,7 @@ jobs:
       shell: bash
 
   test-packages:
-    # COPR package (external, maintained by mrduarte) is currently built
-    # against python 3.13 and uninstallable on fedora 43/44 until rebuilt
-    # there; do not block CI on it.
+    # External distro package repositories can lag behind main.
     continue-on-error: true
     runs-on: ubuntu-24.04
     steps:

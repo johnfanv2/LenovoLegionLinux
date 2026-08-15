@@ -9,6 +9,7 @@ on:
         type: string
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -46,7 +47,7 @@ jobs:
         sed -i -E "s/^(version = )[0-9.]+\$/\1$VERSION/" \
           python/legion_linux/setup.cfg
 
-        sed -i "/^%changelog$/a * $DATE $AUTHOR - $VERSION\n- $VERSION release; add python3-pillow dependency." \
+        sed -i "/^%changelog$/a * $DATE $AUTHOR - $VERSION\n- $VERSION release of LenovoLegionLinux." \
           deploy/build_packages/lenovolegionlinux.spec
         sed -i "/^%changelog$/a * $DATE $AUTHOR - $VERSION-0\n- $VERSION release of LenovoLegionLinux DKMS module." \
           deploy/build_packages/lenovolegionlinux-dkms.spec
@@ -61,14 +62,29 @@ jobs:
         git config user.name "github-actions"
         git config user.email "actions@github.com"
         git add -A
-        git commit -m "Release $VERSION: bump versions in specs and setup.cfg"
+        git commit -m "Release $VERSION: bump versions in specs and setup.cfg [skip ci]"
         git tag -a "v$VERSION" -m "Release v$VERSION"
-        git push origin HEAD:main
-        git push origin "v$VERSION"
+        git push --atomic origin HEAD:main "v$VERSION"
 
-    - name: Create release
+    - name: Create draft release
       env:
         VERSION: ${{ inputs.version }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+        gh release create "v$VERSION" --title "v$VERSION" --generate-notes --draft
+
+    - name: Build, test and publish
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        SHA=$(git rev-parse HEAD)
+        gh workflow run build.yml --ref main -f logLevel=warning
+        for _ in {1..30}; do
+          RUN_ID=$(gh run list --workflow build.yml --event workflow_dispatch \
+            --commit "$SHA" --limit 1 --json databaseId \
+            --jq '.[0].databaseId // empty')
+          [ -n "$RUN_ID" ] && break
+          sleep 2
+        done
+        test -n "$RUN_ID"
+        gh run watch "$RUN_ID" --compact --exit-status
