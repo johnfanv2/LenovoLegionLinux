@@ -64,7 +64,8 @@ jobs:
         git add -A
         git commit -m "Release $VERSION: bump versions in specs and setup.cfg [skip ci]"
         git tag -a "v$VERSION" -m "Release v$VERSION"
-        git push --atomic origin HEAD:main "v$VERSION"
+        git push --atomic origin HEAD:refs/heads/main \
+          "refs/tags/v$VERSION:refs/tags/v$VERSION"
 
     - name: Create draft release
       env:
