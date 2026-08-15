@@ -22,10 +22,17 @@ kernel_version = tuple(map(int,os.uname().release.split('-')[0].split('.')))
 
 DEFAULT_ENCODING = "utf8"
 DEFAULT_CONFIG_DIR = "/etc/legion_linux"
-if kernel_version >= (7, 0, 0):
-    LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/legion'
-else:
-    LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
+def _discover_legion_sys_baspath():
+    candidates = sorted(glob.glob('/sys/bus/platform/drivers/legion/*'))
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    if kernel_version >= (7, 0, 0):
+        return '/sys/module/legion_laptop/drivers/platform:legion/legion'
+    return '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
+
+
+LEGION_SYS_BASEPATH = _discover_legion_sys_baspath()
 IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
 LBLDVC_FILE = "/sys/firmware/efi/efivars/LBLDVC-871455d1-5576-4fb8-9865-af0824463c9f"
 LBLDESP_FILE = "/sys/firmware/efi/efivars/LBLDESP-871455d0-5576-4fb8-9865-af0824463b9e"
