@@ -766,6 +766,7 @@ class FanCurveIO(Feature):
     minifancurve = "minifancurve"
     fan1_max = "fan1_max"
     fan2_max = "fan2_max"
+    auto_points_size = "auto_points_size"
 
     encoding = DEFAULT_ENCODING
 
@@ -839,6 +840,12 @@ class FanCurveIO(Feature):
     def get_fan_2_max_rpm(self):
         file_path = self.hwmon_path + self.fan2_max
         return int(self._read_file(file_path))
+
+    def get_auto_points_size(self):
+        file_path = self.hwmon_path + self.auto_points_size
+        if self.hwmon_path is None or not os.path.exists(file_path):
+            return None
+        return self._read_file(file_path)
 
     def set_fan_1_speed_pwm(self, point_id, value):
         point_id = self._validate_point_id(point_id)
@@ -980,6 +987,13 @@ class FanCurveIO(Feature):
         if not entries:
             log.warning("Fan curve has no writable points, skipping")
             return
+
+        auto_points_size = self.get_auto_points_size()
+        if auto_points_size is not None and len(entries) > auto_points_size:
+            log.warning(
+                "Trimming fan curve from %d to %d points (hardware limit)",
+                len(entries), auto_points_size)
+            entries = entries[:auto_points_size]
 
         if self.use_legion_cli_to_write:
             trimmed_curve = FanCurve(
