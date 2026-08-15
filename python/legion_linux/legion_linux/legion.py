@@ -23,13 +23,40 @@ kernel_version = tuple(map(int,os.uname().release.split('-')[0].split('.')))
 DEFAULT_ENCODING = "utf8"
 DEFAULT_CONFIG_DIR = "/etc/legion_linux"
 def _discover_legion_sys_baspath():
-    candidates = sorted(glob.glob('/sys/bus/platform/drivers/legion/*'))
-    for c in candidates:
-        if os.path.isdir(c):
-            return c
+    # Keep the historically-correct fixed path as the primary choice so that
+    # every existing model keeps using the exact LEGION_SYS_BASEPATH it has
+    # always used. Only fall back to discovery when that path does not exist
+    # (e.g. 83SC, which binds under a different device name). Other models
+    # are therefore completely unaffected by this change.
     if kernel_version >= (7, 0, 0):
-        return '/sys/module/legion_laptop/drivers/platform:legion/legion'
-    return '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
+        fixed = '/sys/module/legion_laptop/drivers/platform:legion/legion'
+    else:
+        fixed = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
+    if os.path.isdir(fixed):
+        return fixed
+    # Fallback: device bound under a non-standard name (83SC).
+    # /sys/bus/platform/drivers/legion/ also contains driver-internal
+    # entries (bind, unbind, uevent, module, driver, power, ...) that are
+    # NOT the device. Skip those and only accept a directory that actually
+    # exposes legion attributes, so we never resolve to the `module`
+    # symlink or any other non-device entry.
+    _NON_DEVICE_ENTRIES = {
+        "bind", "unbind", "uevent", "module", "driver", "power",
+        "async", "modalias",
+    }
+    _DEVICE_MARKERS = (
+        "model",
+        "cpu_default_powerlimit",
+        "cpu_shortterm_powerlimit",
+        "gpu_oc",
+    )
+    for c in sorted(glob.glob('/sys/bus/platform/drivers/legion/*')):
+        name = os.path.basename(c.rstrip('/'))
+        if name in _NON_DEVICE_ENTRIES or not os.path.isdir(c):
+            continue
+        if any(os.path.exists(os.path.join(c, m)) for m in _DEVICE_MARKERS):
+            return c
+    return fixed
 
 
 LEGION_SYS_BASEPATH = _discover_legion_sys_baspath()
