@@ -6216,9 +6216,10 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 		((value - LOQ_GPU_OFFSET_MIN_WATTS + LOQ_GPU_OFFSET_STEP_WATTS / 2) /
 		 LOQ_GPU_OFFSET_STEP_WATTS) * LOQ_GPU_OFFSET_STEP_WATTS;
 	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-	return wmi_common_method_other_store(priv, clamped_buf,
-					     strlen(clamped_buf),
-					     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+	err = wmi_common_method_other_store(priv, clamped_buf,
+					    strlen(clamped_buf),
+					    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+	return err > 0 ? count : err;
 }
 
 static DEVICE_ATTR_RW(gpu_temperature_limit);
