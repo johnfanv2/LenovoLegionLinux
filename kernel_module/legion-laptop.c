@@ -6108,7 +6108,8 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	/* Unsupported on other models; matches upstream stub. */
+	// TODO: upstream stub returned -EINVAL for all models; 83SC implements
+	// the WMI3 store below. Verify behavior on other WMI3 LOQ models.
 	if (!priv->conf->loq_83sc)
 		return -EINVAL;
 
@@ -6150,8 +6151,9 @@ static ssize_t cpu_l1_tau_store(struct device *dev,
 	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	// TODO: upstream stub returned -EINVAL; 83SC implements the WMI3 store and RAPL MSR 0x610 write below. Verify on other WMI3 LOQ models.
 	if (!priv->conf->loq_83sc)
-		return -EINVAL; /* unsupported on other models; 83SC implements below (upstream stub) */
+		return -EINVAL;
 
 	err = kstrtoint(buf, 0, &value);
 	if (err)
@@ -6197,9 +6199,9 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 	int value, err;
 	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
-
+	// TODO: upstream stub returned -EINVAL; 83SC implements the WMI3 store below. Verify on other WMI3 LOQ models.
 	if (!priv->conf->loq_83sc)
-		return -EINVAL; /* unsupported on other models; 83SC implements below (upstream stub) */
+		return -EINVAL;
 
 	err = kstrtoint(buf, 0, &value);
 	if (err)
