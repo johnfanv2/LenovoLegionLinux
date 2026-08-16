@@ -90,22 +90,8 @@ jobs:
         run: ./deploy/python_install_pip_pkg.sh
         shell: bash
 
-  check-kernel-module-change:
-    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
-    runs-on: ubuntu-24.04
-    outputs:
-      output1: ${{ steps.filter.outputs.workflows }}
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dorny/paths-filter@v3
-      id: filter
-      with:
-        filters: |
-          workflows:
-            - 'kernel_module/*'
-
   release-kernel-patch:
-    needs: [check-kernel-module-change, test-in-docker-container]
+    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests, test-in-docker-container]
     permissions:
       contents: write
     runs-on: ubuntu-24.04
@@ -126,7 +112,7 @@ jobs:
         fi
         echo "hastag=$hastag" >> $GITHUB_OUTPUT
     - name: Build kernel patch
-      if: needs.check-kernel-module-change.outputs.output1 == 'true' || steps.check_if_tagged.outputs.hastag == '1'
+      if: steps.check_if_tagged.outputs.hastag == '1'
       run: ./deploy/build_kernelpatch.sh
       shell: bash
     - name: Set tag name
