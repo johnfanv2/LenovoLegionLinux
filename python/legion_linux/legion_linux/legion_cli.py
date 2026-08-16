@@ -121,6 +121,80 @@ class LockFanControllerFeatureCommand(CLIFeatureCommand):
         return 0
 
 
+class IntSetFeatureCommand(CLIFeatureCommand):
+    def __init__(self, name, feature_attr, parser_subcommands, model, cmd_group):
+        super().__init__(name, parser_subcommands, cmd_group, writeable=False)
+        self.feature_attr = feature_attr
+        self.model = model
+        set_parser = parser_subcommands.add_parser(
+            f"{name}-set", help=f'Set value for {name}')
+        set_parser.add_argument('value', type=int, help=f'Value for {name}')
+        set_parser.set_defaults(func=lambda l, *a, **kw: self.command_set_cli(**kw))
+
+    def _feature(self):
+        return getattr(self.model, self.feature_attr)
+
+    def exists(self) -> bool:
+        return self._feature().exists()
+
+    def command_status(self, **_) -> int:
+        print(self._feature().get())
+        return 0
+
+    def command_set_cli(self, value=None, **_) -> int:
+        if not self.check_if_exist():
+            return -10
+        self._feature().set(int(value))
+        return 0
+
+
+class CpuTauCommand(IntSetFeatureCommand):
+    def __init__(self, parser_subcommands, model, cmd_group):
+        super().__init__("cpu-tau", "cpu_l1_tau", parser_subcommands, model, cmd_group)
+
+
+class CpuTemperatureLimitCommand(IntSetFeatureCommand):
+    def __init__(self, parser_subcommands, model, cmd_group):
+        super().__init__("cpu-temp-limit", "cpu_temperature_limit", parser_subcommands, model, cmd_group)
+
+
+class GpuTotalProcCommand(IntSetFeatureCommand):
+    def __init__(self, parser_subcommands, model, cmd_group):
+        super().__init__("gpu-total-proc", "gpu_power_target_offset", parser_subcommands, model, cmd_group)
+
+
+class TDPCommand(CLIFeatureCommand):
+    def __init__(self, parser_subcommands, model, cmd_group):
+        super().__init__("tdp", parser_subcommands, cmd_group, writeable=False)
+        self.model = model
+        set_parser = parser_subcommands.add_parser(
+            "tdp-set", help="Set CPU PL1 and PL2 (PL2>=PL1 enforced)")
+        set_parser.add_argument("--pl1", type=int, required=True, help="Long term power limit [W]")
+        set_parser.add_argument("--pl2", type=int, required=True, help="Short term power limit [W]")
+        set_parser.set_defaults(func=lambda l, *a, **kw: self.command_set_cli(**kw))
+
+    def exists(self) -> bool:
+        return (self.model.cpu_longterm_power_limit.exists()
+                and self.model.cpu_shortterm_power_limit.exists())
+
+    def command_status(self, **_) -> int:
+        print(f"PL1={self.model.cpu_longterm_power_limit.get()} "
+              f"PL2={self.model.cpu_shortterm_power_limit.get()}")
+        return 0
+
+    def command_set_cli(self, pl1=None, pl2=None, **_) -> int:
+        if not self.check_if_exist():
+            return -10
+        pl1 = int(pl1)
+        pl2 = int(pl2)
+        if pl2 < pl1:
+            pl2 = pl1
+            print("PL2 raised to PL1 (PL2>=PL1 enforced)")
+        self.model.cpu_longterm_power_limit.set(pl1)
+        self.model.cpu_shortterm_power_limit.set(pl2)
+        return 0
+
+
 class MaximumFanSpeedFeatureCommand(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("maximumfanspeed", parser_subcommands, cmd_group)
@@ -481,6 +555,10 @@ def main():
     AlwaysOnUsbCharging(subcommands, None, cmd_group)
     RapidCharging(subcommands, None, cmd_group)
     HybridMode(subcommands, None, cmd_group)
+    CpuTauCommand(subcommands, None, cmd_group)
+    CpuTemperatureLimitCommand(subcommands, None, cmd_group)
+    GpuTotalProcCommand(subcommands, None, cmd_group)
+    TDPCommand(subcommands, None, cmd_group)
 
     # only add autocompletion if package is installed
     argcomplete.autocomplete(parser)

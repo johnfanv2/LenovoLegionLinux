@@ -4032,14 +4032,24 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 		pr_info("Writing fan2: %d; reading fan2: %d\n", point->speed2,
 			valr2);
 
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP
+		if (model->loq_83sc) {
+			/* 83SC (model_secn): temp thresholds are adjacent to the
+			 * fan-speed registers (EC mapping copied from model_r3cn). */
+			ecram_write(ecram, model->registers->EXT_FAN1_BASE + (i * struct_offset_ecramsys) - 1, point->cpu_max_temp_celsius);
+			ecram_write(ecram, model->registers->EXT_FAN1_BASE + (i * struct_offset_ecramsys) - 2, point->cpu_min_temp_celsius);
+			ecram_write(ecram, model->registers->EXT_FAN2_BASE + (i * struct_offset_ecramsys) - 1, point->gpu_max_temp_celsius);
+			ecram_write(ecram, model->registers->EXT_FAN2_BASE + (i * struct_offset_ecramsys) - 2, point->gpu_min_temp_celsius);
+		} else {
+			/* Other LOQ models: original behavior unchanged. */
+			ecram_write(ecram, model->registers->EXT_CPU_TEMP
 							+ (i * struct_offset_ecramsys), point->cpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST
+			ecram_write(ecram, model->registers->EXT_CPU_TEMP_HYST
 							+ (i * struct_offset_ecramsys), point->cpu_min_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP
+			ecram_write(ecram, model->registers->EXT_GPU_TEMP
 							+ (i * struct_offset_ecramsys), point->gpu_max_temp_celsius);
-		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST
+			ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST
 							+ (i * struct_offset_ecramsys), point->gpu_min_temp_celsius);
+		}
 
 		ecram_write(ecram, model->registers->EXT_VRM_TEMP
 							+ (i * struct_offset_ecramsys), point->ic_max_temp_celsius);

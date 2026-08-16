@@ -568,6 +568,9 @@ class LegionController:
     gpu_ctgp_power_limit_controller: IntFeatureController
     gpu_ppab_power_limit_controller: IntFeatureController
     gpu_temperature_limit_controller: IntFeatureController
+    cpu_l1_tau_controller: IntFeatureController
+    cpu_temperature_limit_controller: IntFeatureController
+    gpu_power_target_offset_controller: IntFeatureController
     # light
     ylogo_light_controller: BoolFeatureController
     ioport_light_controller: BoolFeatureController
@@ -686,6 +689,15 @@ class LegionController:
         self.gpu_temperature_limit_controller = IntFeatureController(
             self.view_otheroptions.gpu_temperature_limit_spinbox,
             self.model.gpu_temperature_limit)
+        self.cpu_l1_tau_controller = IntFeatureController(
+            self.view_otheroptions.cpu_l1_tau_spinbox,
+            self.model.cpu_l1_tau)
+        self.cpu_temperature_limit_controller = IntFeatureController(
+            self.view_otheroptions.cpu_temperature_limit_spinbox,
+            self.model.cpu_temperature_limit)
+        self.gpu_power_target_offset_controller = IntFeatureController(
+            self.view_otheroptions.gpu_power_target_offset_spinbox,
+            self.model.gpu_power_target_offset)
 
         # light
         self.ylogo_light_controller = BoolFeatureController(
@@ -829,8 +841,21 @@ class LegionController:
             update_bounds=update_bounds)
         self.gpu_temperature_limit_controller.update_view_from_feature(
             update_bounds=update_bounds)
+        self.cpu_l1_tau_controller.update_view_from_feature(
+            update_bounds=update_bounds)
+        self.cpu_temperature_limit_controller.update_view_from_feature(
+            update_bounds=update_bounds)
+        self.gpu_power_target_offset_controller.update_view_from_feature(
+            update_bounds=update_bounds)
 
     def power_gui_write_to_hw(self):
+        # enforce PL2 (short term) >= PL1 (long term)
+        pl1 = self.view_otheroptions.cpu_longterm_power_limit_spinbox.value()
+        pl2 = self.view_otheroptions.cpu_shortterm_power_limit_spinbox.value()
+        if pl2 < pl1:
+            self.view_otheroptions.cpu_shortterm_power_limit_spinbox.blockSignals(True)
+            self.view_otheroptions.cpu_shortterm_power_limit_spinbox.setValue(pl1)
+            self.view_otheroptions.cpu_shortterm_power_limit_spinbox.blockSignals(False)
         self.cpu_longterm_power_limit_controller.update_feature_from_view(
             False)
         self.cpu_shortterm_power_limit_controller.update_feature_from_view(
@@ -843,6 +868,9 @@ class LegionController:
         self.gpu_ctgp_power_limit_controller.update_feature_from_view(False)
         self.gpu_ppab_power_limit_controller.update_feature_from_view(False)
         self.gpu_temperature_limit_controller.update_feature_from_view(False)
+        self.cpu_l1_tau_controller.update_feature_from_view(False)
+        self.cpu_temperature_limit_controller.update_feature_from_view(False)
+        self.gpu_power_target_offset_controller.update_feature_from_view(False)
         self.update_power_gui()
 
     def update_fancurve_gui(self):
@@ -1315,14 +1343,38 @@ class OtherOptionsTab(QWidget):
         self.power_layout.addWidget(
             self.gpu_temperature_limit_spinbox, 10, 1)
 
+        self.cpu_l1_tau_spinbox_label = QLabel(
+            "CPU L1 Tau (PL1 sustain time) [s]")
+        self.cpu_l1_tau_spinbox = QSpinBox()
+        self.power_layout.addWidget(
+            self.cpu_l1_tau_spinbox_label, 11, 0)
+        self.power_layout.addWidget(
+            self.cpu_l1_tau_spinbox, 11, 1)
+
+        self.cpu_temperature_limit_spinbox_label = QLabel(
+            "CPU Temperature Limit [°C]")
+        self.cpu_temperature_limit_spinbox = QSpinBox()
+        self.power_layout.addWidget(
+            self.cpu_temperature_limit_spinbox_label, 12, 0)
+        self.power_layout.addWidget(
+            self.cpu_temperature_limit_spinbox, 12, 1)
+
+        self.gpu_power_target_offset_spinbox_label = QLabel(
+            "GPU Total Processing Power Target (offset) [W]")
+        self.gpu_power_target_offset_spinbox = QSpinBox()
+        self.power_layout.addWidget(
+            self.gpu_power_target_offset_spinbox_label, 13, 0)
+        self.power_layout.addWidget(
+            self.gpu_power_target_offset_spinbox, 13, 1)
+
         self.power_load_button = QPushButton("Read from HW")
         self.power_write_button = QPushButton("Apply to HW")
         self.power_load_button.clicked.connect(
             self.controller.update_power_gui)
         self.power_write_button.clicked.connect(
             self.controller.power_gui_write_to_hw)
-        self.power_layout.addWidget(self.power_load_button, 11, 0)
-        self.power_layout.addWidget(self.power_write_button, 11, 1)
+        self.power_layout.addWidget(self.power_load_button, 14, 0)
+        self.power_layout.addWidget(self.power_write_button, 14, 1)
 
         self.power_note_label = QLabel(
             "It is recommended to customize the power settings only in custom mode. Although "
