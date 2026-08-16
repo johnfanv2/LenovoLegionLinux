@@ -61,6 +61,7 @@
 
 #include <linux/acpi.h>
 #include <asm/io.h>
+#include <asm/msr.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/dmi.h>
@@ -249,6 +250,7 @@ struct model_config {
 	bool three_state_keyboard;
 	bool skip_ic_temp;
 	bool skip_oc_controls;
+	bool loq_83sc;
 	bool acpi_fanspeed_is_rpm;
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
@@ -934,6 +936,7 @@ static const struct model_config model_lpcn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
@@ -1372,6 +1375,7 @@ static const struct model_config model_secn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_EC3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0F00,
 	.ramio_size = 0x600,
@@ -1380,7 +1384,34 @@ static const struct model_config model_secn = {
 		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
 	},
 	.has_fancurve_defaults = true,
-	.skip_oc_controls = true
+	.skip_oc_controls = true,
+	.loq_83sc = true
+};
+
+static const struct model_config model_m3cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
+	},
+	.has_extreme_powermode = true
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -1630,7 +1661,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "M3CN"),
 		},
-		.driver_data = (void *)&model_lpcn
+		.driver_data = (void *)&model_m3cn
 	},
 	{
 		// e.g. Legion Y7000p-1060
@@ -4009,6 +4040,7 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 							+ (i * struct_offset_ecramsys), point->gpu_max_temp_celsius);
 		ecram_write(ecram, model->registers->EXT_GPU_TEMP_HYST
 							+ (i * struct_offset_ecramsys), point->gpu_min_temp_celsius);
+
 		ecram_write(ecram, model->registers->EXT_VRM_TEMP
 							+ (i * struct_offset_ecramsys), point->ic_max_temp_celsius);
 		ecram_write(ecram, model->registers->EXT_VRM_TEMP_HYST
@@ -4022,6 +4054,8 @@ static int ec_write_fancurve_loq(struct ecram *ecram,
 
 	return 0;
 }
+
+
 
 
 #define EC4_FANCURVE_SIZE 10
@@ -5367,6 +5401,145 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 	return count;
 }
 
+/* LOQ 83SC power limit constraints (from LLT Windows GUI) */
+#define LOQ_83SC_CPU_PL1_MIN_WATTS		25
+#define LOQ_83SC_CPU_PL1_MAX_WATTS		60
+#define LOQ_83SC_CPU_PL2_MIN_WATTS		40
+#define LOQ_83SC_CPU_PL2_MAX_WATTS		85
+#define LOQ_83SC_CPU_TAU_MIN_SECS		20
+#define LOQ_83SC_CPU_TAU_MAX_SECS		160
+#define LOQ_83SC_CPU_CROSSLOAD_MIN_WATTS	20
+#define LOQ_83SC_CPU_CROSSLOAD_MAX_WATTS	30
+#define LOQ_83SC_CPU_TEMP_MIN_CELSIUS	85
+#define LOQ_83SC_CPU_TEMP_MAX_CELSIUS	100
+#define LOQ_83SC_GPU_CTGP_MIN_WATTS		35
+#define LOQ_83SC_GPU_CTGP_MAX_WATTS		50
+#define LOQ_83SC_GPU_CTGP_STEP_WATTS	5
+#define LOQ_83SC_GPU_PPAB_MIN_WATTS		0
+#define LOQ_83SC_GPU_PPAB_MAX_WATTS		15
+#define LOQ_83SC_GPU_PPAB_STEP_WATTS	5
+#define LOQ_GPU_OFFSET_MIN_WATTS	10
+#define LOQ_GPU_OFFSET_MAX_WATTS	45
+#define LOQ_GPU_OFFSET_STEP_WATTS	5
+#define LOQ_83SC_GPU_TEMP_MIN_CELSIUS	75
+#define LOQ_83SC_GPU_TEMP_MAX_CELSIUS	87
+
+/**
+ * Intel RAPL MSR_PKG_POWER_LIMIT (0x610) field encodings.
+ * Power limits are encoded in 1/8-watt units; the time window uses a
+ * floating-point style mantissa (y = exponent, z = fraction/4) in bits [23:17].
+ */
+#define RAPL_POWER_LIMIT_MASK		0x7FFF	/* 15-bit power field (bits 14:0 / 46:32) */
+#define RAPL_POWER_UNIT			8	/* watts -> 1/8 W register units */
+#define RAPL_LIMIT_CLAMP_BIT		15	/* clamp-to-limit enable */
+#define RAPL_LIMIT_ENABLE_BIT		16	/* power-limit enable */
+#define RAPL_TAU_SCALE			1024	/* tau value scaling for encoding */
+#define RAPL_TAU_WINDOW_MASK		0x7F	/* tau window field bits [23:17] */
+#define RAPL_TAU_WINDOW_SHIFT		17
+#define RAPL_TAU_Y_MASK			0x1F
+#define RAPL_TAU_Y_SHIFT		17
+#define RAPL_TAU_Z_MASK			0x03
+#define RAPL_TAU_Z_SHIFT		22
+#define RAPL_TAU_FRAC_NUM		8
+#define RAPL_TAU_FRAC_DEN		2
+#define RAPL_TAU_MAX_EXP		31
+
+/**
+ * rapl_set_pl1_watts - Set PL1 via MSR 0x610
+ * @watts: Power limit in watts, or -1 to skip
+ */
+static int rapl_set_pl1_watts(int watts)
+{
+	u32 lo, hi;
+	int ret;
+
+	if (watts < 0)
+		return 0;
+
+	ret = rdmsr_safe(MSR_PKG_POWER_LIMIT, &lo, &hi);
+	if (ret)
+		return ret;
+
+	lo &= ~RAPL_POWER_LIMIT_MASK;
+	lo |= (watts * RAPL_POWER_UNIT) & RAPL_POWER_LIMIT_MASK;
+	lo |= BIT(RAPL_LIMIT_CLAMP_BIT); /* clamp */
+	lo |= BIT(RAPL_LIMIT_ENABLE_BIT); /* enable */
+
+	return wrmsr_safe(MSR_PKG_POWER_LIMIT, lo, hi);
+}
+
+/**
+ * rapl_set_pl2_watts - Set PL2 via MSR 0x610
+ * @watts: Power limit in watts, or -1 to skip
+ */
+static int rapl_set_pl2_watts(int watts)
+{
+	u32 lo, hi;
+	int ret;
+
+	if (watts < 0)
+		return 0;
+
+	ret = rdmsr_safe(MSR_PKG_POWER_LIMIT, &lo, &hi);
+	if (ret)
+		return ret;
+
+	hi &= ~RAPL_POWER_LIMIT_MASK;
+	hi |= (watts * RAPL_POWER_UNIT) & RAPL_POWER_LIMIT_MASK;
+	hi |= BIT(RAPL_LIMIT_CLAMP_BIT); /* clamp */
+	hi |= BIT(RAPL_LIMIT_ENABLE_BIT); /* enable */
+
+	return wrmsr_safe(MSR_PKG_POWER_LIMIT, lo, hi);
+}
+
+/**
+ * rapl_set_tau - Set PL1 time window via MSR 0x610
+ * @tau: Time window value (Lenovo TAU units), or -1 to skip
+ */
+static int rapl_set_tau(int tau)
+{
+	u32 lo, hi;
+	int ret;
+	u64 local0;
+	int exp, y, z;
+	u64 base;
+
+	if (tau < 0)
+		return 0;
+
+	ret = rdmsr_safe(MSR_PKG_POWER_LIMIT, &lo, &hi);
+	if (ret)
+		return ret;
+
+	/* Encode tau into RAPL time window Y/Z format */
+	local0 = (u64)tau * RAPL_TAU_SCALE;
+	exp = 0;
+	{
+		u64 tmp = local0;
+		while (tmp > 1 && exp < RAPL_TAU_MAX_EXP) {
+			tmp >>= 1;
+			exp++;
+		}
+	}
+	y = exp;
+	base = 1ULL << exp;
+	z = 0;
+	if (base > 0) {
+		u64 rem = local0 - base;
+		z = (int)((rem * RAPL_TAU_FRAC_NUM + base) /
+			 (RAPL_TAU_FRAC_DEN * base));
+		if (z > RAPL_TAU_Z_MASK) z = RAPL_TAU_Z_MASK;
+		if (z < 0) z = 0;
+	}
+
+	/* Clear and set PL1 time window bits [23:17] */
+	lo &= ~(RAPL_TAU_WINDOW_MASK << RAPL_TAU_WINDOW_SHIFT);
+	lo |= (y & RAPL_TAU_Y_MASK) << RAPL_TAU_Y_SHIFT;
+	lo |= (z & RAPL_TAU_Z_MASK) << RAPL_TAU_Z_SHIFT;
+
+	return wrmsr_safe(MSR_PKG_POWER_LIMIT, lo, hi);
+}
+
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
@@ -5389,15 +5562,68 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 					      struct device_attribute *attr,
 					      const char *buf, size_t count)
 {
+	int value, err, pl1;
+	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
 
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT, false, 1);
+	/* 83SC-specific clamp + coupled PL1, applied only on model_secn. */
+	if (priv->conf->loq_83sc) {
+		if (value < LOQ_83SC_CPU_PL2_MIN_WATTS)
+			value = LOQ_83SC_CPU_PL2_MIN_WATTS;
+		if (value > LOQ_83SC_CPU_PL2_MAX_WATTS)
+			value = LOQ_83SC_CPU_PL2_MAX_WATTS;
+
+		/* PL2 must not be lower than PL1. If PL1 > new PL2,
+		 * clamp PL1 down to match (matches Windows behavior).
+		 */
+		if (!wmi_other_method_get_value(
+			    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, &pl1)
+		    && pl1 > value) {
+			char pl1_buf[16];
+
+			snprintf(pl1_buf, sizeof(pl1_buf), "%d", value);
+			err = wmi_common_method_other_store(priv, pl1_buf,
+					strlen(pl1_buf),
+					OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+			if (err > 0) {
+				int rapl_err = rapl_set_pl1_watts(value);
+				if (rapl_err) {
+					dev_err(dev, "Failed to set PL1 via MSR 0x610: %d\n", rapl_err);
+					return rapl_err;
+				}
+			}
+		}
+	}
+
+	/* Other models keep their upstream access_method-based behavior. */
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		const char *wbuf = buf;
+		size_t wcount = count;
+
+		if (priv->conf->loq_83sc) {
+			snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+			wbuf = clamped_buf;
+			wcount = strlen(clamped_buf);
+		}
+		err = wmi_common_method_other_store(priv, wbuf, wcount,
+				OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		if (err > 0 && priv->conf->loq_83sc) {
+			int rapl_err = rapl_set_pl2_watts(value);
+			if (rapl_err) {
+				dev_err(dev, "Failed to set PL2 via MSR 0x610: %d\n", rapl_err);
+				return rapl_err;
+			}
+		}
+		return err > 0 ? count : err;
+	}
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_CPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_SHORTTERM_POWERLIMIT,
+					  false, 1);
 }
 
 static DEVICE_ATTR_RW(cpu_shortterm_powerlimit);
@@ -5424,15 +5650,68 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
+	int value, err, pl2;
+	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
 
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT, false, 1);
+	/* 83SC-specific clamp + coupled PL2, applied only on model_secn. */
+	if (priv->conf->loq_83sc) {
+		if (value < LOQ_83SC_CPU_PL1_MIN_WATTS)
+			value = LOQ_83SC_CPU_PL1_MIN_WATTS;
+		if (value > LOQ_83SC_CPU_PL1_MAX_WATTS)
+			value = LOQ_83SC_CPU_PL1_MAX_WATTS;
+
+		/* PL1 must not exceed PL2. If new PL1 > PL2,
+		 * also raise PL2 to match (matches Windows behavior).
+		 */
+		if (!wmi_other_method_get_value(
+			    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT, &pl2)
+		    && value > pl2) {
+			char pl2_buf[16];
+
+			snprintf(pl2_buf, sizeof(pl2_buf), "%d", value);
+			err = wmi_common_method_other_store(priv, pl2_buf,
+					strlen(pl2_buf),
+					OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+			if (err > 0) {
+				int rapl_err = rapl_set_pl2_watts(value);
+				if (rapl_err) {
+					dev_err(dev, "Failed to set PL2 via MSR 0x610: %d\n", rapl_err);
+					return rapl_err;
+				}
+			}
+		}
+	}
+
+	/* Other models keep their upstream access_method-based behavior. */
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		const char *wbuf = buf;
+		size_t wcount = count;
+
+		if (priv->conf->loq_83sc) {
+			snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		}
+		err = wmi_common_method_other_store(priv,
+				priv->conf->loq_83sc ? clamped_buf : buf,
+				priv->conf->loq_83sc ? strlen(clamped_buf) : count,
+				OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		if (err > 0 && priv->conf->loq_83sc) {
+			int rapl_err = rapl_set_pl1_watts(value);
+			if (rapl_err) {
+				dev_err(dev, "Failed to set PL1 via MSR 0x610: %d\n", rapl_err);
+				return rapl_err;
+			}
+		}
+		return err > 0 ? count : err;
+	}
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_CPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_LONGTERM_POWERLIMIT,
+					  false, 1);
 }
 
 static DEVICE_ATTR_RW(cpu_longterm_powerlimit);
@@ -5536,15 +5815,35 @@ static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
 						  struct device_attribute *attr,
 						  const char *buf, size_t count)
 {
+	int value, err;
+	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+
+	/* 83SC-specific clamp, applied only on model_secn. */
+	if (priv->conf->loq_83sc) {
+		if (value < LOQ_83SC_CPU_CROSSLOAD_MIN_WATTS)
+			value = LOQ_83SC_CPU_CROSSLOAD_MIN_WATTS;
+		if (value > LOQ_83SC_CPU_CROSSLOAD_MAX_WATTS)
+			value = LOQ_83SC_CPU_CROSSLOAD_MAX_WATTS;
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						     strlen(clamped_buf),
+						     OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
+		return err > 0 ? count : err;
+	}
+
+	/* Other models keep their upstream access_method-based behavior. */
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
-
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT, false, 1);
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_CPU_SET_CROSS_LOADING_POWERLIMIT,
+					  false, 1);
 }
 
 static DEVICE_ATTR_RW(cpu_cross_loading_powerlimit);
@@ -5570,12 +5869,36 @@ static ssize_t gpu_oc_show(struct device *dev, struct device_attribute *attr,
 static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
+	int value, err;
+	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+
+	/* 83SC-specific clamp + step snap, applied only on model_secn. */
+	if (priv->conf->loq_83sc) {
+		/* Clamp to valid range */
+		if (value < LOQ_83SC_GPU_PPAB_MIN_WATTS)
+			value = LOQ_83SC_GPU_PPAB_MIN_WATTS;
+		if (value > LOQ_83SC_GPU_PPAB_MAX_WATTS)
+			value = LOQ_83SC_GPU_PPAB_MAX_WATTS;
+		/* Snap to nearest step (e.g. 3 -> 5, 7 -> 5) */
+		value = LOQ_83SC_GPU_PPAB_MIN_WATTS +
+			((value - LOQ_83SC_GPU_PPAB_MIN_WATTS + LOQ_83SC_GPU_PPAB_STEP_WATTS / 2) /
+			 LOQ_83SC_GPU_PPAB_STEP_WATTS) * LOQ_83SC_GPU_PPAB_STEP_WATTS;
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						     strlen(clamped_buf),
+						     OtherMethodFeature_GPU_POWER_BOOST);
+		return err > 0 ? count : err;
+	}
+
+	/* Other models keep their upstream access_method-based behavior. */
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_GPU_POWER_BOOST);
-
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_OC_STATUS,
@@ -5600,20 +5923,32 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 }
 
 static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
-					 struct device_attribute *attr,
-					 const char *buf, size_t count)
+						 struct device_attribute *attr,
+						 const char *buf, size_t count)
 {
+	int value, err;
+	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+	if (priv->conf->loq_83sc && priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		err = kstrtoint(buf, 0, &value);
+		if (err)
+			return err;
+		if (value < LOQ_GPU_OFFSET_MIN_WATTS)
+			value = LOQ_GPU_OFFSET_MIN_WATTS;
+		if (value > LOQ_GPU_OFFSET_MAX_WATTS)
+			value = LOQ_GPU_OFFSET_MAX_WATTS;
+		value = LOQ_GPU_OFFSET_MIN_WATTS + ((value - LOQ_GPU_OFFSET_MIN_WATTS + LOQ_GPU_OFFSET_STEP_WATTS / 2) / LOQ_GPU_OFFSET_STEP_WATTS) * LOQ_GPU_OFFSET_STEP_WATTS;
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		return wmi_common_method_other_store(priv, clamped_buf, strlen(clamped_buf), OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+	}
 
-	return store_simple_wmi_attribute(dev, attr, buf, count,
-					  WMI_GUID_LENOVO_GPU_METHOD, 0,
-					  WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT,
-					  false, 1);
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_store(priv, buf, count, OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+
+	return store_simple_wmi_attribute(dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0, WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT, false, 1);
 }
+
 
 static DEVICE_ATTR_RW(gpu_ppab_powerlimit);
 
@@ -5639,12 +5974,36 @@ static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
+	int value, err;
+	char clamped_buf[16];
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+
+	/* 83SC-specific clamp + step snap, applied only on model_secn. */
+	if (priv->conf->loq_83sc) {
+		/* Clamp to valid range */
+		if (value < LOQ_83SC_GPU_CTGP_MIN_WATTS)
+			value = LOQ_83SC_GPU_CTGP_MIN_WATTS;
+		if (value > LOQ_83SC_GPU_CTGP_MAX_WATTS)
+			value = LOQ_83SC_GPU_CTGP_MAX_WATTS;
+		/* Snap to nearest step (e.g. 37 -> 35, 38 -> 40) */
+		value = LOQ_83SC_GPU_CTGP_MIN_WATTS +
+			((value - LOQ_83SC_GPU_CTGP_MIN_WATTS + LOQ_83SC_GPU_CTGP_STEP_WATTS / 2) /
+			 LOQ_83SC_GPU_CTGP_STEP_WATTS) * LOQ_83SC_GPU_CTGP_STEP_WATTS;
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						     strlen(clamped_buf),
+						     OtherMethodFeature_GPU_cTGP);
+		return err > 0 ? count : err;
+	}
+
+	/* Other models keep their upstream access_method-based behavior. */
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_GPU_cTGP);
-
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_CTGP_POWERLIMIT,
@@ -5697,9 +6056,32 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	int value, err;
+	char clamped_buf[16];
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+
+	/* 83SC-specific clamp, applied only on model_secn. */
+	if (priv->conf->loq_83sc) {
+		if (value < LOQ_83SC_GPU_TEMP_MIN_CELSIUS)
+			value = LOQ_83SC_GPU_TEMP_MIN_CELSIUS;
+		if (value > LOQ_83SC_GPU_TEMP_MAX_CELSIUS)
+			value = LOQ_83SC_GPU_TEMP_MAX_CELSIUS;
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						     strlen(clamped_buf),
+						     OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
+		return err > 0 ? count : err;
+	}
+
+	/* Other models keep their upstream behavior. */
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT,
+					  false, 1);
 }
 
 static ssize_t cpu_temperature_limit_show(struct device *dev,
@@ -5722,8 +6104,26 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
-	return -EINVAL;
+	int value, err;
+	char clamped_buf[16];
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	/* Unsupported on other models; matches upstream stub. */
+	if (!priv->conf->loq_83sc)
+		return -EINVAL;
+
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+	if (value < LOQ_83SC_CPU_TEMP_MIN_CELSIUS)
+		value = LOQ_83SC_CPU_TEMP_MIN_CELSIUS;
+	if (value > LOQ_83SC_CPU_TEMP_MAX_CELSIUS)
+		value = LOQ_83SC_CPU_TEMP_MAX_CELSIUS;
+	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+	err = wmi_common_method_other_store(priv, clamped_buf,
+					     strlen(clamped_buf),
+					     OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+	return err > 0 ? count : err;
 }
 
 static ssize_t cpu_l1_tau_show(struct device *dev,
@@ -5746,8 +6146,32 @@ static ssize_t cpu_l1_tau_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
-	return -EINVAL;
+	int value, err;
+	char clamped_buf[16];
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->loq_83sc)
+		return -EINVAL; /* unsupported on other models; 83SC implements below (upstream stub) */
+
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+	if (value < LOQ_83SC_CPU_TAU_MIN_SECS)
+		value = LOQ_83SC_CPU_TAU_MIN_SECS;
+	if (value > LOQ_83SC_CPU_TAU_MAX_SECS)
+		value = LOQ_83SC_CPU_TAU_MAX_SECS;
+	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+	err = wmi_common_method_other_store(priv, clamped_buf,
+					     strlen(clamped_buf),
+					     OtherMethodFeature_CPU_L1_TAU);
+	if (err > 0) {
+		int rapl_err = rapl_set_tau(value);
+		if (rapl_err) {
+			dev_err(dev, "Failed to set TAU via MSR 0x610: %d\n", rapl_err);
+			return rapl_err;
+		}
+	}
+	return err > 0 ? count : err;
 }
 
 static ssize_t gpu_power_target_offset_show(struct device *dev,
@@ -5770,8 +6194,29 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
-	return -EINVAL;
+	int value, err;
+	char clamped_buf[16];
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!priv->conf->loq_83sc)
+		return -EINVAL; /* unsupported on other models; 83SC implements below (upstream stub) */
+
+	err = kstrtoint(buf, 0, &value);
+	if (err)
+		return err;
+	/* Clamp to valid range */
+	if (value < LOQ_GPU_OFFSET_MIN_WATTS)
+		value = LOQ_GPU_OFFSET_MIN_WATTS;
+	if (value > LOQ_GPU_OFFSET_MAX_WATTS)
+		value = LOQ_GPU_OFFSET_MAX_WATTS;
+	/* Snap to nearest step (e.g. 12 -> 10, 13 -> 15) */
+	value = LOQ_GPU_OFFSET_MIN_WATTS +
+		((value - LOQ_GPU_OFFSET_MIN_WATTS + LOQ_GPU_OFFSET_STEP_WATTS / 2) /
+		 LOQ_GPU_OFFSET_STEP_WATTS) * LOQ_GPU_OFFSET_STEP_WATTS;
+	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+	return wmi_common_method_other_store(priv, clamped_buf,
+					     strlen(clamped_buf),
+					     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
 }
 
 static DEVICE_ATTR_RW(gpu_temperature_limit);
@@ -5999,20 +6444,23 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	    priv->conf->access_method_fanfullspeed == ACCESS_METHOD_NO_ACCESS)
 		return 0;
 
-	if (priv->conf->skip_oc_controls &&
+	if (priv->conf->skip_oc_controls && !priv->conf->loq_83sc &&
 	    (attr == &dev_attr_cpu_oc.attr ||
 	     attr == &dev_attr_gpu_oc.attr ||
+	     attr == &dev_attr_cpu_l1_tau.attr ||
 	     attr == &dev_attr_cpu_shortterm_powerlimit.attr ||
 	     attr == &dev_attr_cpu_longterm_powerlimit.attr ||
 	     attr == &dev_attr_cpu_peak_powerlimit.attr ||
 	     attr == &dev_attr_cpu_default_powerlimit.attr ||
 	     attr == &dev_attr_cpu_apu_sppt_powerlimit.attr ||
 	     attr == &dev_attr_cpu_cross_loading_powerlimit.attr ||
+	     attr == &dev_attr_cpu_temperature_limit.attr ||
 	     attr == &dev_attr_gpu_ppab_powerlimit.attr ||
 	     attr == &dev_attr_gpu_ctgp_powerlimit.attr ||
 	     attr == &dev_attr_gpu_ctgp2_powerlimit.attr ||
 	     attr == &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr ||
 	     attr == &dev_attr_gpu_temperature_limit.attr ||
+	     attr == &dev_attr_gpu_power_target_offset.attr ||
 	     attr == &dev_attr_gpu_boost_clock.attr))
 		return 0;
 
@@ -6338,8 +6786,9 @@ static int legion_platform_profile_init(struct legion_private *priv)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	struct device *dev = &priv->platform_device->dev;
-#endif
+#else
 	int err;
+#endif
 
 	if (!enable_platformprofile) {
 		pr_info("Skipping creating platform profile support because enable_platformprofile is false\n");
@@ -7686,7 +8135,9 @@ err_ecram_id:
 err_ecram_init:
 	ecram_memoryio_exit(&priv->ec_memoryio);
 err_ecram_memoryio_init:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 err_acpi_init:
+#endif
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:
