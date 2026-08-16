@@ -6322,8 +6322,9 @@ static int legion_platform_profile_init(struct legion_private *priv)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	struct device *dev = &priv->platform_device->dev;
-#endif
+#else
 	int err;
+#endif
 
 	if (!enable_platformprofile) {
 		pr_info("Skipping creating platform profile support because enable_platformprofile is false\n");
@@ -7670,7 +7671,9 @@ err_ecram_id:
 err_ecram_init:
 	ecram_memoryio_exit(&priv->ec_memoryio);
 err_ecram_memoryio_init:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 err_acpi_init:
+#endif
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:
