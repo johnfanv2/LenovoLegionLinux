@@ -5418,9 +5418,9 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 #define LOQ_83SC_GPU_PPAB_MIN_WATTS		0
 #define LOQ_83SC_GPU_PPAB_MAX_WATTS		15
 #define LOQ_83SC_GPU_PPAB_STEP_WATTS	5
-#define LOQ_GPU_OFFSET_MIN_WATTS	10
-#define LOQ_GPU_OFFSET_MAX_WATTS	45
-#define LOQ_GPU_OFFSET_STEP_WATTS	5
+#define LOQ_83SC_GPU_OFFSET_MIN_WATTS	10
+#define LOQ_83SC_GPU_OFFSET_MAX_WATTS	45
+#define LOQ_83SC_GPU_OFFSET_STEP_WATTS	5
 #define LOQ_83SC_GPU_TEMP_MIN_CELSIUS	75
 #define LOQ_83SC_GPU_TEMP_MAX_CELSIUS	87
 
@@ -5694,10 +5694,10 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 
 		if (priv->conf->loq_83sc) {
 			snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+			wbuf = clamped_buf;
+			wcount = strlen(clamped_buf);
 		}
-		err = wmi_common_method_other_store(priv,
-				priv->conf->loq_83sc ? clamped_buf : buf,
-				priv->conf->loq_83sc ? strlen(clamped_buf) : count,
+		err = wmi_common_method_other_store(priv, wbuf, wcount,
 				OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
 		if (err > 0 && priv->conf->loq_83sc) {
 			int rapl_err = rapl_set_pl1_watts(value);
@@ -5888,6 +5888,12 @@ static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 		value = LOQ_83SC_GPU_PPAB_MIN_WATTS +
 			((value - LOQ_83SC_GPU_PPAB_MIN_WATTS + LOQ_83SC_GPU_PPAB_STEP_WATTS / 2) /
 			 LOQ_83SC_GPU_PPAB_STEP_WATTS) * LOQ_83SC_GPU_PPAB_STEP_WATTS;
+		/* 83SC GPU writes only take effect in Custom power mode. */
+		{
+			int cur_pm;
+			if (read_powermode(priv, &cur_pm) != 0 || cur_pm != 255)
+				return -EINVAL;
+		}
 		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
 		err = wmi_common_method_other_store(priv, clamped_buf,
 						     strlen(clamped_buf),
@@ -5906,51 +5912,6 @@ static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 }
 
 static DEVICE_ATTR_RW(gpu_oc);
-
-static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
-{
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_show(priv, buf,
-						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
-
-	return show_simple_wmi_attribute_from_buffer(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT, 16, 0, 1);
-}
-
-static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
-						 struct device_attribute *attr,
-						 const char *buf, size_t count)
-{
-	int value, err;
-	char clamped_buf[16];
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->loq_83sc && priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
-		err = kstrtoint(buf, 0, &value);
-		if (err)
-			return err;
-		if (value < LOQ_GPU_OFFSET_MIN_WATTS)
-			value = LOQ_GPU_OFFSET_MIN_WATTS;
-		if (value > LOQ_GPU_OFFSET_MAX_WATTS)
-			value = LOQ_GPU_OFFSET_MAX_WATTS;
-		value = LOQ_GPU_OFFSET_MIN_WATTS + ((value - LOQ_GPU_OFFSET_MIN_WATTS + LOQ_GPU_OFFSET_STEP_WATTS / 2) / LOQ_GPU_OFFSET_STEP_WATTS) * LOQ_GPU_OFFSET_STEP_WATTS;
-		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-		return wmi_common_method_other_store(priv, clamped_buf, strlen(clamped_buf), OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
-	}
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count, OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
-
-	return store_simple_wmi_attribute(dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0, WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT, false, 1);
-}
-
-
-static DEVICE_ATTR_RW(gpu_ppab_powerlimit);
 
 static ssize_t gpu_ctgp_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
@@ -5993,6 +5954,12 @@ static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 		value = LOQ_83SC_GPU_CTGP_MIN_WATTS +
 			((value - LOQ_83SC_GPU_CTGP_MIN_WATTS + LOQ_83SC_GPU_CTGP_STEP_WATTS / 2) /
 			 LOQ_83SC_GPU_CTGP_STEP_WATTS) * LOQ_83SC_GPU_CTGP_STEP_WATTS;
+		/* 83SC GPU writes only take effect in Custom power mode. */
+		{
+			int cur_pm;
+			if (read_powermode(priv, &cur_pm) != 0 || cur_pm != 255)
+				return -EINVAL;
+		}
 		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
 		err = wmi_common_method_other_store(priv, clamped_buf,
 						     strlen(clamped_buf),
@@ -6070,6 +6037,12 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 			value = LOQ_83SC_GPU_TEMP_MIN_CELSIUS;
 		if (value > LOQ_83SC_GPU_TEMP_MAX_CELSIUS)
 			value = LOQ_83SC_GPU_TEMP_MAX_CELSIUS;
+		/* 83SC GPU writes only take effect in Custom power mode. */
+		{
+			int cur_pm;
+			if (read_powermode(priv, &cur_pm) != 0 || cur_pm != 255)
+				return -EINVAL;
+		}
 		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
 		err = wmi_common_method_other_store(priv, clamped_buf,
 						     strlen(clamped_buf),
@@ -6207,14 +6180,20 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 	if (err)
 		return err;
 	/* Clamp to valid range */
-	if (value < LOQ_GPU_OFFSET_MIN_WATTS)
-		value = LOQ_GPU_OFFSET_MIN_WATTS;
-	if (value > LOQ_GPU_OFFSET_MAX_WATTS)
-		value = LOQ_GPU_OFFSET_MAX_WATTS;
+	if (value < LOQ_83SC_GPU_OFFSET_MIN_WATTS)
+		value = LOQ_83SC_GPU_OFFSET_MIN_WATTS;
+	if (value > LOQ_83SC_GPU_OFFSET_MAX_WATTS)
+		value = LOQ_83SC_GPU_OFFSET_MAX_WATTS;
 	/* Snap to nearest step (e.g. 12 -> 10, 13 -> 15) */
-	value = LOQ_GPU_OFFSET_MIN_WATTS +
-		((value - LOQ_GPU_OFFSET_MIN_WATTS + LOQ_GPU_OFFSET_STEP_WATTS / 2) /
-		 LOQ_GPU_OFFSET_STEP_WATTS) * LOQ_GPU_OFFSET_STEP_WATTS;
+	value = LOQ_83SC_GPU_OFFSET_MIN_WATTS +
+		((value - LOQ_83SC_GPU_OFFSET_MIN_WATTS + LOQ_83SC_GPU_OFFSET_STEP_WATTS / 2) /
+		 LOQ_83SC_GPU_OFFSET_STEP_WATTS) * LOQ_83SC_GPU_OFFSET_STEP_WATTS;
+	/* 83SC GPU writes only take effect in Custom power mode. */
+	{
+		int cur_pm;
+		if (read_powermode(priv, &cur_pm) != 0 || cur_pm != 255)
+			return -EINVAL;
+	}
 	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
 	err = wmi_common_method_other_store(priv, clamped_buf,
 					    strlen(clamped_buf),
@@ -6226,6 +6205,39 @@ static DEVICE_ATTR_RW(gpu_temperature_limit);
 static DEVICE_ATTR_RW(cpu_temperature_limit);
 static DEVICE_ATTR_RW(cpu_l1_tau);
 static DEVICE_ATTR_RW(gpu_power_target_offset);
+
+static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_show(priv, buf,
+						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+
+	return show_simple_wmi_attribute_from_buffer(
+		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+		WMI_METHOD_ID_GPU_GET_PPAB_POWERLIMIT, 16, 0, 1);
+}
+
+static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+
+	return store_simple_wmi_attribute(dev, attr, buf, count,
+					  WMI_GUID_LENOVO_GPU_METHOD, 0,
+					  WMI_METHOD_ID_GPU_SET_PPAB_POWERLIMIT,
+					  false, 1);
+}
+
+static DEVICE_ATTR_RW(gpu_ppab_powerlimit);
 
 // TOOD: probably remove again because provided by other means; only useful for overclocking
 static ssize_t gpu_boost_clock_show(struct device *dev,
@@ -6450,20 +6462,17 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	if (priv->conf->skip_oc_controls && !priv->conf->loq_83sc &&
 	    (attr == &dev_attr_cpu_oc.attr ||
 	     attr == &dev_attr_gpu_oc.attr ||
-	     attr == &dev_attr_cpu_l1_tau.attr ||
 	     attr == &dev_attr_cpu_shortterm_powerlimit.attr ||
 	     attr == &dev_attr_cpu_longterm_powerlimit.attr ||
 	     attr == &dev_attr_cpu_peak_powerlimit.attr ||
 	     attr == &dev_attr_cpu_default_powerlimit.attr ||
 	     attr == &dev_attr_cpu_apu_sppt_powerlimit.attr ||
 	     attr == &dev_attr_cpu_cross_loading_powerlimit.attr ||
-	     attr == &dev_attr_cpu_temperature_limit.attr ||
 	     attr == &dev_attr_gpu_ppab_powerlimit.attr ||
 	     attr == &dev_attr_gpu_ctgp_powerlimit.attr ||
 	     attr == &dev_attr_gpu_ctgp2_powerlimit.attr ||
 	     attr == &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr ||
 	     attr == &dev_attr_gpu_temperature_limit.attr ||
-	     attr == &dev_attr_gpu_power_target_offset.attr ||
 	     attr == &dev_attr_gpu_boost_clock.attr))
 		return 0;
 
