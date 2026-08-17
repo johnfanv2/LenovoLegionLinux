@@ -38,54 +38,44 @@ install_forcereload:
 	make forcereloadmodule
 	bash -c "./issue-warning.sh"
 
+# insmod does not resolve module dependencies (wmi, platform_profile,
+# led-class, ... vary per kernel) - load them explicitly before inserting.
+define load_deps
+	@for m in $$(modinfo -F depends legion-laptop.ko 2>/dev/null | tr ',' ' '); do modprobe $$m 2>/dev/null || true; done
+endef
+
 reloadmodule:
 	rmmod legion_laptop 2>/dev/null || true
-	# insmod does not resolve dependencies; load them first
-	@echo "=== probe: x86 modules ==="
-	@ls /lib/modules/$(shell uname -r)/kernel/drivers/platform/x86/ 2>/dev/null | grep -iE "wmi|platform_profile" || echo "MISSING wmi/platform_profile .ko"
-	@modprobe -v wmi || true
-	@modprobe -v platform_profile || true
-	@echo "=== probe: depends ==="
-	@modinfo legion-laptop.ko | grep -E "^(depends|vermagic):" || true
-	@echo "=== probe: undefined ==="
-	@nm -u legion-laptop.ko | head -40 || true
-	insmod legion-laptop.ko || (echo "=== probe: dmesg ==="; dmesg | tail -15; exit 1)
+	$(load_deps)
+	insmod legion-laptop.ko || { dmesg | tail -15; exit 1; }
 	dmesg
 	bash -c "./issue-warning.sh"
 
 forcereloadmodule:
 	rmmod legion_laptop 2>/dev/null || true
-	# insmod does not resolve dependencies; load them first
-	modprobe wmi 2>/dev/null || true
-	modprobe platform_profile 2>/dev/null || true
-	insmod legion-laptop.ko force=1
+	$(load_deps)
+	insmod legion-laptop.ko force=1 || { dmesg | tail -15; exit 1; }
 	dmesg
 	bash -c "./issue-warning.sh"
 
 forcereloadmodulereadonly:
 	rmmod legion_laptop 2>/dev/null || true
-	# insmod does not resolve dependencies; load them first
-	modprobe wmi 2>/dev/null || true
-	modprobe platform_profile 2>/dev/null || true
-	insmod legion-laptop.ko force=1 ec_readonly=1
+	$(load_deps)
+	insmod legion-laptop.ko force=1 ec_readonly=1 || { dmesg | tail -15; exit 1; }
 	dmesg
 	bash -c "./issue-warning.sh"
 
 reloadmodule_disableplatformprofile:
 	rmmod legion_laptop 2>/dev/null || true
-	# insmod does not resolve dependencies; load them first
-	modprobe wmi 2>/dev/null || true
-	modprobe platform_profile 2>/dev/null || true
-	insmod legion-laptop.ko enable_platformprofile=0
+	$(load_deps)
+	insmod legion-laptop.ko enable_platformprofile=0 || { dmesg | tail -15; exit 1; }
 	dmesg
 	bash -c "./issue-warning.sh"
 
 forcereloadmodule_disableplatformprofile:
 	rmmod legion_laptop 2>/dev/null || true
-	# insmod does not resolve dependencies; load them first
-	modprobe wmi 2>/dev/null || true
-	modprobe platform_profile 2>/dev/null || true
-	insmod legion-laptop.ko force=1 enable_platformprofile=0
+	$(load_deps)
+	insmod legion-laptop.ko force=1 enable_platformprofile=0 || { dmesg | tail -15; exit 1; }
 	dmesg
 	bash -c "./issue-warning.sh"
 
