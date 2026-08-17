@@ -48,35 +48,35 @@ reloadmodule:
 	rmmod legion_laptop 2>/dev/null || true
 	$(load_deps)
 	insmod legion-laptop.ko || { dmesg | tail -15; exit 1; }
-	dmesg
+	@dmesg | grep -i legion | tail -5 || true
 	bash -c "./issue-warning.sh"
 
 forcereloadmodule:
 	rmmod legion_laptop 2>/dev/null || true
 	$(load_deps)
 	insmod legion-laptop.ko force=1 || { dmesg | tail -15; exit 1; }
-	dmesg
+	@dmesg | grep -i legion | tail -5 || true
 	bash -c "./issue-warning.sh"
 
 forcereloadmodulereadonly:
 	rmmod legion_laptop 2>/dev/null || true
 	$(load_deps)
 	insmod legion-laptop.ko force=1 ec_readonly=1 || { dmesg | tail -15; exit 1; }
-	dmesg
+	@dmesg | grep -i legion | tail -5 || true
 	bash -c "./issue-warning.sh"
 
 reloadmodule_disableplatformprofile:
 	rmmod legion_laptop 2>/dev/null || true
 	$(load_deps)
 	insmod legion-laptop.ko enable_platformprofile=0 || { dmesg | tail -15; exit 1; }
-	dmesg
+	@dmesg | grep -i legion | tail -5 || true
 	bash -c "./issue-warning.sh"
 
 forcereloadmodule_disableplatformprofile:
 	rmmod legion_laptop 2>/dev/null || true
 	$(load_deps)
 	insmod legion-laptop.ko force=1 enable_platformprofile=0 || { dmesg | tail -15; exit 1; }
-	dmesg
+	@dmesg | grep -i legion | tail -5 || true
 	bash -c "./issue-warning.sh"
 
 dkms: all
