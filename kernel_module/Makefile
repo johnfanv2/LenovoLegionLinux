@@ -45,7 +45,11 @@ reloadmodule:
 	@ls /lib/modules/$(shell uname -r)/kernel/drivers/platform/x86/ 2>/dev/null | grep -iE "wmi|platform_profile" || echo "MISSING wmi/platform_profile .ko"
 	@modprobe -v wmi || true
 	@modprobe -v platform_profile || true
-	insmod legion-laptop.ko
+	@echo "=== probe: depends ==="
+	@modinfo legion-laptop.ko | grep -E "^(depends|vermagic):" || true
+	@echo "=== probe: undefined ==="
+	@nm -u legion-laptop.ko | head -40 || true
+	insmod legion-laptop.ko || (echo "=== probe: dmesg ==="; dmesg | tail -15; exit 1)
 	dmesg
 	bash -c "./issue-warning.sh"
 
