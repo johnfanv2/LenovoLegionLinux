@@ -41,8 +41,10 @@ install_forcereload:
 reloadmodule:
 	rmmod legion_laptop 2>/dev/null || true
 	# insmod does not resolve dependencies; load them first
-	modprobe wmi 2>/dev/null || true
-	modprobe platform_profile 2>/dev/null || true
+	@echo "=== probe: x86 modules ==="
+	@ls /lib/modules/$(shell uname -r)/kernel/drivers/platform/x86/ 2>/dev/null | grep -iE "wmi|platform_profile" || echo "MISSING wmi/platform_profile .ko"
+	@modprobe -v wmi || true
+	@modprobe -v platform_profile || true
 	insmod legion-laptop.ko
 	dmesg
 	bash -c "./issue-warning.sh"
