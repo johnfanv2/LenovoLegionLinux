@@ -934,6 +934,7 @@ static const struct model_config model_lpcn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
@@ -1357,6 +1358,32 @@ static const struct model_config model_s2cn = {
 	.has_fancurve_defaults = true
 };
 
+static const struct model_config model_m3cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
+	},
+	.has_extreme_powermode = true
+};
+
 static const struct model_config model_secn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
@@ -1630,7 +1657,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "M3CN"),
 		},
-		.driver_data = (void *)&model_lpcn
+		.driver_data = (void *)&model_m3cn
 	},
 	{
 		// e.g. Legion Y7000p-1060
@@ -5351,6 +5378,10 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 					     const char *buf, size_t count,
 					     int feature_id)
 {
+	// TODO:  use DEV, TYP, FEA, plus Powermode as key to lookup
+	// on capability data CD0, CD1 for :
+	//  - if feature is enabled for laptop model
+	//  - if value (DAT1) is valid (on/off, exact value, step, range)
 	int err, value, output;
 
 	err = kstrtoint(buf, 0, &value);
@@ -5553,29 +5584,17 @@ static ssize_t gpu_oc_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
 	int err;
-	struct legion_private *priv = dev_get_drvdata(dev);
 
-	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3:
-		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_GPU_POWER_BOOST);
-	default:
-		err = show_simple_wmi_attribute(dev, attr, buf,
-						WMI_GUID_LENOVO_GPU_METHOD, 0,
-						WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
-						1);
-	}
+	err = show_simple_wmi_attribute(dev, attr, buf,
+					WMI_GUID_LENOVO_GPU_METHOD, 0,
+					WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
+					1);
 	return err;
 }
 
 static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_POWER_BOOST);
-
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_OC_STATUS,
@@ -5592,7 +5611,7 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_show(priv, buf,
-						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+						    OtherMethodFeature_GPU_POWER_BOOST);
 
 	return show_simple_wmi_attribute_from_buffer(
 		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
@@ -5607,7 +5626,7 @@ static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+						     OtherMethodFeature_GPU_POWER_BOOST);
 
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
@@ -6338,8 +6357,9 @@ static int legion_platform_profile_init(struct legion_private *priv)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	struct device *dev = &priv->platform_device->dev;
-#endif
+#else
 	int err;
+#endif
 
 	if (!enable_platformprofile) {
 		pr_info("Skipping creating platform profile support because enable_platformprofile is false\n");
@@ -7686,7 +7706,9 @@ err_ecram_id:
 err_ecram_init:
 	ecram_memoryio_exit(&priv->ec_memoryio);
 err_ecram_memoryio_init:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 err_acpi_init:
+#endif
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:

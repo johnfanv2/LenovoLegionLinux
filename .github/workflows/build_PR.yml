@@ -79,32 +79,6 @@ jobs:
         run: ./deploy/python_install_pip_pkg.sh
         shell: bash
 
-  check-kernel-module-change:
-    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
-    runs-on: ubuntu-24.04
-    outputs:
-      output1: ${{ steps.filter.outputs.workflows }}
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dorny/paths-filter@v3
-      id: filter
-      with:
-        filters: |
-          workflows:
-            - 'kernel_module/*'
-
-  release-kernel-patch:
-    needs: [check-kernel-module-change]
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Build kernel patch
-      if: steps.check-kernel-module-change.workflows == 'true'
-      run: ./deploy/build_kernelpatch.sh
-      shell: bash
-
   test-in-docker-container:
     needs: [build, run-tests]
     runs-on: ubuntu-24.04
