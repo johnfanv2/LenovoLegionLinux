@@ -255,6 +255,8 @@ struct model_config {
 	bool has_four_fans;
 	bool skip_ylogo_light;
 	bool skip_ioport_light;
+	// EC register holding the Y-Logo light state; 0 = not available
+	u16 ec_ylogo_register;
 
 	bool acpi_check_dev;
 
@@ -529,6 +531,42 @@ static const struct model_config model_v0 = {
 		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
 		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
 		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC"
+	}
+};
+
+static const struct model_config model_efcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	// Keyboard backlight on EFCN is handled by the mainline
+	// ideapad-laptop driver through the VPC2004 device. The WMI
+	// backlight GUID (8C5B9127-...) does not exist on this firmware
+	// and the legacy GameZone methods 36/37 are not wired to the
+	// physical light, so disable the LED here to avoid a failing
+	// probe attempt at load time.
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600,
+	// Y-Logo state register, reverse engineered on EFCN59WW: EC
+	// value 0 = bright, 1 = dim, 2 = off (Fn+L cycles bright/dim/off
+	// and the EC keeps this register in sync).
+	.ec_ylogo_register = 0xC36F,
+	.skip_ioport_light = true,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PCI0.LPCB.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPCB.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPCB.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPCB.EC0.VPC0.SBMC"
 	}
 };
 
@@ -1384,6 +1422,32 @@ static const struct model_config model_m3cn = {
 	.has_extreme_powermode = true
 };
 
+// LOQ 15IAX9E
+static const struct model_config model_q8cn = {
+	.registers = &ec_register_offsets_loq_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B05C0,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
+	},
+	.has_fancurve_defaults = false
+};
+
 static const struct model_config model_secn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
@@ -1441,7 +1505,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "EFCN"),
 		},
-		.driver_data = (void *)&model_v0
+		.driver_data = (void *)&model_efcn
 	},
 	{
 		// Release year: 2020
@@ -1894,6 +1958,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "NMCN"),
 		},
 		.driver_data = (void *)&model_nmcn
+	},
+	{
+		// e.g. LOQ 15IAX9E
+		.ident = "Q8CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "Q8CN"),
+		},
+		.driver_data = (void *)&model_q8cn
 	},
 	{}
 };
@@ -7437,6 +7510,83 @@ static int legion_wmi_cdev_brightness_set(struct led_classdev *led_cdev,
 				    light_ins->upper_limit, brightness);
 }
 
+/* =============================  */
+/* Y-Logo light via EC register   */
+/* ============================   */
+// EC register value: 0 = bright, 1 = dim, 2 = off. The sysfs LED
+// brightness is mapped inversely so that 0 = off and 2 = bright.
+
+static int legion_ec_ylogo_get(struct legion_private *priv)
+{
+	u8 value = ecram_read(&priv->ecram, priv->conf->ec_ylogo_register);
+
+	if (value > 2)
+		return -ERANGE;
+	return 2 - value;
+}
+
+static int legion_ec_ylogo_set(struct legion_private *priv,
+			       unsigned int brightness)
+{
+	if (brightness > 2)
+		return -EINVAL;
+	ecram_write(&priv->ecram, priv->conf->ec_ylogo_register,
+		    2 - (u8)brightness);
+	return 0;
+}
+
+static enum led_brightness
+legion_ec_ylogo_cdev_brightness_get(struct led_classdev *led_cdev)
+{
+	struct light *light_ins = container_of(led_cdev, struct light, led);
+	struct legion_private *priv =
+		container_of(light_ins, struct legion_private, ylogo_light);
+
+	return legion_ec_ylogo_get(priv);
+}
+
+static int legion_ec_ylogo_cdev_brightness_set(struct led_classdev *led_cdev,
+					       enum led_brightness brightness)
+{
+	struct light *light_ins = container_of(led_cdev, struct light, led);
+	struct legion_private *priv =
+		container_of(light_ins, struct legion_private, ylogo_light);
+
+	return legion_ec_ylogo_set(priv, brightness);
+}
+
+static int legion_ec_ylogo_init(struct legion_private *priv)
+{
+	struct light *light_ins = &priv->ylogo_light;
+	int brightness, err;
+
+	if (WARN_ON(light_ins->initialized)) {
+		pr_info("Light already initialized for light: Y-Logo\n");
+		return -EEXIST;
+	}
+
+	brightness = legion_ec_ylogo_get(priv);
+	if (brightness < 0) {
+		pr_info("Error reading brightness for Y-Logo light\n");
+		return brightness;
+	}
+
+	light_ins->led.name = "platform::ylogo";
+	light_ins->led.max_brightness = 2;
+	light_ins->led.brightness_get = legion_ec_ylogo_cdev_brightness_get;
+	light_ins->led.brightness_set_blocking =
+		legion_ec_ylogo_cdev_brightness_set;
+	light_ins->led.flags = LED_BRIGHT_HW_CHANGED;
+
+	err = led_classdev_register(&priv->platform_device->dev,
+				    &light_ins->led);
+	if (err)
+		return err;
+
+	light_ins->initialized = true;
+	return 0;
+}
+
 static int legion_light_init(struct legion_private *priv,
 			     struct light *light_ins, u8 light_id,
 			     u8 lower_limit, u8 upper_limit, const char *name)
@@ -7665,10 +7815,18 @@ static int legion_add(struct platform_device *pdev)
 			"Failed to init keyboard backlight LED driver. Skipping ...\n");
 	}
 
-	if (!priv->conf->skip_ylogo_light) {
+	if (priv->conf->ec_ylogo_register) {
 		pr_info("Init Y-Logo LED driver\n");
-		err = legion_light_init(priv, &priv->ylogo_light, LIGHT_ID_YLOGO,
-					0, 1, "platform::ylogo");
+		err = legion_ec_ylogo_init(priv);
+		if (err) {
+			dev_info(&pdev->dev,
+				 "Failed to init Y-Logo LED driver. Skipping ...\n");
+		}
+	} else if (!priv->conf->skip_ylogo_light) {
+		pr_info("Init Y-Logo LED driver\n");
+		err = legion_light_init(priv, &priv->ylogo_light,
+					LIGHT_ID_YLOGO, 0, 1,
+					"platform::ylogo");
 		if (err) {
 			dev_info(&pdev->dev,
 				 "Failed to init Y-Logo LED driver. Skipping ...\n");
