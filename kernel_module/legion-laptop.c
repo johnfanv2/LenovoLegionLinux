@@ -2337,7 +2337,7 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 #define WMI_METHOD_ID_GETGSYNCSTATUS 41
 #define WMI_METHOD_ID_SETGSYNCSTATUS 42
 //smartFanMode = powermode
-#define WMI_METHOD_ID_ISSUPPORTSMARTFAN 49
+#define WMI_METHOD_ID_ISSUPPORTSMARTFAN 43
 #define WMI_METHOD_ID_GETSMARTFANMODE 45
 #define WMI_METHOD_ID_SETSMARTFANMODE 44
 // power charge mode
