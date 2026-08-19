@@ -10,6 +10,7 @@ import os
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
+import legion_linux.service_conn
 from legion_linux.legion import LegionModelFacade
 logging.basicConfig()
 log = logging.getLogger(legion_linux.legion.__name__)
@@ -491,14 +492,18 @@ def main():
     if args.subcommand is None:
         parser.print_help()
     else:
-        legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon)
-        for cmd in cmd_group:
-            cmd.set_model(legion)
-        # set global options
-        if "preset_dir" in args and args.preset_dir is not None:
-            legion.set_preset_folder(args.preset_dir)
-
-        args.func(legion, **vars(args))
+        try:
+            legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon,
+                                       use_legion_cli_to_write=True)
+            for cmd in cmd_group:
+                cmd.set_model(legion)
+            # set global options
+            if "preset_dir" in args and args.preset_dir is not None:
+                legion.set_preset_folder(args.preset_dir)
+            return args.func(legion, **vars(args))
+        except legion_linux.service_conn.ServiceError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
 
 
 if __name__ == '__main__':

@@ -1,0 +1,5 @@
+lenovolegionlinux (0.0.22-1) unstable; urgency=medium
+
+  * Package the native privilege-separated service and unprivileged clients.
+
+ -- LenovoLegionLinux contributors <noreply@example.org>  Wed, 19 Aug 2026 13:00:00 -0700

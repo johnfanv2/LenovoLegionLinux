@@ -10,6 +10,7 @@ import logging
 import subprocess
 import struct
 import zlib
+import base64
 from datetime import datetime
 import yaml
 from PIL import Image
@@ -22,6 +23,7 @@ kernel_version = tuple(map(int,os.uname().release.split('-')[0].split('.')))
 
 DEFAULT_ENCODING = "utf8"
 DEFAULT_CONFIG_DIR = "/etc/legion_linux"
+USER_CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "legion_linux")
 if kernel_version >= (7, 0, 0):
     LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/legion'
 else:
@@ -140,27 +142,9 @@ class NamedValue:
         self.name = name
 
 
-def write_file_with_legion_cli(name, values):
-    cmd_list = ['pkexec', 'legion_cli', 'set-feature', name]
-    cmd_list = cmd_list + [str(val) for val in values]
-    log.info('FileFeature %s execute "%s"', name, cmd_list)
-    out_str = ""
-    err_str = ""
-    try:
-        with subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
-            stdout, stderr = process.communicate(timeout=None)
-            out_str = stdout.decode(DEFAULT_ENCODING)
-            err_str = stderr.decode(DEFAULT_ENCODING)
-            returncode = process.returncode
-            log.info('FileFeature %s executed with code %d: %s; %s',
-                     name, returncode, out_str, err_str)
-    except IOError as err:
-        log.error('FileFeature %s executed with error %s and out %s and err %s', name, str(
-            err), out_str, err_str)
-        log.error(get_dmesg(only_tail=True, filter_log=False))
-        raise err
-
-# def write_file_with_legion_cli_rpc(name, value):
+def _service_client():
+    from legion_linux.service_conn import LegionServiceClient
+    return LegionServiceClient()
 
 
 class Feature:
@@ -276,6 +260,8 @@ class FileFeature(Feature):
                         self.name(), self.exists())
 
     def _read_file_str(self, file_path) -> str:
+        if self.use_legion_cli_to_write:
+            return str(_service_client().request("feature.get", name=self.name()))
         log.info('Feature %s reading', self.name())
         if not self.exists():
             log.warning('Feature %s reading from non existing', self.name())
@@ -290,18 +276,23 @@ class FileFeature(Feature):
             raise err
 
     def _read_file_int(self, file_path) -> int:
-        return int(self._read_file_str(file_path))
+        value = self._read_file_str(file_path)
+        if value == "True":
+            return 1
+        if value == "False":
+            return 0
+        return int(value)
 
     def set_str_value(self, value: str):
         return self._write_file(self.filename, value)
 
     def _write_file(self, file_path, value):
         if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(self.name(), [value])
-            return
+            return _service_client().request("feature.set", name=self.name(), value=value)
         log.info('Feature %s writing: %s', self.name(), str(value))
         if not self.exists():
-            log.error('Feature %s writing to non existing', self.name())
+            raise FileNotFoundError(
+                f"Feature {self.name()} is not available on this system")
         try:
             with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
                 filepointer.write(str(value))
@@ -324,9 +315,14 @@ class FileFeature(Feature):
         return None
 
     def get_values(self) -> List[NamedValue]:
+        if self.use_legion_cli_to_write:
+            values = _service_client().request("feature.values", name=self.name())
+            return [NamedValue(item["value"], item["name"]) for item in values]
         return []
 
     def exists(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("feature.exists", name=self.name()))
         return self.filename is not None
 
     def set(self, value):
@@ -368,6 +364,9 @@ class LegionGUIAutostart(BoolFileFeature):
         self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / \
             "legion_gui_user.desktop"
         super().__init__(str(Path.home() / ".config"))
+        # This is deliberately a per-user setting and never crosses the
+        # privileged service boundary.
+        self.use_legion_cli_to_write = False
 
     def exists(self):
         return self.desktop_file_path.exists() and self.autostart_dekstop_folder_path.exists()
@@ -517,10 +516,21 @@ class MaximumFanSpeedFeature(BoolFileFeature):
 
 class PlatformProfileFeature(FileFeature):
     def __init__(self):
-        super().__init__(
-            LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile")
-        self.choices = StrFileFeature(
-            LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices")
+        super().__init__([
+            "/sys/class/platform-profile/platform-profile-[0-9]/profile",
+            LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile",
+        ])
+        # Choices is an implementation detail of PlatformProfileFeature.  In
+        # client mode the service returns validated choices through the parent
+        # feature, so construct this helper without independent RPC calls.
+        client_mode = Feature.default_use_legion_cli_to_write
+        Feature.default_use_legion_cli_to_write = False
+        try:
+            self.choices = StrFileFeature(
+                ["/sys/class/platform-profile/platform-profile-[0-9]/choices",
+                 LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices"])
+        finally:
+            Feature.default_use_legion_cli_to_write = client_mode
         self.all_values = [
             NamedValue("low-power", "Low Power"),
             NamedValue("balanced", "Balanced Mode"),
@@ -530,6 +540,8 @@ class PlatformProfileFeature(FileFeature):
         ]
 
     def get_values(self) -> List[NamedValue]:
+        if self.use_legion_cli_to_write:
+            return super().get_values()
         try:
             available_choices_str = self.choices.get()
         except IOError as error:
@@ -776,6 +788,8 @@ class FanCurveIO(Feature):
             raise FileNotFoundError("hwmon dir not found")
 
     def exists(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("fan.exists"))
         if self.hwmon_path is not None:
             file_path = self.hwmon_path + self.pwm1_fan_speed.format(1)
             has_point1 = os.path.exists(file_path)
@@ -787,15 +801,21 @@ class FanCurveIO(Feature):
             self.hwmon_path + pattern.format(1))
 
     def has_fan_2_speed(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("fan.has_fan_2_speed"))
         return self._has_point_file(self.pwm2_fan_speed)
 
     def has_temperature_curve(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("fan.has_temperature_curve"))
         return all(self._has_point_file(pattern) for pattern in [
             self.pwm1_temp_hyst, self.pwm1_temp,
             self.pwm2_temp_hyst, self.pwm2_temp,
             self.pwm3_temp_hyst, self.pwm3_temp])
 
     def has_acceleration_curve(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("fan.has_acceleration_curve"))
         return (self._has_point_file(self.pwm1_accel) and
                 self._has_point_file(self.pwm1_decel))
 
@@ -955,15 +975,21 @@ class FanCurveIO(Feature):
         return self._read_file(file_path)
 
     def has_minifancurve(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("fan.has_minifancurve"))
         return self.exists() and self.hwmon_path is not None and os.path.exists(self.hwmon_path + self.minifancurve)
 
     def set_minifancuve(self, value):
+        if self.use_legion_cli_to_write:
+            return _service_client().request("fan.set_minifancuve", value=bool(value))
         log.info("Setting minifancurve to: %s", str(value))
         file_path = self.hwmon_path + self.minifancurve
         outvalue = 1 if value else 0
         return self._write_file_or(file_path, outvalue)
 
     def get_minifancuve(self):
+        if self.use_legion_cli_to_write:
+            return bool(_service_client().request("fan.get_minifancuve"))
         file_path = self.hwmon_path + self.minifancurve
         invalue = self._read_file_or(file_path, False)
         return invalue != 0
@@ -984,9 +1010,7 @@ class FanCurveIO(Feature):
         if self.use_legion_cli_to_write:
             trimmed_curve = FanCurve(
                 fan_curve.name, entries, fan_curve.enable_minifancurve)
-            write_file_with_legion_cli(
-                self.name(), [str(trimmed_curve.to_yaml())])
-            return
+            return _service_client().request("fan.write", yaml=trimmed_curve.to_yaml())
 
         has_fan_2_speed = self.has_fan_2_speed()
         has_temperature_curve = self.has_temperature_curve()
@@ -1016,6 +1040,8 @@ class FanCurveIO(Feature):
 
     def read_fan_curve(self) -> FanCurve:
         """Reads a fan curve object from the file system"""
+        if self.use_legion_cli_to_write:
+            return FanCurve.from_yaml(_service_client().request("fan.read"))
         entries = []
         has_fan_2_speed = self.has_fan_2_speed()
         has_temperature_curve = self.has_temperature_curve()
@@ -1142,10 +1168,6 @@ class SettingsManager(Feature):
         return Settings.load_from_file(self._name_to_filename(name))
 
     def save_by_name(self, name, settings: Settings):
-        if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(
-                self.name(), [name, str(settings.to_yaml())])
-            return
         settings.save_to_file(self._name_to_filename(name))
 
     def set_str_values(self, values: List[str]):
@@ -1194,10 +1216,6 @@ class FanCurveRepository(Feature):
         return FanCurve(name='unknown', entries=[])
 
     def save_by_name(self, name, fancurve: FanCurve):
-        if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(
-                self.name(), [name, str(fancurve.to_yaml())])
-            return
         fancurve.save_to_file(self._name_to_filename(name))
 
     def set_str_values(self, values: List[str]):
@@ -1465,10 +1483,20 @@ class LegionModelFacade:
     monitors: List[Monitor]
 
     # pylint: disable=too-many-statements
-    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=False, config_dir=DEFAULT_CONFIG_DIR):
+    def __init__(self, expect_hwmon=True, use_legion_cli_to_write=True, config_dir=None):
+        if config_dir is None:
+            config_dir = (DEFAULT_CONFIG_DIR if os.environ.get("LEGION_LINUX_PRIVILEGED_SERVICE")
+                          else USER_CONFIG_DIR)
         Feature.default_use_legion_cli_to_write = use_legion_cli_to_write
-        log.info(get_dmesg())
-        self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
+        # Reading the kernel log is service-side diagnostics. Desktop clients
+        # commonly cannot read dmesg and should not emit a warning per command.
+        if not use_legion_cli_to_write:
+            log.info(get_dmesg())
+        # Only the privileged service discovers hwmon locally. Service-backed
+        # clients query its capabilities and must not fail based on their own
+        # filesystem view or permissions.
+        self.fancurve_io = FanCurveIO(
+            expect_hwmon=expect_hwmon and not use_legion_cli_to_write)
         self.fancurve_repo = FanCurveRepository(preset_dir=config_dir)
         self.fan_curve = FanCurve(name='unknown',
                                   entries=[FanCurveEntry(
@@ -1578,6 +1606,8 @@ class LegionModelFacade:
             return img_width, img_height, img_format
 
     def get_boot_logo_status(self):
+        if Feature.default_use_legion_cli_to_write:
+            return tuple(_service_client().request("boot.status"))
         try:
             data = self._read_file(LBLDESP_FILE)
         except (IOError, OSError) as e:
@@ -1595,6 +1625,11 @@ class LegionModelFacade:
         return is_on, width, height
 
     def enable_boot_logo(self, image_path):
+        if Feature.default_use_legion_cli_to_write:
+            image = Path(image_path).read_bytes()
+            return _service_client().request(
+                "boot.enable", image=base64.b64encode(image).decode("ascii"),
+                suffix=Path(image_path).suffix)
         is_on, expected_width, expected_height = self.get_boot_logo_status()
         log.info("Current LBLDESP is ON=%s, required size=%sx%s", is_on, expected_width, expected_height)
         img_w, img_h, img_fmt = self._check_image_dimensions_and_format(image_path, expected_width, expected_height)
@@ -1625,6 +1660,8 @@ class LegionModelFacade:
         log.info("Image copied to %s", dest_path)
 
     def restore_boot_logo(self):
+        if Feature.default_use_legion_cli_to_write:
+            return _service_client().request("boot.restore")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         tmp_lbldesp, _ = self._backup_file(LBLDESP_FILE, timestamp)
         with open(tmp_lbldesp, "r+b") as f:
@@ -1646,6 +1683,10 @@ class LegionModelFacade:
     @staticmethod
     def get_all_features():
         return [feat.name() for feat in Feature.features]
+
+    @staticmethod
+    def get_all_feature_objects():
+        return list(Feature.features)
 
     def set_lockfancontroller(self, value):
         self.lockfancontroller.set(value)

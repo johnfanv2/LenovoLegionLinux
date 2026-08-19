@@ -1,0 +1,25 @@
+[Unit]
+Description=Lenovo Legion hardware control service
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/legion_service
+User=root
+Group=root
+RuntimeDirectory=legion-linux
+RuntimeDirectoryMode=0750
+StateDirectory=legion-linux
+StateDirectoryMode=0750
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/sys /boot /run/legion-linux /var/lib/legion-linux
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

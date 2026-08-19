@@ -590,7 +590,7 @@ class LegionController:
     power_mode_tray_controller: EnumFeatureTrayController
     preset_tray_controller: PresetTrayController
 
-    def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
+    def __init__(self, app:QApplication, expect_hwmon=True, use_legion_cli_to_write=True):
         self.model = LegionModelFacade(
             expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
         self.app = app
@@ -600,8 +600,7 @@ class LegionController:
         self.log_view = None
         self.tray = None
         self.view_automation = None
-        self.show_root_dialog = (not self.model.is_root_user()) and (
-            not use_legion_cli_to_write)
+        self.show_root_dialog = False
         self.monitoring_threadpool = QThreadPool()
         self.monitoring_worker = MonitorWorker(None)
 
@@ -863,20 +862,35 @@ class LegionController:
         self.icon_color_mode_controller.update_view_from_feature()
 
     def on_read_fan_curve_from_hw(self):
-        self.model.read_fancurve_from_hw()
-        self.update_fancurve_gui()
+        try:
+            self.model.read_fancurve_from_hw()
+            self.update_fancurve_gui()
+        except Exception as ex:  # pylint: disable=broad-except
+            log_error(ex)
 
     def on_write_fan_curve_to_hw(self):
-        self.model.fan_curve = self.view_fancurve.get_fancurve()
-        self.model.write_fancurve_to_hw()
-        self.model.read_fancurve_from_hw()
-        self.update_fancurve_gui()
+        try:
+            self.model.fan_curve = self.view_fancurve.get_fancurve()
+            self.model.write_fancurve_to_hw()
+            self.model.read_fancurve_from_hw()
+            self.update_fancurve_gui()
+        except Exception as ex:  # pylint: disable=broad-except
+            log_error(ex)
 
     def on_load_from_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
-        self.model.fan_curve = self.view_fancurve.get_fancurve()
-        self.model.load_fancurve_from_preset(name)
-        self.update_fancurve_gui()
+        try:
+            self.model.fan_curve = self.view_fancurve.get_fancurve()
+            self.model.load_fancurve_from_preset(name)
+            self.update_fancurve_gui()
+        except FileNotFoundError:
+            message = f'Fan curve preset "{name}" does not exist.'
+            log_error(message)
+            QMessageBox.warning(self.view_fancurve, "Preset not found", message)
+        except Exception as ex:  # pylint: disable=broad-except
+            log_error(ex)
+            QMessageBox.critical(
+                self.view_fancurve, "Could not load preset", str(ex))
 
     def on_save_to_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
@@ -1711,7 +1725,9 @@ def main():
 
     app = QApplication(sys.argv)
 
-    use_legion_cli_to_write = '--use_legion_cli_to_write' in sys.argv
+    # Hardware access is always mediated by the privileged service.  The GUI
+    # must remain in the desktop user's session for safe file dialogs/tray use.
+    use_legion_cli_to_write = True
     do_not_excpect_hwmon = True
     controller = LegionController(app, expect_hwmon=not do_not_excpect_hwmon,
                              use_legion_cli_to_write=use_legion_cli_to_write)

@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with python3 --buildsystem=cmake --builddirectory=native-build
+
+override_dh_builddeb:
+	find debian -type d -name DEBIAN -exec chmod 0755 {} +
+	dh_builddeb
+
+override_dh_auto_configure:
+	cmake -S native/legion_service -B native-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+override_dh_auto_build:
+	cmake --build native-build
+	cd python/legion_linux && python3 -m build --wheel --no-isolation
+
+override_dh_auto_test:
+	cd python/legion_linux && python3 -m unittest discover -s tests -v
+
+override_dh_auto_install:
+	DESTDIR=$(CURDIR)/debian/lenovolegionlinux cmake --install native-build
+	python3 -m installer --destdir=debian/lenovolegionlinux python/legion_linux/dist/*.whl
+	if [ -d debian/lenovolegionlinux/usr/local ]; then cp -a debian/lenovolegionlinux/usr/local/. debian/lenovolegionlinux/usr/; rm -rf debian/lenovolegionlinux/usr/local; fi
+	install -Dm644 python/legion_linux/legion_linux/legion-linux.service debian/lenovolegionlinux/usr/lib/systemd/system/legion-linux.service
+	install -Dm644 deploy/legion-linux.sysusers debian/lenovolegionlinux/usr/lib/sysusers.d/legion-linux.conf

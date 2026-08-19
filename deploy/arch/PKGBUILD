@@ -1,0 +1,68 @@
+# Maintainer: LenovoLegionLinux contributors
+pkgname=lenovolegionlinux-git
+pkgver=0.0.22.r0
+pkgrel=9
+pkgdesc='Lenovo Legion hardware controls with an unprivileged client and native privileged service'
+arch=('x86_64')
+url='https://github.com/johnfanv2/LenovoLegionLinux'
+license=('GPL-2.0-only')
+depends=('dkms' 'python' 'python-pyqt6' 'python-yaml' 'python-argcomplete'
+         'python-pillow' 'python-darkdetect' 'yaml-cpp')
+makedepends=('cmake' 'ninja' 'nlohmann-json' 'python-build' 'python-installer'
+             'python-wheel' 'python-setuptools')
+optdepends=('lm_sensors: sensor discovery and monitoring'
+            'dmidecode: hardware diagnostics'
+            'mokutil: Secure Boot diagnostics')
+provides=('lenovolegionlinux' 'lenovolegionlinux-dkms')
+conflicts=('lenovolegionlinux' 'lenovolegionlinux-dkms')
+source=('LenovoLegionLinux.tar.gz')
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$srcdir"
+  sed "s/DKMS_VERSION/${pkgver}/" kernel_module/dkms.conf > kernel_module/dkms.conf.packaged
+  rm -rf python/legion_linux/build \
+         python/legion_linux/dist \
+         python/legion_linux/*.egg-info
+}
+
+build() {
+  cmake -S "$srcdir/native/legion_service" \
+        -B "$srcdir/native-build" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build "$srcdir/native-build"
+
+  cd "$srcdir/python/legion_linux"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "$srcdir/python/legion_linux"
+  python -m unittest discover -s tests -v
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install "$srcdir/native-build"
+
+  python -m installer --destdir="$pkgdir" \
+    "$srcdir"/python/legion_linux/dist/*.whl
+
+  install -Dm644 "$srcdir/kernel_module/legion-laptop.c" \
+    "$pkgdir/usr/src/LenovoLegionLinux-${pkgver}/legion-laptop.c"
+  install -Dm644 "$srcdir/kernel_module/Makefile" \
+    "$pkgdir/usr/src/LenovoLegionLinux-${pkgver}/Makefile"
+  install -Dm644 "$srcdir/kernel_module/dkms.conf.packaged" \
+    "$pkgdir/usr/src/LenovoLegionLinux-${pkgver}/dkms.conf"
+
+  install -Dm644 "$srcdir/python/legion_linux/legion_linux/legion-linux.service" \
+    "$pkgdir/usr/lib/systemd/system/legion-linux.service"
+  install -Dm644 /dev/stdin \
+    "$pkgdir/usr/lib/sysusers.d/legion-linux.conf" <<'EOF'
+g legion-linux -
+EOF
+  install -Dm644 "$srcdir/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$srcdir/README.md" \
+    "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

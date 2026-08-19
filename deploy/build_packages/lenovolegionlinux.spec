@@ -11,23 +11,37 @@ Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Prefix: %{_prefix}
 BuildRequires:  python3-devel
-BuildRequires:  python3-setuptools
-BuildRequires:  python3-wheel
-BuildRequires:  python3-pip
-BuildRequires:  make
-BuildRequires:  clang
-BuildRequires:  gcc
-BuildRequires:  inih-devel
+BuildRequires:  python3dist(build)
+BuildRequires:  python3dist(installer)
+%if 0%{?suse_version}
+BuildRequires:  python313-setuptools
+BuildRequires:  python313-wheel
+%else
+BuildRequires:  python3dist(setuptools)
+BuildRequires:  python3dist(wheel)
+%endif
+BuildRequires:  gcc-c++
+BuildRequires:  cmake
+%if 0%{?suse_version}
+BuildRequires:  ninja
+BuildRequires:  nlohmann_json-devel
+%else
+BuildRequires:  ninja-build
+BuildRequires:  nlohmann-json-devel
+%endif
+BuildRequires:  yaml-cpp-devel
 BuildRequires:  systemd-rpm-macros
 Vendor: johnfan <johnfan@example.org>
 Packager: Gonçalo Negrier Duarte <gonegrier.duarte@gamil.com>
 Url: https://github.com/johnfanv2/LenovoLegionLinux
 
-Requires:     PyQt6
-Requires:     python-yaml
-Requires:     python-argcomplete
-Requires:     python-darkdetect
-Requires:     python3-pillow
+Requires:     python3dist(PyQt6)
+Requires:     python3dist(PyYAML)
+Requires:     python3dist(argcomplete)
+Requires:     python3dist(darkdetect)
+Requires:     python3dist(Pillow)
+Requires:     yaml-cpp
+Requires:     systemd
 
 %description
 See documenation of LenovoLegionLinux
@@ -38,27 +52,20 @@ cd python/legion_linux
 sed -i "s/version = _VERSION/version = %{version}/g" setup.cfg
 
 %build
-cd python/legion_linux
-%pyproject_wheel
-cd legion_linux/extra/service/legiond
-make
+cmake -S native/legion_service -B native-build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=%{_prefix}
+cmake --build native-build
+
+python3 -m build --wheel --no-isolation python/legion_linux
 
 %install
-%pyproject_install
-%pyproject_save_files legion_linux
-
-mkdir -p %{buildroot}%{_unitdir}
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{buildroot}%{_unitdir}/legiond-onresume.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.timer
-
-mkdir -p %{buildroot}%{_bindir}
-install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{buildroot}%{_bindir}/legiond-ctl
-install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond %{buildroot}%{_bindir}/legiond
-
-# Remove debug files
-rm -rf %{buildroot}/usr/lib/debug
+DESTDIR=%{buildroot} cmake --install native-build
+python3 -m installer --destdir=%{buildroot} --prefix=%{_prefix} \
+  python/legion_linux/dist/*.whl
+install -D -m 0644 python/legion_linux/legion_linux/legion-linux.service \
+  %{buildroot}%{_unitdir}/legion-linux.service
+install -D -m 0644 deploy/legion-linux.sysusers \
+  %{buildroot}%{_sysusersdir}/legion-linux.conf
 
 %files -n python-%{srcname}
 %doc README.md
@@ -67,36 +74,25 @@ rm -rf %{buildroot}/usr/lib/debug
 %{python3_sitelib}/%{libname}-%{version}.dist-info
 %{_bindir}/legion_cli
 %{_bindir}/legion_gui
+%{_bindir}/legion_service
 %{_datadir}/applications/legion_gui.desktop
-%{_datadir}/legion_linux/legiond.ini
-%{_datadir}/legion_linux/balanced-ac.yaml
-%{_datadir}/legion_linux/balanced-battery.yaml
-%{_datadir}/legion_linux/balanced-performance-ac.yaml
-%{_datadir}/legion_linux/balanced-performance-battery.yaml
-%{_datadir}/legion_linux/performance-ac.yaml
-%{_datadir}/legion_linux/performance-battery.yaml
-%{_datadir}/legion_linux/quiet-ac.yaml
-%{_datadir}/legion_linux/quiet-battery.yaml
 %{_datadir}/pixmaps/legion_logo.png
 %{_datadir}/pixmaps/legion_logo_dark.png
 %{_datadir}/pixmaps/legion_logo_light.png
-%{_datadir}/polkit-1/actions/legion_cli.policy
-%{_datadir}/polkit-1/actions/legion_gui.policy
-%{_bindir}/legiond
-%{_bindir}/legiond-ctl
-%{_unitdir}/legiond-cpuset.service
-%{_unitdir}/legiond-cpuset.timer
-%{_unitdir}/legiond-onresume.service
-%{_unitdir}/legiond.service
+%{_unitdir}/legion-linux.service
+%{_sysusersdir}/legion-linux.conf
 
-%exclude /usr/lib/debug
+%pre
+echo 'g legion-linux -' | systemd-sysusers -
 
 %post
-echo "If first install, copy /usr/share/legion_linux folder to /etc/legion_linux.\n"
-echo "Command: sudo cp -r /usr/share/legion_linux /etc/legion_linux"
+%systemd_post legion-linux.service
 
 %preun
-echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
+%systemd_preun legion-linux.service
+
+%postun
+%systemd_postun_with_restart legion-linux.service
 
 %changelog
 * Sat Aug 15 2026 github-actions <actions@github.com> - 0.0.22

@@ -84,6 +84,9 @@ It allows you to control features like the fan curve, power mode, power limits, 
 ## :mega: Overview
 
 - it comes with a driver (kernel module) that implements the Linux standard interfaces (sysfs, debugfs, hwmon)
+- privileged hardware access is performed by a native C++ system service; the Python GUI and CLI run as the desktop user
+- the clients communicate with the service using one incrementally parsed JSON object in each direction per local Unix-socket connection
+- access is limited to root and members of the `legion-linux` group
 - using standard Linux interfaces makes it is compatible with the command line/file interface or standard GUI tools like psensor
 - compared to vendor tools for Windows, it even allows to set the fan curve. This allows to keep the fans
   slowly and quietly running instead of constantly switching between fans off and loud fans. Perfect for quiet office work. :office:
@@ -166,7 +169,7 @@ You will need to install the following to download and build it. If there is an 
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y make gcc linux-headers-$(uname -r) build-essential git lm-sensors wget python3-pyqt6 python3-yaml python3-venv python3-pip python3-argcomplete python3-darkdetect
+sudo apt-get install -y make gcc g++ cmake ninja-build linux-headers-$(uname -r) build-essential git lm-sensors wget nlohmann-json3-dev libyaml-cpp-dev python3-pyqt6 python3-yaml python3-venv python3-pip python3-argcomplete python3-darkdetect
 # Install the following for installation with DKMS
 sudo apt-get install dkms openssl mokutil
 ```
@@ -174,7 +177,7 @@ sudo apt-get install dkms openssl mokutil
 **RHEL/CentOS/RockyLinux/Fedora/AlmaLinux**
 
 ```bash
-sudo dnf install -y kernel-headers kernel-devel dmidecode lm_sensors python3-PyQt6 python3-yaml python3-pip python3-argcomplete python3-darkdetect
+sudo dnf install -y kernel-headers kernel-devel gcc-c++ cmake ninja-build nlohmann-json-devel yaml-cpp-devel systemd-rpm-macros dmidecode lm_sensors python3-PyQt6 python3-yaml python3-pip python3-argcomplete python3-darkdetect
 sudo dnf groupinstall "Development Tools"
 sudo dnf group install "C Development Tools and Libraries"
 # Install the following for installation with DKMS
@@ -186,7 +189,7 @@ Alternatively, you might use `yum` instead of `dnf` and start with `sudo yum upd
 **openSUSE**
 
 ```bash
-sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode python3-qt5 python3-pip python3-PyYAML python3-argcomplete python3-darkdetect
+sudo zypper install make gcc gcc-c++ cmake ninja kernel-devel kernel-default-devel git libopenssl-devel sensors dmidecode nlohmann_json-devel yaml-cpp-devel systemd-rpm-macros 'python3dist(PyQt6)' python3-pip 'python3dist(PyYAML)' 'python3dist(argcomplete)' 'python3dist(darkdetect)'
 # Install the following for installation with DKMS
 sudo zypper install dkms openssl mokutil
 ```
@@ -196,12 +199,23 @@ sudo zypper install dkms openssl mokutil
 **Arch/Manjaro/EndeavourOS**
 
 ```bash
-sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect
+sudo pacman -S linux-headers base-devel clang llvm cmake ninja git lm_sensors dmidecode nlohmann-json yaml-cpp python python-pyqt6 python-yaml python-argcomplete python-pillow python-darkdetect python-build python-installer python-wheel python-setuptools
 # Install the following for installation with DKMS
 sudo pacman -S dkms openssl mokutil
 ```
 
 *Note:* Check for the correct Header package.
+
+The unified Arch package recipe is [`deploy/arch/PKGBUILD`](deploy/arch/PKGBUILD). It builds and installs the kernel module through DKMS, the native service, the systemd unit, and the unprivileged Python clients.
+
+After installing the package, enable the service and grant the intended user access:
+
+```bash
+sudo systemctl enable --now legion-linux.service
+sudo usermod -aG legion-linux "$USER"
+```
+
+Log out completely and log back in (or reboot) after joining the group. Existing desktop sessions do not acquire newly assigned supplementary groups. Verify access with `id`; it should list `legion-linux`.
 
 Troubleshooting:
 
@@ -513,11 +527,10 @@ psensor
 
 ### Changing and Setting your own Fan Curve with the Python GUI
 
-Start the GUI as root
+Start the GUI as your normal desktop user. Do not use `sudo`; privileged hardware operations are delegated to `legion-linux.service`, while user-selected import and export files remain owned and accessed by the GUI.
 
 ```bash
-# run from folder LenovoLegionLinux
-sudo python/legion_linux/legion_linux/legion_gui.py
+legion_gui
 ```
 
 <p align="center">
@@ -529,7 +542,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 - press `Apply to HW` to write the currently displayed fancurve to hardware and activate it
 - you can load and save a fancurve to a preset. Select the preset with the drop-down menu and press `Load from Preset` or `Save to preset`.
 - loading a preset will just display it. You still have to press `Apply to HW` to activate it
-- presets are stored in a yaml file in `/root/.config/legion_linux/`. You can edit them also manually.
+- presets are stored in the current user's configuration directory, normally `~/.config/legion_linux/`. You can edit them manually.
 - the number of points is fixed depending on power mode. Deactivated points are currently displayed as `0`s.
 - lock fan controller: enabling this will freeze the current fan speed and the temperatures used to control the fan controller
 
@@ -543,9 +556,10 @@ Unexpected:
 You can do the same as the GUI from a CLI program. It will access the same presets.
 
 ```bash
-# run from folder LenovoLegionLinux
-sudo python/legion_linux/legion_linux/legion_cli.py
+legion_cli --help
 ```
+
+Run the CLI as your normal user. If access is denied, add the user to `legion-linux` and begin a fresh login session as described above. The service accepts only explicitly allowlisted operations and features; clients cannot request arbitrary privileged filesystem paths or commands.
 
 ```text
 usage: legion_cli.py [-h] {fancurve-write-preset-to-hw,fancurve-write-hw-to-preset,fancurve-write-file-to-hw,fancurve-write-hw-to-file} ...

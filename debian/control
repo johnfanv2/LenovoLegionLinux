@@ -1,0 +1,19 @@
+Source: lenovolegionlinux
+Section: utils
+Priority: optional
+Maintainer: LenovoLegionLinux contributors
+Build-Depends: debhelper-compat (= 13), dh-python, cmake, ninja-build,
+ nlohmann-json3-dev, libyaml-cpp-dev, python3-all, python3-build,
+ python3-installer, python3-setuptools, python3-wheel
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/johnfanv2/LenovoLegionLinux
+
+Package: lenovolegionlinux
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, python3-pyqt6,
+ python3-yaml, python3-argcomplete, python3-pil, python3-darkdetect
+Recommends: lenovolegionlinux-dkms
+Description: Lenovo Legion hardware controls
+ Unprivileged GUI and CLI clients backed by a restricted native hardware
+ service. Access is granted to root and members of the legion-linux group.
