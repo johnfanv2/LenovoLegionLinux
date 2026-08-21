@@ -2327,6 +2327,18 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 	return 0;
 }
 
+static int wmi_exec_query_ints(const char *guid, u8 instance, u8 *res,
+				 size_t ressize)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+
+	status = wmi_query_block(guid, instance, &out_buffer);
+
+	return acpi_process_buffer_to_ints(guid, instance, status, &out_buffer,
+					res, ressize);
+}
+
 /* ================================= */
 /* Lenovo WMI config                 */
 /* ================================= */
@@ -2461,6 +2473,9 @@ enum IGPUState {
 // access the keyboard backlight with 3 states
 #define WMI_METHOD_ID_KBBACKLIGHTGET 0x1
 #define WMI_METHOD_ID_KBBACKLIGHTSET 0x2
+
+#define WMI_GUID_LENOVO_CAPABILITY_DATA_00 "362a3afe-3d96-4665-8530-96dad5bb300e"
+#define WMI_GUID_LENOVO_CAPABILITY_DATA_01 "7a8f5407-cb67-4d6e-b547-39b3be018154"
 
 // new method in newer methods to get or set most of the values
 // with the two methods GetFeatureValue or SetFeatureValue.
@@ -3832,6 +3847,72 @@ static ssize_t wmi_write_fancurve_defaults(struct legion_private *priv, int valu
 	return err;
 }
 
+struct WMILenovoCapabilityData00 {
+	u32 ids;
+	u32 capability;
+	u32 default_value;
+} __packed;
+
+struct WMILenovoCapabilityData01 {
+	u32 ids;
+	u32 capability;
+	u32 default_value;
+	u32 step;
+	u32 min_value;
+	u32 max_value;
+} __packed;
+
+// these sizes are from a model, could be less or more on others
+//
+// #define LENOVO_CAP_DATA_00_SIZE 0x1B
+// #define LENOVO_CAP_DATA_01_SIZE 0x4F
+//
+// lets define a max for now
+#define LENOVO_CAP_DATA_00_SIZE 0x64
+#define LENOVO_CAP_DATA_01_SIZE 0x64
+
+struct WMILenovoCapabilityData00 capability_data_00[LENOVO_CAP_DATA_00_SIZE];
+struct WMILenovoCapabilityData01 capability_data_01[LENOVO_CAP_DATA_01_SIZE];
+
+static int capability_data_00_count;
+static int capability_data_01_count;
+
+static bool capability_data_cached;
+
+static ssize_t wmi_load_capability_data(struct legion_private *priv)
+{
+	int err;
+	struct WMILenovoCapabilityData00 cap_data_00 = {0};
+	struct WMILenovoCapabilityData01 cap_data_01 = {0};
+	int count = 0;
+
+	for (count = 0; count <= LENOVO_CAP_DATA_00_SIZE; count++) {
+		err = wmi_exec_query_ints(WMI_GUID_LENOVO_CAPABILITY_DATA_00,
+						count, (u8 *)&cap_data_00,
+						sizeof(cap_data_00));
+		if (!err)
+			capability_data_00[count] = cap_data_00;
+		else
+			break;
+	};
+	capability_data_00_count = count;
+
+	for (count = 0; count <= LENOVO_CAP_DATA_01_SIZE; count++) {
+		err = wmi_exec_query_ints(WMI_GUID_LENOVO_CAPABILITY_DATA_01,
+						count, (u8 *)&cap_data_01,
+						sizeof(cap_data_01));
+		if (!err)
+			capability_data_01[count] = cap_data_01;
+		else
+			break;
+	}
+	capability_data_01_count = count;
+
+	pr_info("loaded capability data 00: %d\n", capability_data_00_count);
+	pr_info("loaded capability data 01: %d\n", capability_data_01_count);
+	capability_data_cached = true;
+	return 0;
+}
 /* Read the fan curve from the EC.
  *
  * In newer models (>=2022) there is an ACPI/WMI to read fan curve as
@@ -7875,7 +7956,7 @@ static int legion_add(struct platform_device *pdev)
 				 "Failed to init IO-Port LED driver. Skipping ...\n");
 		}
 	}
-
+	wmi_load_capability_data(priv);
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
