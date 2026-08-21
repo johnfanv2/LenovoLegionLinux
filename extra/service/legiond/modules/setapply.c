@@ -88,10 +88,17 @@ int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	case P_AC_P:
 		strcat(cmd, "performance-ac");
 		break;
+	case P_BAT_P:
+		strcat(cmd, "performance-battery");
+		break;
 	case P_AC_E:
 		strcat(cmd, "extreme-ac");
 		break;
-    default:
+	case P_BAT_E:
+		/* no extreme-battery preset exists yet; keep max cooling */
+		strcat(cmd, "extreme-ac");
+		break;
+	default:
 		cmd[0] = '\0';
 		break;
 	}
@@ -118,47 +125,59 @@ int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 		printf("skip gpu_control\n");
 		return 0;
 	}
-	char cmd[100];
+
+	const char *tool;
 	if (strcmp(config->gpu_control, "nvidia") == 0) {
-		strcpy(cmd, "/opt/bin/nvidia-smi -pl ");
+		tool = "/opt/bin/nvidia-smi -pl ";
 	} else if (strcmp(config->gpu_control, "radeon") == 0) {
-		strcpy(cmd, "/opt/bin/rocm-smi --setpoweroverdrive ");
+		tool = "/opt/bin/rocm-smi --setpoweroverdrive ";
+	} else {
+		printf("unknown gpu_control value: %s\n", config->gpu_control);
+		printf("skip gpu_control\n");
+		return 0;
 	}
 
+	const char *tdp;
 	switch (power_state) {
 	case P_AC_Q:
-		strcat(cmd, config->gpu_tdp_ac_q);
+		tdp = config->gpu_tdp_ac_q;
 		break;
 	case P_BAT_Q:
-		strcat(cmd, config->gpu_tdp_bat_q);
+		tdp = config->gpu_tdp_bat_q;
 		break;
 	case P_AC_B:
-		strcat(cmd, config->gpu_tdp_ac_b);
+		tdp = config->gpu_tdp_ac_b;
 		break;
 	case P_BAT_B:
-		strcat(cmd, config->gpu_tdp_bat_b);
+		tdp = config->gpu_tdp_bat_b;
 		break;
 	case P_AC_BP:
-		strcat(cmd, config->gpu_tdp_ac_bp);
+		tdp = config->gpu_tdp_ac_bp;
 		break;
 	case P_BAT_BP:
-		strcat(cmd, config->gpu_tdp_bat_bp);
+		tdp = config->gpu_tdp_bat_bp;
 		break;
 	case P_AC_P:
-		strcat(cmd, config->gpu_tdp_ac_p);
+		tdp = config->gpu_tdp_ac_p;
 		break;
 	case P_AC_E:
-		strcat(cmd, config->gpu_tdp_ac_e);
+		tdp = config->gpu_tdp_ac_e;
 		break;
 	default:
-		cmd[0] = 0;
+		tdp = NULL;
 		break;
 	}
 
+	char cmd[100];
 	int result = 0;
 
-	if (cmd[0] != '\0') {
-		result = system(cmd);
+	if (tdp != NULL && tdp[0] != '\0') {
+		int written = snprintf(cmd, sizeof(cmd), "%s%s", tool, tdp);
+		if (written < 0 || written >= (int)sizeof(cmd)) {
+			printf("gpu_control cmd too long, skipping\n");
+		} else {
+			result = system(cmd);
+		}
 	}
 
 	if (result != 0) {
