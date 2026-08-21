@@ -3157,7 +3157,7 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 			      fancurve->points[point_id].speed2;
 
 	*value = convert_speed_to_pwm(fancurve->fan_speed_unit, speed);
-	return false;
+	return (*value != -1) ? true : false;
 }
 
 // TODO: remove { ... } from single line if body
