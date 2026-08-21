@@ -2294,6 +2294,18 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 	return 0;
 }
 
+static int wmi_exec_query_ints(const char *guid, u8 instance, u8 *res,
+				 size_t ressize)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+
+	status = wmi_query_block(guid, instance, &out_buffer);
+
+	return acpi_process_buffer_to_ints(guid, instance, status, &out_buffer,
+						res, ressize);
+}
+
 /* ================================= */
 /* Lenovo WMI config                 */
 /* ================================= */
@@ -2429,6 +2441,8 @@ enum IGPUState {
 #define WMI_METHOD_ID_KBBACKLIGHTGET 0x1
 #define WMI_METHOD_ID_KBBACKLIGHTSET 0x2
 
+#define WMI_GUID_LENOVO_FANTABLE_DEFAULT_DATA "87FB2A6D-D802-48E7-9208-4576C5F5C8D8"
+
 // new method in newer methods to get or set most of the values
 // with the two methods GetFeatureValue or SetFeatureValue.
 // They are called like GetFeatureValue(feature_id) where
@@ -2521,6 +2535,140 @@ static ssize_t wmi_other_method_set_value(enum OtherMethodFeature feature_id,
 	else
 		*output = res;
 	return error;
+}
+
+struct WMIFanTableDefaultData {
+	u16 mode;
+	u16 fan_id;
+	u32 fan_table_len;
+	u16 fan_speed[MAXFANCURVESIZE];
+	u32 sensor_id;
+	u32 sensor_table_len;
+	u16 sensor[MAXFANCURVESIZE]; //max temps
+	u8  start_only_upward_adjust_nbr;
+	u8  end_only_upward_adjust_nbr;
+	u16 current_fan_max_speed;
+	u8  design_max_fan_speed_nbr;
+	u8  reserved;
+	u16 current_fan_min_speed;
+	u16 fan_speed_step;
+	u16 max_sensor_temp;
+	u16 min_sensor_temp;
+	u16 sensor_temp_step;
+} __packed;
+
+struct WMIFanTableDefaultData fantable_default_data[3]; // 0 - cpu, 1 - gpu, 2 - ic
+static bool fantable_default_data_cached;
+
+// keep state of fancurve defaults powermode
+static int fancurve_defaults_powermode;
+
+const uint8_t FANTABLE_DEFAULT_DATA_INDEXES[][5] = {
+	// known pos means beginning index of rows for data of
+	// QUIET, BALANCED, PERFORMANCE, CUSTOM, EXTREME
+	// allows make fewer calls 3, if not known has to make
+	// a max of 30 calls
+	// for LZCN
+	{ 0x06, 0x03, 0x00, 0x09, 0x0C },
+
+	// For Other model
+	{ }
+};
+
+#define FANTABLE_SENSOR_ID_CPU	0x4
+#define FANTABLE_SENSOR_ID_IC	0x1
+#define FANTABLE_SENSOR_ID_GPU	0x5
+
+#define FANTABLE_SENSORS_COUNT	3
+#define FANTABLE_DEFAULT_DATA_MAX_ROWS 30
+
+static ssize_t wmi_read_fantable_default_data(const struct model_config *model)
+{
+	int err = -1;
+	struct WMIFanTableDefaultData fantable_data = {0};
+	int powermode_fantable_index = 0;
+	int powermode_fantable_to_use;
+	unsigned long res;
+	int current_powermode;
+	const uint8_t *mode_fantable_index;
+	bool known_positions = false;
+	int max_rows = 0;
+	int index = 0;
+
+	if (!model->has_fancurve_defaults) {
+		pr_info("%s not supported for your laptop model\n", __func__);
+		return err;
+	}
+
+	if (model == &model_lzcn) {
+		mode_fantable_index = FANTABLE_DEFAULT_DATA_INDEXES[0];
+		known_positions = true;
+	}
+
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_GETSMARTFANMODE, &res);
+	if (!err)
+		current_powermode = (int)res;
+	else
+		return err;
+
+	powermode_fantable_to_use = fancurve_defaults_powermode ? fancurve_defaults_powermode : current_powermode;
+
+	if (known_positions) {
+		max_rows = FANTABLE_SENSORS_COUNT;
+		switch (powermode_fantable_to_use) {
+		// wanted to use defines of POWERMODE but they are all the way down
+		// so fixed values for now till project uses .h files
+		case 0x1:
+			powermode_fantable_index = mode_fantable_index[0];
+			break;
+		case 0x2:
+			powermode_fantable_index = mode_fantable_index[1];
+			break;
+		case 0x3:
+			powermode_fantable_index = mode_fantable_index[2];
+			break;
+		case 0xFF:
+			powermode_fantable_index = mode_fantable_index[3];
+			break;
+		case 0xE0:
+			powermode_fantable_index = mode_fantable_index[4];
+			break;
+		};
+	} else {
+		max_rows = FANTABLE_DEFAULT_DATA_MAX_ROWS;
+	};
+	// loop for 3 (known)  or max of 30 rows
+	for (int i = 0; i < max_rows; i++) {
+		if (known_positions)
+			index = powermode_fantable_index + i;
+		else
+			index = i;
+		err = wmi_exec_query_ints(WMI_GUID_LENOVO_FANTABLE_DEFAULT_DATA,
+						index, (u8 *)&fantable_data,
+						sizeof(fantable_data));
+		if (!err) {
+			if (fantable_data.mode == powermode_fantable_to_use) {
+				switch (fantable_data.sensor_id) {
+				case FANTABLE_SENSOR_ID_CPU:
+					fantable_default_data[0] = fantable_data;
+					break;
+				case FANTABLE_SENSOR_ID_GPU:
+					fantable_default_data[1] = fantable_data;
+					break;
+				case FANTABLE_SENSOR_ID_IC:
+					fantable_default_data[2] = fantable_data;
+					break;
+				};
+			}
+		} else {
+			// error (out of bounds) will appear on dmesg as
+			// "ACPI evaluation error for: 87FB2A6D-D802-48E7-9208-4576C5F5C8D8:15"
+			break;
+		}
+	}
+	fantable_default_data_cached = true;
+	return err;
 }
 
 /* =================================== */
@@ -2977,6 +3125,23 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 	return false;
 }
 
+static u8 convert_speed_to_pwm(enum fan_speed_unit fan_speed_unit, u8 fan_speed)
+{
+	switch (fan_speed_unit) {
+	case FAN_SPEED_UNIT_PERCENT:
+	case FAN_SPEED_UNIT_PERCENT_NEAREST:
+		return fan_speed * 255 / 100;
+	case FAN_SPEED_UNIT_PWM:
+		return fan_speed;
+	case FAN_SPEED_UNIT_RPM_HUNDRED:
+		return fan_speed * 255 * 100 / MAX_RPM;
+	default:
+		pr_info("No method to get for fan_speed_unit %d.",
+			fan_speed_unit);
+		return -1;
+	}
+}
+
 static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 				   int point_id, int fan_id, int *value)
 {
@@ -2991,23 +3156,8 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 	speed = fan_id == 0 ? fancurve->points[point_id].speed1 :
 			      fancurve->points[point_id].speed2;
 
-	switch (fancurve->fan_speed_unit) {
-	case FAN_SPEED_UNIT_PERCENT:
-	case FAN_SPEED_UNIT_PERCENT_NEAREST:
-		*value = speed * 255 / 100;
-		return true;
-	case FAN_SPEED_UNIT_PWM:
-		*value = speed;
-		return true;
-	case FAN_SPEED_UNIT_RPM_HUNDRED:
-		*value = speed * 255 * 100 / MAX_RPM;
-		return true;
-	default:
-		pr_info("No method to get for fan_speed_unit %d.",
-			fancurve->fan_speed_unit);
-		return false;
-	}
-	return false;
+	*value = convert_speed_to_pwm(fancurve->fan_speed_unit, speed);
+	return (*value != -1) ? true : false;
 }
 
 // TODO: remove { ... } from single line if body
@@ -3119,7 +3269,7 @@ static bool fancurve_set_size(struct fancurve *fancurve, int size,
 }
 
 static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
-				      struct seq_file *s)
+				      struct seq_file *s, bool ec)
 {
 	int i;
 
@@ -3135,19 +3285,47 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 		int speed_pwm2 = -1;
 		const struct fancurve_point *point = &fancurve->points[i];
 
-		fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm1);
-		fancurve_get_speed_pwm(fancurve, i, 1, &speed_pwm2);
+		if (!_model->has_fancurve_defaults || ec) {
+			fancurve_get_speed_pwm(fancurve, i, 0, &speed_pwm1);
+			fancurve_get_speed_pwm(fancurve, i, 1, &speed_pwm2);
+			seq_printf(
+				s,
+				"%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
+				fancurve->fan_speed_unit, point->speed1, point->speed2,
+				speed_pwm1, speed_pwm2, point->accel, point->decel,
+				point->cpu_min_temp_celsius,
+				point->cpu_max_temp_celsius,
+				point->gpu_min_temp_celsius,
+				point->gpu_max_temp_celsius, point->ic_min_temp_celsius,
+				point->ic_max_temp_celsius);
+		} else {
+			// Check if fantable data is cached, load if not
+			if (!fantable_default_data_cached)
+				wmi_read_fantable_default_data(_model);
 
-		seq_printf(
-			s,
-			"%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
-			fancurve->fan_speed_unit, point->speed1, point->speed2,
-			speed_pwm1, speed_pwm2, point->accel, point->decel,
-			point->cpu_min_temp_celsius,
-			point->cpu_max_temp_celsius,
-			point->gpu_min_temp_celsius,
-			point->gpu_max_temp_celsius, point->ic_min_temp_celsius,
-			point->ic_max_temp_celsius);
+			// speed1 brings the indexes : [1,2,3,4,5,6,7,8,9,10] array fantable starts at 0
+			int index = clamp_t(u8, point->speed1, 1, 10) - 1;
+
+			speed_pwm1 = convert_speed_to_pwm(fancurve->fan_speed_unit, fantable_default_data[0].fan_speed[index]/100);
+			speed_pwm2 = convert_speed_to_pwm(fancurve->fan_speed_unit, fantable_default_data[1].fan_speed[index]/100);
+
+			seq_printf(
+				s,
+				"%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\n",
+				fancurve->fan_speed_unit,
+				fantable_default_data[0].fan_speed[index]/100,
+				fantable_default_data[1].fan_speed[index]/100,
+				speed_pwm1,
+				speed_pwm2,
+				point->accel,
+				point->decel,
+				point->cpu_min_temp_celsius,
+				fantable_default_data[0].sensor[index],
+				point->gpu_min_temp_celsius,
+				fantable_default_data[1].sensor[index],
+				point->ic_min_temp_celsius,
+				fantable_default_data[2].sensor[index]);
+		}
 	}
 	return 0;
 }
@@ -3207,9 +3385,6 @@ struct legion_private {
 	// TODO: remove, only for reverse enginnering
 	struct ecram_memoryio ec_memoryio;
 };
-
-// keep state of fancurve defaults powermode
-static int fancurve_defaults_powermode;
 
 // shared between different drivers: WMI, platform and protected by mutex
 static struct legion_private *legion_shared;
@@ -4633,7 +4808,7 @@ static ssize_t write_powermode(struct legion_private *priv,
 
 	//TODO: remove again
 	pr_info("Set powermode\n");
-
+	fantable_default_data_cached = false;
 	switch (priv->conf->access_method_powermode) {
 	case ACCESS_METHOD_EC:
 		res = ec_write_powermode(priv, wmi_to_ec_powermode(value));
@@ -5014,14 +5189,14 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	read_fancurve(priv, &priv->fancurve);
 
 	seq_puts(s, "Current fan curve in hardware:\n");
-	fancurve_print_seqfile(&priv->fancurve, s);
+	fancurve_print_seqfile(&priv->fancurve, s, true);
 	seq_puts(s, "=====================\n");
 	mutex_unlock(&priv->fancurve_mutex);
 
 	seq_puts(s, "Current fan curve in hardware (WMI; might be empty)\n");
 	wmi_fancurve.size = 0;
 	err = wmi_read_fancurve_custom(priv->conf, &wmi_fancurve);
-	fancurve_print_seqfile(&wmi_fancurve, s);
+	fancurve_print_seqfile(&wmi_fancurve, s, false);
 	seq_puts(s, "=====================\n");
 	return 0;
 }
@@ -6175,6 +6350,7 @@ static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 			wpriv->event, data->type, ACPI_TYPE_INTEGER);
 		// TODO: here it is too early (first unlock mutext, then wait a bit)
 		//legion_platform_profile_notify();
+		fantable_default_data_cached = false;
 		break;
 	default:
 		pr_info("Event: legion type: %d;  acpi type: %d (%d=integer)",
@@ -6856,6 +7032,7 @@ static ssize_t fancurve_defaults_powermode_store(struct device *dev,
 		goto error_unlock;
 	}
 	fancurve_defaults_powermode = value;
+	fantable_default_data_cached = false;
 	mutex_unlock(&priv->fancurve_mutex);
 	return count;
 
@@ -6880,6 +7057,76 @@ static ssize_t fancurve_defaults_powermode_show(struct device *dev,
 	return sprintf(buf, "%d\n", fancurve_defaults_powermode);
 }
 
+static int get_fantable_default_data(int index, char *buffer)
+{
+	struct WMIFanTableDefaultData *data = &fantable_default_data[index];
+	int offset = 0;
+
+	offset += sprintf(buffer + offset, "%u,%u,%u,",
+		data->mode, data->fan_id, data->fan_table_len);
+
+	for (int i = 0; i < data->fan_table_len; i++)
+		offset += sprintf(buffer + offset, "%u,", data->fan_speed[i]);
+
+	offset += sprintf(buffer + offset, "%u,%u,",
+		data->sensor_id, data->sensor_table_len);
+
+	for (int i = 0; i < data->sensor_table_len; i++)
+		offset += sprintf(buffer + offset, "%u,", data->sensor[i]);
+
+	offset += sprintf(buffer + offset, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+		data->start_only_upward_adjust_nbr,
+		data->end_only_upward_adjust_nbr,
+		data->current_fan_max_speed,
+		data->design_max_fan_speed_nbr,
+		data->reserved,
+		data->current_fan_min_speed,
+		data->fan_speed_step,
+		data->max_sensor_temp,
+		data->min_sensor_temp,
+		data->sensor_temp_step
+		);
+	return offset;
+}
+
+static ssize_t fantable_cpu_default_data_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!fantable_default_data_cached) {
+		mutex_lock(&priv->fancurve_mutex);
+		wmi_read_fantable_default_data(priv->conf);
+		mutex_unlock(&priv->fancurve_mutex);
+	}
+	return get_fantable_default_data(0, buf);
+}
+
+static ssize_t fantable_gpu_default_data_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!fantable_default_data_cached) {
+		mutex_lock(&priv->fancurve_mutex);
+		wmi_read_fantable_default_data(priv->conf);
+		mutex_unlock(&priv->fancurve_mutex);
+	}
+	return get_fantable_default_data(1, buf);
+}
+
+static ssize_t fantable_ic_default_data_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (!fantable_default_data_cached) {
+		mutex_lock(&priv->fancurve_mutex);
+		wmi_read_fantable_default_data(priv->conf);
+		mutex_unlock(&priv->fancurve_mutex);
+	}
+	return get_fantable_default_data(2, buf);
+}
 // pwm1
 static SENSOR_DEVICE_ATTR_RO(fan1_max, fan_max, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point1_pwm, autopoint,
@@ -7095,6 +7342,9 @@ static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_decel, autopoint,
 //size
 static SENSOR_DEVICE_ATTR_2_RW(auto_points_size, autopoint, FANCURVE_SIZE, 0);
 static SENSOR_DEVICE_ATTR_2_RW(fancurve_defaults_powermode, fancurve_defaults_powermode, 0, 0);
+static SENSOR_DEVICE_ATTR_2_RO(fantable_cpu_default_data, fantable_cpu_default_data, 0, 0);
+static SENSOR_DEVICE_ATTR_2_RO(fantable_gpu_default_data, fantable_gpu_default_data, 0, 0);
+static SENSOR_DEVICE_ATTR_2_RO(fantable_ic_default_data, fantable_ic_default_data, 0, 0);
 
 static ssize_t minifancurve_show(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -7258,6 +7508,9 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_auto_points_size.dev_attr.attr,
 	&sensor_dev_attr_minifancurve.dev_attr.attr,
 	&sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr,
+	&sensor_dev_attr_fantable_cpu_default_data.dev_attr.attr,
+	&sensor_dev_attr_fantable_gpu_default_data.dev_attr.attr,
+	&sensor_dev_attr_fantable_ic_default_data.dev_attr.attr,
 	NULL
 };
 
@@ -7311,6 +7564,12 @@ static umode_t legion_hwmon_fancurve_is_visible(struct kobject *kobj,
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;
 	if (attr == &sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr)
+		supported = priv->conf->has_fancurve_defaults;
+	if (attr == &sensor_dev_attr_fantable_cpu_default_data.dev_attr.attr)
+		supported = priv->conf->has_fancurve_defaults;
+	if (attr == &sensor_dev_attr_fantable_gpu_default_data.dev_attr.attr)
+		supported = priv->conf->has_fancurve_defaults;
+	if (attr == &sensor_dev_attr_fantable_ic_default_data.dev_attr.attr)
 		supported = priv->conf->has_fancurve_defaults;
 
 	supported = supported && (priv->conf->access_method_fancurve !=
