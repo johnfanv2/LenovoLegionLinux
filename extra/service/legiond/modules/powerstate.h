@@ -9,7 +9,9 @@ typedef enum _POWER_STATE {
 	P_AC_BP = 4,
 	P_BAT_BP = 5,
 	P_AC_P = 6,
-    P_AC_E = 7,
+	P_BAT_P = 7,
+	P_AC_E = 8,
+	P_BAT_E = 9,
 } POWER_STATE;
 
 #define P_ERROR_PROFILE -1

@@ -88,10 +88,17 @@ int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	case P_AC_P:
 		strcat(cmd, "performance-ac");
 		break;
+	case P_BAT_P:
+		strcat(cmd, "performance-battery");
+		break;
 	case P_AC_E:
 		strcat(cmd, "extreme-ac");
 		break;
-    default:
+	case P_BAT_E:
+		/* no extreme-battery preset exists yet; keep max cooling */
+		strcat(cmd, "extreme-ac");
+		break;
+	default:
 		cmd[0] = '\0';
 		break;
 	}
