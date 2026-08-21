@@ -35,7 +35,7 @@ POWER_STATE get_powerstate()
 	}
 	
 	char profile[30];
-	if (fscanf(fp, "%s", profile) != 1) {
+	if (fscanf(fp, "%29s", profile) != 1) {
 		printf("failed to get power_profile\n");
 		fclose(fp);
 		return P_ERROR_PROFILE;
@@ -58,7 +58,25 @@ POWER_STATE get_powerstate()
 
 
 	if (!ac_state && power_state != -1) {
-		power_state++;
+		switch (power_state) {
+		case P_AC_Q:
+			power_state = P_BAT_Q;
+			break;
+		case P_AC_B:
+			power_state = P_BAT_B;
+			break;
+		case P_AC_BP:
+			power_state = P_BAT_BP;
+			break;
+		case P_AC_P:
+			power_state = P_BAT_P;
+			break;
+		case P_AC_E:
+			power_state = P_BAT_E;
+			break;
+		default:
+			break;
+		}
 	}
 
 	return power_state;
