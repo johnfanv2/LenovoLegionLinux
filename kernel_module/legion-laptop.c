@@ -4073,7 +4073,7 @@ static bool is_feature_write_value_valid(struct legion_private *priv, enum Other
 		pr_info("error getting current powermode\n");
 		return false;
 	}
-	feature_val = (feature_val & ~(0xFF << 8)) | ((res & 0xFF) << 8);
+	feature_val = (feature_val & ~(0xFF << 8)) | ((current_powermode & 0xFF) << 8);
 	// search in CD 01
 	for (int i = 0; i < capability_data_01_count; i++) {
 		if (capability_data_01[i].ids == feature_val)
