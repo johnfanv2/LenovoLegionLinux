@@ -441,6 +441,19 @@ class LockFanController(BoolFileFeature):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'lockfancontroller'))
 
 
+class FanUnlock(BoolFileFeature):
+    """Lift the firmware-imposed fan ceiling on supported Legion firmwares.
+
+    On models such as the Legion Pro 7 16IRX8H (BIOS KWCN54WW), the EC
+    autonomously caps fans at ~4400 RPM in Performance mode. Writing 1 here
+    invokes the WMAA(0, 0x0D, 0x01) sub-command which raises the ceiling to
+    the EC's high-end fan curve subtable (~7000-7100 RPM observed). Writing 0
+    reverts. See johnfanv2/LenovoLegionLinux issue #429 for the discovery context.
+    """
+    def __init__(self):
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'fan_unlock'))
+
+
 class BatteryConservation(BoolFileFeature):
     def __init__(self, rapidcharging_feature):
         super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'conservation_mode'))
@@ -1475,6 +1488,7 @@ class LegionModelFacade:
                                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
                                   enable_minifancurve=False)
         self.lockfancontroller = LockFanController()
+        self.fan_unlock = FanUnlock()
         self.rapid_charging = RapidChargingFeature(None)
         self.battery_conservation = BatteryConservation(None)
         # fix this by resolving circular dependency by facade or similar
