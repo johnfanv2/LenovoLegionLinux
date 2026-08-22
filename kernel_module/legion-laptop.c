@@ -194,6 +194,7 @@ enum access_method {
 	ACCESS_METHOD_WMI = 3,
 	ACCESS_METHOD_WMI2 = 4,
 	ACCESS_METHOD_WMI3 = 5,
+	ACCESS_METHOD_WMI3_CLAMPED = 6,
 	ACCESS_METHOD_EC2 = 10, // ideapad fancurve method
 	ACCESS_METHOD_EC3 = 11, // loq
 	ACCESS_METHOD_EC4 = 12, // legion 2024 (e.g. 16IRX9)
@@ -266,6 +267,7 @@ struct model_config {
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
 	bool require_unlocked_fan_controller;
+	bool has_pl_coupling;
 };
 
 /* =================================== */
@@ -1487,6 +1489,7 @@ static const struct model_config model_secn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_EC3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0F00,
 	.ramio_size = 0x600,
@@ -1495,7 +1498,7 @@ static const struct model_config model_secn = {
 		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
 	},
 	.has_fancurve_defaults = true,
-	.skip_oc_controls = true
+	.has_pl_coupling = true
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -3239,6 +3242,9 @@ struct legion_private {
 
 	// TODO: remove, only for reverse enginnering
 	struct ecram_memoryio ec_memoryio;
+
+	// PL1/PL2 coupling: runtime toggle, gated by model_config.has_pl_coupling
+	bool cpu_pl_coupling;
 };
 
 // keep state of fancurve defaults powermode
@@ -5512,6 +5518,7 @@ static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
 	default:
@@ -5526,7 +5533,32 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 					      struct device_attribute *attr,
 					      const char *buf, size_t count)
 {
+	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED) {
+		err = kstrtoint(buf, 0, &value);
+		if (err)
+			return err;
+
+		if (priv->cpu_pl_coupling) {
+			int pl1;
+
+			if (!wmi_other_method_get_value(
+				    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, &pl1)
+			    && pl1 > value) {
+				char pl1_buf[16];
+
+				snprintf(pl1_buf, sizeof(pl1_buf), "%d", value);
+				wmi_common_method_other_store(priv, pl1_buf,
+							      strlen(pl1_buf),
+							      OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+			}
+		}
+
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+	}
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5547,6 +5579,7 @@ static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
 	default:
@@ -5561,7 +5594,32 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
 {
+	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED) {
+		err = kstrtoint(buf, 0, &value);
+		if (err)
+			return err;
+
+		if (priv->cpu_pl_coupling) {
+			int pl2;
+
+			if (!wmi_other_method_get_value(
+				    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT, &pl2)
+			    && value > pl2) {
+				char pl2_buf[16];
+
+				snprintf(pl2_buf, sizeof(pl2_buf), "%d", value);
+				wmi_common_method_other_store(priv, pl2_buf,
+							      strlen(pl2_buf),
+							      OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+			}
+		}
+
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+	}
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5584,6 +5642,31 @@ static ssize_t cpu_default_powerlimit_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RO(cpu_default_powerlimit);
+
+static ssize_t cpu_pl_coupling_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	return sysfs_emit(buf, "%d\n", priv->cpu_pl_coupling);
+}
+
+static ssize_t cpu_pl_coupling_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int val, err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	err = kstrtoint(buf, 0, &val);
+	if (err)
+		return err;
+
+	priv->cpu_pl_coupling = !!val;
+	return count;
+}
+
+static DEVICE_ATTR_RW(cpu_pl_coupling);
 
 static ssize_t cpu_peak_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
@@ -5659,6 +5742,7 @@ static ssize_t cpu_cross_loading_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
 	default:
@@ -5675,6 +5759,10 @@ static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
+
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
 						     OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
@@ -5690,17 +5778,30 @@ static ssize_t gpu_oc_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
 	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
 
-	err = show_simple_wmi_attribute(dev, attr, buf,
-					WMI_GUID_LENOVO_GPU_METHOD, 0,
-					WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
-					1);
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
+		return wmi_common_method_other_show(priv, buf,
+						    OtherMethodFeature_GPU_POWER_BOOST);
+	default:
+		err = show_simple_wmi_attribute(dev, attr, buf,
+						WMI_GUID_LENOVO_GPU_METHOD, 0,
+						WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
+						1);
+	}
 	return err;
 }
 
 static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_GPU_POWER_BOOST);
+
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_OC_STATUS,
@@ -5714,6 +5815,10 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 					char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_show(priv, buf,
+						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_show(priv, buf,
@@ -5729,6 +5834,10 @@ static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
 					 const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5750,6 +5859,7 @@ static ssize_t gpu_ctgp_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_GPU_cTGP);
 	default:
@@ -5765,6 +5875,10 @@ static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 					 const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_GPU_cTGP);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5808,6 +5922,7 @@ static ssize_t gpu_temperature_limit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
 	default:
@@ -5822,6 +5937,12 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
+
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
 		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
@@ -5835,6 +5956,7 @@ static ssize_t cpu_temperature_limit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
 	default:
@@ -5847,7 +5969,12 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+
 	return -EINVAL;
 }
 
@@ -5859,6 +5986,7 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_CPU_L1_TAU);
 	default:
@@ -5871,7 +5999,12 @@ static ssize_t cpu_l1_tau_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						     OtherMethodFeature_CPU_L1_TAU);
+
 	return -EINVAL;
 }
 
@@ -5883,6 +6016,7 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(priv, buf, OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
 	default:
@@ -5895,7 +6029,12 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_common_method_other_store(priv, buf, count,
+						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+
 	return -EINVAL;
 }
 
@@ -6045,6 +6184,7 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_cpu_longterm_powerlimit.attr,
 	&dev_attr_cpu_apu_sppt_powerlimit.attr,
 	&dev_attr_cpu_default_powerlimit.attr,
+	&dev_attr_cpu_pl_coupling.attr,
 	&dev_attr_cpu_peak_powerlimit.attr,
 	&dev_attr_cpu_cross_loading_powerlimit.attr,
 	&dev_attr_gpu_oc.attr,
@@ -6139,6 +6279,10 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	     attr == &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr ||
 	     attr == &dev_attr_gpu_temperature_limit.attr ||
 	     attr == &dev_attr_gpu_boost_clock.attr))
+		return 0;
+
+	if (attr == &dev_attr_cpu_pl_coupling.attr &&
+	    !priv->conf->has_pl_coupling)
 		return 0;
 
 	return attr->mode;
@@ -7759,6 +7903,7 @@ static int legion_add(struct platform_device *pdev)
 
 	priv->conf = dmi_sys->driver_data;
 	_model = priv->conf;
+	priv->cpu_pl_coupling = priv->conf->has_pl_coupling;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
 	if (err) {
