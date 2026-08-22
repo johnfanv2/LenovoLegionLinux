@@ -225,6 +225,33 @@ static const char *default_acpi_paths[ACPI_PATH_MAX] = {
 	[ACPI_PATH_READ_GPU_TEMP] = "GPUT",
 };
 
+// bios special values (TAU, GPU Power Boost)
+// TAU value is validated in bios
+// GPU Power Boost is a slider of values
+enum bios_validation_ids {
+	BIOS_VAL_CPU_TAU = 0,
+	BIOS_VAL_GPU_POWER_BOOST,
+	BIOS_VAL_MAX
+};
+
+struct bios_validation_buffer {
+	const u8 *data;
+	size_t length;
+};
+
+static const struct bios_validation_buffer default_bios_validation_values[BIOS_VAL_MAX] = {
+	[BIOS_VAL_CPU_TAU] = {
+		// values expected for WMAE 0x01070000
+		.data = (const u8[]) {0x14, 0x18, 0x1c, 0x20, 0x28, 0x30, 0x38, 0x40, 0x50, 0x60, 0x70, 0x80, 0xA0},
+		.length = 13
+	},
+	[BIOS_VAL_GPU_POWER_BOOST] = {
+		// values from slider 0w 5w 10w 15w 20w 25w
+		.data = (const u8[]) {0x0, 0x5, 0xa, 0xf, 0x14, 0x19},
+		.length = 6
+	}
+};
+
 struct model_config {
 	const struct ec_register_offsets *registers;
 	bool check_embedded_controller_id;
@@ -266,6 +293,7 @@ struct model_config {
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
 	bool require_unlocked_fan_controller;
+	struct bios_validation_buffer bios_validation_values[BIOS_VAL_MAX];
 };
 
 /* =================================== */
@@ -2019,6 +2047,15 @@ static const char *get_model_acpi_path(const struct model_config *model, enum ac
 	if (model->acpi_paths[id] != NULL)
 		return model->acpi_paths[id];
 	return default_acpi_paths[id];
+}
+
+static const struct bios_validation_buffer *get_model_bios_validation_values(const struct model_config *model, enum bios_validation_ids id)
+{
+	if (id < 0 || id >= BIOS_VAL_MAX)
+		return NULL;
+	if (model->bios_validation_values[id].data != NULL)
+		return &model->bios_validation_values[id];
+	return &default_bios_validation_values[id];
 }
 
 // function from ideapad-laptop.c
@@ -3862,6 +3899,14 @@ struct WMILenovoCapabilityData01 {
 	u32 max_value;
 } __packed;
 
+enum capability_bits {
+	CAP_UNKWNOWN = 0x0,
+	CAP_SUPPORTED = 0x1,		// supported but no direct read/write access
+	CAP_RO = 0x3,			// read only
+	CAP_RW = 0x7,			// read / write
+	CAP_SUPPORTED_EXT = 0x401,	// supported / extended but no direct read/write access
+	CAP_RW_EXT = 0x407		// read / write extended
+};
 // these sizes are from a model, could be less or more on others
 //
 // #define LENOVO_CAP_DATA_00_SIZE 0x1B
@@ -3913,6 +3958,159 @@ static ssize_t wmi_load_capability_data(struct legion_private *priv)
 	capability_data_cached = true;
 	return 0;
 }
+
+static bool capability_allows_to_read(enum capability_bits capability)
+{
+	switch (capability) {
+	case CAP_RO:
+	case CAP_RW:
+	case CAP_RW_EXT:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool capability_allows_to_write(enum capability_bits capability)
+{
+	switch (capability) {
+	case CAP_RW:
+	case CAP_RW_EXT:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool is_feature_read_valid(enum OtherMethodFeature id)
+{
+	int err;
+	unsigned long res;
+	int current_powermode;
+	u32 feature_val = (u32)id;
+	bool is_valid;
+
+	// search in CD 00
+	for (int i = 0; i < capability_data_00_count; i++) {
+		if (capability_data_00[i].ids == feature_val) {
+			is_valid = capability_allows_to_read(capability_data_00[i].capability);
+			pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x\n",
+				capability_data_00[i].ids,
+				capability_data_00[i].capability,
+				capability_data_00[i].default_value);
+			return is_valid;
+		}
+	}
+
+	// get current powermode
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_GETSMARTFANMODE, &res);
+	if (!err)
+		current_powermode = (int)res;
+	else {
+		pr_info("error getting current powermode\n");
+		return false;
+	}
+	feature_val = (feature_val & ~(0xFF << 8)) | ((current_powermode & 0xFF) << 8);
+	// search in CD 01
+	for (int i = 0; i < capability_data_01_count; i++) {
+		if (capability_data_01[i].ids == feature_val) {
+			is_valid = capability_allows_to_read(capability_data_01[i].capability);
+
+			pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x, step: 0x%x, minv: 0x%x, maxv: 0x%x, can_read: %d\n",
+			capability_data_01[i].ids,
+			capability_data_01[i].capability,
+			capability_data_01[i].default_value,
+			capability_data_01[i].step,
+			capability_data_01[i].min_value,
+			capability_data_01[i].max_value,
+			is_valid);
+
+			return is_valid;
+		}
+	}
+	// if the feature wasnt found on both
+	pr_info("feature id 0x%x not in CapData 00/01\n", id);
+	return false;
+}
+
+static bool is_value_in_bios_validation(const struct model_config *model, enum bios_validation_ids id, int value)
+{
+	const struct bios_validation_buffer *buffer = get_model_bios_validation_values(model, id);
+
+	for (int i = 0; i < buffer->length; i++) {
+		if (buffer->data[i] == value)
+			return true;
+	}
+	return false;
+}
+
+static bool is_feature_write_value_valid(struct legion_private *priv, enum OtherMethodFeature id, int value)
+{
+	int err;
+	unsigned long res;
+	int current_powermode;
+	u32 feature_val = (u32)id;
+	bool is_valid = false;
+
+	// search in CD 00
+	for (int i = 0; i < capability_data_00_count; i++) {
+		if (capability_data_00[i].ids == feature_val) {
+			is_valid = capability_allows_to_write(capability_data_00[i].capability);
+			pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x\n",
+				capability_data_00[i].ids,
+				capability_data_00[i].capability,
+				capability_data_00[i].default_value);
+			return is_valid;
+		}
+	}
+
+	// get current powermode
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_GETSMARTFANMODE, &res);
+	if (!err)
+		current_powermode = (int)res;
+	else {
+		pr_info("error getting current powermode\n");
+		return false;
+	}
+	feature_val = (feature_val & ~(0xFF << 8)) | ((current_powermode & 0xFF) << 8);
+	// search in CD 01
+	for (int i = 0; i < capability_data_01_count; i++) {
+		if (capability_data_01[i].ids == feature_val)
+			if (capability_allows_to_write(capability_data_01[i].capability)) {
+				if (capability_data_01[i].min_value <= value && capability_data_01[i].max_value >= value)
+					is_valid = true;
+				// special cases 0x010700000 (TAU)
+				// value ss validated at bios level for matching values
+				// 0x02010000 (GPU Power Boost)
+				// is considered an slider of values
+				switch (id) {
+				case OtherMethodFeature_CPU_L1_TAU:
+					is_valid = is_value_in_bios_validation(priv->conf, BIOS_VAL_CPU_TAU, value);
+					break;
+				case OtherMethodFeature_GPU_POWER_BOOST:
+					is_valid = is_value_in_bios_validation(priv->conf, BIOS_VAL_GPU_POWER_BOOST, value);
+					break;
+				default:
+					break;
+				}
+				pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x, step: 0x%x, minv: 0x%x, maxv: 0x%x, can_write: %d\n",
+				capability_data_01[i].ids,
+				capability_data_01[i].capability,
+				capability_data_01[i].default_value,
+				capability_data_01[i].step,
+				capability_data_01[i].min_value,
+				capability_data_01[i].max_value,
+				is_valid);
+				return is_valid;
+			}
+	}
+	// if the feature wasnt found on both
+	pr_info("feature id 0x%x not in CapData 00/01\n", id);
+	return false;
+}
+
 /* Read the fan curve from the EC.
  *
  * In newer models (>=2022) there is an ACPI/WMI to read fan curve as
