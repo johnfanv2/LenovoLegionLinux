@@ -5745,10 +5745,12 @@ static ssize_t cpu_oc_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR_RW(cpu_oc);
 
 static ssize_t wmi_common_method_other_show(struct legion_private *priv, char *buf,
-				      int feature_id)
+				      enum OtherMethodFeature feature_id)
 {
 	int err, out;
 
+	if (!is_feature_read_valid(feature_id))
+		return -EINVAL;
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_other_method_get_value(feature_id, &out);
 	mutex_unlock(&priv->fancurve_mutex);
@@ -5761,17 +5763,15 @@ static ssize_t wmi_common_method_other_show(struct legion_private *priv, char *b
 
 static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 					     const char *buf, size_t count,
-					     int feature_id)
+					     enum OtherMethodFeature feature_id)
 {
-	// TODO:  use DEV, TYP, FEA, plus Powermode as key to lookup
-	// on capability data CD0, CD1 for :
-	//  - if feature is enabled for laptop model
-	//  - if value (DAT1) is valid (on/off, exact value, step, range)
 	int err, value, output;
 
 	err = kstrtoint(buf, 0, &value);
 	if (err)
 		return err;
+	if (!is_feature_write_value_valid(priv, feature_id, value))
+		return -EINVAL;
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_other_method_set_value(feature_id, value, &output);
@@ -6101,9 +6101,19 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				       OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
+	default:
+		err = store_simple_wmi_attribute(
+				dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+				WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	}
+	return err;
 }
 
 static ssize_t cpu_temperature_limit_show(struct device *dev,
@@ -6126,7 +6136,15 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				       OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+	default:
+		return -EINVAL;
+	}
 	return -EINVAL;
 }
 
@@ -6134,7 +6152,6 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -6143,14 +6160,22 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 	default:
 		return -EINVAL;
 	}
-	return err;
+	return -EINVAL;
 }
 
 static ssize_t cpu_l1_tau_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				       OtherMethodFeature_CPU_L1_TAU);
+	default:
+		return -EINVAL;
+	}
 	return -EINVAL;
 }
 
@@ -6158,7 +6183,6 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -6167,14 +6191,22 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 	default:
 		return -EINVAL;
 	}
-	return err;
+	return -EINVAL;
 }
 
 static ssize_t gpu_power_target_offset_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				      OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+	default:
+		return -EINVAL;
+	}
 	return -EINVAL;
 }
 
