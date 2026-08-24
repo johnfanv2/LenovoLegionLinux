@@ -3982,7 +3982,13 @@ static bool capability_allows_to_write(enum capability_bits capability)
 	}
 }
 
-static bool is_feature_read_valid(enum OtherMethodFeature id)
+enum feature_read_result {
+	FEAT_ID_NOT_FOUND,
+	FEAT_ID_FOUND_NO_ACCESS,
+	FEAT_ID_FOUND
+};
+
+static enum feature_read_result is_feature_read_valid(enum OtherMethodFeature id, int *value)
 {
 	int err;
 	unsigned long res;
@@ -3998,7 +4004,10 @@ static bool is_feature_read_valid(enum OtherMethodFeature id)
 				capability_data_00[i].ids,
 				capability_data_00[i].capability,
 				capability_data_00[i].default_value);
-			return is_valid;
+			// return its default value from capability
+			if (!is_valid)
+				*value = capability_data_00[i].default_value;
+			return is_valid ? FEAT_ID_FOUND:FEAT_ID_FOUND_NO_ACCESS;
 		}
 	}
 
@@ -4009,7 +4018,7 @@ static bool is_feature_read_valid(enum OtherMethodFeature id)
 		current_powermode = (int)res;
 	else {
 		pr_info("error getting current powermode\n");
-		return false;
+		return FEAT_ID_NOT_FOUND;
 	}
 	feature_val = (feature_val & ~(0xFF << 8)) | ((current_powermode & 0xFF) << 8);
 	// search in CD 01
@@ -4025,13 +4034,15 @@ static bool is_feature_read_valid(enum OtherMethodFeature id)
 			capability_data_01[i].min_value,
 			capability_data_01[i].max_value,
 			is_valid);
-
-			return is_valid;
+			// return its default value from capability
+			if (!is_valid)
+				*value = capability_data_01[i].default_value;
+			return is_valid ? FEAT_ID_FOUND:FEAT_ID_FOUND_NO_ACCESS;
 		}
 	}
 	// if the feature wasnt found on both
 	pr_info("feature id 0x%x not in CapData 00/01\n", id);
-	return false;
+	return FEAT_ID_NOT_FOUND;
 }
 
 static bool is_value_in_bios_validation(const struct model_config *model, enum bios_validation_ids id, int value)
@@ -5749,8 +5760,14 @@ static ssize_t wmi_common_method_other_show(struct legion_private *priv, char *b
 {
 	int err, out;
 
-	if (!is_feature_read_valid(feature_id))
+	switch (is_feature_read_valid(feature_id, &out)) {
+	case FEAT_ID_FOUND_NO_ACCESS:
+		return sysfs_emit(buf, "%d\n", out);
+	case FEAT_ID_NOT_FOUND:
 		return -EINVAL;
+	default:
+		break;
+	}
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_other_method_get_value(feature_id, &out);
 	mutex_unlock(&priv->fancurve_mutex);
