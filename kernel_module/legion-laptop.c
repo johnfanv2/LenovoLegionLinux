@@ -3318,44 +3318,6 @@ struct legion_private {
 	int discrete_feature_count;
 };
 
-static const struct capdata01 *capdata_lookup(struct legion_private *priv,
-					      enum OtherMethodFeature feature,
-					      int powermode)
-{
-	u32 dev_id = (feature >> 24) & 0xFF;
-	u32 feat_id = (feature >> 16) & 0xFF;
-	int i;
-
-	for (i = 0; i < priv->capdata_count; i++) {
-		const struct capdata01 *cd = &priv->capdata[i];
-		u32 cd_dev = (cd->id >> 24) & 0xFF;
-		u32 cd_feat = (cd->id >> 16) & 0xFF;
-		u32 cd_mode = (cd->id >> 8) & 0xFF;
-		u32 cd_type = cd->id & 0xFF;
-
-		if (cd_dev == dev_id && cd_feat == feat_id &&
-		    cd_mode == powermode && cd_type == 0 &&
-		    (cd->supported & BIT(0)))
-			return cd;
-	}
-	return NULL;
-}
-
-static const struct discrete_feature *
-discrete_feature_lookup(struct legion_private *priv,
-			enum OtherMethodFeature feature)
-{
-	u32 feat_id = (feature >> 16) & 0xFF;
-	int i;
-
-	for (i = 0; i < priv->discrete_feature_count; i++) {
-		u32 df_feat = (priv->discrete_features[i].feature_id >> 16) & 0xFF;
-		if (df_feat == feat_id)
-			return &priv->discrete_features[i];
-	}
-	return NULL;
-}
-
 // keep state of fancurve defaults powermode
 static int fancurve_defaults_powermode;
 
@@ -5623,13 +5585,34 @@ static int clamped_value(struct legion_private *priv,
 			 enum OtherMethodFeature feature,
 			 const char *buf, int *value)
 {
-	int err = kstrtoint(buf, 0, value);
+	const struct capdata01 *cd = NULL;
+	const struct discrete_feature *df = NULL;
+	u32 fkey = (u32)feature >> 16;
+	int i, err;
 
+	err = kstrtoint(buf, 0, value);
 	if (err)
 		return err;
-	*value = capdata_clamp(capdata_lookup(priv, feature,
-					      priv->current_powermode),
-			       *value, discrete_feature_lookup(priv, feature));
+
+	for (i = 0; i < priv->capdata_count; i++) {
+		const struct capdata01 *p = &priv->capdata[i];
+
+		if ((p->id >> 16) == fkey &&
+		    ((p->id >> 8) & 0xFF) == (u32)priv->current_powermode &&
+		    (p->id & 0xFF) == 0 && (p->supported & BIT(0))) {
+			cd = p;
+			break;
+		}
+	}
+
+	for (i = 0; i < priv->discrete_feature_count; i++) {
+		if ((priv->discrete_features[i].feature_id >> 16) == fkey) {
+			df = &priv->discrete_features[i];
+			break;
+		}
+	}
+
+	*value = capdata_clamp(cd, *value, df);
 	return 0;
 }
 
@@ -8071,11 +8054,9 @@ static int legion_add(struct platform_device *pdev)
 			for (idx = 0; idx < instances && loaded < MAX_CAPDATA_ENTRIES; idx++) {
 				union acpi_object *obj;
 				struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
-				acpi_status status;
 
-				status = wmi_query_block(LEGION_WMI_CAPDATA01_GUID,
-							  idx, &out);
-				if (ACPI_FAILURE(status))
+				if (ACPI_FAILURE(wmi_query_block(LEGION_WMI_CAPDATA01_GUID,
+								 idx, &out)))
 					continue;
 				obj = out.pointer;
 				if (!obj || obj->type != ACPI_TYPE_BUFFER ||
@@ -8105,11 +8086,9 @@ static int legion_add(struct platform_device *pdev)
 			for (idx = 0; idx < instances && entry_count < MAX_DISCRETE_ENTRIES; idx++) {
 				union acpi_object *obj;
 				struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
-				acpi_status status;
 
-				status = wmi_query_block(LEGION_WMI_DISCRETE_DATA_GUID,
-							  idx, &out);
-				if (ACPI_FAILURE(status))
+				if (ACPI_FAILURE(wmi_query_block(LEGION_WMI_DISCRETE_DATA_GUID,
+								 idx, &out)))
 					continue;
 				obj = out.pointer;
 				if (!obj) {
