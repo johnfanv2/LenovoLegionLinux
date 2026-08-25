@@ -2536,7 +2536,7 @@ struct discrete_feature {
 static int capdata_clamp(const struct capdata01 *cd, int value,
 			 const struct discrete_feature *df)
 {
-	int i, best, best_dist;
+	int i, best;
 
 	if (!cd)
 		return value;
@@ -2546,13 +2546,9 @@ static int capdata_clamp(const struct capdata01 *cd, int value,
 			return value;
 
 		best = df->values[0];
-		best_dist = abs(value - best);
 		for (i = 1; i < df->count; i++) {
-			int dist = abs(value - df->values[i]);
-			if (dist < best_dist) {
+			if (abs(value - df->values[i]) < abs(value - best))
 				best = df->values[i];
-				best_dist = dist;
-			}
 		}
 		return best;
 	}
@@ -8110,6 +8106,7 @@ static int legion_add(struct platform_device *pdev)
 			}
 
 			for (i = 0; i < entry_count && fi < MAX_DISCRETE_FEATURES; i++) {
+				struct discrete_feature *dfe;
 				u32 fid = entries[i].id;
 				int vi;
 
@@ -8117,17 +8114,14 @@ static int legion_add(struct platform_device *pdev)
 					if (priv->discrete_features[vi].feature_id == fid)
 						break;
 				}
+				dfe = &priv->discrete_features[vi];
 				if (vi == fi) {
-					priv->discrete_features[fi].feature_id = fid;
-					priv->discrete_features[fi].count = 0;
+					dfe->feature_id = fid;
+					dfe->count = 0;
 					fi++;
 				}
-				if (priv->discrete_features[vi].count <
-				    ARRAY_SIZE(priv->discrete_features[vi].values)) {
-					priv->discrete_features[vi].values[
-						priv->discrete_features[vi].count++] =
-						entries[i].value;
-				}
+				if (dfe->count < ARRAY_SIZE(dfe->values))
+					dfe->values[dfe->count++] = entries[i].value;
 			}
 			priv->discrete_feature_count = fi;
 		}
