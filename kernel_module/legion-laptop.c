@@ -225,6 +225,33 @@ static const char *default_acpi_paths[ACPI_PATH_MAX] = {
 	[ACPI_PATH_READ_GPU_TEMP] = "GPUT",
 };
 
+// bios special values (TAU, GPU Power Boost)
+// TAU value is validated in bios
+// GPU Power Boost is a slider of values
+enum bios_validation_ids {
+	BIOS_VAL_CPU_TAU = 0,
+	BIOS_VAL_GPU_POWER_BOOST,
+	BIOS_VAL_MAX
+};
+
+struct bios_validation_buffer {
+	const u8 *data;
+	size_t length;
+};
+
+static const struct bios_validation_buffer default_bios_validation_values[BIOS_VAL_MAX] = {
+	[BIOS_VAL_CPU_TAU] = {
+		// values expected for WMAE 0x01070000
+		.data = (const u8[]) {0x14, 0x18, 0x1c, 0x20, 0x28, 0x30, 0x38, 0x40, 0x50, 0x60, 0x70, 0x80, 0xA0},
+		.length = 13
+	},
+	[BIOS_VAL_GPU_POWER_BOOST] = {
+		// values from slider 0w 5w 10w 15w 20w 25w
+		.data = (const u8[]) {0x0, 0x5, 0xa, 0xf, 0x14, 0x19},
+		.length = 6
+	}
+};
+
 struct model_config {
 	const struct ec_register_offsets *registers;
 	bool check_embedded_controller_id;
@@ -266,6 +293,7 @@ struct model_config {
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
 	bool require_unlocked_fan_controller;
+	struct bios_validation_buffer bios_validation_values[BIOS_VAL_MAX];
 };
 
 /* =================================== */
@@ -2021,6 +2049,15 @@ static const char *get_model_acpi_path(const struct model_config *model, enum ac
 	return default_acpi_paths[id];
 }
 
+static const struct bios_validation_buffer *get_model_bios_validation_values(const struct model_config *model, enum bios_validation_ids id)
+{
+	if (id < 0 || id >= BIOS_VAL_MAX)
+		return NULL;
+	if (model->bios_validation_values[id].data != NULL)
+		return &model->bios_validation_values[id];
+	return &default_bios_validation_values[id];
+}
+
 // function from ideapad-laptop.c
 static int eval_int(struct acpi_device *adev, const char *name, unsigned long *res)
 {
@@ -2327,6 +2364,18 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 	return 0;
 }
 
+static int wmi_exec_query_ints(const char *guid, u8 instance, u8 *res,
+				 size_t ressize)
+{
+	acpi_status status;
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+
+	status = wmi_query_block(guid, instance, &out_buffer);
+
+	return acpi_process_buffer_to_ints(guid, instance, status, &out_buffer,
+					res, ressize);
+}
+
 /* ================================= */
 /* Lenovo WMI config                 */
 /* ================================= */
@@ -2461,6 +2510,9 @@ enum IGPUState {
 // access the keyboard backlight with 3 states
 #define WMI_METHOD_ID_KBBACKLIGHTGET 0x1
 #define WMI_METHOD_ID_KBBACKLIGHTSET 0x2
+
+#define WMI_GUID_LENOVO_CAPABILITY_DATA_00 "362a3afe-3d96-4665-8530-96dad5bb300e"
+#define WMI_GUID_LENOVO_CAPABILITY_DATA_01 "7a8f5407-cb67-4d6e-b547-39b3be018154"
 
 // new method in newer methods to get or set most of the values
 // with the two methods GetFeatureValue or SetFeatureValue.
@@ -3830,6 +3882,244 @@ static ssize_t wmi_write_fancurve_defaults(struct legion_private *priv, int valu
 	err = wmi_exec_arg(WMI_GUID_LENOVO_FAN_METHOD, 0,
 						WMI_METHOD_ID_FAN_SET_TABLE, (u8 *)&fan_table, sizeof(fan_table));
 	return err;
+}
+
+struct WMILenovoCapabilityData00 {
+	u32 ids;
+	u32 capability;
+	u32 default_value;
+} __packed;
+
+struct WMILenovoCapabilityData01 {
+	u32 ids;
+	u32 capability;
+	u32 default_value;
+	u32 step;
+	u32 min_value;
+	u32 max_value;
+} __packed;
+
+enum capability_bits {
+	CAP_UNKWNOWN = 0x0,
+	CAP_SUPPORTED = 0x1,		// supported but no direct read/write access
+	CAP_RO = 0x3,			// read only
+	CAP_RW = 0x7,			// read / write
+	CAP_SUPPORTED_EXT = 0x401,	// supported / extended but no direct read/write access
+	CAP_RW_EXT = 0x407		// read / write extended
+};
+// these sizes are from a model, could be less or more on others
+//
+// #define LENOVO_CAP_DATA_00_SIZE 0x1B
+// #define LENOVO_CAP_DATA_01_SIZE 0x4F
+//
+// lets define a max for now
+#define LENOVO_CAP_DATA_00_SIZE 0x64
+#define LENOVO_CAP_DATA_01_SIZE 0x64
+
+struct WMILenovoCapabilityData00 capability_data_00[LENOVO_CAP_DATA_00_SIZE];
+struct WMILenovoCapabilityData01 capability_data_01[LENOVO_CAP_DATA_01_SIZE];
+
+static int capability_data_00_count;
+static int capability_data_01_count;
+
+static bool capability_data_cached;
+
+static ssize_t wmi_load_capability_data(struct legion_private *priv)
+{
+	int err;
+	struct WMILenovoCapabilityData00 cap_data_00 = {0};
+	struct WMILenovoCapabilityData01 cap_data_01 = {0};
+	int count = 0;
+
+	for (count = 0; count <= LENOVO_CAP_DATA_00_SIZE; count++) {
+		err = wmi_exec_query_ints(WMI_GUID_LENOVO_CAPABILITY_DATA_00,
+						count, (u8 *)&cap_data_00,
+						sizeof(cap_data_00));
+		if (!err)
+			capability_data_00[count] = cap_data_00;
+		else
+			break;
+	};
+	capability_data_00_count = count;
+
+	for (count = 0; count <= LENOVO_CAP_DATA_01_SIZE; count++) {
+		err = wmi_exec_query_ints(WMI_GUID_LENOVO_CAPABILITY_DATA_01,
+						count, (u8 *)&cap_data_01,
+						sizeof(cap_data_01));
+		if (!err)
+			capability_data_01[count] = cap_data_01;
+		else
+			break;
+	}
+	capability_data_01_count = count;
+
+	pr_info("loaded capability data 00: %d\n", capability_data_00_count);
+	pr_info("loaded capability data 01: %d\n", capability_data_01_count);
+	capability_data_cached = true;
+	return 0;
+}
+
+static bool capability_allows_to_read(enum capability_bits capability)
+{
+	switch (capability) {
+	case CAP_RO:
+	case CAP_RW:
+	case CAP_RW_EXT:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool capability_allows_to_write(enum capability_bits capability)
+{
+	switch (capability) {
+	case CAP_RW:
+	case CAP_RW_EXT:
+		return true;
+	default:
+		return false;
+	}
+}
+
+enum feature_read_result {
+	FEAT_ID_NOT_FOUND,
+	FEAT_ID_FOUND_NO_ACCESS,
+	FEAT_ID_FOUND
+};
+
+static enum feature_read_result is_feature_read_valid(enum OtherMethodFeature id, int *value)
+{
+	int err;
+	unsigned long res;
+	int current_powermode;
+	u32 feature_val = (u32)id;
+	bool is_valid;
+
+	// search in CD 00
+	for (int i = 0; i < capability_data_00_count; i++) {
+		if (capability_data_00[i].ids == feature_val) {
+			is_valid = capability_allows_to_read(capability_data_00[i].capability);
+			pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x\n",
+				capability_data_00[i].ids,
+				capability_data_00[i].capability,
+				capability_data_00[i].default_value);
+			// return its default value from capability
+			if (!is_valid)
+				*value = capability_data_00[i].default_value;
+			return is_valid ? FEAT_ID_FOUND:FEAT_ID_FOUND_NO_ACCESS;
+		}
+	}
+
+	// get current powermode
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_GETSMARTFANMODE, &res);
+	if (!err)
+		current_powermode = (int)res;
+	else {
+		pr_info("error getting current powermode\n");
+		return FEAT_ID_NOT_FOUND;
+	}
+	feature_val = (feature_val & ~(0xFF << 8)) | ((current_powermode & 0xFF) << 8);
+	// search in CD 01
+	for (int i = 0; i < capability_data_01_count; i++) {
+		if (capability_data_01[i].ids == feature_val) {
+			is_valid = capability_allows_to_read(capability_data_01[i].capability);
+
+			pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x, step: 0x%x, minv: 0x%x, maxv: 0x%x, can_read: %d\n",
+			capability_data_01[i].ids,
+			capability_data_01[i].capability,
+			capability_data_01[i].default_value,
+			capability_data_01[i].step,
+			capability_data_01[i].min_value,
+			capability_data_01[i].max_value,
+			is_valid);
+			// return its default value from capability
+			if (!is_valid)
+				*value = capability_data_01[i].default_value;
+			return is_valid ? FEAT_ID_FOUND:FEAT_ID_FOUND_NO_ACCESS;
+		}
+	}
+	// if the feature wasnt found on both
+	pr_info("feature id 0x%x not in CapData 00/01\n", id);
+	return FEAT_ID_NOT_FOUND;
+}
+
+static bool is_value_in_bios_validation(const struct model_config *model, enum bios_validation_ids id, int value)
+{
+	const struct bios_validation_buffer *buffer = get_model_bios_validation_values(model, id);
+
+	for (int i = 0; i < buffer->length; i++) {
+		if (buffer->data[i] == value)
+			return true;
+	}
+	return false;
+}
+
+static bool is_feature_write_value_valid(struct legion_private *priv, enum OtherMethodFeature id, int value)
+{
+	int err;
+	unsigned long res;
+	int current_powermode;
+	u32 feature_val = (u32)id;
+	bool is_valid = false;
+
+	// search in CD 00
+	for (int i = 0; i < capability_data_00_count; i++) {
+		if (capability_data_00[i].ids == feature_val) {
+			is_valid = capability_allows_to_write(capability_data_00[i].capability);
+			pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x\n",
+				capability_data_00[i].ids,
+				capability_data_00[i].capability,
+				capability_data_00[i].default_value);
+			return is_valid;
+		}
+	}
+
+	// get current powermode
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_GETSMARTFANMODE, &res);
+	if (!err)
+		current_powermode = (int)res;
+	else {
+		pr_info("error getting current powermode\n");
+		return false;
+	}
+	feature_val = (feature_val & ~(0xFF << 8)) | ((current_powermode & 0xFF) << 8);
+	// search in CD 01
+	for (int i = 0; i < capability_data_01_count; i++) {
+		if (capability_data_01[i].ids == feature_val)
+			if (capability_allows_to_write(capability_data_01[i].capability)) {
+				if (capability_data_01[i].min_value <= value && capability_data_01[i].max_value >= value)
+					is_valid = true;
+				// special cases 0x010700000 (TAU)
+				// value ss validated at bios level for matching values
+				// 0x02010000 (GPU Power Boost)
+				// is considered an slider of values
+				switch (id) {
+				case OtherMethodFeature_CPU_L1_TAU:
+					is_valid = is_value_in_bios_validation(priv->conf, BIOS_VAL_CPU_TAU, value);
+					break;
+				case OtherMethodFeature_GPU_POWER_BOOST:
+					is_valid = is_value_in_bios_validation(priv->conf, BIOS_VAL_GPU_POWER_BOOST, value);
+					break;
+				default:
+					break;
+				}
+				pr_info("CapData 00, id: 0x%x, capability: 0x%x, default_value: 0x%x, step: 0x%x, minv: 0x%x, maxv: 0x%x, can_write: %d\n",
+				capability_data_01[i].ids,
+				capability_data_01[i].capability,
+				capability_data_01[i].default_value,
+				capability_data_01[i].step,
+				capability_data_01[i].min_value,
+				capability_data_01[i].max_value,
+				is_valid);
+				return is_valid;
+			}
+	}
+	// if the feature wasnt found on both
+	pr_info("feature id 0x%x not in CapData 00/01\n", id);
+	return false;
 }
 
 /* Read the fan curve from the EC.
@@ -5466,10 +5756,18 @@ static ssize_t cpu_oc_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR_RW(cpu_oc);
 
 static ssize_t wmi_common_method_other_show(struct legion_private *priv, char *buf,
-				      int feature_id)
+				      enum OtherMethodFeature feature_id)
 {
 	int err, out;
 
+	switch (is_feature_read_valid(feature_id, &out)) {
+	case FEAT_ID_FOUND_NO_ACCESS:
+		return sysfs_emit(buf, "%d\n", out);
+	case FEAT_ID_NOT_FOUND:
+		return -EINVAL;
+	default:
+		break;
+	}
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_other_method_get_value(feature_id, &out);
 	mutex_unlock(&priv->fancurve_mutex);
@@ -5482,17 +5780,15 @@ static ssize_t wmi_common_method_other_show(struct legion_private *priv, char *b
 
 static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 					     const char *buf, size_t count,
-					     int feature_id)
+					     enum OtherMethodFeature feature_id)
 {
-	// TODO:  use DEV, TYP, FEA, plus Powermode as key to lookup
-	// on capability data CD0, CD1 for :
-	//  - if feature is enabled for laptop model
-	//  - if value (DAT1) is valid (on/off, exact value, step, range)
 	int err, value, output;
 
 	err = kstrtoint(buf, 0, &value);
 	if (err)
 		return err;
+	if (!is_feature_write_value_valid(priv, feature_id, value))
+		return -EINVAL;
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = wmi_other_method_set_value(feature_id, value, &output);
@@ -5822,9 +6118,19 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	return store_simple_wmi_attribute(
-		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				       OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
+	default:
+		err = store_simple_wmi_attribute(
+				dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
+				WMI_METHOD_ID_GPU_SET_TEMPERATURE_LIMIT, false, 1);
+	}
+	return err;
 }
 
 static ssize_t cpu_temperature_limit_show(struct device *dev,
@@ -5847,7 +6153,15 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				       OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+	default:
+		return -EINVAL;
+	}
 	return -EINVAL;
 }
 
@@ -5855,7 +6169,6 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -5864,14 +6177,22 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 	default:
 		return -EINVAL;
 	}
-	return err;
+	return -EINVAL;
 }
 
 static ssize_t cpu_l1_tau_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				       OtherMethodFeature_CPU_L1_TAU);
+	default:
+		return -EINVAL;
+	}
 	return -EINVAL;
 }
 
@@ -5879,7 +6200,6 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -5888,14 +6208,22 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 	default:
 		return -EINVAL;
 	}
-	return err;
+	return -EINVAL;
 }
 
 static ssize_t gpu_power_target_offset_store(struct device *dev,
 					   struct device_attribute *attr,
 					   const char *buf, size_t count)
 {
-	// TODO:
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3:
+		return wmi_common_method_other_store(priv, buf, count,
+				      OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+	default:
+		return -EINVAL;
+	}
 	return -EINVAL;
 }
 
@@ -7875,7 +8203,7 @@ static int legion_add(struct platform_device *pdev)
 				 "Failed to init IO-Port LED driver. Skipping ...\n");
 		}
 	}
-
+	wmi_load_capability_data(priv);
 	dev_info(&pdev->dev, "legion_laptop loaded for this device\n");
 	return 0;
 
