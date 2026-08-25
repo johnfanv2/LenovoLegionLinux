@@ -5652,8 +5652,9 @@ static ssize_t wmi_clamped_store(struct legion_private *priv,
 	df = discrete_feature_lookup(priv, feature);
 	value = capdata_clamp(cd, value, df);
 	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-	return wmi_common_method_other_store(priv, clamped_buf,
-					     strlen(clamped_buf), feature);
+	err = wmi_common_method_other_store(priv, clamped_buf,
+					    strlen(clamped_buf), feature);
+	return err < 0 ? err : count;
 }
 
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
@@ -5714,9 +5715,10 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 		}
 
 		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-		return wmi_common_method_other_store(priv, clamped_buf,
-						     strlen(clamped_buf),
-						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						    strlen(clamped_buf),
+						    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		return err < 0 ? err : count;
 	}
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
@@ -5788,9 +5790,10 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 		}
 
 		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-		return wmi_common_method_other_store(priv, clamped_buf,
-						     strlen(clamped_buf),
-						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						    strlen(clamped_buf),
+						    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		return err < 0 ? err : count;
 	}
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
