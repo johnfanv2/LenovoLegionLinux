@@ -2552,7 +2552,10 @@ static int capdata_clamp(const struct capdata01 *cd, int value,
 	if (!cd)
 		return value;
 
-	if (df && df->count >= 1) {
+	if (cd->step == 0) {
+		if (!df || df->count < 1)
+			return value;
+
 		best = df->values[0];
 		best_dist = abs(value - best);
 		for (i = 1; i < df->count; i++) {
@@ -2564,9 +2567,6 @@ static int capdata_clamp(const struct capdata01 *cd, int value,
 		}
 		return best;
 	}
-
-	if (cd->step == 0)
-		return value;
 
 	if (cd->step > 0) {
 		int offset = value - cd->min_value;
@@ -3361,11 +3361,6 @@ static const struct discrete_feature *
 discrete_feature_lookup(struct legion_private *priv,
 			enum OtherMethodFeature feature)
 {
-	static const struct discrete_feature fallback_gpu_offset = {
-		.feature_id = 0x02040000,
-		.values = { 10, 15, 20, 25, 30, 35, 40, 45 },
-		.count = 8,
-	};
 	u32 feat_id = (feature >> 16) & 0xFF;
 	int i;
 
@@ -3374,10 +3369,6 @@ discrete_feature_lookup(struct legion_private *priv,
 		if (df_feat == feat_id)
 			return &priv->discrete_features[i];
 	}
-
-	if (feat_id == 0x04)
-		return &fallback_gpu_offset;
-
 	return NULL;
 }
 
