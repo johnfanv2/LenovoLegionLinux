@@ -8087,9 +8087,8 @@ static int legion_add(struct platform_device *pdev)
 								 idx, &out)))
 					continue;
 				obj = out.pointer;
-				if (!obj) {
+				if (!obj)
 					continue;
-				}
 
 				if (obj->type == ACPI_TYPE_PACKAGE &&
 				    obj->package.count >= 2 &&
