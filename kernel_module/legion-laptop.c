@@ -5586,7 +5586,7 @@ static int clamped_value(struct legion_private *priv,
 	u32 fkey = (u32)feature >> 16;
 	int i, err;
 
-	err = kstrtoint(buf, 0, value);
+	err = kstrtoint(buf, 10, value);
 	if (err)
 		return err;
 
