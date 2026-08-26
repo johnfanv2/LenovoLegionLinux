@@ -8127,9 +8127,6 @@ static int legion_add(struct platform_device *pdev)
 		}
 	}
 
-	dev_info(&pdev->dev, "Loaded %d capdata entries, %d discrete features\n",
-		 priv->capdata_count, priv->discrete_feature_count);
-
 	read_powermode(priv, &priv->current_powermode);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
