@@ -1016,14 +1016,12 @@ class FanCurveTab(QWidget):
         self.load_button.setDisabled(not enabled)
         self.write_button.setDisabled(not enabled)
 
-        for i, entry in enumerate(fancurve.entries):
-            self.entry_edits[i].set(entry)
         self.minfancurve_check.setChecked(fancurve.enable_minifancurve)
 
     def get_fancurve(self) -> FanCurve:
         entries = []
-        for i in range(10):
-            entry = self.entry_edits[i].get()
+        for entry_view in self.entry_edits:
+            entry = entry_view.get()
             entries.append(entry)
         return FanCurve(name='unknown', entries=entries,
                         enable_minifancurve=self.minfancurve_check.isChecked())
@@ -1537,7 +1535,7 @@ class MainWindow(QMainWindow):
         msgs = [
             'Show your appreciation for this tool by giving a star on github <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Help by giving a star to the github repository <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
-            'Please give a star on github to support. My goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a'
+            'Please give a star on github to support. My goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>'
             'Please give star on github the repository if this is useful or might be useful in the future <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Please give a star on github to show that this it useful to me and the Linux community,<br> so hopefully the driver can be merged to the Linux kernel <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>'
         ]
