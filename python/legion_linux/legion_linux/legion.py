@@ -453,9 +453,10 @@ class BatteryConservation(BoolFileFeature):
         return super().set(value)
 
     def set_if_not_set(self, value: bool) -> None:
-        if value is not self.get():
+        if value != self.get():
             self.set(value)
-        print(f"Already has value {value} - skip setting again.")
+        else:
+            print(f"Already has value {value} - skip setting again.")
 
 
 class RapidChargingFeature(BoolFileFeature):
@@ -919,7 +920,7 @@ class FanCurveIO(Feature):
 
     def get_fan_2_speed_rpm(self, point_id):
         pwm = self.get_fan_2_speed_pwm(point_id)
-        return round(((pwm * self.get_fan_2_max_rpm() + (100 * 225) - 1) // (100 * 255)) * 100, ndigits=2)
+        return round(((pwm * self.get_fan_2_max_rpm() + (100 * 255) - 1) // (100 * 255)) * 100, ndigits=2)
 
     def get_lower_cpu_temperature(self, point_id):
         point_id = self._validate_point_id(point_id)
@@ -1385,7 +1386,7 @@ class NVIDIAGPUOnQuietMode(Monitor):
 
     def run(self) -> List[DiagnosticMsg]:
         is_gpu_running = self.gpu_is_running.get()
-        is_quiet_mode = self.platform_profile.get() == "quiet"
+        is_quiet_mode = self.platform_profile.get() == "low-power"
         diag = DiagnosticMsg()
         if is_gpu_running and is_quiet_mode:
             diag.value = True

@@ -418,7 +418,7 @@ def create_argparser()->argparse.ArgumentParser:
     monitor_cmd = subcommands.add_parser(
         'monitor', help='Run monitors with notifications')
     monitor_cmd.add_argument(
-        'period', type=int, help='Monitoring period in seconds', default=60)
+        'period', type=int, nargs='?', help='Monitoring period in seconds', default=60)
     monitor_cmd.set_defaults(
         func=monitor)
 
@@ -498,8 +498,8 @@ def main():
         if "preset_dir" in args and args.preset_dir is not None:
             legion.set_preset_folder(args.preset_dir)
 
-        args.func(legion, **vars(args))
+        return args.func(legion, **vars(args))
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
