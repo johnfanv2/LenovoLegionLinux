@@ -55,7 +55,8 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
     <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="风扇曲线界面">
     <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="传感器监控">
     <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="性能模式">
-</p>  
+</p>
+
 - [x] 占用内存和 CPU 极小，无遥测
 - [x] 可完全通过脚本或命令行控制
 - [x] 替代 Lenovo Vantage 的简单 GUI：风扇曲线、Fn 锁、Win 键、触控板电源、摄像头电源、电池养护、快速充电、始终开启 USB 充电输出、显示器超频、Y-Logo 灯光、IO 端口灯光、混合模式 (GSync)、CPU/GPU 超频：
