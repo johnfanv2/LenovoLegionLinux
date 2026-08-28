@@ -1,7 +1,7 @@
-CC ?= clang
+CC = gcc
 
-CFLAGS ?= -O2
-CFLAGS += -Wall -linih
+CFLAGS = -O2 -std=gnu2x -Wall -Wextra
+LDLIBS = -linih
 
 SRC = $(wildcard modules/*.c)
 OBJ = $(SRC:.c=.o)
@@ -10,10 +10,10 @@ TARGET = legiond legiond-ctl
 all: $(TARGET)
 
 legiond: $(OBJ) legiond.o
-	$(CC) $(CFLAGS) $(OBJ) legiond.o -o legiond
+	$(CC) $(CFLAGS) $(OBJ) legiond.o $(LDLIBS) -o legiond
 
 legiond-ctl: legiond-ctl.o
-	$(CC) $(CFLAGS) legiond-ctl.o -o legiond-ctl
+	$(CC) $(CFLAGS) legiond-ctl.o $(LDLIBS) -o legiond-ctl
 
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@

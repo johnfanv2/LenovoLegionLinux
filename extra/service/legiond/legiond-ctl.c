@@ -1,52 +1,72 @@
 #include "public.h"
 
+static const struct {
+	const char *name;
+	LEGIOND_CMD cmd;
+	bool takes_delay;
+} commands[] = {
+	{ "fanset", CMD_FANSET, true },
+	{ "cpuset", CMD_CPUSET, false },
+	{ "reload", CMD_RELOAD, false },
+};
+
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 int main(int argc, char *argv[])
 {
-	if (getuid() != 0){
+	if (getuid() != 0) {
 		printf("require root privileges\n");
-		exit(3);
+		return 3;
 	}
 
 	if (access(socket_path, F_OK) == -1) {
 		printf("socket not found\n");
-		exit(1);
+		return 1;
 	}
 
-	char request[20] = "";
+	LEGIOND_REQUEST request = {
+		.magic = protocol_magic,
+		.cmd = 0,
+		.delay_s = 0,
+	};
 
 	if (argc > 1) {
-		if (strcmp(argv[1], "fanset") == 0) {
-			sprintf(request, "A0"); // A means fanset
-			// 0 means reset
-			if (argc > 2) {
-				int delay;
-				sscanf(argv[2], "%d", &delay);
-				// for example "A3" means 3 seconds delay
-				sprintf(request, "A%d", delay);
+		const typeof(commands[0]) *command = NULL;
+		for (size_t i = 0; i < ARRAY_SIZE(commands); i++) {
+			if (strcmp(argv[1], commands[i].name) == 0) {
+				command = &commands[i];
+				break;
 			}
-		} else if (strcmp(argv[1], "cpuset") == 0) {
-			sprintf(request, "B"); // B means cpuset
-		} else if (strcmp(argv[1], "reload") == 0) {
-			sprintf(request, "R"); // R means reload config
-		} else {
+		}
+
+		if (command == NULL) {
 			printf("unknown arguments\n");
-			exit(1);
+			return 1;
+		}
+
+		request.cmd = command->cmd;
+		if (command->takes_delay && argc > 2) {
+			// for example "legiond-ctl fanset 3" means 3 seconds delay
+			if (sscanf(argv[2], "%d", &request.delay_s) != 1)
+				request.delay_s = 0;
 		}
 	}
 
 	// init socket
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	struct sockaddr_un addr;
-	addr.sun_family = AF_UNIX;
+	auto_fd fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1)
+		return 2;
+
+	struct sockaddr_un addr = {
+		.sun_family = AF_UNIX,
+	};
 	strcpy(addr.sun_path, socket_path);
 
-	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-		exit(2);
-	}
+	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+		return 2;
 
-	if (send(fd, request, strlen(request), 0) != -1) {
+	if (send(fd, &request, sizeof(request), 0) != -1)
 		printf("successfully sent cmd\n");
-	}
 
-	close(fd);
+	return 0;
 }

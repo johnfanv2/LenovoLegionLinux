@@ -21,6 +21,6 @@ typedef enum _POWER_STATE {
 #define ac_path_alt "/sys/class/power_supply/ACAD/online"
 #define profile_path "/sys/firmware/acpi/platform_profile"
 
-POWER_STATE get_powerstate();
+[[nodiscard]] POWER_STATE get_powerstate(void);
 
 #endif // POWERSTATE_H_

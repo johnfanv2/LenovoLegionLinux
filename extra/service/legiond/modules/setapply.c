@@ -1,51 +1,76 @@
 #include "setapply.h"
 #include "powerstate.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
-	if (config->cpu_control == 0) {
+	if (!config->cpu_control) {
 		printf("cpu_control is set to false\n");
 		printf("skip cpu_control\n");
 		return 0;
 	}
 
-	const char *cmd;
+	const char *cmd = NULL;
+
+	/*
+	 * Battery states fall through to their AC counterpart when no
+	 * battery-specific command is configured.
+	 */
 	switch (power_state) {
+	case P_BAT_Q:
+		cmd = config->cpu_bat_q;
+		if (cmd[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_Q:
 		cmd = config->cpu_ac_q;
 		break;
-	case P_BAT_Q:
-		cmd = config->cpu_bat_q;
-		break;
+	case P_BAT_B:
+		cmd = config->cpu_bat_b;
+		if (cmd[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_B:
 		cmd = config->cpu_ac_b;
 		break;
-	case P_BAT_B:
-		cmd = config->cpu_bat_b;
-		break;
+	case P_BAT_BP:
+		cmd = config->cpu_bat_bp;
+		if (cmd[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_BP:
 		cmd = config->cpu_ac_bp;
 		break;
-	case P_BAT_BP:
-		cmd = config->cpu_bat_bp;
-		break;
+	case P_BAT_P:
+		cmd = config->cpu_bat_p;
+		if (cmd[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_P:
 		cmd = config->cpu_ac_p;
 		break;
+	case P_BAT_E:
+		cmd = config->cpu_bat_e;
+		if (cmd[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_E:
 		cmd = config->cpu_ac_e;
 		break;
-    default:
-		cmd = NULL;
+	default:
 		break;
 	}
 
 	int result = 0;
 
-	if (cmd != NULL) {
+	if (cmd != NULL && cmd[0] != '\0') {
 		result = system(cmd);
+	} else {
+		printf("no cpu_control cmd configured\n");
+		printf("skip cpu_control\n");
+		return 0;
 	}
 
 	if (result != 0) {
@@ -59,53 +84,55 @@ int set_cpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 
 int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
-	if (config->fan_control == 0) {
+	if (!config->fan_control) {
 		printf("fan_control is set to false\n");
 		printf("skip fan_control\n");
 		return 0;
 	}
 
-	char cmd[100] = "legion_cli fancurve-write-preset-to-hw ";
+	const char *preset = NULL;
+
 	switch (power_state) {
 	case P_AC_Q:
-		strcat(cmd, "quiet-ac");
+		preset = "quiet-ac";
 		break;
 	case P_BAT_Q:
-		strcat(cmd, "quiet-battery");
+		preset = "quiet-battery";
 		break;
 	case P_AC_B:
-		strcat(cmd, "balanced-ac");
+		preset = "balanced-ac";
 		break;
 	case P_BAT_B:
-		strcat(cmd, "balanced-battery");
+		preset = "balanced-battery";
 		break;
 	case P_AC_BP:
-		strcat(cmd, "balanced-performance-ac");
+		preset = "balanced-performance-ac";
 		break;
 	case P_BAT_BP:
-		strcat(cmd, "balanced-performance-battery");
+		preset = "balanced-performance-battery";
 		break;
 	case P_AC_P:
-		strcat(cmd, "performance-ac");
+		preset = "performance-ac";
 		break;
 	case P_BAT_P:
-		strcat(cmd, "performance-battery");
-		break;
-	case P_AC_E:
-		strcat(cmd, "extreme-ac");
+		preset = "performance-battery";
 		break;
 	case P_BAT_E:
 		/* no extreme-battery preset exists yet; keep max cooling */
-		strcat(cmd, "extreme-ac");
+		[[fallthrough]];
+	case P_AC_E:
+		preset = "extreme-ac";
 		break;
 	default:
-		cmd[0] = '\0';
 		break;
 	}
 
 	int result = 0;
 
-	if (cmd[0] != '\0') {
+	if (preset != NULL) {
+		char cmd[100];
+		snprintf(cmd, sizeof(cmd),
+			 "legion_cli fancurve-write-preset-to-hw %s", preset);
 		result = system(cmd);
 	}
 
@@ -127,6 +154,7 @@ int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	}
 
 	const char *tool;
+
 	if (strcmp(config->gpu_control, "nvidia") == 0) {
 		tool = "/opt/bin/nvidia-smi -pl ";
 	} else if (strcmp(config->gpu_control, "radeon") == 0) {
@@ -137,47 +165,71 @@ int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 		return 0;
 	}
 
-	const char *tdp;
+	const char *tdp = NULL;
+
+	/*
+	 * Battery states fall through to their AC counterpart when no
+	 * battery-specific tdp is configured.
+	 */
 	switch (power_state) {
+	case P_BAT_Q:
+		tdp = config->gpu_tdp_bat_q;
+		if (tdp[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_Q:
 		tdp = config->gpu_tdp_ac_q;
 		break;
-	case P_BAT_Q:
-		tdp = config->gpu_tdp_bat_q;
-		break;
+	case P_BAT_B:
+		tdp = config->gpu_tdp_bat_b;
+		if (tdp[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_B:
 		tdp = config->gpu_tdp_ac_b;
 		break;
-	case P_BAT_B:
-		tdp = config->gpu_tdp_bat_b;
-		break;
+	case P_BAT_BP:
+		tdp = config->gpu_tdp_bat_bp;
+		if (tdp[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_BP:
 		tdp = config->gpu_tdp_ac_bp;
 		break;
-	case P_BAT_BP:
-		tdp = config->gpu_tdp_bat_bp;
-		break;
+	case P_BAT_P:
+		tdp = config->gpu_tdp_bat_p;
+		if (tdp[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_P:
 		tdp = config->gpu_tdp_ac_p;
 		break;
+	case P_BAT_E:
+		tdp = config->gpu_tdp_bat_e;
+		if (tdp[0] != '\0')
+			break;
+		[[fallthrough]];
 	case P_AC_E:
 		tdp = config->gpu_tdp_ac_e;
 		break;
 	default:
-		tdp = NULL;
 		break;
 	}
 
-	char cmd[100];
 	int result = 0;
 
 	if (tdp != NULL && tdp[0] != '\0') {
+		char cmd[100];
 		int written = snprintf(cmd, sizeof(cmd), "%s%s", tool, tdp);
 		if (written < 0 || written >= (int)sizeof(cmd)) {
 			printf("gpu_control cmd too long, skipping\n");
 		} else {
 			result = system(cmd);
 		}
+	} else {
+		printf("no gpu_control tdp configured\n");
+		printf("skip gpu_control\n");
+		return 0;
 	}
 
 	if (result != 0) {
@@ -191,8 +243,11 @@ int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 
 int set_all(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
-	set_fancurve(power_state, config);
-	set_cpu(power_state, config);
-	set_gpu(power_state, config);
-	return 0;
+	int result = 0;
+
+	result |= set_fancurve(power_state, config);
+	result |= set_cpu(power_state, config);
+	result |= set_gpu(power_state, config);
+
+	return result;
 }
