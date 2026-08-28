@@ -690,7 +690,7 @@ echo balanced-performance > /sys/firmware/acpi/platform_profile
 ### Lenovo Legion Linux 守护进程（legiond）
 
 LLL 守护进程（`legiond`）是一个小型 C 程序（见 [extra/service/legiond](extra/service/legiond/)），支持 Systemd 和 OpenRC（实验性）。  
-如果你是手动安装 LLL（不是通过包管理器），可能需要在 extra 文件夹里运行 [systemd_install.sh](extra/systemd_install.sh)。
+如果你是手动安装 LLL（不是通过包管理器），需要自行编译 `legiond`（在 [extra/service/legiond](extra/service/legiond/) 目录下运行 `make`，依赖 `libinih`），并手动安装二进制文件、service 文件和示例配置 —— 具体步骤见 [README.org](extra/service/legiond/README.org)。
 
 该守护进程可以根据电源模式和是否插电，自动切换 GUI 中设定的风扇曲线配置文件。  
 可用的配置文件如下：

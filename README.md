@@ -675,7 +675,7 @@ With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the 
 ### Lenovo Legion Laptop Support Daemon(legiond)
 
 The LLL daemon (`legiond`) is a small C program (see [extra/service/legiond](extra/service/legiond/)) supported on Systemd and OpenRC (experimental).
-If you install LLL manually (not through the package manager), you may need to run the [systemd_install.sh](extra/systemd_install.sh) inside the extra folder.
+If you install LLL manually (not through the package manager), you need to build `legiond` yourself (`make` in [extra/service/legiond](extra/service/legiond/), requires `libinih`) and install the binaries, service files, and example profiles — see [README.org](extra/service/legiond/README.org) for the setup.
 
 This daemon automatically switches between the fan profiles set in the GUI depending on the power mode and whether the laptop is plugged in or not.
 These are the profiles available:

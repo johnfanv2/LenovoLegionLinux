@@ -1,4 +1,0 @@
-#restart lenovo-fancurve.service when ac_adapter is removed
-
-event=ac_adapter*
-action=/etc/acpi/actions/battery-legion-quiet.sh
