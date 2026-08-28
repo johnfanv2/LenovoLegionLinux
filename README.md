@@ -719,7 +719,7 @@ This systemd service also have extras features that can be activated by editing 
     - tdp_ac_p - Custom GPU TDP for performance mode on charger
   - Note: The default values in the `legiond.ini` file are from RTX 3070
 
-NOTE: `legiond.service` depends on `acpid.service` and if you enable `legiond.service`, `acpid.service` should be started automatically.
+NOTE: `legiond` watches power-state and power-profile changes directly via inotify, so it no longer depends on `acpid.service`.
 If your CPU tweaks often get reset to default, enable `legiond-cpuset.timer` to override it.
 
 See [README.org](extra/service/legiond/README.org)

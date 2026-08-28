@@ -7,10 +7,6 @@ command_background=true
 pidfile="/run/legiond.pid"
 extra_started_commands="reload"
 
-depend() {
-    need acpid
-}
-
 reload() {
     ebegin "reloading legiond configuration"
     /usr/bin/legiond-ctl reload

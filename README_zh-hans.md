@@ -735,7 +735,7 @@ LLL 守护进程（`legiond`）是一个小型 C 程序（见 [extra/service/leg
     - tdp_ac_p - 充电器高性能模式下 GPU TDP
   - 注意：`legiond.ini` 文件中的默认值来自 RTX 3070
 
-注意：`legiond.service` 依赖于 `acpid.service`，启用 `legiond.service` 时会自动启动 `acpid.service`。  
+注意：`legiond` 现在通过 inotify 直接监听电源状态/电源配置的变化，不再依赖 `acpid.service`。  
 如果你的 CPU 调优经常被重置为默认值，请启用 `legiond-cpuset.timer` 来覆盖它。
 
 详细见 [README.org](extra/service/legiond/README.org)

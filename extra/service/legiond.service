@@ -1,6 +1,5 @@
 [Unit]
 Description=legiond daemon
-After=acpid.service
 
 [Service]
 ExecStart=/usr/bin/legiond
