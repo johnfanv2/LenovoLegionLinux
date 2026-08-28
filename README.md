@@ -34,10 +34,6 @@
 
 **This project is not affiliated with Lenovo in any way**
 
-<!-- # If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46).
-
-# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). -->
-
 Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
@@ -107,11 +103,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 ## :pushpin: Confirmed Compatible Models
 
-# If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46).
-
-# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54).
-
-**Other Lenovo Legion models from 2020 to 2023 probably also work. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
+**Lenovo Legion models from 2020 up to the latest 2025 models probably work — the driver is actively maintained and new models are added regularly. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
 
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
@@ -130,6 +122,10 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7i 16ITHG6 (BIOS H1CN35WW): sensors, fan curve, power profile
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
+- Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
+- Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
+
+Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
 
@@ -137,8 +133,6 @@ Currently fan control is not working for the following models. Other features, p
 
 - Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
-
-- Mostly of Legion gen 8 (2023)
 
 ## :warning: Disclaimer
 
@@ -301,7 +295,7 @@ A automatically generated patch is provided on the release page whenver a stable
 Please note:
 
 - Please test in the given order; try to fix a failed text before going to the next.
-- These tests are manual and in the terminal because this is an early version of this tool
+- These tests are manual and run in the terminal
 - You can copy-and-paste the commands. Paste with `Ctrl+Shift+V` inside the terminal.
 
 ### Quick Test: Module is properly loaded

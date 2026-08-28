@@ -34,10 +34,6 @@
 
 **本项目与联想(Lenovo)官方无任何关联**  
 
-<!-- # 如果您拥有2022或2023款机型，请协助测试新功能[点击此处](https://github.com/johnfanv2/LenovoLegionLinux/issues/46)  
-
-# 如果您的设备带有顶盖Y字logo灯或IO接口指示灯（所有Legion 7机型），请协助测试灯光控制[点击此处](https://github.com/johnfanv2/LenovoLegionLinux/issues/54) -->  
-
 Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的Linux驱动和工具集，可作为Windows专属的"Lenovo Vantage"和"Legion Zone"控制软件的替代方案。  
 
 通过逆向工程和反汇编ACPI固件、嵌入式控制器(EC)的固件与内存，本项目实现了以下功能控制：  
@@ -116,11 +112,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 ## :pushpin: 已确认兼容的型号
 
-# 如果你拥有2022或2023年的机型，请在[这里](https://github.com/johnfanv2/LenovoLegionLinux/issues/46)帮助测试新功能。
-
-# 如果你的笔记本在A面（Y标志）或接口区（所有Legion 7）有灯，请在[这里](https://github.com/johnfanv2/LenovoLegionLinux/issues/54)帮助测试灯控功能。
-
-**其他2020至2023年的联想拯救者机型大概率也能兼容。以下为已确认可用的具体型号。如果你的BIOS版本前缀相同，例如EFCN（如EFCN54WW），那很可能也能兼容。如果你想确认你的型号是否可用，或发现不可用，请提交issue。**
+**从 2020 年到最新的 2025 款联想拯救者机型大概率都能兼容 —— 本驱动仍在积极维护中，新机型会持续加入。以下为已确认可用的具体型号。如果你的 BIOS 版本前缀相同，例如 EFCN（如 EFCN54WW），那很可能也能兼容。如果你想确认你的型号是否可用，或发现不可用，请提交 issue。**
 
 - 联想拯救者 5 15IMH05, 15IMH05H（BIOS EFCN54WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 5 15ACH6H（BIOS GKCN58WW 或 GKCN57WW），第六代：传感器、风扇曲线、电源配置
@@ -139,6 +131,10 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7i 16ITHG6（BIOS H1CN35WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 Pro 16ARX8H（BIOS LPCN47WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
+- 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
+- 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
+
+还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
 
 *注：未确认的功能大概率也能使用，只是暂无测试。*
 
@@ -146,7 +142,6 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 - BIOS为HACN*的Legion机型，如S7-15ACH6：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530和Legion Y540：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
-- 大部分Legion第8代（2023年）
 
 ## :warning: 免责声明
 
@@ -309,7 +304,7 @@ reboot
 请注意：
 
 - 请按给定顺序测试；在继续下一个之前请先尝试修复失败的测试。
-- 这些测试是手动在终端中进行的，因为这是该工具的早期版本。
+- 这些测试需在终端中手动进行。
 - 你可以复制并粘贴命令。在终端内使用 `Ctrl+Shift+V` 粘贴。
 
 ### 快速测试：模块是否正确加载
