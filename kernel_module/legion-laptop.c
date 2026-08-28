@@ -268,6 +268,13 @@ struct model_config {
 	bool wmi_fancurve_speed_only;
 	bool require_unlocked_fan_controller;
 	bool has_pl_coupling;
+	/* Lift the firmware-imposed fan ceiling via WMAA(0, 0x0D, arg) on the
+	 * GameZone WMI GUID. Only validated firmwares (e.g. KWCN54WW on the
+	 * Legion Pro 7 16IRX8H) set this; on models without the sub-command the
+	 * EC returns an ACPI error, so the sysfs attribute is hidden to avoid
+	 * issuing an unverified WMI call. See issue #429 / PR #443.
+	 */
+	bool has_fan_unlock;
 };
 
 /* =================================== */
@@ -702,7 +709,11 @@ static const struct model_config model_kwcn = {
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	/* WMAA(0, 0x0D, 0x01) raises the firmware fan ceiling from ~4400 RPM to
+	 * ~7000-7100 RPM on KWCN54WW (Legion Pro 7 16IRX8H, EC 0x5507).
+	 */
+	.has_fan_unlock = true
 };
 
 static const struct model_config model_g8cn = {
@@ -6464,6 +6475,10 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 
 	if (attr == &dev_attr_cpu_pl_coupling.attr &&
 	    !priv->conf->has_pl_coupling)
+		return 0;
+
+	if (attr == &dev_attr_fan_unlock.attr &&
+	    !priv->conf->has_fan_unlock)
 		return 0;
 
 	return attr->mode;

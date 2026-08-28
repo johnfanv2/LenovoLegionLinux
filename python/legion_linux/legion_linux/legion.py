@@ -13,20 +13,21 @@ import zlib
 from datetime import datetime
 import yaml
 from PIL import Image
+
 # import jsonrpyc
 # import inotify.adapters
 
 
 log = logging.getLogger(__name__)
-kernel_version = tuple(map(int,os.uname().release.split('-')[0].split('.')))
+kernel_version = tuple(map(int, os.uname().release.split("-")[0].split(".")))
 
 DEFAULT_ENCODING = "utf8"
 DEFAULT_CONFIG_DIR = "/etc/legion_linux"
 if kernel_version >= (7, 0, 0):
-    LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/legion'
+    LEGION_SYS_BASEPATH = "/sys/module/legion_laptop/drivers/platform:legion/legion"
 else:
-    LEGION_SYS_BASEPATH = '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00'
-IDEAPAD_SYS_BASEPATH = '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00'
+    LEGION_SYS_BASEPATH = "/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00"
+IDEAPAD_SYS_BASEPATH = "/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00"
 LBLDVC_FILE = "/sys/firmware/efi/efivars/LBLDVC-871455d1-5576-4fb8-9865-af0824463c9f"
 LBLDESP_FILE = "/sys/firmware/efi/efivars/LBLDESP-871455d0-5576-4fb8-9865-af0824463b9e"
 
@@ -34,13 +35,14 @@ LBLDESP_FILE = "/sys/firmware/efi/efivars/LBLDESP-871455d0-5576-4fb8-9865-af0824
 def is_root_user():
     return os.geteuid() == 0
 
+
 def get_dmesg(only_tail=False, filter_log=True):
     try:
         if filter_log:
-            cmd = 'dmesg | grep legion | tail -n 20' if only_tail else 'dmesg | grep legion'
+            cmd = "dmesg | grep legion | tail -n 20" if only_tail else "dmesg | grep legion"
         else:
-            cmd = 'dmesg | tail -n 20' if only_tail else 'dmesg'
-        with subprocess.Popen(['bash', '-c', cmd], stdout=subprocess.PIPE) as process:
+            cmd = "dmesg | tail -n 20" if only_tail else "dmesg"
+        with subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.PIPE) as process:
             out, _ = process.communicate(timeout=1)
             out_str = out.decode(DEFAULT_ENCODING)
             return out_str
@@ -51,8 +53,8 @@ def get_dmesg(only_tail=False, filter_log=True):
 
 @dataclass(order=True)
 class FanCurveEntry:
-    fan1_speed: float # fan speed in rpm
-    fan2_speed: float # fan speed in rpm
+    fan1_speed: float  # fan speed in rpm
+    fan2_speed: float  # fan speed in rpm
     cpu_lower_temp: int
     cpu_upper_temp: int
     gpu_lower_temp: int
@@ -68,16 +70,18 @@ class FanCurveEntry:
         Such entries are read back for fan curve points beyond the size
         supported by the EC and must not be written back to the EC.
         """
-        return (self.fan1_speed == 0
-                and self.fan2_speed == 0
-                and self.cpu_lower_temp == 0
-                and self.cpu_upper_temp == 0
-                and self.gpu_lower_temp == 0
-                and self.gpu_upper_temp == 0
-                and self.ic_lower_temp == 0
-                and self.ic_upper_temp == 0
-                and self.acceleration == 0
-                and self.deceleration == 0)
+        return (
+            self.fan1_speed == 0
+            and self.fan2_speed == 0
+            and self.cpu_lower_temp == 0
+            and self.cpu_upper_temp == 0
+            and self.gpu_lower_temp == 0
+            and self.gpu_upper_temp == 0
+            and self.ic_lower_temp == 0
+            and self.ic_upper_temp == 0
+            and self.acceleration == 0
+            and self.deceleration == 0
+        )
 
 
 class Serializable:
@@ -88,7 +92,7 @@ class Serializable:
         raise NotImplementedError()
 
     @classmethod
-    def from_yaml(cls, yaml_str:str):
+    def from_yaml(cls, yaml_str: str):
         raise NotImplementedError()
 
     def save_to_file(self, filename, create_dir=True):
@@ -98,13 +102,13 @@ class Serializable:
             log.info("Create directory %s for presets", directory)
             Path(directory).mkdir(parents=True, exist_ok=True)
         log.info("Trying to save %s to %s", name, filename)
-        with open(filename, 'w', encoding=DEFAULT_ENCODING) as filepointer:
+        with open(filename, "w", encoding=DEFAULT_ENCODING) as filepointer:
             filepointer.write(self.to_yaml())
         log.info("Saved %s to %s", name, filename)
 
     @classmethod
     def load_from_file(cls, filename):
-        with open(filename, 'r', encoding=DEFAULT_ENCODING) as filepointer:
+        with open(filename, "r", encoding=DEFAULT_ENCODING) as filepointer:
             return cls.from_yaml(filepointer.read())
 
 
@@ -120,10 +124,9 @@ class FanCurve(Serializable):
     @classmethod
     def from_yaml(cls, yaml_str):
         data = yaml.load(yaml_str, Loader=yaml.SafeLoader)
-        name = data['name']
-        entries = [FanCurveEntry(**entry) for entry in data['entries']]
-        enable_minifancurve = bool(
-            data['enable_minifancurve']) if 'enable_minifancurve' in data else True
+        name = data["name"]
+        entries = [FanCurveEntry(**entry) for entry in data["entries"]]
+        enable_minifancurve = bool(data["enable_minifancurve"]) if "enable_minifancurve" in data else True
         fan_curve = cls(name, entries, enable_minifancurve)
         return fan_curve
 
@@ -141,7 +144,7 @@ class NamedValue:
 
 
 def write_file_with_legion_cli(name, values):
-    cmd_list = ['pkexec', 'legion_cli', 'set-feature', name]
+    cmd_list = ["pkexec", "legion_cli", "set-feature", name]
     cmd_list = cmd_list + [str(val) for val in values]
     log.info('FileFeature %s execute "%s"', name, cmd_list)
     out_str = ""
@@ -152,19 +155,18 @@ def write_file_with_legion_cli(name, values):
             out_str = stdout.decode(DEFAULT_ENCODING)
             err_str = stderr.decode(DEFAULT_ENCODING)
             returncode = process.returncode
-            log.info('FileFeature %s executed with code %d: %s; %s',
-                     name, returncode, out_str, err_str)
+            log.info("FileFeature %s executed with code %d: %s; %s", name, returncode, out_str, err_str)
     except IOError as err:
-        log.error('FileFeature %s executed with error %s and out %s and err %s', name, str(
-            err), out_str, err_str)
+        log.error("FileFeature %s executed with error %s and out %s and err %s", name, str(err), out_str, err_str)
         log.error(get_dmesg(only_tail=True, filter_log=False))
         raise err
+
 
 # def write_file_with_legion_cli_rpc(name, value):
 
 
 class Feature:
-    features: List['FileFeature'] = []
+    features: List["FileFeature"] = []
     default_use_legion_cli_to_write: bool = False
 
     use_legion_cli_to_write: bool
@@ -183,7 +185,7 @@ class Feature:
     def name(self):
         return type(self).__name__
 
-    def add_callback(self, callback:Callable[[any], None]):
+    def add_callback(self, callback: Callable[[any], None]):
         self.callbacks.append(callback)
 
     def _notify(self):
@@ -228,15 +230,16 @@ class BoolSettingFeature(Feature):
         return self._name
 
     def set(self, value: bool):
-        log.info('Setting feature %s to %d', self.name(), value)
+        log.info("Setting feature %s to %d", self.name(), value)
         self.value = value
         self._notify()
 
     def get(self) -> bool:
         return self.value
 
+
 class EnumSettingFeature(Feature):
-    def __init__(self, name, value, all_values:List[NamedValue]) -> None:
+    def __init__(self, name, value, all_values: List[NamedValue]) -> None:
         super().__init__()
         self._name = name
         self._all_values = all_values
@@ -249,8 +252,8 @@ class EnumSettingFeature(Feature):
         return self._all_values
 
     def set(self, value: str):
-        log.info('Setting feature %s to %s', self.name(), str(value))
-        if value in [ nv.value for nv in self._all_values]:
+        log.info("Setting feature %s to %s", self.name(), str(value))
+        if value in [nv.value for nv in self._all_values]:
             self.value = value
             self._notify()
         else:
@@ -269,23 +272,21 @@ class FileFeature(Feature):
         super().__init__()
         self.pattern = pattern
         self.filename = FileFeature._find_by_file_pattern(pattern)
-        log.info('Feature %s with pattern %s and path %s',
-                 self.name(), pattern, self.filename)
+        log.info("Feature %s with pattern %s and path %s", self.name(), pattern, self.filename)
         if not self.exists():
-            log.warning('Feature %s does not exist. exits: %d',
-                        self.name(), self.exists())
+            log.warning("Feature %s does not exist. exits: %d", self.name(), self.exists())
 
     def _read_file_str(self, file_path) -> str:
-        log.info('Feature %s reading', self.name())
+        log.info("Feature %s reading", self.name())
         if not self.exists():
-            log.warning('Feature %s reading from non existing', self.name())
+            log.warning("Feature %s reading from non existing", self.name())
         try:
             with open(file_path, "r", encoding=DEFAULT_ENCODING) as filepointer:
                 out = str(filepointer.read()).strip()
-            log.info('Feature %s reading: %s', self.name(), str(out))
+            log.info("Feature %s reading: %s", self.name(), str(out))
             return out
         except IOError as err:
-            log.error('Feature %s reading error %s', self.name(), str(err))
+            log.error("Feature %s reading error %s", self.name(), str(err))
             log.error(get_dmesg(only_tail=True, filter_log=False))
             raise err
 
@@ -299,14 +300,14 @@ class FileFeature(Feature):
         if self.use_legion_cli_to_write:
             write_file_with_legion_cli(self.name(), [value])
             return
-        log.info('Feature %s writing: %s', self.name(), str(value))
+        log.info("Feature %s writing: %s", self.name(), str(value))
         if not self.exists():
-            log.error('Feature %s writing to non existing', self.name())
+            log.error("Feature %s writing to non existing", self.name())
         try:
             with open(file_path, "w", encoding=DEFAULT_ENCODING) as filepointer:
                 filepointer.write(str(value))
         except IOError as err:
-            log.error('Feature %s writing error %s', self.name(), str(err))
+            log.error("Feature %s writing error %s", self.name(), str(err))
             log.error(get_dmesg(only_tail=True, filter_log=False))
             raise err
 
@@ -363,27 +364,25 @@ class LegionGUIAutostart(BoolFileFeature):
 
     def __init__(self):
         self.autostart_dekstop_folder_path = Path.home() / ".config" / "autostart"
-        self.desktop_file_path = Path(
-            '/usr/share/applications') / 'legion_gui_user.desktop'
-        self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / \
-            "legion_gui_user.desktop"
+        self.desktop_file_path = Path("/usr/share/applications") / "legion_gui_user.desktop"
+        self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / "legion_gui_user.desktop"
         super().__init__(str(Path.home() / ".config"))
 
     def exists(self):
         return self.desktop_file_path.exists() and self.autostart_dekstop_folder_path.exists()
 
     def set(self, value: bool):
-        log.info('Feature %s setting to %d', self.name(), value)
+        log.info("Feature %s setting to %d", self.name(), value)
         if value:
             src = self.desktop_file_path
             dest = self.autostart_desktop_file_path
-            log.info('Feature %s: Copy %s to %s', self.name(), src, dest)
+            log.info("Feature %s: Copy %s to %s", self.name(), src, dest)
             shutil.copyfile(src, dest)
         else:
             dest = self.autostart_desktop_file_path
-            log.info('Feature %s: Delete %s', self.name(), dest)
+            log.info("Feature %s: Delete %s", self.name(), dest)
             dest.unlink(missing_ok=True)
-            log.info('Feature %s: Deleted %s', self.name(), dest)
+            log.info("Feature %s: Deleted %s", self.name(), dest)
 
     def get(self) -> bool:
         if not self.autostart_desktop_file_path.exists():
@@ -438,7 +437,7 @@ class FloatFileFeature(FileFeature):
 
 class LockFanController(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'lockfancontroller'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "lockfancontroller"))
 
 
 class FanUnlock(BoolFileFeature):
@@ -449,14 +448,19 @@ class FanUnlock(BoolFileFeature):
     invokes the WMAA(0, 0x0D, 0x01) sub-command which raises the ceiling to
     the EC's high-end fan curve subtable (~7000-7100 RPM observed). Writing 0
     reverts. See johnfanv2/LenovoLegionLinux issue #429 for the discovery context.
+
+    The kernel module only creates the underlying ``fan_unlock`` sysfs node on
+    firmwares whitelisted via a ``model_config.has_fan_unlock`` flag, so on
+    unverified models the file is absent and ``exists()`` returns False.
     """
+
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'fan_unlock'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "fan_unlock"))
 
 
 class BatteryConservation(BoolFileFeature):
     def __init__(self, rapidcharging_feature):
-        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'conservation_mode'))
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, "conservation_mode"))
         self.rapidcharging_feature = rapidcharging_feature
 
     def set(self, value):
@@ -473,10 +477,10 @@ class BatteryConservation(BoolFileFeature):
 
 
 class RapidChargingFeature(BoolFileFeature):
-    '''Rapid charging of laptop battery'''
+    """Rapid charging of laptop battery"""
 
     def __init__(self, batterconservation_feature: BatteryConservation):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'rapidcharge'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "rapidcharge"))
         self.batterconservation_feature = batterconservation_feature
 
     def set(self, value):
@@ -488,59 +492,58 @@ class RapidChargingFeature(BoolFileFeature):
 
 class FnLockFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'fn_lock'))
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, "fn_lock"))
 
 
 class WinkeyFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'winkey'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "winkey"))
 
 
 class TouchpadFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__([os.path.join(IDEAPAD_SYS_BASEPATH, 'touchpad'), os.path.join(
-            LEGION_SYS_BASEPATH, 'touchpad')])
+        super().__init__(
+            [os.path.join(IDEAPAD_SYS_BASEPATH, "touchpad"), os.path.join(LEGION_SYS_BASEPATH, "touchpad")]
+        )
 
 
 class CameraPowerFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'camera_power'))
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, "camera_power"))
 
 
 class OverdriveFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'overdrive'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "overdrive"))
 
 
 class GsyncFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'gsync'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gsync"))
 
 
 class AlwaysOnUSBChargingFeature(BoolFileFeature):
-    '''Always on USB Charging of external devices while laptop is off'''
+    """Always on USB Charging of external devices while laptop is off"""
 
     def __init__(self):
-        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, 'usb_charging'))
+        super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, "usb_charging"))
 
 
 class MaximumFanSpeedFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, 'fan_fullspeed'))
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "fan_fullspeed"))
 
 
 class PlatformProfileFeature(FileFeature):
     def __init__(self):
-        super().__init__(
-            LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile")
-        self.choices = StrFileFeature(
-            LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices")
+        super().__init__(LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile")
+        self.choices = StrFileFeature(LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices")
         self.all_values = [
             NamedValue("low-power", "Low Power"),
             NamedValue("balanced", "Balanced Mode"),
             NamedValue("performance", "Performance Mode"),
             NamedValue("custom", "Custom Mode"),
-            NamedValue("max-power", "Max Power")
+            NamedValue("max-power", "Max Power"),
         ]
 
     def get_values(self) -> List[NamedValue]:
@@ -625,8 +628,7 @@ class CPUDefaultPowerLimit(IntFileFeature):
 
 class CPUCrossLoadingPowerLimit(IntFileFeature):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH,
-                                      "cpu_cross_loading_powerlimit"), 0, 100, 1)
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_cross_loading_powerlimit"), 0, 100, 1)
 
 
 class GPUBoostClock(IntFileFeature):
@@ -661,7 +663,7 @@ class IOPortLight(BoolFileFeature):
 
 class NVIDIAGPUIsRunning(BoolFileFeature):
     def __init__(self):
-        super().__init__('/sys/bus/pci/devices/0000:01:00.0/power/runtime_status')
+        super().__init__("/sys/bus/pci/devices/0000:01:00.0/power/runtime_status")
 
     def set(self, _: bool):
         raise NotImplementedError()
@@ -679,24 +681,21 @@ class CommandFeature:
     def __init__(self, cmds):
         self.cmds = cmds
         self._exists = False
-        log.info('CommandFeature %s: %s', self.name(), self.cmds)
+        log.info("CommandFeature %s: %s", self.name(), self.cmds)
         if not self.exists():
-            log.warning('Feature %s does not exist. exits: %d',
-                        self.name(), self.exists())
+            log.warning("Feature %s does not exist. exits: %d", self.name(), self.exists())
 
     def _exec_cmd(self, cmd, timeout=None) -> Tuple[str, int]:
         log.info('CommandFeature %s execute "%s"', self.name(), cmd)
         try:
-            with subprocess.Popen(['bash', '-c', cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            with subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
                 stdout, _ = process.communicate(timeout=timeout)
                 out_str = stdout.decode(DEFAULT_ENCODING)
                 returncode = process.returncode
-                log.info('CommandFeature %s reading with code %d: %s',
-                         self.name(), returncode, out_str)
+                log.info("CommandFeature %s reading with code %d: %s", self.name(), returncode, out_str)
                 return out_str, returncode
         except IOError as err:
-            log.error('CommandFeature %s reading error %s',
-                      self.name(), str(err))
+            log.error("CommandFeature %s reading error %s", self.name(), str(err))
             log.error(get_dmesg(only_tail=True, filter_log=False))
             raise err
 
@@ -728,12 +727,12 @@ class BoolCommandFeature(CommandFeature):
 class SystemDServiceFeature(BoolCommandFeature):
     def __init__(self, servicename):
         super().__init__([])
-        self.status_cmd = f'systemctl status {servicename}'
-        self.stop_cmd = f'systemctl stop {servicename}'
-        self.start_cmd = f'systemctl start {servicename}'
-        self.enable_cmd = f'systemctl enable {servicename}'
-        self.disable_cmd = f'systemctl disable {servicename}'
-        self.read_cmd = f'systemctl is-active {servicename}'
+        self.status_cmd = f"systemctl status {servicename}"
+        self.stop_cmd = f"systemctl stop {servicename}"
+        self.start_cmd = f"systemctl start {servicename}"
+        self.enable_cmd = f"systemctl enable {servicename}"
+        self.disable_cmd = f"systemctl disable {servicename}"
+        self.read_cmd = f"systemctl is-active {servicename}"
         self._exists = self._does_service_exists()
 
     def _does_service_exists(self):
@@ -757,16 +756,16 @@ class SystemDServiceFeature(BoolCommandFeature):
 
 class PowerProfilesDeamonService(SystemDServiceFeature):
     def __init__(self):
-        super().__init__('power-profiles-daemon')
+        super().__init__("power-profiles-daemon")
 
 
 class LenovoLegionLaptopSupportService(SystemDServiceFeature):
     def __init__(self):
-        super().__init__('legiond.service legiond-onresume.service legiond-cpuset.service legiond-cpuset.timer')
+        super().__init__("legiond.service legiond-onresume.service legiond-cpuset.service legiond-cpuset.timer")
 
 
 class FanCurveIO(Feature):
-    hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, 'hwmon/hwmon*')
+    hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, "hwmon/hwmon*")
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
     pwm2_fan_speed = "pwm2_auto_point{}_pwm"
     pwm1_temp_hyst = "pwm1_auto_point{}_temp_hyst"
@@ -798,26 +797,31 @@ class FanCurveIO(Feature):
         return False
 
     def _has_point_file(self, pattern):
-        return self.hwmon_path is not None and os.path.exists(
-            self.hwmon_path + pattern.format(1))
+        return self.hwmon_path is not None and os.path.exists(self.hwmon_path + pattern.format(1))
 
     def has_fan_2_speed(self):
         return self._has_point_file(self.pwm2_fan_speed)
 
     def has_temperature_curve(self):
-        return all(self._has_point_file(pattern) for pattern in [
-            self.pwm1_temp_hyst, self.pwm1_temp,
-            self.pwm2_temp_hyst, self.pwm2_temp,
-            self.pwm3_temp_hyst, self.pwm3_temp])
+        return all(
+            self._has_point_file(pattern)
+            for pattern in [
+                self.pwm1_temp_hyst,
+                self.pwm1_temp,
+                self.pwm2_temp_hyst,
+                self.pwm2_temp,
+                self.pwm3_temp_hyst,
+                self.pwm3_temp,
+            ]
+        )
 
     def has_acceleration_curve(self):
-        return (self._has_point_file(self.pwm1_accel) and
-                self._has_point_file(self.pwm1_decel))
+        return self._has_point_file(self.pwm1_accel) and self._has_point_file(self.pwm1_decel)
 
     def _find_hwmon_dir(self):
         matches = glob.glob(self.hwmon_dir_pattern)
         if matches:
-            return matches[0]+'/'
+            return matches[0] + "/"
         return None
 
     @staticmethod
@@ -1004,24 +1008,19 @@ class FanCurveIO(Feature):
 
         auto_points_size = self.get_auto_points_size()
         if auto_points_size is not None and len(entries) > auto_points_size:
-            log.warning(
-                "Trimming fan curve from %d to %d points (hardware limit)",
-                len(entries), auto_points_size)
+            log.warning("Trimming fan curve from %d to %d points (hardware limit)", len(entries), auto_points_size)
             entries = entries[:auto_points_size]
 
         if self.use_legion_cli_to_write:
-            trimmed_curve = FanCurve(
-                fan_curve.name, entries, fan_curve.enable_minifancurve)
-            write_file_with_legion_cli(
-                self.name(), [str(trimmed_curve.to_yaml())])
+            trimmed_curve = FanCurve(fan_curve.name, entries, fan_curve.enable_minifancurve)
+            write_file_with_legion_cli(self.name(), [str(trimmed_curve.to_yaml())])
             return
 
         has_fan_2_speed = self.has_fan_2_speed()
         has_temperature_curve = self.has_temperature_curve()
         has_acceleration_curve = self.has_acceleration_curve()
         try:
-            log.info(
-                "Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
+            log.info("Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
         except BaseException as error:
@@ -1050,8 +1049,7 @@ class FanCurveIO(Feature):
         has_acceleration_curve = self.has_acceleration_curve()
         for point_id in range(1, 11):
             fan1_speed = self.get_fan_1_speed_rpm(point_id)
-            fan2_speed = (self.get_fan_2_speed_rpm(point_id)
-                          if has_fan_2_speed else fan1_speed)
+            fan2_speed = self.get_fan_2_speed_rpm(point_id) if has_fan_2_speed else fan1_speed
             if has_temperature_curve:
                 cpu_lower_temp = self.get_lower_cpu_temperature(point_id)
                 cpu_upper_temp = self.get_upper_cpu_temperature(point_id)
@@ -1072,15 +1070,22 @@ class FanCurveIO(Feature):
             else:
                 acceleration = 0
                 deceleration = 0
-            entry = FanCurveEntry(fan1_speed=fan1_speed, fan2_speed=fan2_speed,
-                                  cpu_lower_temp=cpu_lower_temp, cpu_upper_temp=cpu_upper_temp,
-                                  gpu_lower_temp=gpu_lower_temp, gpu_upper_temp=gpu_upper_temp,
-                                  ic_lower_temp=ic_lower_temp, ic_upper_temp=ic_upper_temp,
-                                  acceleration=acceleration, deceleration=deceleration)
+            entry = FanCurveEntry(
+                fan1_speed=fan1_speed,
+                fan2_speed=fan2_speed,
+                cpu_lower_temp=cpu_lower_temp,
+                cpu_upper_temp=cpu_upper_temp,
+                gpu_lower_temp=gpu_lower_temp,
+                gpu_upper_temp=gpu_upper_temp,
+                ic_lower_temp=ic_lower_temp,
+                ic_upper_temp=ic_upper_temp,
+                acceleration=acceleration,
+                deceleration=deceleration,
+            )
             entries.append(entry)
         while entries and entries[-1].is_empty():
             entries.pop()
-        fancurve = FanCurve(name='unknown', entries=entries)
+        fancurve = FanCurve(name="unknown", entries=entries)
         try:
             fancurve.enable_minifancurve = self.get_minifancuve()
         # pylint: disable=broad-except
@@ -1097,16 +1102,16 @@ class ApplicationModel:
     icon_color_mode: EnumSettingFeature
 
     def __init__(self):
-        self.automatic_close = BoolSettingFeature('automatic_close')
+        self.automatic_close = BoolSettingFeature("automatic_close")
         self.automatic_close.set(False)
 
-        self.close_to_tray = BoolSettingFeature('close_to_tray')
+        self.close_to_tray = BoolSettingFeature("close_to_tray")
         self.close_to_tray.set(False)
 
-        self.open_closed_to_tray = BoolSettingFeature('open_closed_to_tray')
+        self.open_closed_to_tray = BoolSettingFeature("open_closed_to_tray")
         self.open_closed_to_tray.set(False)
 
-        self.enable_gui_monitoring = BoolSettingFeature('enable_gui_monitoring')
+        self.enable_gui_monitoring = BoolSettingFeature("enable_gui_monitoring")
         self.enable_gui_monitoring.set(False)
 
         icon_color_modes = [
@@ -1114,7 +1119,7 @@ class ApplicationModel:
             NamedValue("always-light", "Always use light color scheme"),
             NamedValue("always-dark", "Always use dark color scheme"),
             NamedValue("automatic", "Use system color scheme"),
-            NamedValue("automatic-inverted", "Use inverted system color scheme")
+            NamedValue("automatic-inverted", "Use inverted system color scheme"),
         ]
         self.icon_color_mode = EnumSettingFeature("icon_color_mode", icon_color_modes[0].value, icon_color_modes)
         self.icon_color_mode.set(icon_color_modes[0].value)
@@ -1129,7 +1134,7 @@ class Settings(Serializable):
 
     @classmethod
     def from_yaml(cls, yaml_str):
-        data = yaml.load(yaml_str, Loader=yaml.SafeLoader)['setting_entries']
+        data = yaml.load(yaml_str, Loader=yaml.SafeLoader)["setting_entries"]
         return Settings(data)
 
 
@@ -1161,7 +1166,7 @@ class SettingsManager(Feature):
                 log.error("Cannot set %s from preset to %s", name, value)
 
     def _name_to_filename(self, name):
-        return os.path.join(self.preset_dir, name+".yaml")
+        return os.path.join(self.preset_dir, name + ".yaml")
 
     def does_exists_by_name(self, name):
         return os.path.exists(self._name_to_filename(name))
@@ -1171,8 +1176,7 @@ class SettingsManager(Feature):
 
     def save_by_name(self, name, settings: Settings):
         if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(
-                self.name(), [name, str(settings.to_yaml())])
+            write_file_with_legion_cli(self.name(), [name, str(settings.to_yaml())])
             return
         settings.save_to_file(self._name_to_filename(name))
 
@@ -1193,7 +1197,7 @@ class FanCurveRepository(Feature):
             "quiet-ac": None,
             "balanced-ac": None,
             "performance-ac": None,
-            "balanced-performance-ac": None
+            "balanced-performance-ac": None,
         }
 
         self.preset_dir = preset_dir
@@ -1205,7 +1209,7 @@ class FanCurveRepository(Feature):
         return preset_name
 
     def _name_to_filename(self, name):
-        return os.path.join(self.preset_dir, name+".yaml")
+        return os.path.join(self.preset_dir, name + ".yaml")
 
     def get_names(self):
         return self.fancurve_presets.keys()
@@ -1219,12 +1223,11 @@ class FanCurveRepository(Feature):
     def load_by_name_or_default(self, name):
         if self.does_exists_by_name(name):
             return self.load_by_name(name)
-        return FanCurve(name='unknown', entries=[])
+        return FanCurve(name="unknown", entries=[])
 
     def save_by_name(self, name, fancurve: FanCurve):
         if self.use_legion_cli_to_write:
-            write_file_with_legion_cli(
-                self.name(), [name, str(fancurve.to_yaml())])
+            write_file_with_legion_cli(self.name(), [name, str(fancurve.to_yaml())])
             return
         fancurve.save_to_file(self._name_to_filename(name))
 
@@ -1235,8 +1238,9 @@ class FanCurveRepository(Feature):
 
 
 class CustomConservationController:
-    def __init__(self, battery_conservation: BatteryConservation,
-                 battery_capacity_perc: BatteryCurrentCapacityPercentage):
+    def __init__(
+        self, battery_conservation: BatteryConservation, battery_capacity_perc: BatteryCurrentCapacityPercentage
+    ):
         self.battery_conservation = battery_conservation
         self.battery_capacity_perc = battery_capacity_perc
         self.lower_limit = 60
@@ -1246,19 +1250,22 @@ class CustomConservationController:
         battery_cap = self.battery_capacity_perc.get()
         if battery_cap > self.upper_limit:
             print(
-                "Enabling conservation mode because battery" +
-                f" {battery_cap} is greater than upper limit {self.upper_limit}")
+                "Enabling conservation mode because battery"
+                + f" {battery_cap} is greater than upper limit {self.upper_limit}"
+            )
             self.battery_conservation.set_if_not_set(True)
             return self.battery_conservation.get()
         if battery_cap < self.lower_limit:
             print(
-                "Disabling conservation mode because battery" +
-                f" {battery_cap} is lower than lower limit {self.lower_limit}")
+                "Disabling conservation mode because battery"
+                + f" {battery_cap} is lower than lower limit {self.lower_limit}"
+            )
             self.battery_conservation.set_if_not_set(False)
             return self.battery_conservation.get()
         print(
-            "Keeping conservation mode because battery" +
-            f" {battery_cap} is within bounds of {self.lower_limit} and {self.upper_limit}")
+            "Keeping conservation mode because battery"
+            + f" {battery_cap} is within bounds of {self.lower_limit} and {self.upper_limit}"
+        )
         return self.battery_conservation.get()
 
 
@@ -1266,7 +1273,7 @@ class CustomConservationController:
 class DiagnosticMsg:
     value: bool = None
     has_value: bool = True
-    msg: str = ''
+    msg: str = ""
     # filter by setting attribute so current message could still be displayed
     filter_do_output: bool = True
 
@@ -1278,8 +1285,7 @@ class DiagFilter:
 
     def apply_filter(self, diag_msg: DiagnosticMsg) -> DiagnosticMsg:
         if diag_msg.has_value and diag_msg.filter_do_output:
-            diag_msg.filter_do_output = diag_msg.filter_do_output and self.predicate(
-                diag_msg)
+            diag_msg.filter_do_output = diag_msg.filter_do_output and self.predicate(diag_msg)
         return diag_msg
 
 
@@ -1349,10 +1355,10 @@ class NVIDIAGPUMonitor(Monitor):
         gpu_running_diag = DiagnosticMsg()
         if is_gpu_running:
             gpu_running_diag.value = True
-            gpu_running_diag.msg = 'GPU wakeup'
+            gpu_running_diag.msg = "GPU wakeup"
         else:
             gpu_running_diag.value = False
-            gpu_running_diag.msg = 'GPU suspended'
+            gpu_running_diag.msg = "GPU suspended"
         gpu_running_diag = self.filter.apply_filter(gpu_running_diag)
 
         return [gpu_running_diag]
@@ -1375,11 +1381,11 @@ class NVIDIAGPUOnBatteryMonitor(Monitor):
         diag = DiagnosticMsg()
         if is_gpu_running and is_on_battery:
             diag.value = True
-            diag.msg = 'Running on battery with dGPU on.'
+            diag.msg = "Running on battery with dGPU on."
             diag = self.filter.apply_filter(diag)
         else:
             diag.value = False
-            diag.msg = 'Running on battery with dGPU off.'
+            diag.msg = "Running on battery with dGPU off."
             diag.has_value = False
             diag = self.filter.apply_filter(diag)
 
@@ -1395,7 +1401,7 @@ class NVIDIAGPUOnQuietMode(Monitor):
         super().__init__([gpu_is_running, platform_profile])
         self.gpu_is_running = gpu_is_running
         self.platform_profile = platform_profile
-        self.filter = FilterAtMostEvery(period_s=60*10)
+        self.filter = FilterAtMostEvery(period_s=60 * 10)
 
     def run(self) -> List[DiagnosticMsg]:
         is_gpu_running = self.gpu_is_running.get()
@@ -1403,15 +1409,16 @@ class NVIDIAGPUOnQuietMode(Monitor):
         diag = DiagnosticMsg()
         if is_gpu_running and is_quiet_mode:
             diag.value = True
-            diag.msg = 'Running on quiet mode with dGPU on.'
+            diag.msg = "Running on quiet mode with dGPU on."
             diag = self.filter.apply_filter(diag)
         else:
             diag.value = False
-            diag.msg = 'Not running on quiet mode with dGPU on.'
+            diag.msg = "Not running on quiet mode with dGPU on."
             diag.has_value = False
             diag = self.filter.apply_filter(diag)
 
         return [diag]
+
 
 # class INotifyMonitor:
 
@@ -1474,18 +1481,31 @@ class SystemNotificationSender(NotifcationSender):
             # TODOs: find a better way
             # Code by user dvilela on stackoverflow
             # https://stackoverflow.com/a/54718205
-            user_id = subprocess.run(['id', '-u', os.environ['SUDO_USER']],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            check=True).stdout.decode("utf-8").replace('\n', '')
-            subprocess.run(['sudo', '-u', os.environ['SUDO_USER'],
-                            f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_id}/bus',
-                            'notify-send', '-i', 'utilities-terminal', msg, msg],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            check=True)
+            user_id = (
+                subprocess.run(
+                    ["id", "-u", os.environ["SUDO_USER"]], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                )
+                .stdout.decode("utf-8")
+                .replace("\n", "")
+            )
+            subprocess.run(
+                [
+                    "sudo",
+                    "-u",
+                    os.environ["SUDO_USER"],
+                    f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_id}/bus",
+                    "notify-send",
+                    "-i",
+                    "utilities-terminal",
+                    msg,
+                    msg,
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         else:
-            with subprocess.Popen(['notify-send', msg]) as _:
+            with subprocess.Popen(["notify-send", msg]) as _:
                 pass
 
 
@@ -1498,10 +1518,11 @@ class LegionModelFacade:
         log.info(get_dmesg())
         self.fancurve_io = FanCurveIO(expect_hwmon=expect_hwmon)
         self.fancurve_repo = FanCurveRepository(preset_dir=config_dir)
-        self.fan_curve = FanCurve(name='unknown',
-                                  entries=[FanCurveEntry(
-                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
-                                  enable_minifancurve=False)
+        self.fan_curve = FanCurve(
+            name="unknown",
+            entries=[FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) for i in range(10)],
+            enable_minifancurve=False,
+        )
         self.lockfancontroller = LockFanController()
         self.fan_unlock = FanUnlock()
         self.rapid_charging = RapidChargingFeature(None)
@@ -1521,7 +1542,8 @@ class LegionModelFacade:
         self.always_on_usb_charging = AlwaysOnUSBChargingFeature()
         self.battery_capacity_perc = BatteryCurrentCapacityPercentage()
         self.battery_custom_conservation_controller = CustomConservationController(
-            self.battery_conservation, self.battery_capacity_perc)
+            self.battery_conservation, self.battery_capacity_perc
+        )
 
         # OC and Power
         self.cpu_overclock = CPUOverclock()
@@ -1549,12 +1571,9 @@ class LegionModelFacade:
         # monitors
         self.nvidia_gpu_running = NVIDIAGPUIsRunning()
         self.nvidia_gpu_monitor = NVIDIAGPUMonitor(self.nvidia_gpu_running)
-        self.nvidia_battery_monitor = NVIDIAGPUOnBatteryMonitor(
-            self.nvidia_gpu_running, self.on_power_supply)
-        self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(
-            self.nvidia_gpu_running, self.platform_profile)
-        self.monitors = [self.nvidia_gpu_monitor,
-                         self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
+        self.nvidia_battery_monitor = NVIDIAGPUOnBatteryMonitor(self.nvidia_gpu_running, self.on_power_supply)
+        self.dgpu_on_quiet_monitior = NVIDIAGPUOnQuietMode(self.nvidia_gpu_running, self.platform_profile)
+        self.monitors = [self.nvidia_gpu_monitor, self.nvidia_battery_monitor, self.dgpu_on_quiet_monitior]
 
         # Other settings mainly for app
         self.app_model = ApplicationModel()
@@ -1582,28 +1601,25 @@ class LegionModelFacade:
         return tmp_path, backup_path
 
     def _calculate_crc32(self, file_path, length=512):
-        with open(file_path, 'rb') as file:
+        with open(file_path, "rb") as file:
             data = file.read(length)
         return zlib.crc32(data) & 0xFFFFFFFF
 
     def _read_file(self, file_path):
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             return f.read()
 
     def _check_image_dimensions_and_format(self, image_path, expected_width, expected_height):
         with Image.open(image_path) as img:
             img_width, img_height = img.size
             img_format = img.format.lower()
-            if expected_width not in (0, img_width) or \
-               expected_height not in (0, img_height):
+            if expected_width not in (0, img_width) or expected_height not in (0, img_height):
                 raise ValueError(
                     f"Image dimensions do not match: expect {expected_width}x{expected_height}, "
                     f"got {img_width}x{img_height}."
                 )
-            if img_format not in ['jpeg', 'png', 'bmp']:
-                raise ValueError(
-                    f"Image format '{img_format.upper()}' is not supported (only JPG/PNG/BMP)."
-                )
+            if img_format not in ["jpeg", "png", "bmp"]:
+                raise ValueError(f"Image format '{img_format.upper()}' is not supported (only JPG/PNG/BMP).")
             return img_width, img_height, img_format
 
     def get_boot_logo_status(self):
@@ -1618,8 +1634,8 @@ class LegionModelFacade:
             return False, 0, 0
 
         fifth_byte = data[4]
-        width = int.from_bytes(data[5:9], byteorder='little')
-        height = int.from_bytes(data[9:13], byteorder='little')
+        width = int.from_bytes(data[5:9], byteorder="little")
+        height = int.from_bytes(data[9:13], byteorder="little")
         is_on = fifth_byte == 0x01
         return is_on, width, height
 
@@ -1632,11 +1648,11 @@ class LegionModelFacade:
         image_checksum = self._calculate_crc32(image_path, 512)
         with open(tmp_lbldvc, "r+b") as f:
             f.seek(8)
-            f.write(struct.pack('<I', image_checksum))
+            f.write(struct.pack("<I", image_checksum))
         tmp_lbldesp, _ = self._backup_file(LBLDESP_FILE, timestamp)
         with open(tmp_lbldesp, "r+b") as f:
             f.seek(4)
-            f.write(b'\x01')
+            f.write(b"\x01")
         self._replace_efi_file(LBLDVC_FILE, tmp_lbldvc)
         self._replace_efi_file(LBLDESP_FILE, tmp_lbldesp)
         boot_dir = "/boot"
@@ -1658,7 +1674,7 @@ class LegionModelFacade:
         tmp_lbldesp, _ = self._backup_file(LBLDESP_FILE, timestamp)
         with open(tmp_lbldesp, "r+b") as f:
             f.seek(4)
-            f.write(b'\x00')
+            f.write(b"\x00")
 
         self._replace_efi_file(LBLDESP_FILE, tmp_lbldesp)
         os.remove(tmp_lbldesp)
@@ -1719,10 +1735,8 @@ class LegionModelFacade:
     def fancurve_write_preset_for_current_profile(self, write_minifancurve=False):
         is_on_powersupply = self.on_power_supply.get()
         profile = self.platform_profile.get()
-        preset_name = self.fancurve_repo.get_preset_name(
-            profile, is_on_powersupply)
-        print(
-            f"Loading preset={preset_name} for profile={profile} and is_powersupply={is_on_powersupply}")
+        preset_name = self.fancurve_repo.get_preset_name(profile, is_on_powersupply)
+        print(f"Loading preset={preset_name} for profile={profile} and is_powersupply={is_on_powersupply}")
         if preset_name in self.fancurve_repo.fancurve_presets:
             fancurve = self.fancurve_repo.load_by_name_or_default(preset_name)
             self.fancurve_io.write_fan_curve(fancurve, write_minifancurve)
@@ -1736,9 +1750,9 @@ class LegionModelFacade:
         return self.battery_custom_conservation_controller.run()
 
     def load_settings(self):
-        if self.settings_manager.does_exists_by_name('settings'):
+        if self.settings_manager.does_exists_by_name("settings"):
             log.info("Settings file exists and will be loaded.")
-            settings = self.settings_manager.load_by_name('settings')
+            settings = self.settings_manager.load_by_name("settings")
             log.info("Loaded settings:\n %s", settings.to_yaml())
             self.settings_manager.apply_settings(settings)
         else:
@@ -1748,7 +1762,7 @@ class LegionModelFacade:
         log.info("Saving settings...")
         settings = self.settings_manager.get_settings()
         log.info("Settings:\n %s", settings.to_yaml())
-        self.settings_manager.save_by_name('settings', settings)
+        self.settings_manager.save_by_name("settings", settings)
         log.info("Saving settings done")
 
     def run_monitors(self, period_s):
@@ -1756,7 +1770,7 @@ class LegionModelFacade:
         period_s = period_s or self.nvidia_gpu_monitor.period_s
         try:
             while True:
-                print(".", flush=True, end='')
+                print(".", flush=True, end="")
                 diag_msgs: List[DiagnosticMsg] = []
                 for mon in self.monitors:
                     try:
@@ -1766,13 +1780,13 @@ class LegionModelFacade:
                         log.error(str(err))
                 for msg in diag_msgs:
                     if msg.has_value and msg.filter_do_output:
-                        print('')
+                        print("")
                         print(msg.msg)
-                        notification_sender.notify('Legion', msg.msg)
+                        notification_sender.notify("Legion", msg.msg)
                     elif msg.has_value:
                         print(f"FILTERED: {msg.msg}")
                     else:
                         print(f"FILTERED2: {msg.msg}")
                 time.sleep(period_s)
         except KeyboardInterrupt:
-            print('Monitor Interrupted!')
+            print("Monitor Interrupted!")

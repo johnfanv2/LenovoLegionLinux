@@ -72,7 +72,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
   - Set acceleration and deceleration for each the fan when the fan speed should increase or decrease
   - Save and load presets for different modes
 - [X] Lock and unlock the fan controller and fan speed
-- [X] Lift the firmware-imposed fan ceiling on supported models (`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`). On the Legion Pro 7 16IRX8H (BIOS KWCN54WW) this raises the cap from ~4400 RPM to ~7100 RPM. Discovered via `WMAA(0, 0x0D, 0x01)` — see issue #429.
+- [X] Lift the firmware-imposed fan ceiling on supported models (`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`). On the Legion Pro 7 16IRX8H (BIOS KWCN54WW) this raises the cap from ~4400 RPM to ~7100 RPM. Discovered via `WMAA(0, 0x0D, 0x01)` — see issue #429. The sysfs node is gated behind a `has_fan_unlock` model/BIOS allowlist and only exposed on validated firmwares (currently KWCN54WW).
 - [X] Switch power mode (quiet, balanced, performance) using software
   - Now you can do it using software in your system settings
   - Changing with `Fn+Q` is also possible

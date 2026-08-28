@@ -6,37 +6,33 @@ import argparse
 import logging
 import sys
 import os
+
 # Make it possible to run without installationimport
 # pylint: disable=# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
 from legion_linux.legion import LegionModelFacade
+
 logging.basicConfig()
 log = logging.getLogger(legion_linux.legion.__name__)
-loglevels = ['NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']
+loglevels = ["NOTSET", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]
 # will be set in main to user defined level after parsing
-log.setLevel('ERROR')
+log.setLevel("ERROR")
 
 
 class CLIFeatureCommand:
     def __init__(self, name: str, parser_subcommands, cmd_group: list, writeable: bool = True):
         self.name = name
         self.model = None
-        status_parser = parser_subcommands.add_parser(
-            f"{self.name}-status", help=f'Get current value for {self.name}')
-        status_parser.set_defaults(
-            func=lambda l, *args, **kwargs: self.command_status_cli(**kwargs))
+        status_parser = parser_subcommands.add_parser(f"{self.name}-status", help=f"Get current value for {self.name}")
+        status_parser.set_defaults(func=lambda l, *args, **kwargs: self.command_status_cli(**kwargs))
 
         if writeable:
-            enable_parser = parser_subcommands.add_parser(
-                f"{self.name}-enable", help=f'Enable {self.name}')
-            enable_parser.set_defaults(
-                func=lambda l, *args, **kwargs: self.command_enable_cli(**kwargs))
+            enable_parser = parser_subcommands.add_parser(f"{self.name}-enable", help=f"Enable {self.name}")
+            enable_parser.set_defaults(func=lambda l, *args, **kwargs: self.command_enable_cli(**kwargs))
 
-            disable_parser = parser_subcommands.add_parser(
-                f"{self.name}-disable", help=f'Disable {self.name}')
-            disable_parser.set_defaults(
-                func=lambda l, *args, **kwargs: self.command_disable_cli(**kwargs))
+            disable_parser = parser_subcommands.add_parser(f"{self.name}-disable", help=f"Disable {self.name}")
+            disable_parser.set_defaults(func=lambda l, *args, **kwargs: self.command_disable_cli(**kwargs))
 
         if cmd_group is not None:
             cmd_group.append(self)
@@ -47,8 +43,7 @@ class CLIFeatureCommand:
     def check_if_exist(self):
         if self.exists():
             return True
-        print(
-            "Command not available because feature is not available or kernel module is not loaded.")
+        print("Command not available because feature is not available or kernel module is not loaded.")
         return False
 
     def command_status_cli(self, **_) -> int:
@@ -321,7 +316,7 @@ class HybridMode(CLIFeatureCommand):
 
 
 def autocomplete_install(_, **__) -> int:
-    cmd = f"eval \"$(register-python-argcomplete {__file__})\""
+    cmd = f'eval "$(register-python-argcomplete {__file__})"'
     print("PLEASE RUN THE COMMAND:")
     print(cmd)
 
@@ -329,28 +324,28 @@ def autocomplete_install(_, **__) -> int:
 def fancurve_write_preset_to_hw(legion: LegionModelFacade, presetname: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_preset_to_hw(presetname, write_minifancurve=True)
-    print(f'Successfully wrote preset {presetname} to hardware')
+    print(f"Successfully wrote preset {presetname} to hardware")
     return 0
 
 
 def fancurve_write_hw_to_preset(legion: LegionModelFacade, presetname: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_hw_to_preset(presetname)
-    print(f'Successfully wrote hardware to preset {presetname}')
+    print(f"Successfully wrote hardware to preset {presetname}")
     return 0
 
 
 def fancurve_write_file_to_hw(legion: LegionModelFacade, filename: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_file_to_hw(filename, write_minifancurve=True)
-    print(f'Successfully wrote fan curve from file {filename} to hardware')
+    print(f"Successfully wrote fan curve from file {filename} to hardware")
     return 0
 
 
 def fancurve_write_hw_to_file(legion: LegionModelFacade, filename: str, **_) -> int:
     # pylint: disable=unused-argument
     legion.fancurve_write_hw_to_file(filename)
-    print(f'Successfully wrote fan curve from hardware to file {filename}')
+    print(f"Successfully wrote fan curve from hardware to file {filename}")
     return 0
 
 
@@ -360,10 +355,10 @@ def fancurve_write_preset_for_current_profile(legion: LegionModelFacade, **_) ->
     return 0
 
 
-def conservation_apply_mode_for_current_battery_capacity(legion: LegionModelFacade,
-                                                         lowerlimit=50, upperlimit=60, **_) -> int:
-    print(legion.conservation_apply_mode_for_current_battery_capacity(
-        lowerlimit, upperlimit))
+def conservation_apply_mode_for_current_battery_capacity(
+    legion: LegionModelFacade, lowerlimit=50, upperlimit=60, **_
+) -> int:
+    print(legion.conservation_apply_mode_for_current_battery_capacity(lowerlimit, upperlimit))
     return 0
 
 
@@ -374,7 +369,7 @@ def monitor(legion: LegionModelFacade, period=None, **_) -> int:
 
 
 def set_feature(legion: LegionModelFacade, name, values, **_) -> int:
-    log.setLevel('INFO')
+    log.setLevel("INFO")
     if legion.set_feature_to_str_value(name, values):
         return 0
     print("Feature not found.")
@@ -382,89 +377,85 @@ def set_feature(legion: LegionModelFacade, name, values, **_) -> int:
         print(feat)
     return -2
 
-def create_argparser()->argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description='Legion CLI')
-    parser.add_argument(
-        '--donotexpecthwmon', action='store_true', help='Do not check hwmon dir when not needed', default=False)
-    parser.add_argument('--loglevel', type=str,
-                        help='Level of log output', choices=loglevels, default='ERROR')
 
-    subcommands = parser.add_subparsers(title='subcommands', dest='subcommand')
+def create_argparser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Legion CLI")
+    parser.add_argument(
+        "--donotexpecthwmon", action="store_true", help="Do not check hwmon dir when not needed", default=False
+    )
+    parser.add_argument("--loglevel", type=str, help="Level of log output", choices=loglevels, default="ERROR")
+
+    subcommands = parser.add_subparsers(title="subcommands", dest="subcommand")
 
     autocomplete_install_parser = subcommands.add_parser(
-        'autocomplete-install', help='Install autocompletion in shell for this tool')
+        "autocomplete-install", help="Install autocompletion in shell for this tool"
+    )
     autocomplete_install_parser.set_defaults(func=autocomplete_install)
 
     preset_to_hw_parser = subcommands.add_parser(
-        'fancurve-write-preset-to-hw', help='Write fan curve from preset to hardware')
-    preset_to_hw_parser.add_argument(
-        'presetname', type=str, help='Name of the preset')
-    preset_to_hw_parser.add_argument(
-        '--preset-dir', type=str, help='Path of the directory with presets')
+        "fancurve-write-preset-to-hw", help="Write fan curve from preset to hardware"
+    )
+    preset_to_hw_parser.add_argument("presetname", type=str, help="Name of the preset")
+    preset_to_hw_parser.add_argument("--preset-dir", type=str, help="Path of the directory with presets")
     preset_to_hw_parser.set_defaults(func=fancurve_write_preset_to_hw)
 
     hw_to_preset_parser = subcommands.add_parser(
-        'fancurve-write-hw-to-preset', help='Write fan curve from hardware to preset')
-    hw_to_preset_parser.add_argument(
-        'presetname', type=str, help='Name of the preset')
-    hw_to_preset_parser.add_argument(
-        '--preset-dir', type=str, help='Path of the directory with presets')
+        "fancurve-write-hw-to-preset", help="Write fan curve from hardware to preset"
+    )
+    hw_to_preset_parser.add_argument("presetname", type=str, help="Name of the preset")
+    hw_to_preset_parser.add_argument("--preset-dir", type=str, help="Path of the directory with presets")
     hw_to_preset_parser.set_defaults(func=fancurve_write_hw_to_preset)
 
     file_to_hw_parser = subcommands.add_parser(
-        'fancurve-write-file-to-hw', help='Write fan curve from file to hardware')
-    file_to_hw_parser.add_argument(
-        'filename', type=str, help='Name of the file')
+        "fancurve-write-file-to-hw", help="Write fan curve from file to hardware"
+    )
+    file_to_hw_parser.add_argument("filename", type=str, help="Name of the file")
     file_to_hw_parser.set_defaults(func=fancurve_write_file_to_hw)
 
     hw_to_file_parser = subcommands.add_parser(
-        'fancurve-write-hw-to-file', help='Write fan curve from hardware to file')
-    hw_to_file_parser.add_argument(
-        'filename', type=str, help='Name of the file')
+        "fancurve-write-hw-to-file", help="Write fan curve from hardware to file"
+    )
+    hw_to_file_parser.add_argument("filename", type=str, help="Name of the file")
     hw_to_file_parser.set_defaults(func=fancurve_write_hw_to_file)
 
     hw_to_file_parser = subcommands.add_parser(
-        'fancurve-write-current-preset-to-hw',
-        help='Write fan curve for the current profile (power mode, power supply status) to hardware')
-    hw_to_file_parser.set_defaults(
-        func=fancurve_write_preset_for_current_profile)
+        "fancurve-write-current-preset-to-hw",
+        help="Write fan curve for the current profile (power mode, power supply status) to hardware",
+    )
+    hw_to_file_parser.set_defaults(func=fancurve_write_preset_for_current_profile)
 
     custom_conservation_mode = subcommands.add_parser(
-        'custom-conservation-mode-apply', help='Turn conservation mode on or off depending on battery level')
+        "custom-conservation-mode-apply", help="Turn conservation mode on or off depending on battery level"
+    )
     custom_conservation_mode.add_argument(
-        'lowerlimit', type=int, help='Limit when conservation mode should be turned off, e.g. 60', default=61)
+        "lowerlimit", type=int, help="Limit when conservation mode should be turned off, e.g. 60", default=61
+    )
     custom_conservation_mode.add_argument(
-        'upperlimit', type=int, help='Limit when conservation mode should be turned on, e.g. 80', default=81)
-    custom_conservation_mode.set_defaults(
-        func=conservation_apply_mode_for_current_battery_capacity)
+        "upperlimit", type=int, help="Limit when conservation mode should be turned on, e.g. 80", default=81
+    )
+    custom_conservation_mode.set_defaults(func=conservation_apply_mode_for_current_battery_capacity)
 
-    monitor_cmd = subcommands.add_parser(
-        'monitor', help='Run monitors with notifications')
-    monitor_cmd.add_argument(
-        'period', type=int, nargs='?', help='Monitoring period in seconds', default=60)
-    monitor_cmd.set_defaults(
-        func=monitor)
+    monitor_cmd = subcommands.add_parser("monitor", help="Run monitors with notifications")
+    monitor_cmd.add_argument("period", type=int, nargs="?", help="Monitoring period in seconds", default=60)
+    monitor_cmd.set_defaults(func=monitor)
 
-    set_feature_cmd = subcommands.add_parser(
-        'set-feature', help='Set feature')
-    set_feature_cmd.add_argument(
-        'name', type=str, help='Name of feature')
-    set_feature_cmd.add_argument(
-        'values', type=str, help='Value of feature', nargs='+')
-    set_feature_cmd.set_defaults(
-        func=set_feature)
+    set_feature_cmd = subcommands.add_parser("set-feature", help="Set feature")
+    set_feature_cmd.add_argument("name", type=str, help="Name of feature")
+    set_feature_cmd.add_argument("values", type=str, help="Value of feature", nargs="+")
+    set_feature_cmd.set_defaults(func=set_feature)
 
-    bootlogo_parser = subcommands.add_parser('boot-logo', help="Custom Boot Logo")
-    bootlogo_sub = bootlogo_parser.add_subparsers(dest='bootlogo_cmd')
-    enable_parser = bootlogo_sub.add_parser('enable', help='Set Boot Logo')
-    enable_parser.add_argument('image_path', type=str, help='Path to the image to be used')
+    bootlogo_parser = subcommands.add_parser("boot-logo", help="Custom Boot Logo")
+    bootlogo_sub = bootlogo_parser.add_subparsers(dest="bootlogo_cmd")
+    enable_parser = bootlogo_sub.add_parser("enable", help="Set Boot Logo")
+    enable_parser.add_argument("image_path", type=str, help="Path to the image to be used")
     enable_parser.set_defaults(func=boot_logo_enable)
-    restore_parser = bootlogo_sub.add_parser('restore', help='Restore modified boot logo')
+    restore_parser = bootlogo_sub.add_parser("restore", help="Restore modified boot logo")
     restore_parser.set_defaults(func=boot_logo_restore)
-    status_parser = bootlogo_sub.add_parser('status', help='View status')
+    status_parser = bootlogo_sub.add_parser("status", help="View status")
     status_parser.set_defaults(func=boot_logo_status)
 
     return parser, subcommands
+
 
 def boot_logo_enable(legion: LegionModelFacade, image_path: str, **kwargs) -> int:  # pylint: disable=unused-argument
     try:
@@ -475,6 +466,7 @@ def boot_logo_enable(legion: LegionModelFacade, image_path: str, **kwargs) -> in
         print(f"Error enabling Boot Logo: {e}")
         return 1
 
+
 def boot_logo_restore(legion: LegionModelFacade, **kwargs) -> int:  # pylint: disable=unused-argument
     try:
         legion.restore_boot_logo()
@@ -484,10 +476,12 @@ def boot_logo_restore(legion: LegionModelFacade, **kwargs) -> int:  # pylint: di
         print(f"Error restoring boot logo: {e}")
         return 1
 
+
 def boot_logo_status(legion: LegionModelFacade, **kwargs) -> int:  # pylint: disable=unused-argument
     is_on, w, h = legion.get_boot_logo_status()
     print(f"Current Boot Logo status: {'ON' if is_on else 'OFF'}; Required image dimensions: {w} x {h}")
     return 0
+
 
 def main():
     parser, subcommands = create_argparser()
@@ -514,16 +508,16 @@ def main():
 
     if args.subcommand is None:
         parser.print_help()
-    else:
-        legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon)
-        for cmd in cmd_group:
-            cmd.set_model(legion)
-        # set global options
-        if "preset_dir" in args and args.preset_dir is not None:
-            legion.set_preset_folder(args.preset_dir)
+        return 0
+    legion = LegionModelFacade(expect_hwmon=not args.donotexpecthwmon)
+    for cmd in cmd_group:
+        cmd.set_model(legion)
+    # set global options
+    if "preset_dir" in args and args.preset_dir is not None:
+        legion.set_preset_folder(args.preset_dir)
 
-        return args.func(legion, **vars(args))
+    return args.func(legion, **vars(args))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
