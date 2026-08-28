@@ -143,6 +143,16 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - BIOS为HACN*的Legion机型，如S7-15ACH6：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530和Legion Y540：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
 
+## :handshake: 参与贡献
+
+**非常欢迎提交 PR！** 只提 issue 虽然也有帮助，但开发者手头没有你的硬件，能做的事情非常有限 —— 尤其是“在我的机型上无法使用”这类报告。如果条件允许，请尝试自己动手修复：
+
+1. 克隆仓库并在本地修改代码（例如把你的机型加入 `kernel_module/legion-laptop.c` 的 DMI 白名单）。借助常用的 AI 编程工具会更轻松 —— 仓库自带 [AGENTS.md](AGENTS.md)，里面有专门为 AI 准备的构建和测试说明。
+2. 在你自己的电脑上测试，直到功能正常（验证命令见 [AGENTS.md](AGENTS.md) 及本 README 的测试章节）。
+3. 发起 Pull Request，并在描述中引用相关 issue。
+
+本项目中大部分机型的支持正是通过这种方式加入的。另请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## :warning: 免责声明
 
 - **本工具不提供任何担保，使用风险自负。**

@@ -134,6 +134,16 @@ Currently fan control is not working for the following models. Other features, p
 - Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
 
+## :handshake: Contributing
+
+**Pull requests are very welcome!** Filing an issue alone is helpful, but there is only so much developers can do without access to your hardware — especially for "does not work on my model" reports. If you can, please try to fix it yourself:
+
+1. Clone the repo and modify the code locally (e.g. add your model to the DMI allowlist in `kernel_module/legion-laptop.c`). AI coding assistants work well for this — the repo ships an [AGENTS.md](AGENTS.md) with build and test instructions written for them.
+2. Test it on your own laptop until everything works (see the verification commands in [AGENTS.md](AGENTS.md) and the tests in this README).
+3. Open a pull request that references your issue.
+
+Most of the model support in this project was contributed exactly this way. Also see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## :warning: Disclaimer
 
 - **the tool comes with no warranty. Use at your own risk.**
