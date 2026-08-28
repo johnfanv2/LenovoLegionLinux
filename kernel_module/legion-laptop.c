@@ -2503,6 +2503,66 @@ enum OtherMethodFeature {
 	OtherMethodFeature_TEMP_GPU = 0x05050000,
 };
 
+#define LEGION_WMI_CAPDATA01_GUID "7A8F5407-CB67-4D6E-B547-39B3BE018154"
+
+struct capdata01 {
+	u32 id;
+	u32 supported;
+	u32 default_value;
+	u32 step;
+	u32 min_value;
+	u32 max_value;
+};
+
+#define MAX_CAPDATA_ENTRIES 80
+
+/* LENOVO_DISCRETE_DATA instances are ACPI packages [IDs u32, Value u32]; same-ID instances form a set */
+#define LEGION_WMI_DISCRETE_DATA_GUID "91433B17-B7B7-4640-BB40-34C67349FBEC"
+
+struct discrete_data_entry {
+	u32 id;
+	u32 value;
+};
+
+#define MAX_DISCRETE_ENTRIES 64
+#define MAX_DISCRETE_FEATURES 8
+
+struct discrete_feature {
+	u32 feature_id;
+	int values[32];
+	int count;
+};
+
+static int capdata_clamp(const struct capdata01 *cd, int value,
+			 const struct discrete_feature *df)
+{
+	int i, best;
+
+	if (!cd)
+		return value;
+
+	if (cd->step == 0) {
+		if (!df || df->count < 1)
+			return value;
+
+		best = df->values[0];
+		for (i = 1; i < df->count; i++) {
+			if (abs(value - df->values[i]) < abs(value - best))
+				best = df->values[i];
+		}
+		return best;
+	}
+
+	if (cd->step > 0) {
+		int offset = value - cd->min_value;
+		int snapped = cd->min_value +
+			      DIV_ROUND_CLOSEST(offset, cd->step) * cd->step;
+		value = snapped;
+	}
+
+	return clamp(value, (int)cd->min_value, (int)cd->max_value);
+}
+
 static ssize_t wmi_other_method_get_value(enum OtherMethodFeature feature_id,
 					  int *value)
 {
@@ -3245,6 +3305,13 @@ struct legion_private {
 
 	// PL1/PL2 coupling: runtime toggle, gated by model_config.has_pl_coupling
 	bool cpu_pl_coupling;
+
+	struct capdata01 capdata[MAX_CAPDATA_ENTRIES];
+	int capdata_count;
+	int current_powermode;
+
+	struct discrete_feature discrete_features[MAX_DISCRETE_FEATURES];
+	int discrete_feature_count;
 };
 
 // keep state of fancurve defaults powermode
@@ -5510,6 +5577,58 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 	return count;
 }
 
+static int clamped_value(struct legion_private *priv,
+			 enum OtherMethodFeature feature,
+			 const char *buf, int *value)
+{
+	const struct capdata01 *cd = NULL;
+	const struct discrete_feature *df = NULL;
+	u32 fkey = (u32)feature >> 16;
+	int i, err;
+
+	err = kstrtoint(buf, 10, value);
+	if (err)
+		return err;
+
+	for (i = 0; i < priv->capdata_count; i++) {
+		const struct capdata01 *p = &priv->capdata[i];
+
+		if ((p->id >> 16) == fkey &&
+		    ((p->id >> 8) & 0xFF) == (u32)priv->current_powermode &&
+		    (p->id & 0xFF) == 0 && (p->supported & BIT(0))) {
+			cd = p;
+			break;
+		}
+	}
+
+	for (i = 0; i < priv->discrete_feature_count; i++) {
+		if ((priv->discrete_features[i].feature_id >> 16) == fkey) {
+			df = &priv->discrete_features[i];
+			break;
+		}
+	}
+
+	*value = capdata_clamp(cd, *value, df);
+	return 0;
+}
+
+static ssize_t wmi_clamped_store(struct legion_private *priv,
+				 const char *buf, size_t count,
+				 enum OtherMethodFeature feature)
+{
+	char clamped_buf[16];
+	int value, err;
+
+	err = clamped_value(priv, feature, buf, &value);
+	if (err)
+		return err;
+
+	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+	err = wmi_common_method_other_store(priv, clamped_buf,
+					    strlen(clamped_buf), feature);
+	return err < 0 ? err : count;
+}
+
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
@@ -5537,7 +5656,11 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED) {
-		err = kstrtoint(buf, 0, &value);
+		char clamped_buf[16];
+
+		err = clamped_value(priv,
+				    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT,
+				    buf, &value);
 		if (err)
 			return err;
 
@@ -5556,8 +5679,11 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 			}
 		}
 
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						    strlen(clamped_buf),
+						    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+		return err < 0 ? err : count;
 	}
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
@@ -5598,7 +5724,11 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED) {
-		err = kstrtoint(buf, 0, &value);
+		char clamped_buf[16];
+
+		err = clamped_value(priv,
+				    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT,
+				    buf, &value);
 		if (err)
 			return err;
 
@@ -5617,8 +5747,11 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 			}
 		}
 
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
+		err = wmi_common_method_other_store(priv, clamped_buf,
+						    strlen(clamped_buf),
+						    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+		return err < 0 ? err : count;
 	}
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
@@ -5760,8 +5893,8 @@ static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5799,8 +5932,8 @@ static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_POWER_BOOST);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_GPU_POWER_BOOST);
 
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
@@ -5818,7 +5951,7 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
 		return wmi_common_method_other_show(priv, buf,
-						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+						    OtherMethodFeature_GPU_POWER_BOOST);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_show(priv, buf,
@@ -5836,8 +5969,8 @@ static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_GPU_POWER_BOOST);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5877,8 +6010,8 @@ static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_cTGP);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_GPU_cTGP);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(priv, buf, count,
@@ -5940,8 +6073,8 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
 
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_GPU_METHOD, 0,
@@ -5972,8 +6105,8 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
 
 	return -EINVAL;
 }
@@ -6002,8 +6135,8 @@ static ssize_t cpu_l1_tau_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						     OtherMethodFeature_CPU_L1_TAU);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_CPU_L1_TAU);
 
 	return -EINVAL;
 }
@@ -6032,8 +6165,8 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_store(priv, buf, count,
-						    OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
+		return wmi_clamped_store(priv, buf, count,
+					 OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
 
 	return -EINVAL;
 }
@@ -6151,6 +6284,8 @@ static ssize_t powermode_store(struct device *dev,
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
+
+	priv->current_powermode = powermode;
 
 	// TODO: better?
 	// we have to wait a bit before change is done in hardware and
@@ -7904,6 +8039,95 @@ static int legion_add(struct platform_device *pdev)
 	priv->conf = dmi_sys->driver_data;
 	_model = priv->conf;
 	priv->cpu_pl_coupling = priv->conf->has_pl_coupling;
+
+	if (wmi_has_guid(LEGION_WMI_CAPDATA01_GUID)) {
+		int instances = wmi_instance_count(LEGION_WMI_CAPDATA01_GUID);
+
+		if (instances > 0) {
+			int idx;
+			int loaded = 0;
+
+			for (idx = 0; idx < instances && loaded < MAX_CAPDATA_ENTRIES; idx++) {
+				union acpi_object *obj;
+				struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
+
+				if (ACPI_FAILURE(wmi_query_block(LEGION_WMI_CAPDATA01_GUID,
+								 idx, &out)))
+					continue;
+				obj = out.pointer;
+				if (!obj || obj->type != ACPI_TYPE_BUFFER ||
+				    obj->buffer.length < sizeof(struct capdata01)) {
+					ACPI_FREE(obj);
+					continue;
+				}
+				memcpy(&priv->capdata[loaded],
+				       obj->buffer.pointer,
+				       sizeof(struct capdata01));
+				ACPI_FREE(obj);
+				loaded++;
+			}
+			priv->capdata_count = loaded;
+		}
+	}
+
+	if (wmi_has_guid(LEGION_WMI_DISCRETE_DATA_GUID)) {
+		int instances = wmi_instance_count(LEGION_WMI_DISCRETE_DATA_GUID);
+
+		if (instances > 0) {
+			int idx;
+			int i, fi = 0;
+			struct discrete_data_entry entries[MAX_DISCRETE_ENTRIES];
+			int entry_count = 0;
+
+			for (idx = 0; idx < instances && entry_count < MAX_DISCRETE_ENTRIES; idx++) {
+				union acpi_object *obj;
+				struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
+
+				if (ACPI_FAILURE(wmi_query_block(LEGION_WMI_DISCRETE_DATA_GUID,
+								 idx, &out)))
+					continue;
+				obj = out.pointer;
+				if (!obj)
+					continue;
+
+				if (obj->type == ACPI_TYPE_PACKAGE &&
+				    obj->package.count >= 2 &&
+				    obj->package.elements[0].type == ACPI_TYPE_INTEGER &&
+				    obj->package.elements[1].type == ACPI_TYPE_INTEGER) {
+					entries[entry_count].id =
+						(u32)obj->package.elements[0].integer.value;
+					entries[entry_count].value =
+						(u32)obj->package.elements[1].integer.value;
+					entry_count++;
+				}
+
+				ACPI_FREE(obj);
+			}
+
+			for (i = 0; i < entry_count && fi < MAX_DISCRETE_FEATURES; i++) {
+				struct discrete_feature *dfe;
+				u32 fid = entries[i].id;
+				int vi;
+
+				for (vi = 0; vi < fi; vi++) {
+					if (priv->discrete_features[vi].feature_id == fid)
+						break;
+				}
+				dfe = &priv->discrete_features[vi];
+				if (vi == fi) {
+					dfe->feature_id = fid;
+					dfe->count = 0;
+					fi++;
+				}
+				if (dfe->count < ARRAY_SIZE(dfe->values))
+					dfe->values[dfe->count++] = entries[i].value;
+			}
+			priv->discrete_feature_count = fi;
+		}
+	}
+
+	read_powermode(priv, &priv->current_powermode);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
 	if (err) {
