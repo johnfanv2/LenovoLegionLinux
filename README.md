@@ -65,7 +65,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
     - Enable or disable touchpad
 - [X] Set a fully featured custom fan curve with up to 10 points:
   - Set temperature points for when the fan speed (level) should change
-  - Use CPU, GPU and IC temperature to control the fan all at the same it
+  - Use CPU, GPU and IC temperature to control the fan all at the same time
   - Set the fan speed (RPM) at each level
   - Even allows speed below 1600 RPM
   - Set minimum temperature for each level that must be fallen below before slowing down the fans again
@@ -589,7 +589,6 @@ Unexpected output:
 Note:
 
 - **If you want to reset your fan curve, just toggle with Ctrl+Q or Fn+Q the power mode or restart and everything is gone.**
-- Currently, there is no GUI available.
 - Currently, the hardware resets the fan curve randomly or if you change power mode, suspend, or restart. Just run the script again.
 - You might want to create different scripts for different usages. Just copy it and adapt the values.
 
@@ -675,23 +674,25 @@ With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the 
 
 ### Lenovo Legion Laptop Support Daemon(legiond)
 
-The LLL Daemon is supported in Systemd and OpenRC(Experimental).
-If you install LLL manually(not throngh the package manager), you may need to run the [systemd_install.sh](extra/systemd_install.sh) unside the extra folder.
+The LLL daemon (`legiond`) is a small C program (see [extra/service/legiond](extra/service/legiond/)) supported on Systemd and OpenRC (experimental).
+If you install LLL manually (not through the package manager), you may need to run the [systemd_install.sh](extra/systemd_install.sh) inside the extra folder.
 
-This Daemon allow to chnage automatically bettwen fan profiles set in the gui depending of the power mode and if the laptop is or not plug in:
-These are the profiles avaiable:
+This daemon automatically switches between the fan profiles set in the GUI depending on the power mode and whether the laptop is plugged in or not.
+These are the profiles available:
 
 - quiet-battery - Fan Profile on quiet mode on battery
-- balance-battery - Fan Profile on balance mode on battery
+- balanced-battery - Fan Profile on balance mode on battery
 - balanced-performance-battery - Fan Profile on custom mode on battery
+- performance-battery - Fan Profile on performance mode on battery
 - quiet-ac - Fan Profile on quiet mode on charger
-- balance-ac - Fan Profile on balance mode on charger
+- balanced-ac - Fan Profile on balance mode on charger
 - balanced-performance-ac - Fan Profile on custom mode on charger
 - performance-ac - Fan Profile on performance mode on charger
+- extreme-ac - Fan Profile on extreme mode on charger
 
 Example profiles are [here](extra/service/profiles) can also be set via the gui for easy set up:
 1 - Set the `Fan Curve` you like to use
-2 - Chose on the profile above in `Fancurve Preset` and hit Sate to Preset (will ask for you password)
+2 - Chose on the profile above in `Fancurve Preset` and hit Save to Preset (will ask for you password)
 3 - Set all the profiles
 4 - Go to the `Automation` tab and enable the option `Lenovo Legion Laptop Support Daemon Enable`
 
@@ -716,12 +717,26 @@ This systemd service also have extras features that can be activated by editing 
     - tdp_bat_b - Custom GPU TDP for balance mode on battery
     - tdp_ac_b - Custom GPU TDP for balance mode on charger
     - tdp_ac_p - Custom GPU TDP for performance mode on charger
-  - Note: The default values in the .env file are from RTX 3070
+  - Note: The default values in the `legiond.ini` file are from RTX 3070
 
 NOTE: `legiond.service` depends on `acpid.service` and if you enable `legiond.service`, `acpid.service` should be started automatically.
 If your CPU tweaks often get reset to default, enable `legiond-cpuset.timer` to override it.
 
 See [README.org](extra/service/legiond/README.org)
+
+### Lift the Firmware Fan Ceiling (fan unlock)
+
+On supported models the firmware caps the maximum fan speed below what the hardware can do. The `fan_unlock` sysfs attribute lifts this ceiling. It is only exposed on validated model/BIOS combinations (see the `has_fan_unlock` allowlist in `kernel_module/legion-laptop.c`); on the Legion Pro 7 16IRX8H (BIOS KWCN54WW) it raises the cap from ~4400 RPM to ~7100 RPM.
+
+```bash
+# Check status / enable / disable
+sudo legion_cli fan-unlock-status
+sudo legion_cli fan-unlock-enable
+sudo legion_cli fan-unlock-disable
+
+# Or directly via sysfs
+cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
+```
 
 ### Lock and Unlock the Fan Controller and Fan Speed
 
@@ -1002,7 +1017,7 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 
 ## :information_desk_person: Overview for Developers
 
-The software consists of two parts:
+The software consists of the following parts:
 
 - Kernel module in the `kernel_module` folder:
   - Accesses the embedded controller by writing to its memory
@@ -1013,6 +1028,10 @@ The software consists of two parts:
   - `legion.py`: A Python module to modify the fan curve and other settings from Python; Encapsulate reading and writing to the "files" provided by the above kernel module and other modules like `ideapad_laptop`; All changes from `legion_gui.py` and `legion_cli.py` goes through this Python module.
   - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings.
   - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings.
+- `legiond` daemon in the `extra/service/legiond` folder:
+  - A small C daemon (with its `legiond-ctl` helper) that watches power state/power profile changes and applies the matching fan curve preset, plus optional CPU/GPU power tweaks configured in `legiond.ini`.
+- SmartFan in the `extra/smartfan` folder:
+  - A standalone shell-based fan daemon for Legion 7 Gen 10+ laptops that only needs `acpi_call` instead of the full kernel module.
 
 ## Legal Matters
 

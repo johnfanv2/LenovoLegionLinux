@@ -75,13 +75,15 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
   - 分别设置风扇加速和减速的响应参数
   - 支持不同模式下的预设保存与加载
 - [x] 锁定和解锁风扇控制器与风扇转速
+- [x] 在受支持的机型上解除固件风扇转速上限（`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`）。在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。该功能通过 `WMAA(0, 0x0D, 0x01)` 发现 —— 见 issue #429。此 sysfs 节点由 `has_fan_unlock` 机型/BIOS 白名单控制，仅在经过验证的固件上暴露（目前为 KWCN54WW）。
 - [x] 通过软件切换电源模式（静音、平衡、高性能）
   - 现在可在系统设置中通过软件切换
   - 也可通过 `Fn+Q` 切换
   - 根据桌面环境，可实现如在电池下自动切入静音模式，接电源时自动切入高性能模式（如 KDE 的节能设置）
-  - 可根据电源配置文件自动切换不同风扇曲线（见：[ Lenovo Legion Linux 守护进程（legiond）](# Lenovo Legion Linux 守护进程（legiond）)）
+  - 可根据电源配置文件自动切换不同风扇曲线（见：[Lenovo Legion Linux 守护进程（legiond）](#lenovo-legion-linux-守护进程legiond)）
 - [x] 通过新增的传感器监控风扇转速和温度（CPU、GPU、IC）
 - [x] 启用或禁用在长时间低温下自动切换为“迷你风扇曲线”
+- [x] **SmartFan** —— 面向 Legion 7 Gen 10+ 的轻量级 shell 风扇守护进程，基于 `acpi_call`（无需完整内核模块）。4 种模式、平滑调速、LED 同步、TUI 切换器。见 [`extra/smartfan/`](extra/smartfan/)
 
 ---
 
@@ -136,6 +138,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 5 17ACH6（BIOS HHCN31WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7i 16ITHG6（BIOS H1CN35WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 Pro 16ARX8H（BIOS LPCN47WW）：传感器、风扇曲线、电源配置
+- 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 
 *注：未确认的功能大概率也能使用，只是暂无测试。*
 
@@ -596,7 +599,6 @@ sudo cat /sys/kernel/debug/legion/fancurve
 注意事项：
 
 - **如果你想重置风扇曲线，只需按下 Ctrl+Q 或 Fn+Q 切换电源模式，或重启系统即可恢复默认。**
-- 目前没有可用的 GUI。
 - 目前，硬件可能会随机重置风扇曲线，或者在你更换电源模式、挂起、重启时重置。此时只需重新运行脚本即可。
 - 你可以为不同的使用场景创建不同的脚本。只需复制脚本并调整相关数值即可。
 
@@ -687,19 +689,21 @@ echo balanced-performance > /sys/firmware/acpi/platform_profile
 
 ### Lenovo Legion Linux 守护进程（legiond）
 
-LLL 守护进程支持 Systemd 和 OpenRC（实验性）。  
+LLL 守护进程（`legiond`）是一个小型 C 程序（见 [extra/service/legiond](extra/service/legiond/)），支持 Systemd 和 OpenRC（实验性）。  
 如果你是手动安装 LLL（不是通过包管理器），可能需要在 extra 文件夹里运行 [systemd_install.sh](extra/systemd_install.sh)。
 
 该守护进程可以根据电源模式和是否插电，自动切换 GUI 中设定的风扇曲线配置文件。  
 可用的配置文件如下：
 
 - quiet-battery - 电池供电下安静模式风扇配置
-- balance-battery - 电池供电下平衡模式风扇配置
+- balanced-battery - 电池供电下平衡模式风扇配置
 - balanced-performance-battery - 电池供电下自定义模式风扇配置
+- performance-battery - 电池供电下高性能模式风扇配置
 - quiet-ac - 充电器供电下安静模式风扇配置
-- balance-ac - 充电器供电下平衡模式风扇配置
+- balanced-ac - 充电器供电下平衡模式风扇配置
 - balanced-performance-ac - 充电器供电下自定义模式风扇配置
 - performance-ac - 充电器供电下高性能模式风扇配置
+- extreme-ac - 充电器供电下极致模式风扇配置
 
 示例配置文件在 [这里](extra/service/profiles)，也可以通过 GUI 便捷设置：
 
@@ -729,12 +733,28 @@ LLL 守护进程支持 Systemd 和 OpenRC（实验性）。
     - tdp_bat_b - 电池平衡模式下 GPU TDP
     - tdp_ac_b - 充电器平衡模式下 GPU TDP
     - tdp_ac_p - 充电器高性能模式下 GPU TDP
-  - 注意：.env 文件中的默认值来自 RTX 3070
+  - 注意：`legiond.ini` 文件中的默认值来自 RTX 3070
 
 注意：`legiond.service` 依赖于 `acpid.service`，启用 `legiond.service` 时会自动启动 `acpid.service`。  
 如果你的 CPU 调优经常被重置为默认值，请启用 `legiond-cpuset.timer` 来覆盖它。
 
 详细见 [README.org](extra/service/legiond/README.org)
+
+---
+
+### 解除固件风扇转速上限（fan unlock）
+
+在受支持的机型上，固件会将风扇最大转速限制在硬件实际能力之下。`fan_unlock` sysfs 属性可以解除该限制。它仅在经过验证的机型/BIOS 组合上暴露（见 `kernel_module/legion-laptop.c` 中的 `has_fan_unlock` 白名单）；在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。
+
+```bash
+# 查看状态 / 启用 / 禁用
+sudo legion_cli fan-unlock-status
+sudo legion_cli fan-unlock-enable
+sudo legion_cli fan-unlock-disable
+
+# 或直接通过 sysfs
+cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
+```
 
 ---
 
@@ -817,6 +837,9 @@ LLL 守护进程支持 Systemd 和 OpenRC（实验性）。
 
 #### Plasma Vantage
 PlasmaVantage 是 KDE 的一个 Plasma 小部件，是 Lenovo Legion Linux 内核模块的替代 GUI。可在 [KDE 商店](https://store.kde.org/p/2150610/)获取，源码见 [这里](https://gitlab.com/Scias/plasmavantage)。
+
+#### CinnamonVantage
+CinnamonVantage 是 Cinnamon 桌面的一个小程序（Applet），是 LenovoLegionLinux 内核模块的替代 GUI。可在 [Mint 商店](https://cinnamon-spices.linuxmint.com/applets/view/395)获取，源码见 [这里](https://github.com/linuxmint/cinnamon-spices-applets/tree/master/cinnamonvantage@garlayntoji)。
 
 ## :interrobang: 常见问题解答
 
@@ -948,6 +971,8 @@ GNOME 的图形小程序会用 `power-profiles-daemon` 以软件方式切换电�
 
 对于 KDE，有图形工具 `powerdevil`，其内部同样利用 `power-profiles-daemon`。
 
+如果 KDE 在 `/sys/firmware/acpi/platform_profile_choices` 中只显示 `balanced` 和 `performance`，但 Legion 设备（例如 `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`）包含 `quiet`，请检查是否同时加载了 `lenovo_wmi_gamezone`。如果两个驱动同时处于活动状态，全局可选模式会取两者的交集，quiet 模式可能会消失。此时可卸载或拉黑（blacklist）`lenovo_wmi_gamezone`，让 `legion_laptop` 成为唯一的电源模式提供者。
+
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
 首先，尝试[重置嵌入式控制器](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem)或进行 BIOS 升级/降级来重置所有设置。
@@ -1020,7 +1045,7 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 
 ## :information_desk_person: 开发者概览
 
-本软件包含两部分：
+本软件包含以下几个部分：
 
 - `kernel_module` 文件夹下的内核模块：
   - 通过写入内存访问嵌入式控制器（EC）
@@ -1030,6 +1055,12 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
   - `legion.py`：用于从 Python 修改风扇曲线及其他设置的模块；封装了对上述内核模块及 `ideapad_laptop` 等模块提供的“文件”的读写；所有来自 `legion_gui.py` 和 `legion_cli.py` 的设置更改都通过本模块完成。
   - `legion_gui.py`：一个基于 `legion.py` 的图形界面（GUI）程序，用于更改设置。
   - `legion_cli.py`：一个基于 `legion.py` 的命令行（CLI）程序，用于更改设置。
+
+- `extra/service/legiond` 文件夹下的 `legiond` 守护进程：
+  - 一个小型 C 守护进程（附带 `legiond-ctl` 辅助工具），监听电源状态/电源配置变化并应用对应的风扇曲线预设，还可通过 `legiond.ini` 配置可选的 CPU/GPU 功耗调整。
+
+- `extra/smartfan` 文件夹下的 SmartFan：
+  - 一个独立的 shell 风扇守护进程，面向 Legion 7 Gen 10+ 机型，仅需 `acpi_call`，无需完整内核模块。
 
 ## 法律声明
 
