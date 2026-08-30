@@ -20,13 +20,12 @@ A shell-based smart fan control daemon for Lenovo Legion 7 (Gen 10+) laptops usi
 
 ## Fan Speed Ranges by Mode
 
-| Mode | Idle RPM | Load RPM | LED Color |
-|------|----------|----------|-----------|
-| Quiet | ~2000 | ~3500 | Blue |
-| Balanced | ~3000 | ~4000 | White |
-| Performance | ~3900 | ~5000 | Red |
-| Extreme | ~5000 | ~5500+ | Red (pulse) |
-
+Quiet, balanced, performance and extreme
+Default is balanced, if you need more agressive fan curves run sudo smartfan performance
+You can tweak it in your bath, which is in /usr/local/bin/smartfan | just look for the string with the fan speeds and cpu temps
+The daemon starts in balanced, adjust on the fly and they do not persist, so just edit the .service file and reinstall, it's much easier.
+  NOTE IF YOU'RE HAVING ISSUES:
+    This entire repo is a mess honestly, this worked for my 83KY while the GUI didn't, so if you're having trouble i recommend using this smartfan and ignore all the rest.
 ## Installation
 
 ```bash

@@ -5,7 +5,7 @@ Wants=acpi_call.service
 
 [Service]
 Type=forking
-ExecStart=/usr/local/bin/smartfan start quiet
+ExecStart=/usr/local/bin/smartfan start balanced
 ExecStop=/usr/local/bin/smartfan stop
 PIDFile=/tmp/smartfan.pid
 Restart=on-failure
