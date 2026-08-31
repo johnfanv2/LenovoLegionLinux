@@ -211,6 +211,8 @@ enum acpi_paths_inventory_ids {
 	ACPI_PATH_READ_FANSPEED2, // FA2S
 	ACPI_PATH_READ_CPU_TEMP, // CPUT
 	ACPI_PATH_READ_GPU_TEMP, // GPUT
+	ACPI_PATH_READ_FNLOCK,   // HALS
+	ACPI_PATH_WRITE_FNLOCK,  // SALS
 	ACPI_PATH_MAX // not a PATH just the max nbr of this enum
 };
 
@@ -275,6 +277,7 @@ struct model_config {
 	 * issuing an unverified WMI call. See issue #429 / PR #443.
 	 */
 	bool has_fan_unlock;
+	bool has_fn_lock;
 };
 
 /* =================================== */
@@ -1508,11 +1511,14 @@ static const struct model_config model_secn = {
 		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
 		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
-		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC"
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC",
+		[ACPI_PATH_READ_FNLOCK] = "\\_SB.PC00.LPCB.EC0.VPC0.HALS",
+		[ACPI_PATH_WRITE_FNLOCK] = "\\_SB.PC00.LPCB.EC0.VPC0.SALS"
 	},
 	.has_fancurve_defaults = true,
 	.has_pl_coupling = true,
 	.has_fan_unlock = true,
+	.has_fn_lock = true,
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -2106,6 +2112,16 @@ static int exec_sbmc(struct acpi_device *adev, unsigned long arg)
 	return exec_simple_method(adev, acpi_path, arg);
 }
 
+static int exec_sals(struct acpi_device *adev, unsigned long arg)
+{
+	const char *acpi_path;
+
+	acpi_path = get_model_acpi_path(_model, ACPI_PATH_WRITE_FNLOCK);
+	if (!acpi_path)
+		return -EINVAL;
+	return exec_simple_method(adev, acpi_path, arg);
+}
+
 //static int eval_qcho(acpi_handle handle, unsigned long *res)
 //{
 //	// \_SB.PCI0.LPC0.EC0.QCHO
@@ -2118,6 +2134,12 @@ static int eval_gbmd(struct acpi_device *adev, unsigned long *res)
 
 	acpi_path = get_model_acpi_path(_model, ACPI_PATH_READ_RAPIDCHARGE);
 	return eval_int(adev, acpi_path, res);
+}
+
+static int eval_hals(struct acpi_device *adev, unsigned long *res)
+{
+	const char *path = get_model_acpi_path(_model, ACPI_PATH_READ_FNLOCK);
+	return eval_int(adev, path, res);
 }
 
 static int eval_spmo(struct acpi_device *adev, unsigned long *res)
@@ -5142,10 +5164,10 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   legion_kbd_bl_brightness_get(priv));
 
 	seq_printf(s, "WMI light IO port: %d\n",
-		   legion_wmi_light_get(priv, LIGHT_ID_IOPORT, 1, 2));
+		   legion_wmi_light_get(priv, LIGHT_ID_IOPORT, 0, 4));
 
 	seq_printf(s, "WMI light Y logo/lid: %d\n",
-		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 1));
+		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 4));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
 		   priv->conf->has_minifancurve);
@@ -5444,6 +5466,44 @@ static ssize_t battery_conservation_store(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(battery_conservation);
+
+static ssize_t fn_lock_show(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	unsigned long result;
+	int err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = eval_hals(priv->adev, &result);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
+
+	return sysfs_emit(buf, "%d\n", !!(result & 0x0400));
+}
+
+static ssize_t fn_lock_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+			     size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool enable;
+	int err;
+
+	if (kstrtobool(buf, &enable))
+		return -EINVAL;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = exec_sals(priv->adev, enable ? 0x0E : 0x0F);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(fn_lock);
 
 static ssize_t issupportgpuoc_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
@@ -6438,6 +6498,7 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_fan_unlock.attr,
 	&dev_attr_rapidcharge.attr,
 	&dev_attr_battery_conservation.attr,
+	&dev_attr_fn_lock.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
@@ -6521,6 +6582,8 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
 	if (attr == &dev_attr_battery_conservation.attr)
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
+	if (attr == &dev_attr_fn_lock.attr)
+		return priv->conf->has_fn_lock ? attr->mode : 0;
 	if (legion_attribute_uses_cpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_CPU_METHOD))
 		return 0;
