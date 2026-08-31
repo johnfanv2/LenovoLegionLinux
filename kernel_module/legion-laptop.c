@@ -1506,10 +1506,13 @@ static const struct model_config model_secn = {
 	.ramio_size = 0x600,
 	.acpi_paths = {
 		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
-		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"
+		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC"
 	},
 	.has_fancurve_defaults = true,
-	.has_pl_coupling = true
+	.has_pl_coupling = true,
+	.has_fan_unlock = true,
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -4797,6 +4800,11 @@ static void toggle_powermode(struct legion_private *priv)
 #define RAPID_CHARGE_ON 0x0
 #define RAPID_CHARGE_OFF 0x1
 
+#define FCT_CONSERVATION_ON 0x03
+#define FCT_CONSERVATION_OFF 0x05
+#define CONSERVATION_ON 0x0
+#define CONSERVATION_OFF 0x1
+
 static int acpi_read_rapidcharge(struct acpi_device *adev, bool *state)
 {
 	unsigned long result;
@@ -4827,6 +4835,31 @@ static int acpi_write_rapidcharge(struct acpi_device *adev, bool state)
 
 	err = exec_sbmc(adev, fct_nr);
 	pr_info("Set rapidcharge to %d by calling %lu: result: %d\n", state,
+		fct_nr, err);
+	return err;
+}
+
+static int acpi_read_conservation(struct acpi_device *adev, bool *state)
+{
+	unsigned long result;
+	int err;
+
+	err = eval_gbmd(adev, &result);
+	if (err)
+		return err;
+
+	*state = result & 0x20;
+	return 0;
+}
+
+static int acpi_write_conservation(struct acpi_device *adev, bool state)
+{
+	int err;
+	unsigned long fct_nr = state > 0 ? FCT_CONSERVATION_ON :
+					   FCT_CONSERVATION_OFF;
+
+	err = exec_sbmc(adev, fct_nr);
+	pr_info("Set conservation to %d by calling %lu: result: %d\n", state,
 		fct_nr, err);
 	return err;
 }
@@ -5109,10 +5142,10 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   legion_kbd_bl_brightness_get(priv));
 
 	seq_printf(s, "WMI light IO port: %d\n",
-		   legion_wmi_light_get(priv, LIGHT_ID_IOPORT, 0, 4));
+		   legion_wmi_light_get(priv, LIGHT_ID_IOPORT, 1, 2));
 
 	seq_printf(s, "WMI light Y logo/lid: %d\n",
-		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 4));
+		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 1));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
 		   priv->conf->has_minifancurve);
@@ -5371,6 +5404,46 @@ static ssize_t rapidcharge_store(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(rapidcharge);
+
+static ssize_t battery_conservation_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	bool state = false;
+	int err;
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = acpi_read_conservation(priv->adev, &state);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
+
+	return sysfs_emit(buf, "%d\n", state);
+}
+
+static ssize_t battery_conservation_store(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	int state;
+	int err;
+
+	err = kstrtouint(buf, 0, &state);
+	if (err)
+		return err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = acpi_write_conservation(priv->adev, state);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(battery_conservation);
 
 static ssize_t issupportgpuoc_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
@@ -6364,6 +6437,7 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_lockfancontroller.attr,
 	&dev_attr_fan_unlock.attr,
 	&dev_attr_rapidcharge.attr,
+	&dev_attr_battery_conservation.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
@@ -6444,6 +6518,8 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return attr->mode;
 
 	if (attr == &dev_attr_rapidcharge.attr)
+		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
+	if (attr == &dev_attr_battery_conservation.attr)
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
 	if (legion_attribute_uses_cpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_CPU_METHOD))
