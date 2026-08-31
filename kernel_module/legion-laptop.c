@@ -2139,6 +2139,8 @@ static int eval_gbmd(struct acpi_device *adev, unsigned long *res)
 static int eval_hals(struct acpi_device *adev, unsigned long *res)
 {
 	const char *path = get_model_acpi_path(_model, ACPI_PATH_READ_FNLOCK);
+	if (!path)
+		return -EINVAL;
 	return eval_int(adev, path, res);
 }
 
