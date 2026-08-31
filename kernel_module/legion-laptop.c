@@ -64,6 +64,7 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/dmi.h>
+#include <linux/efi.h>
 #include <linux/leds.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
@@ -278,6 +279,7 @@ struct model_config {
 	 */
 	bool has_fan_unlock;
 	bool has_fn_lock;
+	bool has_flip_to_start;
 };
 
 /* =================================== */
@@ -1519,6 +1521,7 @@ static const struct model_config model_secn = {
 	.has_pl_coupling = true,
 	.has_fan_unlock = true,
 	.has_fn_lock = true,
+	.has_flip_to_start = true,
 };
 
 static const struct dmi_system_id denylist[] = { {} };
@@ -5509,6 +5512,60 @@ static ssize_t fn_lock_store(struct device *dev,
 
 static DEVICE_ATTR_RW(fn_lock);
 
+#define FBSWIF_GUID EFI_GUID(0xD743491E, 0xF484, 0x4952, 0xA8, 0x7D, \
+			     0x8D, 0x5D, 0xD1, 0x89, 0xB7, 0x0C)
+#define FBSWIF_NAME L"FBSWIF"
+
+static ssize_t flip_to_start_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	u8 data[4] = {0};
+	efi_status_t status;
+	unsigned long size = sizeof(data);
+	u32 efi_attr;
+
+	status = efi.get_variable(FBSWIF_NAME, &FBSWIF_GUID, &efi_attr,
+				  &size, data);
+	if (status != EFI_SUCCESS)
+		return -EIO;
+
+	return sysfs_emit(buf, "%d\n", data[0] ? 1 : 0);
+}
+
+static ssize_t flip_to_start_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	bool state;
+	int err;
+	u8 data[4] = {0};
+	efi_status_t status;
+	unsigned long size;
+	u32 efi_attr;
+
+	err = kstrtobool(buf, &state);
+	if (err)
+		return err;
+
+	size = sizeof(data);
+	status = efi.get_variable(FBSWIF_NAME, &FBSWIF_GUID, &efi_attr,
+				  &size, data);
+	if (status != EFI_SUCCESS)
+		return -EIO;
+
+	data[0] = state ? 1 : 0;
+
+	size = sizeof(data);
+	status = efi.set_variable(FBSWIF_NAME, &FBSWIF_GUID,
+				  efi_attr, size, data);
+	if (status != EFI_SUCCESS)
+		return -EIO;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(flip_to_start);
+
 static ssize_t issupportgpuoc_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
@@ -6503,6 +6560,7 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_rapidcharge.attr,
 	&dev_attr_battery_conservation.attr,
 	&dev_attr_fn_lock.attr,
+	&dev_attr_flip_to_start.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
@@ -6588,6 +6646,8 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
 	if (attr == &dev_attr_fn_lock.attr)
 		return priv->conf->has_fn_lock ? attr->mode : 0;
+	if (attr == &dev_attr_flip_to_start.attr)
+		return priv->conf->has_flip_to_start ? attr->mode : 0;
 	if (legion_attribute_uses_cpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_CPU_METHOD))
 		return 0;
