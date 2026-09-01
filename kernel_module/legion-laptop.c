@@ -1988,6 +1988,16 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_r8cn
 	},
 	{
+		// e.g. Legion 5 15AHP11 (83Q7, AMD Ryzen 7 250 + RTX 5050) - same
+		// platform as LOQ 15AHP10; mapping pending on-hardware confirmation
+		.ident = "T2CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "T2CN"),
+		},
+		.driver_data = (void *)&model_r8cn
+	},
+	{
 		// e.g. Legion 5 15IRX10 (83LY)
 		.ident = "QNCN",
 		.matches = {
