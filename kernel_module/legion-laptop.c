@@ -2146,9 +2146,16 @@ static int eval_int(struct acpi_device *adev, const char *name, unsigned long *r
 	if (ACPI_FAILURE(status))
 		return -EIO;
 #else
-	if (!adev)
-		return -ENODEV;
-	handle = adev->handle;
+	if (!adev) {
+		/* No ACPI companion device: resolve the full-qualified name
+		 * from the ACPI root, same as on kernel 7.0+.
+		 */
+		status = acpi_get_handle(NULL, (char *)name, &handle);
+		if (ACPI_FAILURE(status))
+			return -ENODEV;
+	} else {
+		handle = adev->handle;
+	}
 #endif
 	status = acpi_evaluate_integer(handle, (char *)name, NULL, &result);
 	if (ACPI_FAILURE(status))
@@ -2170,9 +2177,16 @@ static int exec_simple_method(struct acpi_device *adev, const char *name,
 	if (ACPI_FAILURE(status))
 		return -EIO;
 #else
-	if (!adev)
-		return -ENODEV;
-	handle = adev->handle;
+	if (!adev) {
+		/* No ACPI companion device: resolve the full-qualified name
+		 * from the ACPI root, same as on kernel 7.0+.
+		 */
+		status = acpi_get_handle(NULL, (char *)name, &handle);
+		if (ACPI_FAILURE(status))
+			return -ENODEV;
+	} else {
+		handle = adev->handle;
+	}
 #endif
 	status =
 		acpi_execute_simple_method(handle, (char *)name, arg);
