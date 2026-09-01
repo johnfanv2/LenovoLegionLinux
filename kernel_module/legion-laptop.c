@@ -1532,7 +1532,7 @@ static const struct model_config model_secn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI2,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_EC3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
 	.acpi_check_dev = false,
@@ -3956,7 +3956,9 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	fancurve->current_point_i = 0;
 	fancurve->size = size;
 	fancurve->fan_speed_unit = model == &model_n2cn ?
-		FAN_SPEED_UNIT_PERCENT_NEAREST : FAN_SPEED_UNIT_PERCENT;
+		FAN_SPEED_UNIT_PERCENT_NEAREST :
+		model == &model_secn ?
+		FAN_SPEED_UNIT_RPM_HUNDRED : FAN_SPEED_UNIT_PERCENT;
 
 	for (i = 0; i < size; i++) {
 		u32 speed = le32_to_cpu(fan_table.fan_speed[i]);
@@ -3972,7 +3974,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 					 const struct fancurve *fancurve)
 {
-	u8 buffer[0x20];
+	u8 buffer[0x40];
 	int err;
 
 	// The buffer is read like this in ACPI firmware
