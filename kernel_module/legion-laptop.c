@@ -1552,6 +1552,38 @@ static const struct model_config model_secn = {
 	.has_flip_to_start = true,
 };
 
+// Legion 5i Gen 10 (83VK) - 2025/2026, Intel Arrow Lake-HX + RTX 5060
+// BIOS: UFCN27WW, EC chip: 0x5509
+// Fan speed/temperature reads and powermode validated on real hardware (issue #507).
+// Fancurve writes currently fail in the firmware's \_SB.GZFD.SFAN method
+// (AE_AML_BUFFER_LIMIT), so WMI3 fancurve access is read-only on this BIOS.
+static const struct model_config model_ufcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5509,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		// rapidcharge EC at \_SB.PC00.LPCB.EC0, not v0 \_SB.PCI0.LPC0.EC0
+		[ACPI_PATH_READ_RAPIDCHARGE] =
+			"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] =
+			"\\_SB.PC00.LPCB.EC0.VPC0.SBMC",
+	}
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -2063,6 +2095,24 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "Q8CN"),
 		},
 		.driver_data = (void *)&model_q8cn
+	},
+	{
+		// e.g. Legion 5i Gen 10 (83VK)
+		.ident = "UFCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "UFCN"),
+		},
+		.driver_data = (void *)&model_ufcn
+	},
+	{
+		// e.g. Legion Y7000 IRX9 (83JJ)
+		.ident = "PTCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "PTCN"),
+		},
+		.driver_data = (void *)&model_nmcn
 	},
 	{}
 };
