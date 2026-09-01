@@ -12,7 +12,14 @@ import struct
 import zlib
 from datetime import datetime
 import yaml
-from PIL import Image
+
+try:
+    from PIL import Image
+
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    Image = None  # type: ignore[assignment]
 
 # import jsonrpyc
 # import inotify.adapters
@@ -44,7 +51,7 @@ def get_dmesg(only_tail=False, filter_log=True):
             cmd = "dmesg | tail -n 20" if only_tail else "dmesg"
         with subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.PIPE) as process:
             out, _ = process.communicate(timeout=1)
-            out_str = out.decode(DEFAULT_ENCODING)
+            out_str = out.decode(DEFAULT_ENCODING, errors="replace")
             return out_str
     except OSError as ex:
         log.error(ex)
@@ -152,8 +159,8 @@ def write_file_with_legion_cli(name, values):
     try:
         with subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
             stdout, stderr = process.communicate(timeout=None)
-            out_str = stdout.decode(DEFAULT_ENCODING)
-            err_str = stderr.decode(DEFAULT_ENCODING)
+            out_str = stdout.decode(DEFAULT_ENCODING, errors="replace")
+            err_str = stderr.decode(DEFAULT_ENCODING, errors="replace")
             returncode = process.returncode
             log.info("FileFeature %s executed with code %d: %s; %s", name, returncode, out_str, err_str)
     except IOError as err:
@@ -690,7 +697,7 @@ class CommandFeature:
         try:
             with subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
                 stdout, _ = process.communicate(timeout=timeout)
-                out_str = stdout.decode(DEFAULT_ENCODING)
+                out_str = stdout.decode(DEFAULT_ENCODING, errors="replace")
                 returncode = process.returncode
                 log.info("CommandFeature %s reading with code %d: %s", self.name(), returncode, out_str)
                 return out_str, returncode
@@ -1485,7 +1492,7 @@ class SystemNotificationSender(NotifcationSender):
                 subprocess.run(
                     ["id", "-u", os.environ["SUDO_USER"]], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
                 )
-                .stdout.decode("utf-8")
+                .stdout.decode("utf-8", errors="replace")
                 .replace("\n", "")
             )
             subprocess.run(
@@ -1610,6 +1617,11 @@ class LegionModelFacade:
             return f.read()
 
     def _check_image_dimensions_and_format(self, image_path, expected_width, expected_height):
+        if not PIL_AVAILABLE:
+            raise ValueError(
+                "Pillow is not installed. Install it (e.g. the python-pillow package of your distribution) "
+                "to use boot logo features."
+            )
         with Image.open(image_path) as img:
             img_width, img_height = img.size
             img_format = img.format.lower()

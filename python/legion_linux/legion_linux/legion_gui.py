@@ -876,7 +876,16 @@ class LegionController:
     def on_load_from_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
         self.model.fan_curve = self.view_fancurve.get_fancurve()
-        self.model.load_fancurve_from_preset(name)
+        try:
+            self.model.load_fancurve_from_preset(name)
+        except FileNotFoundError:
+            QMessageBox.warning(
+                self.main_window,
+                "Preset Not Found",
+                f"The preset '{name}' does not exist yet.\n\n"
+                "To create it, configure your desired fan curve and click 'Save to Preset'.",
+            )
+            return
         self.update_fancurve_gui()
 
     def on_save_to_preset(self):
