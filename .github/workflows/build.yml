@@ -132,7 +132,7 @@ jobs:
         # Tolerate an already existing release (e.g. created by release.yml)
         gh release create "${{ steps.tag.outputs.tag }}" --draft --notes "" || true
         echo "upload_url=$(gh release view "${{ steps.tag.outputs.tag }}" --json uploadUrl --jq .uploadUrl)" >> "$GITHUB_OUTPUT"
-        echo "id=$(gh api "repos/${{ github.repository }}/releases/tags/${{ steps.tag.outputs.tag }}" --jq .id)" >> "$GITHUB_OUTPUT"
+        echo "id=$(gh release view "${{ steps.tag.outputs.tag }}" --json id --jq .id)" >> "$GITHUB_OUTPUT"
     - name: Upload Release - Kernel Patch
       if: steps.check_if_tagged.outputs.hastag == 1
       uses: actions/upload-release-asset@v1.0.1
