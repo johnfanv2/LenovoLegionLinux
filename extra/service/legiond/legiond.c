@@ -156,7 +156,11 @@ int main(void)
 	struct sockaddr_un addr = {
 		.sun_family = AF_UNIX,
 	};
-	strcpy(addr.sun_path, socket_path);
+	if (snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path) >=
+	    (int)sizeof(addr.sun_path)) {
+		fprintf(stderr, "socket path too long\n");
+		return 1;
+	}
 
 	if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		return 1;
