@@ -267,7 +267,7 @@ class EnumSettingFeature(Feature):
             log.error("Setting invalid value %s", value)
             raise ValueError(f"Invalid value {value}")
 
-    def get(self) -> bool:
+    def get(self) -> str:
         return self.value
 
 
@@ -1030,7 +1030,7 @@ class FanCurveIO(Feature):
             log.info("Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
-        except BaseException as error:
+        except Exception as error:
             log.error(str(error))
         for index, entry in enumerate(entries):
             point_id = index + 1
@@ -1096,7 +1096,7 @@ class FanCurveIO(Feature):
         try:
             fancurve.enable_minifancurve = self.get_minifancuve()
         # pylint: disable=broad-except
-        except BaseException as error:
+        except Exception as error:
             log.error(str(error))
         return fancurve
 
@@ -1488,9 +1488,13 @@ class SystemNotificationSender(NotifcationSender):
             # TODOs: find a better way
             # Code by user dvilela on stackoverflow
             # https://stackoverflow.com/a/54718205
+            sudo_user = os.environ.get("SUDO_USER")
+            if sudo_user is None:
+                log.warning("Cannot send notification: SUDO_USER not set")
+                return
             user_id = (
                 subprocess.run(
-                    ["id", "-u", os.environ["SUDO_USER"]], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                    ["id", "-u", sudo_user], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
                 )
                 .stdout.decode("utf-8", errors="replace")
                 .replace("\n", "")
@@ -1499,7 +1503,7 @@ class SystemNotificationSender(NotifcationSender):
                 [
                     "sudo",
                     "-u",
-                    os.environ["SUDO_USER"],
+                    sudo_user,
                     f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_id}/bus",
                     "notify-send",
                     "-i",

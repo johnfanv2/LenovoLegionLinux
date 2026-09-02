@@ -202,21 +202,22 @@ class EnumFeatureController:
                         value = val.value
 
                 if value is not None:
-                    print(f"Set to value: {value}")
+                    log.info("Set to value: %s", value)
                     self.feature.set(value)
                 else:
-                    print(f"Value for gui_value {gui_value} not found")
+                    log.info("Value for gui_value %s not found", gui_value)
             else:
                 self.widget.setDisabled(True)
         # pylint: disable=broad-except
         except Exception as ex:
             mark_error_combobox(self.widget)
             log_error(ex)
-        time.sleep(0.200)
+        QtCore.QTimer.singleShot(200, self._deferred_readback)
+
+    def _deferred_readback(self):
         self.update_view_from_feature()
 
         if self.dependent_controllers:
-            time.sleep(self.check_after_set_time)
             for contr in self.dependent_controllers:
                 contr.update_view_from_feature()
 
@@ -271,9 +272,6 @@ class BoolFeatureController:
             if self.feature.exists():
                 gui_value = self.checkbox.isChecked()
                 self.feature.set(gui_value)
-                time.sleep(0.100)
-                feature_value = self.feature.get()
-                self.checkbox.setChecked(feature_value)
                 self.checkbox.setDisabled(False)
             else:
                 self.checkbox.setDisabled(True)
@@ -282,8 +280,19 @@ class BoolFeatureController:
             mark_error(self.checkbox)
             log_error(ex)
 
+        QtCore.QTimer.singleShot(100, self._deferred_readback)
+
+    def _deferred_readback(self):
+        try:
+            if self.feature.exists():
+                feature_value = self.feature.get()
+                self.checkbox.setChecked(feature_value)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            mark_error(self.checkbox)
+            log_error(ex)
+
         if self.dependent_controllers:
-            time.sleep(self.check_after_set_time)
             for contr in self.dependent_controllers:
                 contr.update_view_from_feature()
 
@@ -322,9 +331,6 @@ class BoolFeatureTrayController:
             if self.feature.exists():
                 gui_value = self.action.isChecked()
                 self.feature.set(gui_value)
-                time.sleep(0.100)
-                hw_value = self.feature.get()
-                self.action.setChecked(hw_value)
                 self.action.setDisabled(False)
                 self.action.setCheckable(True)
             else:
@@ -333,8 +339,18 @@ class BoolFeatureTrayController:
         # pylint: disable=broad-except
         except Exception as ex:
             log_error(ex)
+
+        QtCore.QTimer.singleShot(100, self._deferred_readback)
+
+    def _deferred_readback(self):
+        try:
+            if self.feature.exists():
+                hw_value = self.feature.get()
+                self.action.setChecked(hw_value)
+        # pylint: disable=broad-except
+        except Exception as ex:
+            log_error(ex)
         if self.dependent_controllers:
-            time.sleep(0.100)
             for contr in self.dependent_controllers:
                 contr.update_view_from_feature()
 
@@ -438,11 +454,12 @@ class EnumFeatureTrayController:
         # pylint: disable=broad-except
         except Exception as ex:
             log_error(ex)
-        time.sleep(0.200)
         log.info("Update view after setting inEnumFeatureTrayController ")
+        QtCore.QTimer.singleShot(200, self._deferred_readback)
+
+    def _deferred_readback(self):
         self.update_view_from_feature()
         if self.dependent_controllers:
-            time.sleep(0.100)
             for contr in self.dependent_controllers:
                 log.info("Update dependent view %s in EnumFeatureTrayController", str(contr))
                 contr.update_view_from_feature()
@@ -474,10 +491,10 @@ class IntFeatureController:
                 gui_value = self.widget.value()
                 low, upper, _ = self.feature.get_limits_and_step()
                 if low <= gui_value <= upper:
-                    print(f"Set to value: {gui_value}")
+                    log.info("Set to value: %s", gui_value)
                     self.feature.set(gui_value)
                 else:
-                    print(f"Value for gui_value {gui_value} not ignored with limits {low} and {upper}")
+                    log.info("Value for gui_value %s not ignored with limits %s and %s", gui_value, low, upper)
             else:
                 self.widget.setDisabled(True)
         # pylint: disable=broad-except
@@ -485,11 +502,15 @@ class IntFeatureController:
             mark_error_combobox(self.widget)
             log_error(ex)
         if wait:
-            time.sleep(0.200)
+            QtCore.QTimer.singleShot(200, self._deferred_readback)
+        else:
+            self.update_view_from_feature()
+
+    def _deferred_readback(self):
         self.update_view_from_feature()
 
     def update_view_from_feature(self, k=0, update_bounds=False):
-        print("update_view_from_feature", k)
+        log.info("update_view_from_feature: %s", k)
         try:
             if self.feature.exists():
                 # possible values
