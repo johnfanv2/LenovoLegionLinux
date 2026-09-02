@@ -151,7 +151,7 @@ def mark_error_combobox(combobox: QComboBox):
 
 
 def log_error(ex: Exception):
-    print("Error occured", ex)
+    print("Error occurred", ex)
     print(traceback.format_exc())
 
 
@@ -1150,7 +1150,7 @@ class FanCurveTab(QWidget):
         self.note_label2 = QLabel(
             "Greyed out features are not available. If most features are greyed out, "
             "the driver is not loaded properly or hwmon directory not found.\nIf features are marked "
-            "red, an unexpected error has occured while accessing the hardware and you should notify the maintainer."
+            "red, an unexpected error has occurred while accessing the hardware and you should notify the maintainer."
         )
         self.note_label2.setStyleSheet("color: red;")
         self.note_label2.setWordWrap(True)
@@ -1653,7 +1653,7 @@ class LegionTray:
         self.tray.show()
 
 
-def get_ressource_path(name):
+def get_resource_path(name):
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)), name)
     return path
 
@@ -1691,13 +1691,13 @@ def get_icon_path(controller):
     log.info("Using icon_color %s", icon_color)
     if icon_color == "dark":
         log.info("Using icon legion_logo_dark")
-        icon_path = get_ressource_path("legion_logo_dark.png")
+        icon_path = get_resource_path("legion_logo_dark.png")
     elif icon_color == "light":
         log.info("Using icon legion_logo_light")
-        icon_path = get_ressource_path("legion_logo_light.png")
+        icon_path = get_resource_path("legion_logo_light.png")
     else:
         log.info("Using icon legion_logo")
-        icon_path = get_ressource_path("legion_logo.png")
+        icon_path = get_resource_path("legion_logo.png")
     return icon_path
 
 
