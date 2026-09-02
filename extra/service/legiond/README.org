@@ -32,6 +32,11 @@ Edit fancurve profile ~.yaml~ to fit your needs.
 
 Modify ~/etc/legion_linux/legiond.ini~ with your favorate editor.
 
+The GPU tools are located at ~/opt/bin/nvidia-smi~ (nvidia) and
+~/opt/bin/rocm-smi~ (radeon) by default. If installed elsewhere, override the
+~nvidia_smi_path~ / ~rocm_smi_path~ options under the ~main~ section of
+~legiond.ini~.
+
 Enable ~systemd.service~:
 #+begin_src shell
 systemctl enable --now legiond.service legiond-onresume.service legiond-cpuset.timer

@@ -15,6 +15,10 @@ static int handler(void *user, const char *section, const char *name,
 		pconfig->cpu_control = strcmp(value, "true") == 0;
 	} else if (MATCH("main", "gpu_control")) {
 		ptr_cmd = &pconfig->gpu_control;
+	} else if (MATCH("main", "nvidia_smi_path")) {
+		ptr_cmd = &pconfig->nvidia_smi_path;
+	} else if (MATCH("main", "rocm_smi_path")) {
+		ptr_cmd = &pconfig->rocm_smi_path;
 	} else if (MATCH("main", "fan_control")) {
 		pconfig->fan_control = strcmp(value, "true") == 0;
 	} else if (MATCH("gpu_control", "tdp_ac_q")) {
@@ -71,6 +75,12 @@ static int handler(void *user, const char *section, const char *name,
 int parseconf(LEGIOND_CONFIG *config)
 {
 	*config = (LEGIOND_CONFIG){ 0 };
+
+	/* default GPU tool paths, overridable via config */
+	snprintf(config->nvidia_smi_path, sizeof(config->nvidia_smi_path),
+		 "%s", "/opt/bin/nvidia-smi");
+	snprintf(config->rocm_smi_path, sizeof(config->rocm_smi_path),
+		 "%s", "/opt/bin/rocm-smi");
 
 	if (ini_parse(config_path, handler, config)) {
 		printf("Unable to parse config\n");
