@@ -1347,17 +1347,22 @@ static const struct model_config model_r8cn = {
 // so fancurve uses WMI3 like model_secn (EC 0x5508 generation); WMI3
 // temps/fans/fancurve-read and WMI powermode confirmed on the unit in #504.
 // The 83Q7 has no Y-logo/lid and no IO-port light.
+// The minifancurve EC register never holds a valid value on this unit
+// (reads 0 or 8, never 0x04/0xA0), so the feature is disabled. Keyboard
+// backlight brightness calls fail on both the WMI and WMI2 paths
+// (firmware returns 0), so keyboard backlight is disabled too; Fn+Space
+// still works at firmware level.
 static const struct model_config model_t2cn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x5509,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.has_extreme_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
-	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
