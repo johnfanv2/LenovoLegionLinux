@@ -66,6 +66,13 @@ make clean && make mrproper
 make defconfig
 # cp -v /boot/config-$(uname -r) .config
 echo "CONFIG_LEGION_LAPTOP=m" >>.config
+make olddefconfig
 
-# Build
-make -j 8
+# Only compile our kmod instead of the whole kernel: prepare the tree for
+# module builds, then build the patched-in module. A full make -j verifies
+# nothing extra for the patch and took 25+ minutes on CI.
+# KBUILD_MODPOST_WARN=1: without a full kernel build there is no
+# Module.symvers, so modpost would fail on every kernel symbol; unresolved
+# symbols are expected here and the compile check is what matters.
+make -j "$(nproc)" modules_prepare
+make -j "$(nproc)" M="${DRIVER_DIR}" KBUILD_MODPOST_WARN=1
