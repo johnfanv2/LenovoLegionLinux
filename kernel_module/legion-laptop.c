@@ -1379,6 +1379,43 @@ static const struct model_config model_t2cn = {
 	.has_fancurve_defaults = true
 };
 
+// Legion Pro 5 16AFR10 (83F2, AMD Ryzen 9 9955HX + RTX 5070), BIOS RECN,
+// EC chip 0x5508 (issue #527) - same EC generation as model_secn/model_s2cn.
+// EC fan curve reads return size 0 / all zeros on this EC generation while
+// the WMI fan curve table is populated, so fancurve uses WMI3; WMI3
+// temps/fans, WMI powermode, custom powermode and minifancurve confirmed on
+// the unit in #527. ACPI CFG and rapidcharge (GBMD/SBMC) work via the
+// PCI0.LPC0 paths. The 83F2 has no Y-logo/lid and no IO-port light
+// (reporter-confirmed; the phantom WMI lid-light probe returns 1).
+static const struct model_config model_recn = {
+	.registers = &ec_register_offsets_loq_v1,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0F00,
+	.ramio_size = 0x600,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC"
+	},
+	.has_fancurve_defaults = true
+};
+
 // Legion Slim 5 16AHP9 (2024) - Model 83DH
 static const struct model_config model_nrcn = {
 	.registers = &ec_register_offsets_v0,
@@ -2121,6 +2158,16 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "SECN"),
 		},
 		.driver_data = (void *)&model_secn
+	},
+	{
+		// Legion Pro 5 16AFR10 (83F2), BIOS RECN, EC 0x5508; fancurve
+		// via WMI3 (#527)
+		.ident = "RECN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "RECN"),
+		},
+		.driver_data = (void *)&model_recn
 	},
 	{
 		// e.g. Legion 5 16IRX9 (83DG)
