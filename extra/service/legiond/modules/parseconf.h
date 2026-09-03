@@ -4,12 +4,15 @@
 #include <stdbool.h>
 
 #define config_path "/etc/legion_linux/legiond.ini"
-typedef char command[100];
+#define MAX_CMD_LEN 100
+typedef char command[MAX_CMD_LEN];
 
 typedef struct _LEGIOND_CONFIG {
 	bool fan_control;
 	bool cpu_control;
 	command gpu_control;
+	command nvidia_smi_path;
+	command rocm_smi_path;
 	command cpu_ac_q;
 	command cpu_bat_q;
 	command cpu_ac_b;

@@ -130,7 +130,7 @@ int set_fancurve(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	int result = 0;
 
 	if (preset != NULL) {
-		char cmd[100];
+		char cmd[MAX_CMD_LEN + 64];
 		snprintf(cmd, sizeof(cmd),
 			 "legion_cli fancurve-write-preset-to-hw %s", preset);
 		result = system(cmd);
@@ -156,9 +156,9 @@ int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	const char *tool;
 
 	if (strcmp(config->gpu_control, "nvidia") == 0) {
-		tool = "/opt/bin/nvidia-smi -pl ";
+		tool = config->nvidia_smi_path;
 	} else if (strcmp(config->gpu_control, "radeon") == 0) {
-		tool = "/opt/bin/rocm-smi --setpoweroverdrive ";
+		tool = config->rocm_smi_path;
 	} else {
 		printf("unknown gpu_control value: %s\n", config->gpu_control);
 		printf("skip gpu_control\n");
@@ -219,8 +219,11 @@ int set_gpu(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	int result = 0;
 
 	if (tdp != NULL && tdp[0] != '\0') {
-		char cmd[100];
-		int written = snprintf(cmd, sizeof(cmd), "%s%s", tool, tdp);
+		const char *mode = strcmp(config->gpu_control, "nvidia") == 0
+					   ? "-pl "
+					   : "--setpoweroverdrive ";
+		char cmd[MAX_CMD_LEN + 64];
+		int written = snprintf(cmd, sizeof(cmd), "%s %s%s", tool, mode, tdp);
 		if (written < 0 || written >= (int)sizeof(cmd)) {
 			printf("gpu_control cmd too long, skipping\n");
 		} else {

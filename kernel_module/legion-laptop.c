@@ -2884,7 +2884,7 @@ static ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 	if (ec_offset < ec_memoryio->physical_ec_start) {
 		pr_info("Unexpected read at offset %d into EC RAM\n",
 			ec_offset);
-		return -1;
+		return -EIO;
 	}
 	*value = *(ec_memoryio->virtual_start +
 		   (ec_offset - ec_memoryio->physical_ec_start));
@@ -2902,7 +2902,7 @@ static __maybe_unused ssize_t ecram_memoryio_write(const struct ecram_memoryio *
 	if (ec_offset < ec_memoryio->physical_ec_start) {
 		pr_info("Unexpected write at offset %d into EC RAM\n",
 			ec_offset);
-		return -1;
+		return -EIO;
 	}
 	*(ec_memoryio->virtual_start +
 	  (ec_offset - ec_memoryio->physical_ec_start)) = value;
@@ -4590,7 +4590,7 @@ static int ec_read_minifancurve(struct ecram *ecram,
 	default:
 		pr_info("Unexpected value in MINIFANCURVE register: %d\n",
 			value);
-		return -1;
+		return -EIO;
 	}
 	return 0;
 }
@@ -4634,7 +4634,7 @@ static int ec_read_lockfancontroller(struct ecram *ecram,
 	default:
 		pr_info("Unexpected value in lockfanspeed register: %d\n",
 			value);
-		return -1;
+		return -EIO;
 	}
 	return 0;
 }
@@ -4672,7 +4672,7 @@ static int ec_read_fanfullspeed(struct ecram *ecram,
 	default:
 		pr_info("Unexpected value in maximumfanspeed register: %d\n",
 			value);
-		return -1;
+		return -EIO;
 	}
 	return 0;
 }
@@ -6886,7 +6886,7 @@ static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 
 	mutex_lock(&legion_shared_mutex);
 	priv = legion_shared;
-	if ((!priv) && (priv->loaded)) {
+	if ((!priv) || (priv->loaded)) {
 		pr_info("Received WMI event while not initialized!\n");
 		goto unlock;
 	}
@@ -7829,7 +7829,7 @@ static ssize_t minifancurve_show(struct device *dev,
 	mutex_lock(&priv->fancurve_mutex);
 	err = ec_read_minifancurve(&priv->ecram, priv->conf, &value);
 	if (err) {
-		err = -1;
+		err = -EIO;
 		pr_info("Failed to read minifancurve\n");
 		goto error_unlock;
 	}
@@ -7838,7 +7838,7 @@ static ssize_t minifancurve_show(struct device *dev,
 
 error_unlock:
 	mutex_unlock(&priv->fancurve_mutex);
-	return -1;
+	return -EIO;
 }
 
 static ssize_t minifancurve_store(struct device *dev,

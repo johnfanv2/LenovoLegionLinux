@@ -267,7 +267,7 @@ class EnumSettingFeature(Feature):
             log.error("Setting invalid value %s", value)
             raise ValueError(f"Invalid value {value}")
 
-    def get(self) -> bool:
+    def get(self) -> str:
         return self.value
 
 
@@ -480,7 +480,7 @@ class BatteryConservation(BoolFileFeature):
         if value != self.get():
             self.set(value)
         else:
-            print(f"Already has value {value} - skip setting again.")
+            log.info("Already has value %s - skip setting again.", value)
 
 
 class RapidChargingFeature(BoolFileFeature):
@@ -557,7 +557,7 @@ class PlatformProfileFeature(FileFeature):
         try:
             available_choices_str = self.choices.get()
         except IOError as error:
-            print(error)
+            log.error("Failed to read platform profile choices: %s", error)
             available_choices_str = ""
         available_choices = available_choices_str.split(" ")
         return [p for p in self.all_values if p.value in available_choices]
@@ -761,7 +761,7 @@ class SystemDServiceFeature(BoolCommandFeature):
         return False
 
 
-class PowerProfilesDeamonService(SystemDServiceFeature):
+class PowerProfilesDaemonService(SystemDServiceFeature):
     def __init__(self):
         super().__init__("power-profiles-daemon")
 
@@ -1030,7 +1030,7 @@ class FanCurveIO(Feature):
             log.info("Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         # pylint: disable=broad-except
-        except BaseException as error:
+        except Exception as error:
             log.error(str(error))
         for index, entry in enumerate(entries):
             point_id = index + 1
@@ -1096,7 +1096,7 @@ class FanCurveIO(Feature):
         try:
             fancurve.enable_minifancurve = self.get_minifancuve()
         # pylint: disable=broad-except
-        except BaseException as error:
+        except Exception as error:
             log.error(str(error))
         return fancurve
 
@@ -1167,7 +1167,7 @@ class SettingsManager(Feature):
 
     def apply_settings(self, preset: Settings):
         for name, value in preset.setting_entries.items():
-            log.error("Try seting %s from preset to %s", name, value)
+            log.error("Try setting %s from preset to %s", name, value)
             has_set = Feature.set_feature_to_value(name, value)
             if not has_set:
                 log.error("Cannot set %s from preset to %s", name, value)
@@ -1256,22 +1256,26 @@ class CustomConservationController:
     def run(self):
         battery_cap = self.battery_capacity_perc.get()
         if battery_cap > self.upper_limit:
-            print(
-                "Enabling conservation mode because battery"
-                + f" {battery_cap} is greater than upper limit {self.upper_limit}"
+            log.info(
+                "Enabling conservation mode because battery %s is greater than upper limit %s",
+                battery_cap,
+                self.upper_limit,
             )
             self.battery_conservation.set_if_not_set(True)
             return self.battery_conservation.get()
         if battery_cap < self.lower_limit:
-            print(
-                "Disabling conservation mode because battery"
-                + f" {battery_cap} is lower than lower limit {self.lower_limit}"
+            log.info(
+                "Disabling conservation mode because battery %s is lower than lower limit %s",
+                battery_cap,
+                self.lower_limit,
             )
             self.battery_conservation.set_if_not_set(False)
             return self.battery_conservation.get()
-        print(
-            "Keeping conservation mode because battery"
-            + f" {battery_cap} is within bounds of {self.lower_limit} and {self.upper_limit}"
+        log.info(
+            "Keeping conservation mode because battery %s is within bounds of %s and %s",
+            battery_cap,
+            self.lower_limit,
+            self.upper_limit,
         )
         return self.battery_conservation.get()
 
@@ -1467,7 +1471,7 @@ class NVIDIAGPUOnQuietMode(Monitor):
 #                 monitors_to_notify = []
 
 
-class NotifcationSender:
+class NotificationSender:
     disable_notifications: bool
 
     def __init__(self):
@@ -1480,7 +1484,7 @@ class NotifcationSender:
         raise NotImplementedError()
 
 
-class SystemNotificationSender(NotifcationSender):
+class SystemNotificationSender(NotificationSender):
 
     def _send_notification(self, _, msg):
         if is_root_user():
@@ -1488,10 +1492,12 @@ class SystemNotificationSender(NotifcationSender):
             # TODOs: find a better way
             # Code by user dvilela on stackoverflow
             # https://stackoverflow.com/a/54718205
+            sudo_user = os.environ.get("SUDO_USER")
+            if sudo_user is None:
+                log.warning("Cannot send notification: SUDO_USER not set")
+                return
             user_id = (
-                subprocess.run(
-                    ["id", "-u", os.environ["SUDO_USER"]], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
-                )
+                subprocess.run(["id", "-u", sudo_user], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
                 .stdout.decode("utf-8", errors="replace")
                 .replace("\n", "")
             )
@@ -1499,7 +1505,7 @@ class SystemNotificationSender(NotifcationSender):
                 [
                     "sudo",
                     "-u",
-                    os.environ["SUDO_USER"],
+                    sudo_user,
                     f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_id}/bus",
                     "notify-send",
                     "-i",
@@ -1571,7 +1577,7 @@ class LegionModelFacade:
         self.ioport_light = IOPortLight()
 
         # services
-        self.power_profiles_deamon_service = PowerProfilesDeamonService()
+        self.power_profiles_deamon_service = PowerProfilesDaemonService()
         self.lenovo_legion_laptop_support_service = LenovoLegionLaptopSupportService()
         self.legion_gui_autostart = LegionGUIAutostart()
 
@@ -1748,11 +1754,16 @@ class LegionModelFacade:
         is_on_powersupply = self.on_power_supply.get()
         profile = self.platform_profile.get()
         preset_name = self.fancurve_repo.get_preset_name(profile, is_on_powersupply)
-        print(f"Loading preset={preset_name} for profile={profile} and is_powersupply={is_on_powersupply}")
+        log.info(
+            "Loading preset=%s for profile=%s and is_powersupply=%s",
+            preset_name,
+            profile,
+            is_on_powersupply,
+        )
         if preset_name in self.fancurve_repo.fancurve_presets:
             fancurve = self.fancurve_repo.load_by_name_or_default(preset_name)
             self.fancurve_io.write_fan_curve(fancurve, write_minifancurve)
-            print(fancurve)
+            log.info("Fancurve: %s", fancurve)
 
     def conservation_apply_mode_for_current_battery_capacity(self, lower_limit=None, upper_limit=None):
         if lower_limit is not None:
