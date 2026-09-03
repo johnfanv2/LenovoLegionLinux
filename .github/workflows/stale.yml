@@ -13,6 +13,9 @@ on:
 
 permissions:
   issues: write
+  # Required so actions/stale can clean up its state cache
+  # (otherwise every run logs "Error delete _state: [403]")
+  actions: write
 
 jobs:
   stale:
@@ -34,6 +37,9 @@ jobs:
           days-before-pr-close: -1
           stale-issue-label: stale
           labels-to-remove-when-unstale: needs info
+          # Each processed issue costs 1 operation; the default of 30 is
+          # too low to work through the existing backlog of open issues
+          operations-per-run: 100
           stale-issue-message: >
             This issue has been automatically marked as stale because it is
             waiting for information from the reporter and has had no activity
@@ -59,6 +65,7 @@ jobs:
           days-before-pr-close: -1
           stale-issue-label: stale
           exempt-issue-labels: bug,enhancement,good first issue,help wanted,needs info
+          operations-per-run: 100
           stale-issue-message: >
             This issue has been automatically marked as stale because it has
             had no activity for 90 days. **If this issue is still affecting
