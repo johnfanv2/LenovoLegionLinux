@@ -1,0 +1,72 @@
+name: Close stale issues
+run-name: ${{ github.actor }} running Close stale issues
+# Policy modeled after React (90+7, exempt triaged issues) and TensorFlow
+# (fast lane for issues awaiting reporter feedback), adapted to this repo's
+# label set. Hardware-driver projects need conservative timeouts because
+# verifying bugs requires access to real hardware.
+on:
+  schedule:
+    # Run every day at 01:30 UTC (same slot as openrazer/tensorflow)
+    - cron: '30 1 * * *'
+  # Allow manual triggering from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  stale:
+    # Don't run on forks
+    if: github.repository == 'johnfanv2/LenovoLegionLinux'
+    runs-on: ubuntu-24.04
+    steps:
+      # --- Fast lane (TensorFlow-style): issues waiting on the reporter ---
+      # Maintainer adds the `needs info` label when asking for dmesg logs,
+      # BIOS versions, etc. If the reporter never answers, the issue is
+      # marked stale after 30 days and closed 7 days later.
+      - name: Close issues awaiting reporter feedback
+        uses: actions/stale@v10
+        with:
+          only-issue-labels: needs info
+          days-before-issue-stale: 30
+          days-before-issue-close: 7
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-label: stale
+          labels-to-remove-when-unstale: needs info
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it is
+            waiting for information from the reporter and has had no activity
+            for 30 days. It will be closed in 7 days if no further activity
+            occurs. Please provide the requested information to keep it open.
+          close-issue-message: >
+            This issue has been automatically closed because the requested
+            information was not provided. If you can still reproduce the
+            problem, please open a new issue with the requested details
+            (e.g. `sudo dmesg`, BIOS version, model). Thank you!
+
+      # --- General rule (React-style): only untriaged issues rot away ---
+      # Issues that a maintainer has triaged (labeled as bug, enhancement,
+      # good first issue, ...) are NEVER auto-closed, because hardware bugs
+      # stay valid for a long time. Only issues nobody ever picked up are
+      # marked stale after 90 days and closed 7 days later.
+      - name: Close stale issues
+        uses: actions/stale@v10
+        with:
+          days-before-issue-stale: 90
+          days-before-issue-close: 7
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-label: stale
+          exempt-issue-labels: bug,enhancement,good first issue,help wanted,needs info
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has
+            had no activity for 90 days. **If this issue is still affecting
+            you, please leave any comment** (for example, "bump") and it will
+            stay open. It will be closed in 7 days if no further activity
+            occurs.
+          close-issue-message: >
+            This issue has been automatically closed after a prolonged period
+            of inactivity. If the problem is still present in the latest
+            release, please open a new issue with up-to-date information.
+            Thank you!
