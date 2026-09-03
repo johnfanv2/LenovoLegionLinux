@@ -7,7 +7,7 @@ Name:         dkms-%{srcname}
 License:      GPL-2.0
 Group:        System/Kernel
 Summary:      LenovoLegionLinux Kernel Module Package
-Version:      0.0.23
+Version:      0.0.24
 Release:      0
 Source0:      https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 
@@ -39,6 +39,8 @@ dkms remove -m %{dkms_name} -v %{version} -q --all || :
 %{_usrsrc}/%{dkms_name}-%{version}
 
 %changelog
+* Thu Sep 03 2026 github-actions <actions@github.com> - 0.0.24-0
+- 0.0.24 release of LenovoLegionLinux DKMS module.
 * Tue Sep 01 2026 github-actions <actions@github.com> - 0.0.23-0
 - 0.0.23 release of LenovoLegionLinux DKMS module.
 * Sat Aug 15 2026 github-actions <actions@github.com> - 0.0.22-0
