@@ -1497,9 +1497,7 @@ class SystemNotificationSender(NotificationSender):
                 log.warning("Cannot send notification: SUDO_USER not set")
                 return
             user_id = (
-                subprocess.run(
-                    ["id", "-u", sudo_user], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
-                )
+                subprocess.run(["id", "-u", sudo_user], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
                 .stdout.decode("utf-8", errors="replace")
                 .replace("\n", "")
             )
