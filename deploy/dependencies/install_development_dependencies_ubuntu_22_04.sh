@@ -14,5 +14,5 @@ sudo apt-get -y -qq install \
 
 sudo pip install pyqt6-tools PyQt6
 
-${DIR}/install_dependencies_ubuntu_22_04.sh
-${DIR}/linux_kernel/install_checkpath.sh
+"${DIR}/install_dependencies_ubuntu_22_04.sh"
+"${DIR}/linux_kernel/install_checkpath.sh"

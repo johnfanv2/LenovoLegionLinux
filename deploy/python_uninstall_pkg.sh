@@ -1,9 +1,9 @@
-!/bin/bash
+#!/bin/bash
 set -ex
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPODIR="${DIR}"
 
-cd ${REPODIR}/python/legion_linux
+cd "${REPODIR}/python/legion_linux"
 
 if [ "$EUID" -ne 0 ]; then
 	echo "Please run as root to install"

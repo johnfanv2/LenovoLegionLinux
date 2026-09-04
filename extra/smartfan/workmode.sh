@@ -34,7 +34,7 @@ echo "║  5) turbo        (fans 100% NOW)     ║"
 echo "║  6) fans off     (stop smart fan)    ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
-read -p "Select mode [1-6]: " choice
+read -r -p "Select mode [1-6]: " choice
 
 case $choice in
     1) wmi_arg="0x01"; fanmode="quiet"; label="quiet" ;;
@@ -69,8 +69,8 @@ fi
 echo ""
 echo "Temps:"
 if [ -n "$HWMON" ]; then
-    echo "  CPU: $(($(cat $HWMON/temp1_input) / 1000))°C"
-    echo "  GPU: $(($(cat $HWMON/temp2_input) / 1000))°C"
-    echo "  Fan1: $(cat $HWMON/fan1_input) RPM"
-    echo "  Fan2: $(cat $HWMON/fan2_input) RPM"
+    echo "  CPU: $(($(cat "$HWMON/temp1_input") / 1000))°C"
+    echo "  GPU: $(($(cat "$HWMON/temp2_input") / 1000))°C"
+    echo "  Fan1: $(cat "$HWMON/fan1_input") RPM"
+    echo "  Fan2: $(cat "$HWMON/fan2_input") RPM"
 fi

@@ -1,3 +1,5 @@
+#!/bin/bash
+set -ex
 sudo apt install -y curl
 
 # deb.debian.org has a valid TLS certificate; ftp.de.debian.org serves a

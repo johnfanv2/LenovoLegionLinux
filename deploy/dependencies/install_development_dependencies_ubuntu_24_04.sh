@@ -12,5 +12,5 @@ sudo apt-get -y -qq install \
     pylint python3-venv python3-pip python3-build \
     python3-installer xvfb libxcb-xinerama0 pyqt6-dev-tools
 
-${DIR}/install_dependencies_ubuntu_24_04.sh
-${DIR}/linux_kernel/install_checkpath.sh
+"${DIR}/install_dependencies_ubuntu_24_04.sh"
+"${DIR}/linux_kernel/install_checkpath.sh"
