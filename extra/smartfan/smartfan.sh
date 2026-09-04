@@ -85,10 +85,14 @@ set_fan_speed() {
     if [ "$pct" -gt 100 ]; then pct=100; fi
     
     local val=$((pct * 100))
-    local b0=$(printf '0x%02x' $((val & 0xFF)))
-    local b1=$(printf '0x%02x' $(((val >> 8) & 0xFF)))
-    local b2=$(printf '0x%02x' $(((val >> 16) & 0xFF)))
-    local b3=$(printf '0x%02x' $(((val >> 24) & 0xFF)))
+    local b0
+    b0=$(printf '0x%02x' $((val & 0xFF)))
+    local b1
+    b1=$(printf '0x%02x' $(((val >> 8) & 0xFF)))
+    local b2
+    b2=$(printf '0x%02x' $(((val >> 16) & 0xFF)))
+    local b3
+    b3=$(printf '0x%02x' $(((val >> 24) & 0xFF)))
     
     # Try both fan channels
     echo "\_SB_.GZFD.WMAE 0 0x12 {0x01, 0x00, 0x03, 0x04, $b0, $b1, $b2, $b3}" > "$ACPI_CALL" 2>/dev/null
@@ -127,8 +131,10 @@ get_max_temp() {
 
 get_target_pct() {
     local temp=$1
-    local temps=($TEMP_POINTS)
-    local fans=($FAN_POINTS)
+    local temps
+    read -ra temps <<< "$TEMP_POINTS"
+    local fans
+    read -ra fans <<< "$FAN_POINTS"
     local target=${fans[0]}
     
     # If below first point, use first fan speed
@@ -178,7 +184,8 @@ run_daemon() {
     find_hwmon
     get_profile "$mode"
     
-    local current_pct=$(echo $FAN_POINTS | awk '{print $1}')
+    local current_pct
+    current_pct=$(echo "$FAN_POINTS" | awk '{print $1}')
     local down_count=0
     local ramp_up_count=0
     local temp_history=""
@@ -201,11 +208,12 @@ run_daemon() {
         fi
         
         # Check mode changes
-        local new_mode=$(cat "$MODEFILE" 2>/dev/null)
+        local new_mode
+        new_mode=$(cat "$MODEFILE" 2>/dev/null)
         if [ -n "$new_mode" ] && [ "$new_mode" != "$mode" ]; then
             mode="$new_mode"
             get_profile "$mode"
-            current_pct=$(echo $FAN_POINTS | awk '{print $1}')
+            current_pct=$(echo "$FAN_POINTS" | awk '{print $1}')
             down_count=0
             ramp_up_count=0
             temp_history=""
@@ -214,7 +222,8 @@ run_daemon() {
         fi
         
         # Get temperature
-        local temp=$(get_max_temp)
+        local temp
+        temp=$(get_max_temp)
         if [ -z "$temp" ] || [ "$temp" -eq 0 ]; then
             temp=$last_temp
             log "Warning: Could not read temperature, using last known: $temp"
@@ -223,7 +232,8 @@ run_daemon() {
         
         # Apply smoothing
         temp_history="$temp_history $temp"
-        local count=$(echo "$temp_history" | wc -w)
+        local count
+        count=$(echo "$temp_history" | wc -w)
         if [ "$count" -gt "$temp_samples" ]; then
             temp_history=$(echo "$temp_history" | cut -d' ' -f2-)
         fi
@@ -237,7 +247,8 @@ run_daemon() {
         temp=$((sum / count))
         
         # Get target speed
-        local target_pct=$(get_target_pct "$temp")
+        local target_pct
+        target_pct=$(get_target_pct "$temp")
         
         # Fan control logic with smooth transitions
         if [ "$target_pct" -gt "$current_pct" ]; then
@@ -303,7 +314,8 @@ stop_daemon() {
     
     # Kill by PID
     if [ -f "$PIDFILE" ]; then
-        local pid=$(cat "$PIDFILE" 2>/dev/null)
+        local pid
+        pid=$(cat "$PIDFILE" 2>/dev/null)
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             kill -TERM "$pid" 2>/dev/null
             # Wait for graceful shutdown

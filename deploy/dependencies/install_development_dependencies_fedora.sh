@@ -10,5 +10,5 @@ sudo dnf -y install wget \
 # Linter/Tests (not as package in all rhel variants available!)
 python3 -m pip install pytest pylint
 
-${DIR}/linux_kernel/install_checkpath.sh
+"${DIR}/linux_kernel/install_checkpath.sh"
 

@@ -8,5 +8,5 @@ sudo pacman -S --noconfirm --disable-download-timeout wget \
     python-pylint python-installer python-build \
     xorg-server-xvfb libxcb
 
-${DIR}/linux_kernel/install_checkpath.sh
+"${DIR}/linux_kernel/install_checkpath.sh"
 

@@ -20,7 +20,7 @@ mkdir -p "${BUILD_DIR}"
 # Clone
 cd "${BUILD_DIR}"
 git clone --depth 1 --branch "v${KERNEL_VERSION}" https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
-cd ${BUILD_DIR}/linux
+cd "${BUILD_DIR}/linux"
 
 DRIVER_DIR="${BUILD_DIR}/linux/drivers/platform/x86"
 if [ -d "${DRIVER_DIR}/lenovo" ]; then
@@ -44,9 +44,10 @@ config LEGION_LAPTOP
 	  This is a driver for Lenovo Legion laptops and contains drivers for
 	  hotkey, fan control, and power mode.
 EOF
+# shellcheck disable=SC2016
 printf '\nobj-$(CONFIG_LEGION_LAPTOP) += legion-laptop.o\n' >> "${DRIVER_DIR}/Makefile"
 
-cd ${BUILD_DIR}/linux
+cd "${BUILD_DIR}/linux"
 git config user.name "John Martens"
 git config user.email "john.martens4@proton.me"
 git add --all

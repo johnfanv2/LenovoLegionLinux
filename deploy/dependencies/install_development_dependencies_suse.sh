@@ -16,4 +16,4 @@ sudo zypper --non-interactive install \
     xorg-x11-server-extra libxcb-xinerama0 xauth
 
 
-${DIR}/linux_kernel/install_checkpath.sh
+"${DIR}/linux_kernel/install_checkpath.sh"
