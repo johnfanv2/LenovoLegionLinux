@@ -2925,8 +2925,9 @@ static void ecram_memoryio_exit(struct ecram_memoryio *ec_memoryio)
 static ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 				   u16 ec_offset, u8 *value)
 {
-	if (ec_offset < ec_memoryio->physical_ec_start) {
-		pr_info("Unexpected read at offset %d into EC RAM\n",
+	if (ec_offset < ec_memoryio->physical_ec_start ||
+	    ec_offset - ec_memoryio->physical_ec_start >= ec_memoryio->size) {
+		pr_info("Unexpected read at offset 0x%x into EC RAM\n",
 			ec_offset);
 		return -EIO;
 	}
@@ -2943,8 +2944,9 @@ static ssize_t ecram_memoryio_read(const struct ecram_memoryio *ec_memoryio,
 static __maybe_unused ssize_t ecram_memoryio_write(
 	const struct ecram_memoryio *ec_memoryio, u16 ec_offset, u8 value)
 {
-	if (ec_offset < ec_memoryio->physical_ec_start) {
-		pr_info("Unexpected write at offset %d into EC RAM\n",
+	if (ec_offset < ec_memoryio->physical_ec_start ||
+	    ec_offset - ec_memoryio->physical_ec_start >= ec_memoryio->size) {
+		pr_info("Unexpected write at offset 0x%x into EC RAM\n",
 			ec_offset);
 		return -EIO;
 	}
@@ -3765,6 +3767,7 @@ static ssize_t acpi_read_fanspeed(struct legion_private *priv, int fan_id,
 	if (fan_id == 0) {
 		acpi_path =
 			get_model_acpi_path(_model, ACPI_PATH_READ_FANSPEED1);
+	} else if (fan_id == 1) {
 		acpi_path =
 			get_model_acpi_path(_model, ACPI_PATH_READ_FANSPEED2);
 	} else if (fan_id == 2) {
@@ -4931,7 +4934,7 @@ static ssize_t ec_write_powermode(struct legion_private *priv, u8 value)
 	    value != LEGION_EC_POWERMODE_CUSTOM &&
 	    value != LEGION_EC_POWERMODE_EXTREME) {
 		pr_info("Unexpected power mode value ignored: %d\n", value);
-		return -ENOMEM;
+		return -EINVAL;
 	}
 	ecram_write(&priv->ecram, priv->conf->registers->EXT_POWERMODE, value);
 	return 0;
@@ -4945,7 +4948,8 @@ static ssize_t acpi_read_powermode(struct legion_private *priv, int *powermode)
 	// spmo method not always available
 	// \_SB.PCI0.LPC0.EC0.SPMO
 	err = eval_spmo(priv->adev, &acpi_powermode);
-	*powermode = (int)acpi_powermode;
+	if (!err)
+		*powermode = (int)acpi_powermode;
 	return err;
 }
 
@@ -4970,7 +4974,7 @@ static ssize_t wmi_write_powermode(u8 value)
 	    value != LEGION_WMI_POWERMODE_CUSTOM &&
 	    value != LEGION_WMI_POWERMODE_MAX_POWER) {
 		pr_info("Unexpected power mode value ignored: %d\n", value);
-		return -ENOMEM;
+		return -EINVAL;
 	}
 	return wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
 			    WMI_METHOD_ID_SETSMARTFANMODE, &value,
@@ -5305,7 +5309,8 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	acpi_path = get_model_acpi_path(_model, ACPI_PATH_CFG);
 	err = eval_int(priv->adev, acpi_path, &cfg);
 	seq_printf(s, "ACPI CFG error: %d\n", err);
-	seq_printf(s, "ACPI CFG: %lu\n", cfg);
+	if (!err)
+		seq_printf(s, "ACPI CFG: %lu\n", cfg);
 
 	seq_printf(s, "temperature access method: %d\n",
 		   priv->conf->access_method_temperature);
@@ -6570,18 +6575,17 @@ static ssize_t cpu_temperature_limit_show(struct device *dev,
 					  struct device_attribute *attr,
 					  char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
 	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
-			priv, buf, OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+			priv, buf,
+			OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
 	default:
 		return -EINVAL;
 	}
-	return err;
 }
 
 static ssize_t cpu_temperature_limit_store(struct device *dev,
@@ -6601,7 +6605,6 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 static ssize_t cpu_l1_tau_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -6612,7 +6615,6 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 	default:
 		return -EINVAL;
 	}
-	return err;
 }
 
 static ssize_t cpu_l1_tau_store(struct device *dev,
@@ -6632,7 +6634,6 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -6644,7 +6645,6 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 	default:
 		return -EINVAL;
 	}
-	return err;
 }
 
 static ssize_t gpu_power_target_offset_store(struct device *dev,
@@ -7005,7 +7005,8 @@ unlock:
 	// so if we notify too early, it will read the old power mode/platform profile
 	msleep(500);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
-	legion_platform_profile_notify(priv->ppdev);
+	if (priv)
+		legion_platform_profile_notify(priv->ppdev);
 #else
 	legion_platform_profile_notify();
 #endif
@@ -7363,7 +7364,7 @@ static ssize_t sensor_label_show(struct device *dev,
 		return -EOPNOTSUPP;
 	}
 
-	return sprintf(buf, label);
+	return sysfs_emit(buf, "%s", label);
 }
 
 // TODO: use one common function (like here) or one function per attribute?
@@ -7419,7 +7420,7 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 	if (err)
 		return err;
 
-	return sprintf(buf, "%d\n", outval);
+	return sysfs_emit(buf, "%d\n", outval);
 }
 
 static SENSOR_DEVICE_ATTR_RO(temp1_input, sensor, SENSOR_CPU_TEMP_ID);
@@ -7531,7 +7532,7 @@ static ssize_t autopoint_show(struct device *dev,
 	}
 	if (!ok)
 		value = 0;
-	return sprintf(buf, "%d\n", value);
+	return sysfs_emit(buf, "%d\n", value);
 }
 
 static ssize_t autopoint_store(struct device *dev,
@@ -7701,7 +7702,7 @@ fancurve_defaults_powermode_show(struct device *dev,
 	// set to 0 if not in CUSTOM mode (pressed Fn-Q)
 	if (power_mode != LEGION_WMI_POWERMODE_CUSTOM)
 		fancurve_defaults_powermode = 0;
-	return sprintf(buf, "%d\n", fancurve_defaults_powermode);
+	return sysfs_emit(buf, "%d\n", fancurve_defaults_powermode);
 }
 
 // pwm1
@@ -8527,7 +8528,7 @@ static int legion_add(struct platform_device *pdev)
 		dev_info(
 			&pdev->dev,
 			"Module not usable for this laptop because it is not in allowlist. Notify the maintainer if you want to add your device or force load with param force.\n");
-		err = -ENOMEM;
+		err = -ENODEV;
 		goto err_model_mismtach;
 	}
 
@@ -8664,6 +8665,10 @@ static int legion_add(struct platform_device *pdev)
 	}
 #else
 	err = acpi_init(priv, NULL);
+	if (err) {
+		dev_info(&pdev->dev, "Could not init ACPI access: %d\n", err);
+		goto err_acpi_init;
+	}
 #endif
 	// TODO: remove; only used for reverse engineering
 	pr_info("Creating RAM access to embedded controller\n");
@@ -8693,7 +8698,7 @@ static int legion_add(struct platform_device *pdev)
 	is_ec_id_valid = skip_ec_id_check ||
 			 (ec_read_id == priv->conf->embedded_controller_id);
 	if (!is_ec_id_valid) {
-		err = -ENOMEM;
+		err = -EIO;
 		dev_info(&pdev->dev, "Expected EC chip id 0x%x but read 0x%x\n",
 			 priv->conf->embedded_controller_id, ec_read_id);
 		goto err_ecram_id;
@@ -8798,9 +8803,7 @@ err_ecram_id:
 err_ecram_init:
 	ecram_memoryio_exit(&priv->ec_memoryio);
 err_ecram_memoryio_init:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 err_acpi_init:
-#endif
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:
