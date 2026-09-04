@@ -2061,6 +2061,17 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_t2cn
 	},
 	{
+		// e.g. Legion 5 15AGP11 (83Q6, AMD Ryzen AI 9 465 + RTX 5070) -
+		// same platform as the 83Q7 above; EC 0x5509, fancurve via
+		// WMI3 (#504)
+		.ident = "T3CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "T3CN"),
+		},
+		.driver_data = (void *)&model_t2cn
+	},
+	{
 		// e.g. Legion 5 15IRX10 (83LY)
 		.ident = "QNCN",
 		.matches = {
