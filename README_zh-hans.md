@@ -542,6 +542,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 </p>
 
 - 点击 `Read from HW` 可以读取并显示保存在硬件中的当前风扇曲线。
+- 如果内核模块已加载，启动时会自动读取当前风扇曲线；否则曲线初始为空，`Read from HW` 按钮不可用。
 - 你可以编辑风扇曲线的各项数值。只有点击 `Apply to HW` 后，修改才会写入硬件并生效。
 - 点击 `Apply to HW` 可将当前显示的风扇曲线写入硬件并激活。
 - 你可以将风扇曲线保存为预设或从预设加载。通过下拉菜单选择预设，然后点击 `Load from Preset` 或 `Save to preset`。

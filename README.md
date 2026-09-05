@@ -530,6 +530,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 </p>
 
 - with `Read from HW` you can read the current fan curve that is saved in the hardware and display it.
+- the current fan curve is loaded automatically at start-up when the kernel module is present; otherwise the fan curve starts empty and `Read from HW` is greyed out
 - you can edit the values of the fancurve. They will not applied to hardware until your press `Apply to HW`
 - press `Apply to HW` to write the currently displayed fancurve to hardware and activate it
 - you can load and save a fancurve to a preset. Select the preset with the drop-down menu and press `Load from Preset` or `Save to preset`.
