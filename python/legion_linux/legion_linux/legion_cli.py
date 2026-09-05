@@ -7,8 +7,8 @@ import logging
 import sys
 import os
 
-# Make it possible to run without installationimport
-# pylint: disable=# pylint: disable=wrong-import-position
+# Make it possible to run without installation
+# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
 from legion_linux.legion import LegionModelFacade
@@ -532,4 +532,8 @@ if __name__ == "__main__":
         sys.exit(1)
     except RuntimeError as err:
         log.error(str(err))
-        sys.exit(err.args[0] if err.args else 1)
+        sys.exit(1)
+    except (OSError, KeyError, TypeError, ValueError) as err:
+        log.error(str(err))
+        print(f"Error: {err}", file=sys.stderr)
+        sys.exit(1)
