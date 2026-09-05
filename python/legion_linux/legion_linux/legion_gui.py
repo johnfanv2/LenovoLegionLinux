@@ -4,6 +4,7 @@
 import sys
 import os
 import os.path
+import glob
 import traceback
 import logging
 import random
@@ -121,14 +122,18 @@ class MonitorWorker(QRunnable):
                 # pylint: disable=broad-except
                 except Exception as err:
                     log.error(str(err))
-            for msg in diag_msgs:
-                if msg.has_value and msg.filter_do_output:
-                    log.info(str(msg.msg))
-                    self.notification_sender.notify("Legion", msg.msg)
-                elif msg.has_value:
-                    log.info("FILTERED: %s", msg.msg)
-                else:
-                    log.info("FILTERED2: %s", msg.msg)
+            try:
+                for msg in diag_msgs:
+                    if msg.has_value and msg.filter_do_output:
+                        log.info(str(msg.msg))
+                        self.notification_sender.notify("Legion", msg.msg)
+                    elif msg.has_value:
+                        log.info("FILTERED: %s", msg.msg)
+                    else:
+                        log.info("FILTERED2: %s", msg.msg)
+            # pylint: disable=broad-except
+            except Exception as err:
+                log.error("Error while sending notification: %s", str(err))
             time.sleep(10.0)
 
         log.info("Finishing monitoring thread")
@@ -392,6 +397,11 @@ class PresetTrayController:
             def callback(_, pname=name):
                 self.on_action_click(pname)
 
+            try:
+                action.triggered.disconnect()
+            # pylint: disable=broad-except
+            except Exception:
+                pass
             action.triggered.connect(callback)
 
     def on_action_click(self, name):
@@ -1052,11 +1062,14 @@ class FanCurveTab(QWidget):
         has_acceleration_curve: bool,
     ):
         self.minfancurve_check.setDisabled(not has_minifancurve)
+        empty_entry = FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        for entry_view in self.entry_edits:
+            entry_view.set(empty_entry)
+            entry_view.set_disabled(not enabled, has_fan_2_speed, has_temperature_curve, has_acceleration_curve)
         for i, entry in enumerate(fancurve.entries):
+            if i >= len(self.entry_edits):
+                break
             self.entry_edits[i].set(entry)
-            self.entry_edits[i].set_disabled(
-                not enabled, has_fan_2_speed, has_temperature_curve, has_acceleration_curve
-            )
         self.load_button.setDisabled(not enabled)
         self.write_button.setDisabled(not enabled)
 
@@ -1709,10 +1722,8 @@ def main():
     app = QApplication(sys.argv)
 
     use_legion_cli_to_write = "--use_legion_cli_to_write" in sys.argv
-    do_not_excpect_hwmon = True
-    controller = LegionController(
-        app, expect_hwmon=not do_not_excpect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write
-    )
+    expect_hwmon = bool(glob.glob(legion_linux.legion.FanCurveIO.hwmon_dir_pattern))
+    controller = LegionController(app, expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
 
     # Load savable settings from file if exists
     controller.model.load_settings()
@@ -1748,7 +1759,7 @@ def main():
 
     # Main Windows
     main_window = MainWindow(controller, icon)
-    controller.init(read_from_hw=not do_not_excpect_hwmon)
+    controller.init(read_from_hw=expect_hwmon)
 
     # Tray
     tray = LegionTray(icon, main_window, controller)

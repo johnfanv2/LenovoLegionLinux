@@ -163,6 +163,9 @@ def write_file_with_legion_cli(name, values):
             err_str = stderr.decode(DEFAULT_ENCODING, errors="replace")
             returncode = process.returncode
             log.info("FileFeature %s executed with code %d: %s; %s", name, returncode, out_str, err_str)
+        if returncode != 0:
+            log.error("FileFeature %s failed with code %d: %s; %s", name, returncode, out_str, err_str)
+            raise RuntimeError(f"legion_cli failed for {name} with code {returncode}: {err_str}")
     except IOError as err:
         log.error("FileFeature %s executed with error %s and out %s and err %s", name, str(err), out_str, err_str)
         log.error(get_dmesg(only_tail=True, filter_log=False))
@@ -371,8 +374,8 @@ class LegionGUIAutostart(BoolFileFeature):
 
     def __init__(self):
         self.autostart_dekstop_folder_path = Path.home() / ".config" / "autostart"
-        self.desktop_file_path = Path("/usr/share/applications") / "legion_gui_user.desktop"
-        self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / "legion_gui_user.desktop"
+        self.desktop_file_path = Path("/usr/share/applications") / "legion_gui.desktop"
+        self.autostart_desktop_file_path = self.autostart_dekstop_folder_path / "legion_gui.desktop"
         super().__init__(str(Path.home() / ".config"))
 
     def exists(self):
