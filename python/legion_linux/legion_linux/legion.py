@@ -53,7 +53,7 @@ def get_dmesg(only_tail=False, filter_log=True):
             out, _ = process.communicate(timeout=1)
             out_str = out.decode(DEFAULT_ENCODING, errors="replace")
             return out_str
-    except OSError as ex:
+    except (OSError, subprocess.SubprocessError) as ex:
         log.error(ex)
         return str(ex)
 
@@ -573,32 +573,62 @@ class PlatformProfileFeature(FileFeature):
         return value
 
 
+def _find_power_supply_dir(supply_type):
+    """Return the first power_supply entry of the given type, or None.
+
+    Legacy names (ADP0/BAT0) are only used as a fallback since the Linux
+    power_supply class names the batteries/adapters by port location.
+    """
+    for supply_dir in glob.glob("/sys/class/power_supply/*"):
+        type_file = os.path.join(supply_dir, "type")
+        if os.path.exists(type_file):
+            with open(type_file, "r", encoding=DEFAULT_ENCODING) as filepointer:
+                if filepointer.read().strip() == supply_type:
+                    return supply_dir
+    return None
+
+
 class IsOnPowerSupplyFeature(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/class/power_supply/ADP0/online")
+        supply_dir = _find_power_supply_dir("Mains") or "/sys/class/power_supply/ADP0"
+        super().__init__(os.path.join(supply_dir, "online"))
 
     def set(self, value: str):
         raise NotImplementedError()
 
+    def get(self):
+        if not self.exists():
+            return False
+        return super().get()
+
 
 class BatteryIsCharging(BoolFileFeature):
     def __init__(self):
-        super().__init__("/sys/class/power_supply/BAT0/status")
+        supply_dir = _find_power_supply_dir("Battery") or "/sys/class/power_supply/BAT0"
+        super().__init__(os.path.join(supply_dir, "status"))
 
     def set(self, _: str):
         raise NotImplementedError()
 
     def get(self):
+        if not self.exists():
+            return False
         value = self._read_file_str(self.filename)
         return value == "Charging"
 
 
 class BatteryCurrentCapacityPercentage(FloatFileFeature):
     def __init__(self):
-        super().__init__("/sys/class/power_supply/BAT0/capacity")
+        supply_dir = _find_power_supply_dir("Battery") or "/sys/class/power_supply/BAT0"
+        super().__init__(os.path.join(supply_dir, "capacity"))
 
     def set(self, _: str):
         raise NotImplementedError()
+
+    def get(self):
+        if not self.exists():
+            return 0
+        return super().get()
 
 
 class CPUOverclock(BoolFileFeature):
@@ -834,6 +864,10 @@ class FanCurveIO(Feature):
             return matches[0] + "/"
         return None
 
+    def _require_hwmon(self):
+        if self.hwmon_path is None:
+            raise RuntimeError("hwmon dir not found: is the legion-laptop kernel module loaded?")
+
     @staticmethod
     def _validate_point_id(point_id):
         if point_id < 1 or point_id > 10:
@@ -870,8 +904,10 @@ class FanCurveIO(Feature):
         return int(self._read_file(file_path))
 
     def get_auto_points_size(self):
+        if self.hwmon_path is None:
+            return None
         file_path = self.hwmon_path + self.auto_points_size
-        if self.hwmon_path is None or not os.path.exists(file_path):
+        if not os.path.exists(file_path):
             return None
         return self._read_file(file_path)
 
@@ -886,10 +922,18 @@ class FanCurveIO(Feature):
         self._write_file(file_path, value)
 
     def set_fan_1_speed_rpm(self, point_id, value):
-        return self.set_fan_1_speed_pwm(point_id, int(value // 100 * (100 * 255) / self.get_fan_1_max_rpm()))
+        max_rpm = self.get_fan_1_max_rpm()
+        if max_rpm == 0:
+            raise ValueError("fan1_max is 0, cannot convert rpm to pwm")
+        pwm = max(0, min(255, int(value // 100 * (100 * 255) / max_rpm)))
+        return self.set_fan_1_speed_pwm(point_id, pwm)
 
     def set_fan_2_speed_rpm(self, point_id, value):
-        return self.set_fan_2_speed_pwm(point_id, int(value // 100 * (100 * 255) / self.get_fan_2_max_rpm()))
+        max_rpm = self.get_fan_2_max_rpm()
+        if max_rpm == 0:
+            raise ValueError("fan2_max is 0, cannot convert rpm to pwm")
+        pwm = max(0, min(255, int(value // 100 * (100 * 255) / max_rpm)))
+        return self.set_fan_2_speed_pwm(point_id, pwm)
 
     def set_lower_cpu_temperature(self, point_id, value):
         point_id = self._validate_point_id(point_id)
@@ -993,12 +1037,14 @@ class FanCurveIO(Feature):
         return self.exists() and self.hwmon_path is not None and os.path.exists(self.hwmon_path + self.minifancurve)
 
     def set_minifancuve(self, value):
+        self._require_hwmon()
         log.info("Setting minifancurve to: %s", str(value))
         file_path = self.hwmon_path + self.minifancurve
         outvalue = 1 if value else 0
         return self._write_file_or(file_path, outvalue)
 
     def get_minifancuve(self):
+        self._require_hwmon()
         file_path = self.hwmon_path + self.minifancurve
         invalue = self._read_file_or(file_path, False)
         return invalue != 0
@@ -1009,6 +1055,7 @@ class FanCurveIO(Feature):
 
     def write_fan_curve(self, fan_curve: FanCurve, _=False):
         """Writes a fan curve object to the file system and sets minifancurve if enabled"""
+        self._require_hwmon()
         entries = list(fan_curve.entries)
         while entries and entries[-1].is_empty():
             entries.pop()
@@ -1053,6 +1100,7 @@ class FanCurveIO(Feature):
 
     def read_fan_curve(self) -> FanCurve:
         """Reads a fan curve object from the file system"""
+        self._require_hwmon()
         entries = []
         has_fan_2_speed = self.has_fan_2_speed()
         has_temperature_curve = self.has_temperature_curve()
@@ -1170,10 +1218,14 @@ class SettingsManager(Feature):
 
     def apply_settings(self, preset: Settings):
         for name, value in preset.setting_entries.items():
-            log.error("Try setting %s from preset to %s", name, value)
-            has_set = Feature.set_feature_to_value(name, value)
-            if not has_set:
-                log.error("Cannot set %s from preset to %s", name, value)
+            try:
+                log.info("Try setting %s from preset to %s", name, value)
+                has_set = Feature.set_feature_to_value(name, value)
+                if not has_set:
+                    log.error("Cannot set %s from preset to %s", name, value)
+            # pylint: disable=broad-except
+            except Exception as err:
+                log.error("Failed to set %s from preset to %s: %s", name, value, err)
 
     def _name_to_filename(self, name):
         return os.path.join(self.preset_dir, name + ".yaml")
@@ -1776,13 +1828,18 @@ class LegionModelFacade:
         return self.battery_custom_conservation_controller.run()
 
     def load_settings(self):
-        if self.settings_manager.does_exists_by_name("settings"):
-            log.info("Settings file exists and will be loaded.")
+        if not self.settings_manager.does_exists_by_name("settings"):
+            log.info("Settings file does not exist.")
+            return
+        log.info("Settings file exists and will be loaded.")
+        try:
             settings = self.settings_manager.load_by_name("settings")
             log.info("Loaded settings:\n %s", settings.to_yaml())
-            self.settings_manager.apply_settings(settings)
-        else:
-            log.info("Settings file does not exist.")
+        # pylint: disable=broad-except
+        except Exception as err:
+            log.error("Failed to load settings file: %s", err)
+            return
+        self.settings_manager.apply_settings(settings)
 
     def save_settings(self):
         log.info("Saving settings...")

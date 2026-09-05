@@ -37,7 +37,7 @@ from PyQt6.QtWidgets import (
 )
 
 # Make it possible to run without installation
-# pylint: disable=# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
 from legion_linux.legion import (
@@ -1760,6 +1760,11 @@ def main():
     # Main Windows
     main_window = MainWindow(controller, icon)
     controller.init(read_from_hw=expect_hwmon)
+
+    # Monitoring callback is registered in init(), which runs after
+    # load_settings(), so start the worker now if the setting is enabled
+    if controller.model.app_model.enable_gui_monitoring.get():
+        controller.start_monitoring()
 
     # Tray
     tray = LegionTray(icon, main_window, controller)
