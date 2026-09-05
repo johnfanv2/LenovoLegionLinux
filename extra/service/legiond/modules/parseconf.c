@@ -62,12 +62,22 @@ static int handler(void *user, const char *section, const char *name,
 	} else if (MATCH("cpu_control", "bat_e")) {
 		ptr_cmd = &pconfig->cpu_bat_e;
 	} else {
-		// unknown section
-		return 0;
+		/*
+		 * Returning 0 aborts the whole parse, so a single typo
+		 * would silently drop every later key.  Warn and continue.
+		 */
+		fprintf(stderr, "unknown config key [%s] %s, ignoring\n", section, name);
+		return 1;
 	}
 
-	if (ptr_cmd)
-		snprintf(*ptr_cmd, sizeof(*ptr_cmd), "%s", value);
+	if (ptr_cmd) {
+		int written = snprintf(*ptr_cmd, sizeof(*ptr_cmd), "%s", value);
+		if (written < 0 || (size_t)written >= sizeof(*ptr_cmd)) {
+			fprintf(stderr, "config value for [%s] %s too long, ignoring\n",
+				section, name);
+			(*ptr_cmd)[0] = '\0';
+		}
+	}
 
 	return 1;
 }
