@@ -38,6 +38,13 @@ static pthread_mutex_t state_lock = PTHREAD_MUTEX_INITIALIZER;
 static volatile sig_atomic_t terminate_requested;
 static int signal_pipe[2] = { -1, -1 };
 
+/* reload config, warning visibly when the file is missing or malformed */
+static void reload_config(void)
+{
+	if (parseconf(&config) != 0)
+		fprintf(stderr, "legiond: failed to parse config, using defaults\n");
+}
+
 static void clear_socket(void)
 {
 	if (access(socket_path, F_OK) != -1)
@@ -69,7 +76,7 @@ static void timer_handler([[maybe_unused]] union sigval sigev_value)
 {
 	pretty("config reload start");
 	pthread_mutex_lock(&state_lock);
-	parseconf(&config);
+	reload_config();
 	pretty("config reload end");
 	pretty("set_all start");
 	set_all(get_powerstate(), &config);
@@ -82,13 +89,17 @@ static void timer_handler([[maybe_unused]] union sigval sigev_value)
 	pthread_mutex_unlock(&state_lock);
 }
 
-static void set_timer(long delay_s, long delay_ns)
+static int set_timer(long delay_s, long delay_ns)
 {
 	struct itimerspec its = {
 		.it_value = { .tv_sec = delay_s, .tv_nsec = delay_ns },
 		.it_interval = { 0 },
 	};
-	timer_settime(timerid, 0, &its, NULL);
+	if (timer_settime(timerid, 0, &its, NULL) == -1) {
+		perror("timer_settime");
+		return -1;
+	}
+	return 0;
 }
 
 /*
@@ -132,16 +143,22 @@ static void handle_command(const LEGIOND_REQUEST *request)
 	case CMD_FANSET:
 		// delayed means user use legiond-ctl fanset with a parameter
 		triggered = false;
-		if (delayed) {
+		if (delayed > 0) {
 			printf("extend delay\n");
-			set_timer(delayed, 0);
-		} else if (request->delay_s == 0) {
+			if (set_timer(delayed, 0) == -1)
+				delayed = 0;
+		} else if (request->delay_s <= 0) {
+			// <= 0 is an authoritative reset to the default delay
 			printf("reset timer\n");
-			set_timer(delay_s_default, delay_ns_default);
+			if (set_timer(delay_s_default, delay_ns_default) == -1)
+				delayed = 0;
 		} else {
 			printf("reset timer with delay %d s\n",
 			       request->delay_s);
-			set_timer(request->delay_s, 0);
+			if (set_timer(request->delay_s, 0) == -1) {
+				delayed = 0;
+				break;
+			}
 			delayed = request->delay_s;
 		}
 		break;
@@ -158,7 +175,7 @@ static void handle_command(const LEGIOND_REQUEST *request)
 		break;
 	case CMD_RELOAD:
 		pretty("config reload start");
-		parseconf(&config);
+		reload_config();
 		set_all(get_powerstate(), &config);
 		pretty("config reload end");
 		break;
@@ -171,10 +188,27 @@ static void handle_command(const LEGIOND_REQUEST *request)
 
 int main(void)
 {
+	// refuse to run when another instance is already listening, so we
+	// never unlink a live daemon's socket
+	struct sockaddr_un probe_addr = {
+		.sun_family = AF_UNIX,
+	};
+	if (snprintf(probe_addr.sun_path, sizeof(probe_addr.sun_path), "%s", socket_path) >=
+	    (int)sizeof(probe_addr.sun_path)) {
+		fprintf(stderr, "socket path too long\n");
+		return 1;
+	}
+	auto_fd probe_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (probe_fd != -1 &&
+	    connect(probe_fd, (struct sockaddr *)&probe_addr, sizeof(probe_addr)) == 0) {
+		fprintf(stderr, "another legiond instance is already running\n");
+		return 1;
+	}
+
 	// remove socket before create it
 	clear_socket();
 
-	parseconf(&config);
+	reload_config();
 
 	// calculate delay
 	delay_s_default = (long)default_delay;
@@ -228,7 +262,8 @@ int main(void)
 	}
 
 	// run fancurve-set on startup
-	set_timer(delay_s_default, delay_ns_default);
+	if (set_timer(delay_s_default, delay_ns_default) == -1)
+		return 1;
 
 	// self-pipe to wake the select loop from the signal handler
 	if (pipe(signal_pipe) == -1) {
@@ -255,8 +290,10 @@ int main(void)
 		perror("inotify_init");
 		return 1;
 	}
-	inotify_add_watch(inotify_fd, profile_path, IN_MODIFY);
-	inotify_add_watch(inotify_fd, ac_path, IN_MODIFY);
+	if (inotify_add_watch(inotify_fd, profile_path, IN_MODIFY) == -1)
+		perror("inotify_add_watch profile_path");
+	if (inotify_add_watch(inotify_fd, ac_path, IN_MODIFY) == -1)
+		perror("inotify_add_watch ac_path");
 
 	auto_free char *buffer = malloc(BUF_LEN);
 	if (buffer == NULL) {

@@ -49,6 +49,10 @@ int main(int argc, char *argv[])
 			// for example "legiond-ctl fanset 3" means 3 seconds delay
 			if (sscanf(argv[2], "%d", &request.delay_s) != 1)
 				request.delay_s = 0;
+			if (request.delay_s < 0) {
+				printf("invalid delay: must be >= 0\n");
+				return 1;
+			}
 		}
 	}
 
