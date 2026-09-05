@@ -4,6 +4,11 @@
 #include "modules/powerstate.h"
 #include "modules/setapply.h"
 
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <pthread.h>
+
 #define events_max 10
 #define BUF_LEN (events_max * (sizeof(struct inotify_event) + NAME_MAX + 1))
 
@@ -23,6 +28,16 @@ static timer_t timerid;
 static long delay_s_default;
 static long delay_ns_default;
 
+/*
+ * Serializes access to config/delayed/triggered between the SIGEV_THREAD
+ * timer thread and the main loop (socket commands).  It also serializes
+ * hardware writes (set_all/set_cpu), which must never run concurrently.
+ */
+static pthread_mutex_t state_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static volatile sig_atomic_t terminate_requested;
+static int signal_pipe[2] = { -1, -1 };
+
 static void clear_socket(void)
 {
 	if (access(socket_path, F_OK) != -1)
@@ -38,18 +53,22 @@ static void cleanup_socket(void)
 }
 
 /*
- * GCC 12's C frontend parses plain [[noreturn]] but warns that it is
- * ignored, so use the GNU-namespaced spelling which both compilers honor.
+ * Async-signal-safe.  Only writes to the self-pipe and sets a flag; real
+ * cleanup happens when the main loop observes the pipe and returns.
  */
-[[gnu::noreturn]] static void term_handler([[maybe_unused]] int signum)
+static void term_handler([[maybe_unused]] int signum)
 {
-	/* cleanup_socket() runs through atexit() */
-	exit(0);
+	int saved_errno = errno;
+	ssize_t ignored = write(signal_pipe[1], "", 1);
+	(void)ignored;
+	errno = saved_errno;
+	terminate_requested = 1;
 }
 
 static void timer_handler([[maybe_unused]] union sigval sigev_value)
 {
 	pretty("config reload start");
+	pthread_mutex_lock(&state_lock);
 	parseconf(&config);
 	pretty("config reload end");
 	pretty("set_all start");
@@ -60,6 +79,7 @@ static void timer_handler([[maybe_unused]] union sigval sigev_value)
 
 	triggered = true;
 	pretty("set_all end");
+	pthread_mutex_unlock(&state_lock);
 }
 
 static void set_timer(long delay_s, long delay_ns)
@@ -71,8 +91,43 @@ static void set_timer(long delay_s, long delay_ns)
 	timer_settime(timerid, 0, &its, NULL);
 }
 
+/*
+ * Reads one fixed-size request without blocking forever when a client
+ * connects but stalls mid-transfer.  Caps the wait at a total of 5 s.
+ */
+static int recv_request(int fd, LEGIOND_REQUEST *request)
+{
+	size_t received = 0;
+	struct timespec deadline;
+	if (clock_gettime(CLOCK_MONOTONIC, &deadline) != -1)
+		deadline.tv_sec += 5;
+
+	while (received < sizeof(*request)) {
+		struct timespec now;
+		if (clock_gettime(CLOCK_MONOTONIC, &now) != -1 &&
+		    (now.tv_sec > deadline.tv_sec ||
+		     (now.tv_sec == deadline.tv_sec && now.tv_nsec > deadline.tv_nsec)))
+			return -1;
+
+		struct pollfd pfd = { .fd = fd, .events = POLLIN };
+		int ready = poll(&pfd, 1, 2000);
+		if (ready == -1 && errno == EINTR)
+			continue;
+		if (ready <= 0)
+			return -1;
+
+		ssize_t n = recv(fd, (char *)request + received,
+				 sizeof(*request) - received, 0);
+		if (n <= 0)
+			return -1;
+		received += (size_t)n;
+	}
+	return 0;
+}
+
 static void handle_command(const LEGIOND_REQUEST *request)
 {
+	pthread_mutex_lock(&state_lock);
 	switch (request->cmd) {
 	case CMD_FANSET:
 		// delayed means user use legiond-ctl fanset with a parameter
@@ -111,6 +166,7 @@ static void handle_command(const LEGIOND_REQUEST *request)
 		printf("do nothing\n");
 		break;
 	}
+	pthread_mutex_unlock(&state_lock);
 }
 
 int main(void)
@@ -174,6 +230,19 @@ int main(void)
 	// run fancurve-set on startup
 	set_timer(delay_s_default, delay_ns_default);
 
+	// self-pipe to wake the select loop from the signal handler
+	if (pipe(signal_pipe) == -1) {
+		perror("pipe");
+		return 1;
+	}
+	for (int i = 0; i < 2; i++) {
+		int flags = fcntl(signal_pipe[i], F_GETFL, 0);
+		if (flags == -1 || fcntl(signal_pipe[i], F_SETFL, flags | O_NONBLOCK) == -1) {
+			perror("fcntl");
+			return 1;
+		}
+	}
+
 	// setup SIGTERM handler
 	struct sigaction action = {
 		.sa_handler = term_handler,
@@ -196,16 +265,29 @@ int main(void)
 	}
 
 	// listen
-	while (true) {
+	while (!terminate_requested) {
 		fd_set readfds;
 		FD_ZERO(&readfds);
 		FD_SET(server_fd, &readfds);
 		FD_SET(inotify_fd, &readfds);
+		FD_SET(signal_pipe[0], &readfds);
 
 		int maxfd = max_fd(server_fd, inotify_fd);
+		maxfd = max_fd(maxfd, signal_pipe[0]);
 
-		if (select(maxfd + 1, &readfds, NULL, NULL, NULL) == -1)
-			continue;
+		if (select(maxfd + 1, &readfds, NULL, NULL, NULL) == -1) {
+			if (terminate_requested || errno == EINTR)
+				continue;
+			perror("select");
+			break;
+		}
+
+		if (FD_ISSET(signal_pipe[0], &readfds)) {
+			char discard[64];
+			while (read(signal_pipe[0], discard, sizeof(discard)) > 0) {
+			}
+			break;
+		}
 
 		if (FD_ISSET(server_fd, &readfds)) {
 			auto_fd client_fd = accept(server_fd, NULL, NULL);
@@ -213,9 +295,7 @@ int main(void)
 				continue;
 
 			LEGIOND_REQUEST request = { 0 };
-			ssize_t received = recv(client_fd, &request,
-						sizeof(request), MSG_WAITALL);
-			if (received != (ssize_t)sizeof(request)) {
+			if (recv_request(client_fd, &request) != 0) {
 				printf("ignoring malformed request\n");
 				continue;
 			}
