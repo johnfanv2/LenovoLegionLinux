@@ -7334,37 +7334,37 @@ static ssize_t sensor_label_show(struct device *dev,
 
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
-		label = "CPU Temperature\n";
+		label = "CPU Temperature";
 		break;
 	case SENSOR_GPU_TEMP_ID:
-		label = "GPU Temperature\n";
+		label = "GPU Temperature";
 		break;
 	case SENSOR_IC_TEMP_ID:
-		label = "IC Temperature\n";
+		label = "IC Temperature";
 		break;
 	case SENSOR_FAN1_RPM_ID:
-		label = "Fan 1\n";
+		label = "Fan 1";
 		break;
 	case SENSOR_FAN2_RPM_ID:
-		label = "Fan 2\n";
+		label = "Fan 2";
 		break;
 	case SENSOR_FAN3_RPM_ID:
-		label = "Fan 3\n";
+		label = "Fan 3";
 		break;
 	case SENSOR_FAN4_RPM_ID:
-		label = "Fan 4\n";
+		label = "Fan 4";
 		break;
 	case SENSOR_FAN1_TARGET_RPM_ID:
-		label = "Fan 1 Target\n";
+		label = "Fan 1 Target";
 		break;
 	case SENSOR_FAN2_TARGET_RPM_ID:
-		label = "Fan 2 Target\n";
+		label = "Fan 2 Target";
 		break;
 	default:
 		return -EOPNOTSUPP;
 	}
 
-	return sysfs_emit(buf, "%s", label);
+	return sysfs_emit(buf, "%s\n", label);
 }
 
 // TODO: use one common function (like here) or one function per attribute?
