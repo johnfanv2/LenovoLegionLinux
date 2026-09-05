@@ -520,4 +520,16 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except FileNotFoundError as err:
+        log.error(str(err))
+        print(
+            "Error: The kernel module is not loaded or the hwmon directory was not found. "
+            "Are you sure 'legion-laptop' is loaded? Use '--donotexpecthwmon' to proceed without hwmon access.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except RuntimeError as err:
+        log.error(str(err))
+        sys.exit(err.args[0] if err.args else 1)
