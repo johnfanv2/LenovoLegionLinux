@@ -257,6 +257,7 @@ struct model_config {
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
 	bool has_four_fans;
+	bool has_single_fan;
 	bool skip_ylogo_light;
 	bool skip_ioport_light;
 	// EC register holding the Y-Logo light state; 0 = not available
@@ -1615,6 +1616,7 @@ static const struct model_config model_secn = {
 	.has_fan_unlock = true,
 	.has_fn_lock = true,
 	.has_flip_to_start = true,
+	.has_single_fan = true,
 };
 
 // Legion 5i Gen 10 (83VK) - 2025/2026, Intel Arrow Lake-HX + RTX 5060
@@ -8169,6 +8171,11 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 	    attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_fan4_label.dev_attr.attr)
 		supported = supported && priv->conf->has_four_fans;
+
+	if (attr == &sensor_dev_attr_fan2_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan2_label.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan2_target.dev_attr.attr)
+		supported = supported && !priv->conf->has_single_fan;
 
 	return supported ? attr->mode : 0;
 }
