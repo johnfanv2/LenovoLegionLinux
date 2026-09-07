@@ -7218,11 +7218,13 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 		*profile = PLATFORM_PROFILE_CUSTOM;
 		break;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	case LEGION_WMI_POWERMODE_MAX_POWER:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 		*profile = PLATFORM_PROFILE_MAX_POWER;
-		break;
+#else
+		*profile = PLATFORM_PROFILE_PERFORMANCE;
 #endif
+		break;
 	default:
 		return -EINVAL;
 	}
