@@ -258,6 +258,7 @@ struct model_config {
 	bool fan_target_is_duty;
 	bool has_four_fans;
 	bool has_single_fan;
+	bool fanfullspeed_requires_custom_powermode;
 	bool skip_ylogo_light;
 	bool skip_ioport_light;
 	// EC register holding the Y-Logo light state; 0 = not available
@@ -1617,6 +1618,7 @@ static const struct model_config model_secn = {
 	.has_fn_lock = true,
 	.has_flip_to_start = true,
 	.has_single_fan = true,
+	.fanfullspeed_requires_custom_powermode = true,
 };
 
 // Legion 5i Gen 10 (83VK) - 2025/2026, Intel Arrow Lake-HX + RTX 5060
@@ -6716,6 +6718,27 @@ static ssize_t fan_fullspeed_show(struct device *dev,
 	return sysfs_emit(buf, "%d\n", state);
 }
 
+static int fanfullspeed_write_allowed(struct legion_private *priv, bool state)
+{
+	int powermode;
+	int err;
+
+	if (!state || !priv->conf->fanfullspeed_requires_custom_powermode)
+		return 0;
+
+	err = read_powermode(priv, &powermode);
+	if (err)
+		return err;
+
+	if (powermode != LEGION_WMI_POWERMODE_CUSTOM) {
+		pr_info("fan_fullspeed needs powermode %d (custom), current is %d\n",
+			LEGION_WMI_POWERMODE_CUSTOM, powermode);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
 static ssize_t fan_fullspeed_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *buf, size_t count)
@@ -6730,6 +6753,8 @@ static ssize_t fan_fullspeed_store(struct device *dev,
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = fan_control_write_allowed(priv);
+	if (!err)
+		err = fanfullspeed_write_allowed(priv, state);
 	if (!err)
 		err = write_fanfullspeed(priv, state);
 	mutex_unlock(&priv->fancurve_mutex);
