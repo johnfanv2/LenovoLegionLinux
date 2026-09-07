@@ -8112,6 +8112,36 @@ static bool legion_wmi_fancurve_speed_attribute(const struct attribute *attr)
 	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr;
 }
 
+// The EC4 fancurve interface (e.g. Legion 5 16IRX9, 83DG) stores per point
+// only the CPU/GPU max temperature thresholds and the fan speeds. The
+// acceleration/deceleration values have no EC registers: reads always return
+// 0 and writes are rejected, which breaks userspace that probes the
+// attributes to detect support. Hide them for those models.
+static bool
+legion_ec4_fancurve_unsupported_attribute(const struct attribute *attr)
+{
+	return attr == &sensor_dev_attr_pwm1_auto_point1_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point2_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point3_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point4_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point5_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point6_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point7_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point8_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point9_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point10_accel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point1_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point2_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point3_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point4_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point5_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point6_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point7_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point8_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point9_decel.dev_attr.attr ||
+	       attr == &sensor_dev_attr_pwm1_auto_point10_decel.dev_attr.attr;
+}
+
 static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 					      struct attribute *attr, int idx)
 {
@@ -8141,6 +8171,9 @@ static umode_t legion_hwmon_fancurve_is_visible(struct kobject *kobj,
 
 	if (priv->conf->wmi_fancurve_speed_only &&
 	    !legion_wmi_fancurve_speed_attribute(attr))
+		return 0;
+	if (priv->conf->access_method_fancurve == ACCESS_METHOD_EC4 &&
+	    legion_ec4_fancurve_unsupported_attribute(attr))
 		return 0;
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;
