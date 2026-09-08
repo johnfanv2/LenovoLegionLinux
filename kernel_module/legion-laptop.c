@@ -3641,10 +3641,11 @@ static int get_simple_wmi_attribute_bool(struct legion_private *priv,
 					 u32 method_id, bool invert,
 					 unsigned long scale, bool *value)
 {
-	unsigned long int_val = *value;
+	unsigned long int_val = 0;
 	int err = get_simple_wmi_attribute(priv, guid, instance, method_id,
 					   invert, scale, &int_val);
-	*value = int_val;
+	if (!err)
+		*value = int_val;
 	return err;
 }
 
@@ -5289,7 +5290,8 @@ static void seq_file_print_with_error(struct seq_file *s, const char *name,
 				      ssize_t err, int value)
 {
 	seq_printf(s, "%s error: %ld\n", name, err);
-	seq_printf(s, "%s: %d\n", name, value);
+	if (!err)
+		seq_printf(s, "%s: %d\n", name, value);
 }
 
 static int debugfs_fancurve_show(struct seq_file *s, void *unused)
