@@ -5041,8 +5041,13 @@ static void toggle_powermode(struct legion_private *priv)
 {
 	int old_powermode;
 	int next_powermode;
+	int err;
 
-	read_powermode(priv, &old_powermode);
+	err = read_powermode(priv, &old_powermode);
+	if (err) {
+		pr_info("Failed to read powermode, skipping toggle: %d\n", err);
+		return;
+	}
 	next_powermode = old_powermode == 0 ? 1 : 0;
 
 	write_powermode(priv, next_powermode);
