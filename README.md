@@ -518,6 +518,10 @@ psensor
 
 ### Changing and Setting your own Fan Curve with the Python GUI
 
+On models with sensors but no custom fan curve support, the GUI skips the
+unavailable fan curve at startup. Fan curve Read/Apply controls remain disabled.
+Other Options remains available for settings supported by the laptop.
+
 Start the GUI as root
 
 ```bash
