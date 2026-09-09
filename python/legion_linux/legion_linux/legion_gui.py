@@ -767,7 +767,7 @@ class LegionController:
         )
         self.icon_color_mode_controller.update_view_from_feature(0, True)
 
-        if read_from_hw:
+        if read_from_hw and self.model.fancurve_io.exists():
             self.model.read_fancurve_from_hw()
             # fan controller
         # fan
@@ -876,6 +876,12 @@ class LegionController:
         self.update_power_gui()
 
     def update_fancurve_gui(self):
+        if self.model.fancurve_io.hwmon_path and not self.model.fancurve_io.exists():
+            self.view_fancurve.note_label2.setText(
+                "Custom fan curves are not supported on this laptop. "
+                "Sensor monitoring is available. See Other Options for supported settings."
+            )
+            self.view_fancurve.note_label2.setStyleSheet("")
         self.view_fancurve.set_fancurve(
             self.model.fan_curve,
             self.model.fancurve_io.has_minifancurve(),

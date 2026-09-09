@@ -1,5 +1,15 @@
 ## Features and Testing
 
+## GUI without fan curve support
+
+On a Legion 5 15IRX10 with QNCN firmware, start `legion_gui` with the module
+loaded. Verify that the window opens, fan curve Read/Apply buttons are disabled,
+and the notice explains that custom fan curves are unsupported. Check that
+`sensors` still reports fan RPM and temperatures. No fan curve write is needed.
+
+Run `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -p
+'test_gui_startup.py'` for the startup regression tests.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
