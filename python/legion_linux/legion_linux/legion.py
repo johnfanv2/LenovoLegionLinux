@@ -547,8 +547,18 @@ class MaximumFanSpeedFeature(BoolFileFeature):
 
 class PlatformProfileFeature(FileFeature):
     def __init__(self):
-        super().__init__(LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile")
-        self.choices = StrFileFeature(LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices")
+        super().__init__(
+            [
+                LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]*/profile",
+                "/sys/firmware/acpi/platform_profile",
+            ]
+        )
+        self.choices = StrFileFeature(
+            [
+                LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]*/choices",
+                "/sys/firmware/acpi/platform_profile_choices",
+            ]
+        )
         self.all_values = [
             NamedValue("low-power", "Low Power"),
             NamedValue("balanced", "Balanced Mode"),
@@ -642,14 +652,55 @@ class GPUOverclock(BoolFileFeature):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "gpu_oc"))
 
 
-class CPUShorttermPowerLimit(IntFileFeature):
-    def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_shortterm_powerlimit"), 5, 200, 1)
+class LenovoPowerLimit(IntFileFeature):
+    """Prefer the native Lenovo power interface and its firmware-provided bounds."""
+
+    def __init__(self, attribute, legacy_filename):
+        super().__init__(
+            [
+                f"/sys/class/firmware-attributes/lenovo-wmi-other-[0-9]*/attributes/{attribute}/current_value",
+                os.path.join(LEGION_SYS_BASEPATH, legacy_filename),
+            ],
+            5,
+            200,
+            1,
+        )
+
+    def set_str_value(self, value: str):
+        self.set(int(value))
+
+    def uses_native_interface(self):
+        return self.filename is not None and Path(self.filename).name == "current_value"
+
+    def get_limits_and_step(self):
+        if not self.uses_native_interface():
+            return super().get_limits_and_step()
+        attribute_dir = Path(self.filename).parent
+        return tuple(
+            self._read_file_int(attribute_dir / name) for name in ("min_value", "max_value", "scalar_increment")
+        )
+
+    def set(self, value):
+        value = int(value)
+        if self.uses_native_interface():
+            if value == self.get():
+                return
+            if Path("/sys/firmware/acpi/platform_profile").read_text(encoding=DEFAULT_ENCODING).strip() != "custom":
+                raise ValueError("Select Custom Mode before changing CPU power limits.")
+            lower, upper, step = self.get_limits_and_step()
+            if not lower <= value <= upper or (step > 0 and (value - lower) % step):
+                raise ValueError(f"CPU power limit must be between {lower} and {upper} W in steps of {step} W.")
+        super().set(value)
 
 
-class CPULongtermPowerLimit(IntFileFeature):
+class CPUShorttermPowerLimit(LenovoPowerLimit):
     def __init__(self):
-        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "cpu_longterm_powerlimit"), 5, 200, 1)
+        super().__init__("ppt_pl2_sppt", "cpu_shortterm_powerlimit")
+
+
+class CPULongtermPowerLimit(LenovoPowerLimit):
+    def __init__(self):
+        super().__init__("ppt_pl1_spl", "cpu_longterm_powerlimit")
 
 
 class CPUPeakPowerLimit(IntFileFeature):

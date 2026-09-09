@@ -530,6 +530,11 @@ psensor
 
 ### 使用 Python GUI 更改和设置自定义风扇曲线
 
+禁用 Legion 平台配置提供程序时，GUI 会使用系统的
+`/sys/firmware/acpi/platform_profile` 接口（如果存在）。CPU 持续和短期功耗限制
+优先使用 Lenovo 原生固件属性接口及其允许范围。修改这些原生功耗限制需要
+先选择“Custom Mode”。原生 CPU 属性不存在时，仍使用现有 Legion 接口。
+
 以 root 身份启动 GUI
 
 ```bash

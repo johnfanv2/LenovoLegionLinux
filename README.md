@@ -518,6 +518,12 @@ psensor
 
 ### Changing and Setting your own Fan Curve with the Python GUI
 
+When the Legion platform profile provider is disabled, the GUI uses
+`/sys/firmware/acpi/platform_profile` if available. CPU sustained and short-term
+power limits use the native Lenovo firmware-attributes interface when present,
+with the firmware-provided bounds. Changes require Custom Mode. The existing
+Legion interfaces remain the fallback when the native CPU attributes are absent.
+
 Start the GUI as root
 
 ```bash

@@ -1,5 +1,19 @@
 ## Features and Testing
 
+## Native Lenovo power interfaces
+
+With `legion_laptop enable_platformprofile=0` and a registered native profile
+provider, verify that the GUI lists the choices from
+`/sys/firmware/acpi/platform_profile_choices`. Verify that CPU long/short-term
+readings match `ppt_pl1_spl/current_value` and `ppt_pl2_sppt/current_value` under
+`/sys/class/firmware-attributes/lenovo-wmi-other-*/attributes/`.
+
+Changes to native CPU limits require Custom Mode and must respect `min_value`,
+`max_value` and `scalar_increment`. Applying an unchanged value must skip the
+write. The CLI `set-feature` path must enforce the same checks. Test those paths
+without hardware writes using `QT_QPA_PLATFORM=offscreen python -m unittest
+discover -s tests -p test_native_power.py`.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.

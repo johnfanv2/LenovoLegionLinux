@@ -524,15 +524,16 @@ class IntFeatureController:
         try:
             if self.feature.exists():
                 # possible values
-                low, upper, _ = self.feature.get_limits_and_step()
-                if update_bounds:
+                low, upper, step = self.feature.get_limits_and_step()
+                value = self.feature.get()
+                if update_bounds or not self.widget.minimum() <= value <= self.widget.maximum():
                     self.widget.blockSignals(True)
-                    self.widget.setMinimum(low)
-                    self.widget.setMaximum(upper)
+                    self.widget.setMinimum(min(low, value))
+                    self.widget.setMaximum(max(upper, value))
+                    self.widget.setSingleStep(max(1, step))
                     self.widget.blockSignals(False)
 
                 # value -> index
-                value = self.feature.get()
                 self.widget.blockSignals(True)
                 self.widget.setValue(value)
                 self.widget.blockSignals(False)
@@ -854,6 +855,12 @@ class LegionController:
         self.hybrid_gsync_controller.update_view_from_feature()
 
     def update_power_gui(self, update_bounds=False):
+        if self.model.cpu_longterm_power_limit.uses_native_interface():
+            self.view_otheroptions.power_note_label.setText(
+                "CPU power limits can be changed in Custom Mode. "
+                "Greyed-out controls are not available on this laptop."
+            )
+            self.view_otheroptions.power_note_label.setStyleSheet("")
         self.power_mode_controller.update_view_from_feature(0, update_items=update_bounds)
         self.cpu_longterm_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
         self.cpu_shortterm_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
