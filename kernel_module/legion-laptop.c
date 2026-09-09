@@ -257,6 +257,9 @@ struct model_config {
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
 	bool has_four_fans;
+	bool has_single_fan;
+	u16 fan_max_rpm;
+	bool fanfullspeed_requires_custom_powermode;
 	bool skip_ylogo_light;
 	bool skip_ioport_light;
 	// EC register holding the Y-Logo light state; 0 = not available
@@ -1594,7 +1597,7 @@ static const struct model_config model_secn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI2,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_EC3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
 	.acpi_check_dev = false,
@@ -1615,6 +1618,9 @@ static const struct model_config model_secn = {
 	.has_fan_unlock = true,
 	.has_fn_lock = true,
 	.has_flip_to_start = true,
+	.has_single_fan = true,
+	.fan_max_rpm = 5400,
+	.fanfullspeed_requires_custom_powermode = true,
 };
 
 // Legion 5i Gen 10 (83VK) - 2025/2026, Intel Arrow Lake-HX + RTX 5060
@@ -3263,6 +3269,7 @@ static const struct fancurve_point fancurve_point_zero = { 0, 0, 0, 0, 0,
 struct fancurve {
 	struct fancurve_point points[MAXFANCURVESIZE];
 	enum fan_speed_unit fan_speed_unit;
+	u16 max_rpm;
 	// number of points used; must be <= MAXFANCURVESIZE
 	size_t size;
 	// the point at which fans are run currently
@@ -3313,11 +3320,14 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 	case FAN_SPEED_UNIT_PWM:
 		*speed = clamp_t(u8, value, 0, 255);
 		return true;
-	case FAN_SPEED_UNIT_RPM_HUNDRED:
+	case FAN_SPEED_UNIT_RPM_HUNDRED: {
+		u32 max_rpm = fancurve->max_rpm ? fancurve->max_rpm : MAX_RPM;
+
 		*speed = clamp_t(
-			u8, (value * MAX_RPM + (100 * 255) - 1) / (100 * 255),
+			u8, (value * max_rpm + (100 * 255) - 1) / (100 * 255),
 			0, 255);
 		return true;
+	}
 	default:
 		pr_info("No method to set for fan_speed_unit %d.",
 			fancurve->fan_speed_unit);
@@ -3348,9 +3358,12 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 	case FAN_SPEED_UNIT_PWM:
 		*value = speed;
 		return true;
-	case FAN_SPEED_UNIT_RPM_HUNDRED:
-		*value = speed * 255 * 100 / MAX_RPM;
+	case FAN_SPEED_UNIT_RPM_HUNDRED: {
+		u32 max_rpm = fancurve->max_rpm ? fancurve->max_rpm : MAX_RPM;
+
+		*value = speed * 255 * 100 / max_rpm;
 		return true;
+	}
 	default:
 		pr_info("No method to get for fan_speed_unit %d.",
 			fancurve->fan_speed_unit);
@@ -4405,6 +4418,7 @@ static int ec_read_fancurve_loq(struct ecram *ecram,
 	size_t struct_offset_ecramsys = 6;
 
 	fancurve->fan_speed_unit = FAN_SPEED_UNIT_RPM_HUNDRED;
+	fancurve->max_rpm = model->fan_max_rpm;
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		struct fancurve_point *point = &fancurve->points[i];
 
@@ -6714,6 +6728,27 @@ static ssize_t fan_fullspeed_show(struct device *dev,
 	return sysfs_emit(buf, "%d\n", state);
 }
 
+static int fanfullspeed_write_allowed(struct legion_private *priv, bool state)
+{
+	int powermode;
+	int err;
+
+	if (!state || !priv->conf->fanfullspeed_requires_custom_powermode)
+		return 0;
+
+	err = read_powermode(priv, &powermode);
+	if (err)
+		return err;
+
+	if (powermode != LEGION_WMI_POWERMODE_CUSTOM) {
+		pr_info("fan_fullspeed needs powermode %d (custom), current is %d\n",
+			LEGION_WMI_POWERMODE_CUSTOM, powermode);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
 static ssize_t fan_fullspeed_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *buf, size_t count)
@@ -6728,6 +6763,8 @@ static ssize_t fan_fullspeed_store(struct device *dev,
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = fan_control_write_allowed(priv);
+	if (!err)
+		err = fanfullspeed_write_allowed(priv, state);
 	if (!err)
 		err = write_fanfullspeed(priv, state);
 	mutex_unlock(&priv->fancurve_mutex);
@@ -7181,11 +7218,13 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 		*profile = PLATFORM_PROFILE_CUSTOM;
 		break;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	case LEGION_WMI_POWERMODE_MAX_POWER:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 		*profile = PLATFORM_PROFILE_MAX_POWER;
-		break;
+#else
+		*profile = PLATFORM_PROFILE_PERFORMANCE;
 #endif
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -7486,6 +7525,11 @@ static struct attribute *sensor_hwmon_attributes[] = {
 static ssize_t fan_max_show(struct device *dev,
 			    struct device_attribute *devattr, char *buf)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv && priv->conf->fan_max_rpm)
+		return sysfs_emit(buf, "%d\n", priv->conf->fan_max_rpm);
+
 	return sysfs_emit(buf, "%d\n", MAX_RPM);
 }
 
@@ -8169,6 +8213,11 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 	    attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_fan4_label.dev_attr.attr)
 		supported = supported && priv->conf->has_four_fans;
+
+	if (attr == &sensor_dev_attr_fan2_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan2_label.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan2_target.dev_attr.attr)
+		supported = supported && !priv->conf->has_single_fan;
 
 	return supported ? attr->mode : 0;
 }
