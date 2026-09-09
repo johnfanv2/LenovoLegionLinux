@@ -5438,7 +5438,10 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_puts(s, "Current fan curve in hardware (WMI; might be empty)\n");
 	wmi_fancurve.size = 0;
 	err = wmi_read_fancurve_custom(priv->conf, &wmi_fancurve);
-	fancurve_print_seqfile(&wmi_fancurve, s);
+	if (err)
+		seq_printf(s, "WMI fancurve error: %d\n", err);
+	else
+		fancurve_print_seqfile(&wmi_fancurve, s);
 	seq_puts(s, "=====================\n");
 	return 0;
 }
@@ -7391,11 +7394,13 @@ static ssize_t sensor_show(struct device *dev, struct device_attribute *devattr,
 	switch (sensor_id) {
 	case SENSOR_CPU_TEMP_ID:
 		err = read_temperature(priv, 0, &outval);
-		outval *= 1000;
+		if (!err)
+			outval *= 1000;
 		break;
 	case SENSOR_GPU_TEMP_ID:
 		err = read_temperature(priv, 1, &outval);
-		outval *= 1000;
+		if (!err)
+			outval *= 1000;
 		break;
 	case SENSOR_IC_TEMP_ID:
 		ec_read_sensor_values(&priv->ecram, priv->conf, &values);
@@ -7474,7 +7479,7 @@ static struct attribute *sensor_hwmon_attributes[] = {
 static ssize_t fan_max_show(struct device *dev,
 			    struct device_attribute *devattr, char *buf)
 {
-	return sprintf(buf, "%d\n", MAX_RPM);
+	return sysfs_emit(buf, "%d\n", MAX_RPM);
 }
 
 static ssize_t autopoint_show(struct device *dev,
@@ -7943,12 +7948,11 @@ static ssize_t minifancurve_show(struct device *dev,
 	mutex_lock(&priv->fancurve_mutex);
 	err = ec_read_minifancurve(&priv->ecram, priv->conf, &value);
 	if (err) {
-		err = -EIO;
 		pr_info("Failed to read minifancurve\n");
 		goto error_unlock;
 	}
 	mutex_unlock(&priv->fancurve_mutex);
-	return sprintf(buf, "%d\n", value);
+	return sysfs_emit(buf, "%d\n", value);
 
 error_unlock:
 	mutex_unlock(&priv->fancurve_mutex);
@@ -8240,7 +8244,6 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 	struct device *dev = &priv->platform_device->dev;
 	const char *acpi_path;
 
-	acpi_path = get_model_acpi_path(_model, ACPI_PATH_WRITE_RAPIDCHARGE);
 	priv->adev = adev;
 	if (!priv->adev)
 		dev_info(dev, "No ACPI handle, will use FQN paths\n");
