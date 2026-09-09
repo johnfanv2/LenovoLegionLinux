@@ -9,6 +9,7 @@ from pathlib import Path
 import logging
 import subprocess
 import struct
+import tempfile
 import zlib
 from datetime import datetime
 import yaml
@@ -1660,10 +1661,13 @@ class LegionModelFacade:
 
     def _backup_file(self, file_path, timestamp):
         base_name = os.path.basename(file_path)
-        tmp_path = os.path.join("/tmp", base_name)
+
+        tmp_fd, tmp_path = tempfile.mkstemp(prefix=f"{base_name}_", suffix=".tmp")
+        os.close(tmp_fd)
         shutil.copy(file_path, tmp_path)
 
-        backup_path = os.path.join("/tmp", f"{base_name}_{timestamp}.bak")
+        backup_fd, backup_path = tempfile.mkstemp(prefix=f"{base_name}_{timestamp}_", suffix=".bak")
+        os.close(backup_fd)
         shutil.copy(file_path, backup_path)
         log.info("Backup of %s created: %s", base_name, backup_path)
         return tmp_path, backup_path
