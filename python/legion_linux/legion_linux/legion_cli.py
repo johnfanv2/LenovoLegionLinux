@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 # pylint: disable=wrong-import-order
-import argcomplete
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 import argparse
 import logging
 import sys
@@ -501,7 +504,8 @@ def main():
     HybridMode(subcommands, None, cmd_group)
 
     # only add autocompletion if package is installed
-    argcomplete.autocomplete(parser)
+    if argcomplete is not None:
+        argcomplete.autocomplete(parser)
 
     args = parser.parse_args()
     log.setLevel(args.loglevel)
