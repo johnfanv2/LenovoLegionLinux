@@ -1568,7 +1568,7 @@ class MainWindow(QMainWindow):
         msgs = [
             'Show your appreciation for this tool by giving a star on github <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Help by giving a star to the github repository <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
-            'Please give a star on github to support. My goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>'
+            'Please give a star on github to support. My goal is to merge the driver into the main Linux kernel,<br> so no recompilation is required after a Linux update <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Please give star on github the repository if this is useful or might be useful in the future <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
             'Please give a star on github to show that this it useful to me and the Linux community,<br> so hopefully the driver can be merged to the Linux kernel <a href="https://github.com/johnfanv2/LenovoLegionLinux" >https://github.com/johnfanv2/LenovoLegionLinux</a>',
         ]
