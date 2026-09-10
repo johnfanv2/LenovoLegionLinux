@@ -899,14 +899,24 @@ class LegionController:
         self.update_fancurve_gui()
 
     def on_write_fan_curve_to_hw(self):
-        self.model.fan_curve = self.view_fancurve.get_fancurve()
+        if not self._read_fancurve_from_view():
+            return
         self.model.write_fancurve_to_hw()
         self.model.read_fancurve_from_hw()
         self.update_fancurve_gui()
 
+    def _read_fancurve_from_view(self) -> bool:
+        try:
+            self.model.fan_curve = self.view_fancurve.get_fancurve()
+        except ValueError as ex:
+            QMessageBox.warning(self.main_window, "Invalid Fan Curve", str(ex))
+            return False
+        return True
+
     def on_load_from_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
-        self.model.fan_curve = self.view_fancurve.get_fancurve()
+        if not self._read_fancurve_from_view():
+            return
         try:
             self.model.load_fancurve_from_preset(name)
         except FileNotFoundError:
@@ -921,7 +931,8 @@ class LegionController:
 
     def on_save_to_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
-        self.model.fan_curve = self.view_fancurve.get_fancurve()
+        if not self._read_fancurve_from_view():
+            return
         self.model.save_fancurve_to_preset(name)
 
     def on_new_log_msg(self, msg):
@@ -1017,16 +1028,21 @@ class FanCurveEntryView:
         self.decel_edit.setDisabled(value or not has_acceleration_curve)
 
     def get(self) -> FanCurveEntry:
-        fan1_speed = float(self.fan_speed1_edit.text())
-        fan2_speed = float(self.fan_speed2_edit.text())
-        cpu_lower_temp = int(self.cpu_lower_temp_edit.text())
-        cpu_upper_temp = int(self.cpu_upper_temp_edit.text())
-        gpu_lower_temp = int(self.gpu_lower_temp_edit.text())
-        gpu_upper_temp = int(self.gpu_upper_temp_edit.text())
-        ic_lower_temp = int(self.ic_lower_temp_edit.text())
-        ic_upper_temp = int(self.ic_upper_temp_edit.text())
-        acceleration = int(self.accel_edit.text())
-        deceleration = int(self.decel_edit.text())
+        try:
+            fan1_speed = float(self.fan_speed1_edit.text())
+            fan2_speed = float(self.fan_speed2_edit.text())
+            cpu_lower_temp = int(self.cpu_lower_temp_edit.text())
+            cpu_upper_temp = int(self.cpu_upper_temp_edit.text())
+            gpu_lower_temp = int(self.gpu_lower_temp_edit.text())
+            gpu_upper_temp = int(self.gpu_upper_temp_edit.text())
+            ic_lower_temp = int(self.ic_lower_temp_edit.text())
+            ic_upper_temp = int(self.ic_upper_temp_edit.text())
+            acceleration = int(self.accel_edit.text())
+            deceleration = int(self.decel_edit.text())
+        except ValueError as ex:
+            raise ValueError(
+                f"Invalid value in fan curve point {self.point_id_label.text()}: all fields must be numbers."
+            ) from ex
         entry = FanCurveEntry(
             fan1_speed=fan1_speed,
             fan2_speed=fan2_speed,
