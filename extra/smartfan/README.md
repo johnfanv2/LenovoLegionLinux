@@ -6,8 +6,7 @@ A shell-based smart fan control daemon for Lenovo Legion 7 (Gen 10+) laptops usi
 
 - **4 power modes** with distinct fan curves: quiet, balanced, performance, extreme
 - **Smooth ramping** — gradual speed increases/decreases to avoid fan oscillation
-- **Temperature averaging** — 8-sample rolling average prevents spike-triggered fan blasts
-- **LED color sync** — keyboard LED color matches power mode (blue=quiet, white=balanced, red=performance)
+- **Temperature averaging** — 5-sample rolling average prevents spike-triggered fan blasts
 - **TUI mode switcher** — interactive menu with real-time RPM/temp display
 - **Turbo override** — instant max speed for sustained heavy loads
 - **Systemd integration** — starts on boot, survives sleep/resume
