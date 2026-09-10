@@ -380,11 +380,12 @@ class LegionGUIAutostart(BoolFileFeature):
         super().__init__(str(Path.home() / ".config"))
 
     def exists(self):
-        return self.desktop_file_path.exists() and self.autostart_dekstop_folder_path.exists()
+        return self.desktop_file_path.exists()
 
     def set(self, value: bool):
         log.info("Feature %s setting to %d", self.name(), value)
         if value:
+            self.autostart_dekstop_folder_path.mkdir(parents=True, exist_ok=True)
             src = self.desktop_file_path
             dest = self.autostart_desktop_file_path
             log.info("Feature %s: Copy %s to %s", self.name(), src, dest)
