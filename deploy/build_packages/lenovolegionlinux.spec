@@ -50,8 +50,8 @@ make
 mkdir -p %{buildroot}%{_unitdir}
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond.service
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{buildroot}%{_unitdir}/legiond-onresume.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.timer
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-cpuset.service %{buildroot}%{_unitdir}/legiond-cpuset.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-cpuset.timer %{buildroot}%{_unitdir}/legiond-cpuset.timer
 
 mkdir -p %{buildroot}%{_bindir}
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{buildroot}%{_bindir}/legiond-ctl
