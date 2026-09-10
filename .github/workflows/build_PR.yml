@@ -76,7 +76,7 @@ jobs:
           #shell: bash
       - name: Install python package
         if: always()
-        run: ./deploy/python_install_pip_pkg.sh
+        run: sudo ./deploy/python_install_pip_pkg.sh
         shell: bash
 
   test-in-docker-container:
