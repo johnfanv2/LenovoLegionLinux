@@ -5316,13 +5316,13 @@ static void seq_file_print_with_error(struct seq_file *s, const char *name,
 static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 {
 	struct legion_private *priv = s->private;
-	bool is_minifancurve;
-	bool is_lockfancontroller;
-	bool is_maximumfanspeed;
+	bool is_minifancurve = false;
+	bool is_lockfancontroller = false;
+	bool is_maximumfanspeed = false;
 	bool is_rapidcharge = false;
-	int powermode;
-	int temperature;
-	int fanspeed;
+	int powermode = 0;
+	int temperature = 0;
+	int fanspeed = 0;
 	int err;
 	unsigned long cfg;
 	struct fancurve wmi_fancurve;
