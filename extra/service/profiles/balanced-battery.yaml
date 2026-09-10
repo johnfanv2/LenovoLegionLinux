@@ -1,4 +1,4 @@
-name: balanced-bat
+name: balanced-battery
 entries:
 - fan1_speed: 0
   fan2_speed: 0
@@ -90,4 +90,14 @@ entries:
   ic_upper_temp: 127
   acceleration: 1
   deceleration: 1
+- fan1_speed: 0
+  fan2_speed: 0
+  cpu_lower_temp: 0
+  cpu_upper_temp: 0
+  gpu_lower_temp: 0
+  gpu_upper_temp: 0
+  ic_lower_temp: 0
+  ic_upper_temp: 0
+  acceleration: 0
+  deceleration: 0
 enable_minifancurve: false

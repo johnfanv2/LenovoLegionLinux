@@ -1,4 +1,4 @@
-name: performance-ac
+name: performance-battery
 entries:
 - fan1_speed: 0
   fan2_speed: 0
