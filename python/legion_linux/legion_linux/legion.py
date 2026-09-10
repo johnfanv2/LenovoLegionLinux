@@ -1257,10 +1257,12 @@ class FanCurveRepository(Feature):
             "balanced-battery": None,
             "performance-battery": None,
             "balanced-performance-battery": None,
+            "extreme-battery": None,
             "quiet-ac": None,
             "balanced-ac": None,
             "performance-ac": None,
             "balanced-performance-ac": None,
+            "extreme-ac": None,
         }
 
         self.preset_dir = preset_dir
@@ -1820,7 +1822,13 @@ class LegionModelFacade:
             is_on_powersupply,
         )
         if preset_name in self.fancurve_repo.fancurve_presets:
-            fancurve = self.fancurve_repo.load_by_name_or_default(preset_name)
+            if not self.fancurve_repo.does_exists_by_name(preset_name):
+                # no battery preset shipped (e.g. extreme-battery): fall back
+                # to the AC twin, mirroring the legiond behavior
+                fallback = preset_name.replace("-battery", "-ac")
+                log.info("Preset %s not found, falling back to %s", preset_name, fallback)
+                preset_name = fallback
+            fancurve = self.fancurve_repo.load_by_name(preset_name)
             self.fancurve_io.write_fan_curve(fancurve, write_minifancurve)
             log.info("Fancurve: %s", fancurve)
 
