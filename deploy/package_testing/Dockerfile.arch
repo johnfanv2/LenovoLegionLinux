@@ -1,6 +1,9 @@
 ARG BASE_IMAGE=archlinux:latest
 FROM $BASE_IMAGE
-RUN pacman -Syu --noconfirm
+# bootstrap the pacman keyring; a fresh archlinux base image has no usable
+# secret key, so a plain `pacman -Syu` periodically fails with "There is no
+# secret key available to sign with"
+RUN pacman-key --init && pacman-key --populate archlinux && pacman -Syu --noconfirm
 
 ARG DEBIAN_FRONTEND=noninteractive
 
