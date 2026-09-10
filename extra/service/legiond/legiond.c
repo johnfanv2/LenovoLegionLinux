@@ -294,6 +294,14 @@ int main(void)
 		perror("inotify_add_watch profile_path");
 	if (inotify_add_watch(inotify_fd, ac_path, IN_MODIFY) == -1)
 		perror("inotify_add_watch ac_path");
+	/*
+	 * Not all systems expose ADP0; get_powerstate() falls back to the
+	 * ACAD path (ac_path_alt), so watch it too. ENOENT is expected on
+	 * systems where the primary path exists.
+	 */
+	if (inotify_add_watch(inotify_fd, ac_path_alt, IN_MODIFY) == -1 &&
+	    errno != ENOENT)
+		perror("inotify_add_watch ac_path_alt");
 
 	auto_free char *buffer = malloc(BUF_LEN);
 	if (buffer == NULL) {

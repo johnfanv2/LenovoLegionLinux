@@ -2,6 +2,8 @@
 # Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-command="/usr/sbin/legion-cpuset"
-command_background=true
-pidfile="/run/legiond-cpuset.pid"
+start() {
+    ebegin "setting legion cpu governor"
+    /usr/bin/legiond-ctl cpuset
+    eend $?
+}
