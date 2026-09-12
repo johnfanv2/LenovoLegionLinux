@@ -1002,7 +1002,19 @@ static const struct model_config model_lpcn = {
 		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
 		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
 	},
-	.has_extreme_powermode = true
+	/* max-power (the "extreme" platform_profile choice) cuts power
+	 * instantly on this EC (hard power-off, no shutdown sequence) instead
+	 * of raising limits like on other has_extreme_powermode models, so
+	 * keep it out of platform_profile's choices entirely.
+	 */
+	.has_extreme_powermode = false,
+	/* WMI3 fancurve writes only transmit per-point speed1 (see
+	 * wmi_write_fancurve_custom): temperature thresholds, fan2 speed
+	 * and accel/decel have no WMI backing and never persist. Expose
+	 * only the speed attributes so userspace does not write (and the
+	 * GUI/CLI does not crash on) fields the firmware drops.
+	 */
+	.wmi_fancurve_speed_only = true
 };
 
 static const struct model_config model_kfcn = {

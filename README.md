@@ -121,6 +121,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 5 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion 7i 16ITHG6 (BIOS H1CN35WW): sensors, fan curve, power profile
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
+- Lenovo Legion Pro 5 16ARX8 (82WM) (BIOS LPCN65WW): sensors, fan curve (speed points only, see LPCN note below), power profile
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
 - Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
 - Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
@@ -790,6 +791,8 @@ With the GUI, the touch pad is enabled/disabled by checking/unchecking the box `
 Some bugs cannot be fixed due to the firmware in the hardware:
 
 - size of fan curve cannot be changed (size is 10 on performance mode, 9 otherwise) but you can practically disable points by setting the temperature limits to 127, as already done when writing to `auto_points_size`
+- on models using the WMI3 fan table (LPCN family, e.g. Legion Pro 5 16ARX8 / Legion 7 Pro 16ARX8H), the WMI method only transmits the fan **speed** of each curve point: temperature thresholds, the second fan's speed and accel/decel values are not readable or writable through WMI (they read back as 0). The kernel module therefore exposes only the speed attributes on these models; the EC keeps using its own firmware temperature thresholds. Confirmed on the Legion Pro 5 16ARX8 (BIOS LPCN65WW); assumed to apply to the rest of the LPCN family (e.g. LPCN47WW) pending confirmation from those users. [#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
+- on the Legion Pro 5 16ARX8 (BIOS LPCN65WW), the firmware's `max-power` mode **cuts power instantly** (hard power-off with no shutdown sequence) instead of raising limits, and can also reset the EC battery charge mode from conservation back to rapid charge. The kernel module therefore does not expose `max-power` as a platform profile choice on this model; the safe profiles are quiet/balanced/performance/custom.
 
 ## :clap: Credits
 

@@ -131,6 +131,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 5 17ACH6（BIOS HHCN31WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7i 16ITHG6（BIOS H1CN35WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 Pro 16ARX8H（BIOS LPCN47WW）：传感器、风扇曲线、电源配置
+- 联想拯救者 Pro 5 16ARX8 (82WM)（BIOS LPCN65WW）：传感器、风扇曲线（仅速度点，见下方 LPCN 说明）、电源配置
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 - 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
 - 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
@@ -818,6 +819,8 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 由于硬件固件的限制，部分问题无法修复：
 
 - 风扇曲线的点数无法更改（性能模式下为 10 点，其它模式为 9 点），但你可以通过将温度限制设置为 127 来实际禁用某些点，在写入 `auto_points_size` 时已经采用了这种方式。
+- 在使用 WMI3 风扇表的机型上（LPCN 系列，如拯救者 Pro 5 16ARX8 / 拯救者 7 Pro 16ARX8H），WMI 方法只传输每个曲线点的风扇**速度**：温度阈值、第二个风扇的速度以及加/减速值无法通过 WMI 读取或写入（回读始终为 0）。因此内核模块在这些机型上只暴露速度属性；EC 继续使用自己的固件温度阈值。已在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上确认；LPCN 系列其余机型（如 LPCN47WW）暂按推测适用，待相关用户确认。[#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
+- 在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上，固件的 `max-power` 模式并非提升功耗限制，而是会**立即断电**（硬关机，无正常关机流程），还可能将 EC 的电池充电模式从养护模式重置为快充。因此内核模块在该机型上不将 `max-power` 作为平台配置文件选项暴露；安全的配置文件为 quiet/balanced/performance/custom。
 
 ## :clap: 鸣谢
 
