@@ -272,6 +272,10 @@ struct model_config {
 	const char *acpi_paths[ACPI_PATH_MAX];
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
+	/* WMI3 fan tables on Gen-10+ firmware hold fan levels 0..max_level,
+	 * not percent/RPM; 0 = legacy percent behaviour
+	 */
+	u8 wmi_fancurve_max_level;
 	bool require_unlocked_fan_controller;
 	bool has_pl_coupling;
 	/* Lift the firmware-imposed fan ceiling via WMAA(0, 0x0D, arg) on the
@@ -3219,6 +3223,8 @@ enum fan_speed_unit {
 	FAN_SPEED_UNIT_PWM = 2,
 	FAN_SPEED_UNIT_RPM_HUNDRED = 3,
 	FAN_SPEED_UNIT_PERCENT_NEAREST = 4,
+	/* discrete fan level 0..max_level (see struct fancurve) */
+	FAN_SPEED_UNIT_LEVEL = 5,
 };
 
 struct fancurve_point {
@@ -3270,6 +3276,8 @@ struct fancurve {
 	struct fancurve_point points[MAXFANCURVESIZE];
 	enum fan_speed_unit fan_speed_unit;
 	u16 max_rpm;
+	// highest valid speed for FAN_SPEED_UNIT_LEVEL; 0 for other units
+	u8 max_level;
 	// number of points used; must be <= MAXFANCURVESIZE
 	size_t size;
 	// the point at which fans are run currently
@@ -3328,6 +3336,18 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 			0, 255);
 		return true;
 	}
+	case FAN_SPEED_UNIT_LEVEL: {
+		u32 max_level = fancurve->max_level;
+
+		if (!max_level) {
+			pr_err("Fan level unit without max level for point with id %d",
+			       point_id);
+			return false;
+		}
+		*speed = clamp_t(u8, DIV_ROUND_CLOSEST(value * max_level, 255),
+				 0, max_level);
+		return true;
+	}
 	default:
 		pr_info("No method to set for fan_speed_unit %d.",
 			fancurve->fan_speed_unit);
@@ -3362,6 +3382,18 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 		u32 max_rpm = fancurve->max_rpm ? fancurve->max_rpm : MAX_RPM;
 
 		*value = speed * 255 * 100 / max_rpm;
+		return true;
+	}
+	case FAN_SPEED_UNIT_LEVEL: {
+		u32 max_level = fancurve->max_level;
+
+		if (!max_level) {
+			pr_err("Fan level unit without max level for point with id %d",
+			       point_id);
+			return false;
+		}
+		*value = min_t(int, DIV_ROUND_CLOSEST(speed * 255, max_level),
+			       255);
 		return true;
 	}
 	default:
@@ -3488,6 +3520,9 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 	seq_printf(s, "Fan curve current point id: %ld\n",
 		   fancurve->current_point_i);
 	seq_printf(s, "Fan curve points size: %ld\n", fancurve->size);
+	seq_printf(s, "Fan curve speed unit: %d\n", fancurve->fan_speed_unit);
+	if (fancurve->fan_speed_unit == FAN_SPEED_UNIT_LEVEL)
+		seq_printf(s, "Fan curve max level: %u\n", fancurve->max_level);
 
 	seq_printf(
 		s,
@@ -4069,16 +4104,32 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	memset(fancurve, 0, sizeof(*fancurve));
 	fancurve->current_point_i = 0;
 	fancurve->size = size;
-	fancurve->fan_speed_unit =
-		model == &model_n2cn ? FAN_SPEED_UNIT_PERCENT_NEAREST :
-		model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
-				       FAN_SPEED_UNIT_PERCENT;
+	if (model->wmi_fancurve_max_level) {
+		// Table holds discrete fan levels 0..max_level, not percent.
+		fancurve->fan_speed_unit = FAN_SPEED_UNIT_LEVEL;
+		fancurve->max_level = model->wmi_fancurve_max_level;
+	} else {
+		fancurve->fan_speed_unit =
+			model == &model_n2cn ? FAN_SPEED_UNIT_PERCENT_NEAREST :
+			model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
+					       FAN_SPEED_UNIT_PERCENT;
+	}
 
 	for (i = 0; i < size; i++) {
 		u32 speed = le32_to_cpu(fan_table.fan_speed[i]);
 
 		if (speed > U8_MAX)
 			return -ERANGE;
+		if (fancurve->max_level && speed > fancurve->max_level) {
+			// Out-of-range level in firmware (e.g. a percent value
+			// written by an older driver). Clamp so the next write
+			// of any point replaces it with the highest valid level
+			// instead of failing or writing it back unchanged.
+			pr_warn_ratelimited(
+				"WMI fan table point %zu holds level %u > max level %u; clamping\n",
+				i, speed, fancurve->max_level);
+			speed = fancurve->max_level;
+		}
 		fancurve->points[i].speed1 = speed;
 	}
 
@@ -4106,6 +4157,25 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	// CreateByteField (Arg2, 0x14, FSS7)
 	// CreateByteField (Arg2, 0x16, FSS8)
 	// CreateByteField (Arg2, 0x18, FSS9)
+
+	if (model->wmi_fancurve_max_level) {
+		size_t i;
+
+		if (fancurve->fan_speed_unit != FAN_SPEED_UNIT_LEVEL) {
+			pr_err("Refusing to write fan table: unit %d is not a level unit\n",
+			       fancurve->fan_speed_unit);
+			return -EINVAL;
+		}
+		for (i = 0; i < MAXFANCURVESIZE; i++) {
+			if (fancurve->points[i].speed1 >
+			    model->wmi_fancurve_max_level) {
+				pr_err("Refusing to write fan level %u > max level %u at point %zu\n",
+				       fancurve->points[i].speed1,
+				       model->wmi_fancurve_max_level, i);
+				return -ERANGE;
+			}
+		}
+	}
 
 	memset(buffer, 0, sizeof(buffer));
 	buffer[0x06] = fancurve->points[0].speed1;
@@ -8164,7 +8234,9 @@ static bool legion_wmi_fancurve_speed_attribute(const struct attribute *attr)
 	       attr == &sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr ||
 	       attr == &sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr ||
 	       attr == &sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr;
+	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr ||
+	       attr == &sensor_dev_attr_fancurve_defaults_powermode.dev_attr
+				.attr;
 }
 
 // The EC4 fancurve interface (e.g. Legion 5 16IRX9, 83DG) stores per point

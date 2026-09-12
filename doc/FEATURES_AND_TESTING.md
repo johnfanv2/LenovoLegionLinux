@@ -285,6 +285,48 @@ echo '\_SB.GZFD.WMB2 0 0x2 1' > /proc/acpi/call
 cat /proc/acpi/call; printf '\n'
 ```
 
+#### Fan tables holding fan levels (FAN_SPEED_UNIT_LEVEL)
+
+On Gen-10+ firmware (e.g. Legion Pro 7 16IAX10H, BIOS Q7CN) the
+`Fan_Set_Table`/`Fan_Get_Table` WMI methods do not carry a percentage or
+RPM per point. Each byte is a discrete **fan level** `0..max_level` that
+the EC maps onto its own duty-cycle ladder (the firmware placeholder table
+is `1, 2, ..., 10`; `Fan_Set_Table` copies the bytes to EC RAM without a
+range check). Writing a percentage such as `100` into such a byte selects
+a non-existent level and has been reported to end in thermal shutdown.
+
+Models whose table works like this set `.wmi_fancurve_max_level` in their
+`model_config` (0 keeps the legacy percent behaviour). The driver then
+reads and writes the table with unit `FAN_SPEED_UNIT_LEVEL` (`5` in the
+`u(speed_of_unit)` column of `/sys/kernel/debug/legion/fancurve`, which
+also prints `Fan curve max level`) and converts the standard hwmon
+`pwm1_auto_pointN_pwm` range `0..255` to levels:
+
+- write: `level = round(pwm * max_level / 255)`, clamped to `0..max_level`
+- read: `pwm = round(level * 255 / max_level)`, clamped to `255`
+
+On a 10-level firmware `pwm 26 ~= level 1`, `128 = level 5`, `255 = level
+10`; every level round-trips exactly. Any level above `max_level` is
+refused with `-ERANGE` before the WMI method is evaluated. If the firmware
+table already holds an out-of-range value (for example written by an
+older driver) it is clamped to `max_level` when read and a warning is
+logged, so the next write of any point replaces it with the highest valid
+level. Such tables store only speeds, so these models are usually also
+flagged `wmi_fancurve_speed_only`; on speed-only models
+`fancurve_defaults_powermode` (writes the firmware ladder `1..10`) is
+still exposed when `has_fancurve_defaults` is set, so a bad table can be
+reset from Linux.
+
+Test on real hardware:
+
+```bash
+sudo cat /sys/kernel/debug/legion/fancurve
+# expect: "Fan curve speed unit: 5", "Fan curve max level: 10" and speed1[u] in 0..10
+echo 26 | sudo tee /sys/class/hwmon/hwmonX/pwm1_auto_point1_pwm   # -> level 1
+cat /sys/class/hwmon/hwmonX/pwm1_auto_point1_pwm                    # 26
+sudo dmesg | grep -i "fan level"                                    # no "Refusing" lines
+```
+
 ## ACPI
 SPMO: power mode (0,1,2)
 ADPT: AC Adapter

@@ -374,7 +374,7 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 The fan curve is displayed as a table with the following columns:
 
 ```text
-u(speed_of_unit): unit for the speed (1- Percentage, 2-PWM, 3-RPM)
+u(speed_of_unit): unit for the speed (1- Percentage, 2-PWM, 3-RPM, 5-Fan level 0..max_level, see doc/FEATURES_AND_TESTING.md)
 speed1[u]: speed in rpm divided by 100 for fan1 at this point
 speed2[u]: speed in rpm divided by 100 for fan2 at this point
 speed1[pwm]: speed in pwm (0-255) for fan1 at this point

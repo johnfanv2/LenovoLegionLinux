@@ -384,7 +384,7 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 风扇曲线以表格形式展示，列说明如下：
 
 ```text
-u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM）
+u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM, 5-风扇档位 0..max_level，参见 doc/FEATURES_AND_TESTING.md）
 speed1[u]: fan1 在该点的速度（rpm 除以 100）
 speed2[u]: fan2 在该点的速度（rpm 除以 100）
 speed1[pwm]: fan1 在该点的 pwm（0-255）
