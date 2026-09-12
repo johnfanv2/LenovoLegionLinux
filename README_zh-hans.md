@@ -133,6 +133,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7 Pro 16ARX8H（BIOS LPCN47WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 - 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
+- 联想拯救者 Pro 5 16IRX8（82WK，BIOS KWCN54WW）：传感器、风扇曲线（0-10 等级索引，自定义电源模式）、电源配置、通过 Other Method WMI 路径的功耗限制与风扇全速；风扇曲线已在 Linux 自定义电源模式下验证（9 级 → 4400/4600 RPM，10 级 → 5400/5400 RPM）
 - 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
@@ -212,6 +213,8 @@ sudo zypper install dkms openssl mokutil
 
 ```bash
 sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect
+# 仅用于 clang 编译的内核（例如 CachyOS）；Makefile 会自动以 LLVM=1 构建
+sudo pacman -S clang llvm lld
 # 如需通过 DKMS 安装，请安装以下包
 sudo pacman -S dkms openssl mokutil
 ```
@@ -234,6 +237,8 @@ cd LenovoLegionLinux/kernel_module
 make
 sudo make reloadmodule
 ```
+
+*注意：* 在使用 clang 编译的内核上（`CONFIG_CC_IS_CLANG=y`，例如 CachyOS），Makefile 会自动检测并在内核构建中传入 `LLVM=1`（`make`、`make install` 与 DKMS 均适用）；请先安装 `clang`、`llvm` 和 `lld`。
 
 **更多详细说明、问题和测试请见下方的 `首次使用测试` 部分，请务必先进行这些测试再进行永久安装。**
 
@@ -384,9 +389,9 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 风扇曲线以表格形式展示，列说明如下：
 
 ```text
-u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM）
-speed1[u]: fan1 在该点的速度（rpm 除以 100）
-speed2[u]: fan2 在该点的速度（rpm 除以 100）
+u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM/100, 4-百分比、四舍五入, 5-固件风扇表等级索引 0-10）
+speed1[u]: fan1 在该点的速度（单位由 u 决定）
+speed2[u]: fan2 在该点的速度（单位由 u 决定）
 speed1[pwm]: fan1 在该点的 pwm（0-255）
 speed2[pwm]: fan2 在该点的 pwm（0-255）
 acceleration: 加速时间（数值越大越慢）
@@ -476,6 +481,7 @@ cat /sys/kernel/debug/legion/fancurve
 
 - 如果你按下 Ctrl+Q（或某些设备的 FN+Q）更改电源模式，或等待时间过长，控制器可能会加载默认值；此时请重试
 - 风扇曲线中的对应条目值应被设置为你输入的数值，其它值不相关（用 XXXX 表示）
+- 在 Legion Zone v3 固件上（例如 Legion Pro 5 16IRX8，BIOS KWCN），风扇表保存的是 0-10 的风扇等级（`u` = 5）：写入的 pwm 会四舍五入到最近的等级（写入 0、26、51 … 255），读回时为 `level * 255 / 10`（0、25、51、76、102、127、153、178、204、229、255）；第 9、10 点至少需要 pwm 64 和 115，低于某点最小值的写入会返回 `Operation not supported`。在这些机型上，Python 工具（`legion_cli`、`legion_gui` 以及 `legiond` 预设）会把 RPM 值转换为最接近的固件等级（例如 4400 rpm → 9 级），并把 0 rpm 的点提升到该点的最低等级，因此现有预设仍可使用
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -840,6 +846,7 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 * [normaneye](https://github.com/normaneye)，修复了 GUI 中的 GPU 温度显示问题
 * [Petingoso](https://github.com/Petingoso)，修复了脚本无需 sudo 即可运行的问题
 * [XenHat](https://github.com/XenHat)，修正了 README 文档
+* [Hishammm0](https://github.com/Hishammm0)，Legion Pro 5 16IRX8（KWCN）风扇等级、内核 7.x ACPI 探测修复、clang 构建支持
 
 如果你的笔记本支持或者不支持本项目，请也告知我们。
 
@@ -982,6 +989,15 @@ GNOME 的图形小程序会用 `power-profiles-daemon` 以软件方式切换电�
 对于 KDE，有图形工具 `powerdevil`，其内部同样利用 `power-profiles-daemon`。
 
 如果 KDE 在 `/sys/firmware/acpi/platform_profile_choices` 中只显示 `balanced` 和 `performance`，但 Legion 设备（例如 `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`）包含 `quiet`，请检查是否同时加载了 `lenovo_wmi_gamezone`。如果两个驱动同时处于活动状态，全局可选模式会取两者的交集，quiet 模式可能会消失。此时可卸载或拉黑（blacklist）`lenovo_wmi_gamezone`，让 `legion_laptop` 成为唯一的电源模式提供者。
+
+另一种做法是同时保留两个驱动、各司其职：以 `enable_platformprofile=0` 加载 `legion_laptop`，它便不再注册电源模式提供者，把电源模式（`platform_profile`）和功耗限制（`/sys/class/firmware-attributes/lenovo-wmi-other-*`）交给主线驱动。它自身的 `powermode` 与功耗限制属性仍在平台设备下可用；主线驱动完全不提供、也正是保留 `legion_laptop` 的原因，是风扇曲线、风扇转速和风扇全速。将
+
+```text
+options legion_laptop enable_platformprofile=0
+softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other lenovo_wmi_events lenovo_wmi_capdata
+```
+
+写入 `/etc/modprobe.d/legion_laptop.conf`；`softdep` 行会先加载主线驱动，让它们先绑定两个驱动都声明的 WMI 设备。主线的 `custom` 配置与 `powermode` 255 是同一个固件模式；请通过名为 `lenovo-wmi-gamezone` 的设备的 `/sys/class/platform-profile/platform-profile-N/profile` 选择它，因为旧的 `/sys/firmware/acpi/platform_profile` 文件按设计拒绝 `custom`。已在 Legion Pro 5 16IRX8、内核 7.2 上验证。
 
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 

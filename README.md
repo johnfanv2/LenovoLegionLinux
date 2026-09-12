@@ -123,6 +123,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
 - Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
+- Lenovo Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW): sensors, fan curve (level indices 0-10, custom power mode), power profile, power limits and fan full speed through the Other Method WMI path; fan curve verified on Linux in custom power mode (level 9 → 4400/4600 RPM, level 10 → 5400/5400 RPM)
 - Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
 
 Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
@@ -202,6 +203,8 @@ sudo zypper install dkms openssl mokutil
 
 ```bash
 sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect
+# Only for kernels built with clang (e.g. CachyOS); the Makefile then builds with LLVM=1 by itself
+sudo pacman -S clang llvm lld
 # Install the following for installation with DKMS
 sudo pacman -S dkms openssl mokutil
 ```
@@ -224,6 +227,8 @@ cd LenovoLegionLinux/kernel_module
 make
 sudo make reloadmodule
 ```
+
+*Note:* on kernels built with clang (`CONFIG_CC_IS_CLANG=y`, e.g. CachyOS) the Makefile detects this and passes `LLVM=1` to the kernel build by itself, for `make`, `make install` and DKMS alike; install `clang`, `llvm` and `lld` first.
 
 **For further instructions, problems, and tests see `Initial Usage Testing` below. Do them first before a permanent installation.**
 
@@ -374,9 +379,9 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 The fan curve is displayed as a table with the following columns:
 
 ```text
-u(speed_of_unit): unit for the speed (1- Percentage, 2-PWM, 3-RPM)
-speed1[u]: speed in rpm divided by 100 for fan1 at this point
-speed2[u]: speed in rpm divided by 100 for fan2 at this point
+u(speed_of_unit): unit for the speed (1-Percentage, 2-PWM, 3-RPM/100, 4-Percentage rounded to nearest, 5-Level index 0-10 into the firmware fan table)
+speed1[u]: speed of fan1 at this point, in the unit given by u
+speed2[u]: speed of fan2 at this point, in the unit given by u
 speed1[pwm]: speed in pwm (0-255) for fan1 at this point
 speed2[pwm]: speed in pwm (0-255) for fan2 at this point
 acceleration: acceleration time (higher = slower)
@@ -464,6 +469,7 @@ Expected:
 
 - the controller might have loaded default values if you pressed Ctrl+Q(or FN+Q on certain devices) to change the power mode or waited too long; then try again
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
+- On Legion Zone v3 firmware (e.g. Legion Pro 5 16IRX8, BIOS KWCN) the table holds fan levels 0-10 (`u` = 5): a written pwm is rounded to the nearest level (write 0, 26, 51, ... 255) and reads back as `level * 255 / 10` (0, 25, 51, 76, 102, 127, 153, 178, 204, 229, 255), points 9 and 10 need at least pwm 64 and 115, and a write below a point's minimum returns `Operation not supported`. The Python tools (`legion_cli`, `legion_gui` and the `legiond` presets) convert RPM values to the nearest firmware level on these models (for example 4400 rpm → level 9) and raise a 0 rpm point to the point's minimum level, so existing presets keep working
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -815,6 +821,7 @@ Thank you for your contribution for the Linux support:
 * [normaneye](https://github.com/normaneye), fixing GPU temperature bug in GUI
 * [Petingoso](https://github.com/Petingoso), fix script to run withou sudo
 * [XenHat](https://github.com/XenHat), fix README
+* [Hishammm0](https://github.com/Hishammm0), Legion Pro 5 16IRX8 (KWCN) fan levels, kernel 7.x ACPI probe fix, clang build support
 
 Also please tell me if it works or does not work on your laptop.
 
@@ -955,6 +962,15 @@ A graphical GNOME applet uses `power-profiles-daemon` to change the power mode u
 For KDE, there is the graphical tool `powerdevil`, which also uses `power-profiles-daemon` internally.
 
 If KDE only shows `balanced` and `performance` in `/sys/firmware/acpi/platform_profile_choices` but the Legion device (for example `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`) includes `quiet`, check whether `lenovo_wmi_gamezone` is also loaded. If both providers are active, the global profile choices are the intersection of both providers and quiet mode might disappear. In that case, unload or blacklist `lenovo_wmi_gamezone` and keep `legion_laptop` as the single provider for power mode.
+
+Alternatively keep both drivers and let each do what the other cannot: load `legion_laptop` with `enable_platformprofile=0`, so it registers no platform-profile provider and leaves the power mode (`platform_profile`) and the power limits (`/sys/class/firmware-attributes/lenovo-wmi-other-*`) to the mainline drivers. Its own `powermode` and power-limit attributes stay available under the platform device; what the mainline drivers do not offer at all, and what you keep `legion_laptop` for, is the fan curve, the fan speeds and fan full speed. Put
+
+```text
+options legion_laptop enable_platformprofile=0
+softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other lenovo_wmi_events lenovo_wmi_capdata
+```
+
+into `/etc/modprobe.d/legion_laptop.conf`; the `softdep` line loads the mainline drivers first so they bind the WMI devices both drivers list. The mainline `custom` profile is the same firmware mode as `powermode` 255; select it through `/sys/class/platform-profile/platform-profile-N/profile` of the device named `lenovo-wmi-gamezone`, because the legacy `/sys/firmware/acpi/platform_profile` file refuses `custom` by design. Verified on a Legion Pro 5 16IRX8 with kernel 7.2.
 
 ### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
 

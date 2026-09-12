@@ -10,6 +10,39 @@ and the notice explains that custom fan curves are unsupported. Check that
 Run `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -p
 'test_gui_startup.py'` for the startup regression tests.
 
+## Fan curve on Legion Zone v3 firmware (level indices)
+
+On `model_kwcn` (Legion Pro 5 16IRX8, BIOS KWCN54WW) `Fan_Set_Table` takes ten level
+indices 0-10, not percentages; `LENOVO_FAN_TABLE_DATA.FanTable_Data` maps level n to an
+RPM (fan 1 on the 16IRX8: 1700, 1900, 2100, 2300, 2500, 2900, 3400, 3700, 4400, 5400).
+The driver uses `FAN_SPEED_UNIT_LEVEL` (debugfs `u` = 5): hwmon pwm 0-255 maps to
+level `round(pwm * 10 / 255)`, a write below the per-point minimum 1,1,1,1,1,1,1,1,3,5
+returns `EOPNOTSUPP`, and an all-zero (never written) table is sent as 1..10.
+
+Test (custom power mode, `stress-ng` + `watch sensors` running):
+
+```bash
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
+echo 255 | sudo tee $H/pwm1_auto_point10_pwm   # level 10
+sudo cat /sys/kernel/debug/legion/fancurve      # WMI block: u = 5, speed1 = 10
+sensors                                         # fan 1 should reach FanTable_Data[9]
+echo 204 | sudo tee $H/pwm1_auto_point10_pwm   # level 8 -> FanTable_Data[7]
+echo 25  | sudo tee $H/pwm1_auto_point10_pwm   # EOPNOTSUPP: point 10 minimum is 5
+```
+
+Measured on a Legion Pro 5 16IRX8 (KWCN54WW), first from Windows with the same WMI calls and then
+on Linux through this driver's hwmon interface: entering custom mode seeds an empty table with
+1,2,3,4,5,6,7,8,8,8; level 9 on every point gave 4400 / 4600 RPM (fan 1 / fan 2) and level 10 gave
+5400 / 5400 RPM, matching FanTable_Data, within 15 s from a warm fan and about 30 s from an idle
+2100 RPM (the EC ramps at roughly 100 RPM/s). The DSDT's Fan_Set_Table handler copies the ten bytes
+to EC RAM F9F0..F9F9 (`ecmemoryram` offset 0x1F0) and ignores the FSTM/FSID/FSTL header, so the
+`Fan_Get_Table` readback and that block are the same bytes.
+The Python tools (`legion_cli`, `legion_gui`, `legiond` presets) map RPM to the nearest level through
+`LEVEL_FAN_TABLES` in `legion.py` (keyed by BIOS prefix) and clamp to the per-point minimum.
+On the Legion Pro 7 16IRX8H with the same BIOS the EC resets the table to 1..10 when
+mode 0xE0 is entered and ignores later writes (issue #429); use mode 255 and check
+`/sys/kernel/debug/legion/ecmemory` offset 0x1F0..0x1F9 after a write.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
