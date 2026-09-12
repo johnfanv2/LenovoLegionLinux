@@ -8314,17 +8314,24 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_STA);
 		err = eval_int(priv->adev, acpi_path, &cfg);
 		if (err) {
-			dev_info(dev, "Could not evaluate ACPI _STA\n");
+			dev_info(dev, "Could not evaluate ACPI %s: %d\n",
+				 acpi_path, err);
 			goto err_acpi_init;
 		}
 
+		/*
+		 * _CFG is only reported (here and in debugfs), never used to
+		 * gate a feature, and not every Lenovo DSDT defines it on the
+		 * embedded controller device, so its absence must not stop
+		 * the probe; _STA above is the presence check.
+		 */
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_CFG);
 		err = eval_int(priv->adev, acpi_path, &cfg);
-		if (err) {
-			dev_info(dev, "Could not evaluate ACPI _CFG\n");
-			goto err_acpi_init;
-		}
-		dev_info(dev, "ACPI CFG: %lu\n", cfg);
+		if (err)
+			dev_info(dev, "Could not evaluate ACPI %s: %d\n",
+				 acpi_path, err);
+		else
+			dev_info(dev, "ACPI CFG: %lu\n", cfg);
 	} else {
 		dev_info(dev, "Skipping ACPI _STA check");
 	}
