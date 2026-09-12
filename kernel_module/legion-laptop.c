@@ -3137,7 +3137,7 @@ static void ecram_exit(struct ecram *ecram)
  */
 static u8 ecram_read(struct ecram *ecram, u16 ecram_offset)
 {
-	u8 value;
+	u8 value = 0;
 	int err;
 
 	err = ecram_portio_read(&ecram->portio, ecram_offset, &value);
@@ -3731,7 +3731,6 @@ static ssize_t ec_read_temperature(struct ecram *ecram,
 				   const struct model_config *model,
 				   int sensor_id, int *temperature)
 {
-	int err = 0;
 	unsigned long res;
 
 	if (sensor_id == 0) {
@@ -3742,16 +3741,14 @@ static ssize_t ec_read_temperature(struct ecram *ecram,
 		// TODO: use all correct error codes
 		return -EEXIST;
 	}
-	if (!err)
-		*temperature = res;
-	return err;
+	*temperature = res;
+	return 0;
 }
 
 static ssize_t ec_read_fanspeed(struct ecram *ecram,
 				const struct model_config *model, int fan_id,
 				int *fanspeed_rpm)
 {
-	int err = 0;
 	unsigned long res;
 
 	if (fan_id == 0) {
@@ -3768,9 +3765,8 @@ static ssize_t ec_read_fanspeed(struct ecram *ecram,
 		// TODO: use all correct error codes
 		return -EEXIST;
 	}
-	if (!err)
-		*fanspeed_rpm = res;
-	return err;
+	*fanspeed_rpm = res;
+	return 0;
 }
 
 // '\_SB.PCI0.LPC0.EC0.FANS
