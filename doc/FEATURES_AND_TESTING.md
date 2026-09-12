@@ -18,13 +18,18 @@ BIOS Q7CN78WW, EC firmware 1.78, Intel Arrow Lake-HX + RTX 50. DMI entry
 
 - Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
   fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
-  fan table via Fan Method `WMAB` 5/6, power limits via `WMAE`
-  (`ACCESS_METHOD_WMI3_CLAMPED`, the CPU Method GUID is an empty stub).
+  fan table via Fan Method `WMAB` 5/6. The CPU Method GUID is an empty
+  stub, so the remaining limit attributes (`cpu_temperature_limit`,
+  `cpu_l1_tau`, `gpu_power_target_offset`) go through `WMAE` clamped to
+  the capability data (`ACCESS_METHOD_WMI3_CLAMPED`); the CPU/GPU power
+  limit and OC attributes are hidden (`skip_oc_controls`) - use the
+  in-tree `lenovo_wmi_other` firmware-attributes for PL1/PL2/tau/cTGP.
   No EC RAM is written; the EC-internal `0xC4xx` offsets are only inferred.
 - The fan table is a list of fan **levels 0..10** (one per temperature
   step), not percent or RPM. The EC applies it only in custom mode
   (`powermode` 0xFF) while on AC; on battery the firmware parks the
-  request and reads it back as if applied. Until the fan-level unit
+  custom-mode request (`powermode` still reads back 0xFF while the EC
+  stays in balanced). Until the fan-level unit
   change is merged, `pwm1_auto_point*_pwm` is scaled as percent, so only
   write small values (a value of 100 landing in a 0..10 level byte
   matches the thermal shutdowns reported on Q7CN).

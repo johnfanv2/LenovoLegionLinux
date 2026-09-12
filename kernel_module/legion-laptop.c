@@ -1675,15 +1675,21 @@ static const struct model_config
 //   custom/performance/extreme need AC; on battery the request is
 //   parked and read back as if applied.
 // - Fan table: Fan Method WMAB has only Fan_Get_Table(5)/Fan_Set_Table(6)
-//   (L62277-62351); set copies bytes 0x06..0x18 of the 0x40-byte buffer
-//   to EC F9F0..F9F9 and calls LECR(0xD0), no range check. The bytes are
-//   fan LEVELS 0..10, not percent: until feat/wmi-fan-level-unit is
-//   merged the pwm scale is percent and only small values are safe.
+//   (L62277-62351); set copies the byte at each even offset 0x06..0x18
+//   of the 0x40-byte buffer to EC F9F0..F9F9 and calls LECR(0xD0), no
+//   range check. The bytes are fan LEVELS 0..10, not percent: until
+//   feat/wmi-fan-level-unit is merged the pwm scale is percent and only
+//   small values are safe.
 // - RPM/temps/full speed: Other Method WMAE Get(17)/SetFeatureValue(18)
 //   ids 0x04030001/0x04030002 (RPM), 0x05040000/0x05050000 (CPU/GPU
 //   temp, L62942-62965), 0x04020000 (full speed, L62877-62888).
-// - Power limits: CPU Method WMAC is an empty stub (L62354); WMAE stores
-//   0x0101..0x0107 / 0x0201..0x0204 raw in the EC -> WMI3_CLAMPED.
+// - Power limits: CPU Method WMAC is an empty stub (L62354), so WMAE via
+//   WMI3_CLAMPED. WMAE stores 0x0101/0x0102/0x0104/0x0106 and
+//   0x0201..0x0204 raw in the EC (get L62534-62690, set L63327-63600);
+//   0x0103 always reads back 0, 0x0105 is unimplemented and 0x0107 (tau)
+//   goes through a 13-entry lookup. skip_oc_controls hides the PL/OC
+//   attributes; only cpu_temperature_limit, cpu_l1_tau and
+//   gpu_power_target_offset stay visible.
 // - Keyboard is USB-HID ITE 048d:c197 "Spectrum" that the WMI light
 //   methods do not drive -> NO_ACCESS; Y-logo / IO-port light skipped.
 // - EC id 0x5508 is reported by other 83F5 units (issue #385); enable
