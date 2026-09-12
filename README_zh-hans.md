@@ -846,6 +846,7 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 * [normaneye](https://github.com/normaneye)，修复了 GUI 中的 GPU 温度显示问题
 * [Petingoso](https://github.com/Petingoso)，修复了脚本无需 sudo 即可运行的问题
 * [XenHat](https://github.com/XenHat)，修正了 README 文档
+* [Hishammm0](https://github.com/Hishammm0)，Legion Pro 5 16IRX8（KWCN）风扇等级、内核 7.x ACPI 探测修复、clang 构建支持
 
 如果你的笔记本支持或者不支持本项目，请也告知我们。
 

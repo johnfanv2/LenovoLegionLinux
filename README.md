@@ -821,6 +821,7 @@ Thank you for your contribution for the Linux support:
 * [normaneye](https://github.com/normaneye), fixing GPU temperature bug in GUI
 * [Petingoso](https://github.com/Petingoso), fix script to run withou sudo
 * [XenHat](https://github.com/XenHat), fix README
+* [Hishammm0](https://github.com/Hishammm0), Legion Pro 5 16IRX8 (KWCN) fan levels, kernel 7.x ACPI probe fix, clang build support
 
 Also please tell me if it works or does not work on your laptop.
 
