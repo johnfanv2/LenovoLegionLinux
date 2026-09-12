@@ -737,6 +737,13 @@ static const struct model_config model_kwcn = {
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
+	/* 82WK DSDT: _CFG, GBMD and SBMC live under VPC0, not on the EC. */
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
 	/* WMAA(0, 0x0D, 0x01) raises the firmware fan ceiling from ~4400 RPM to
 	 * ~7000-7100 RPM on KWCN54WW (Legion Pro 7 16IRX8H, EC 0x5507).
 	 */
