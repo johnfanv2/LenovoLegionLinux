@@ -133,6 +133,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7 Pro 16ARX8H（BIOS LPCN47WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 - 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
+- 联想拯救者 Pro 5 16IRX8（82WK，BIOS KWCN54WW）：传感器、风扇曲线（0-10 等级索引，自定义电源模式）、电源配置、通过 Other Method WMI 路径的功耗限制与风扇全速；风扇曲线已在 Linux 自定义电源模式下验证（9 级 → 4400/4600 RPM，10 级 → 5400/5400 RPM）
 - 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。

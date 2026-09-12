@@ -714,7 +714,26 @@ static const struct model_config model_kwcn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	/*
+	 * KWCN54WW (Legion Pro 5 16IRX8, 82WK) declares only Fan_Get_Table and
+	 * Fan_Set_Table on LENOVO_FAN_METHOD, only CPU_Set_OC_Data on
+	 * LENOVO_CPU_METHOD and nothing on LENOVO_GPU_METHOD, so the fan
+	 * full-speed methods (ids 1/2) and the legacy power-limit methods
+	 * cannot work. LENOVO_OTHER_METHOD answers for the plain feature IDs
+	 * and LENOVO_CAPABILITY_DATA_01 / LENOVO_DISCRETE_DATA publish the
+	 * per-mode ranges, so use the Other Method paths, clamped.
+	 */
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
+	/*
+	 * Fan_Set_Table carries one level per point for both fans; the pwm2,
+	 * temperature and accel/decel curve attributes have no effect, so
+	 * hide them as model_n2cn does. Level 10 was measured at 5400 RPM
+	 * (= LENOVO_FAN_TABLE_DATA.CurrentFanMaxSpeed).
+	 */
+	.wmi_fancurve_speed_only = true,
+	.fan_max_rpm = 5400,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,

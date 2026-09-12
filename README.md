@@ -123,6 +123,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
 - Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
+- Lenovo Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW): sensors, fan curve (level indices 0-10, custom power mode), power profile, power limits and fan full speed through the Other Method WMI path; fan curve verified on Linux in custom power mode (level 9 → 4400/4600 RPM, level 10 → 5400/5400 RPM)
 - Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
 
 Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
