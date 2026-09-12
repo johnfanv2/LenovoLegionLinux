@@ -374,9 +374,9 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 The fan curve is displayed as a table with the following columns:
 
 ```text
-u(speed_of_unit): unit for the speed (1- Percentage, 2-PWM, 3-RPM)
-speed1[u]: speed in rpm divided by 100 for fan1 at this point
-speed2[u]: speed in rpm divided by 100 for fan2 at this point
+u(speed_of_unit): unit for the speed (1-Percentage, 2-PWM, 3-RPM/100, 4-Percentage rounded to nearest, 5-Level index 0-10 into the firmware fan table)
+speed1[u]: speed of fan1 at this point, in the unit given by u
+speed2[u]: speed of fan2 at this point, in the unit given by u
 speed1[pwm]: speed in pwm (0-255) for fan1 at this point
 speed2[pwm]: speed in pwm (0-255) for fan2 at this point
 acceleration: acceleration time (higher = slower)
@@ -464,6 +464,7 @@ Expected:
 
 - the controller might have loaded default values if you pressed Ctrl+Q(or FN+Q on certain devices) to change the power mode or waited too long; then try again
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
+- On Legion Zone v3 firmware (e.g. Legion Pro 5 16IRX8, BIOS KWCN) the table holds fan levels 0-10 (`u` = 5): a written pwm is rounded to the nearest level (write 0, 26, 51, ... 255) and reads back as `level * 255 / 10` (0, 25, 51, 76, 102, 127, 153, 178, 204, 229, 255), points 9 and 10 need at least pwm 64 and 115, and a write below a point's minimum returns `Operation not supported`
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp

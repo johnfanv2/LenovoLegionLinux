@@ -3213,13 +3213,33 @@ enum SENSOR_ATTR {
 /* ============================= */
 
 #define MAX_RPM 10000
+/* Highest level index Fan_Set_Table takes on Legion Zone v3 firmware. */
+#define MAX_FAN_LEVEL 10
 
 enum fan_speed_unit {
 	FAN_SPEED_UNIT_PERCENT = 1,
 	FAN_SPEED_UNIT_PWM = 2,
 	FAN_SPEED_UNIT_RPM_HUNDRED = 3,
 	FAN_SPEED_UNIT_PERCENT_NEAREST = 4,
+	/*
+	 * Index 0..MAX_FAN_LEVEL into the firmware's per-level RPM table
+	 * (WMI data block LENOVO_FAN_TABLE_DATA.FanTable_Data), the unit
+	 * Lenovo Legion Toolkit uses for Fan_Set_Table on Legion Zone v3
+	 * firmware (e.g. KWCN54WW). Level 0 means "fan off"; the driver
+	 * never sends it, see fancurve_level_min.
+	 */
+	FAN_SPEED_UNIT_LEVEL = 5,
 };
+
+/*
+ * Lowest level Lenovo Legion Toolkit sends per curve point on Legion Zone
+ * v3 firmware (GodModeControllerV2 GetMinimumFanTableAsync): level 0 is
+ * never sent and the last two points stay at or above 3 and 5. The EC
+ * does not range-check the table itself, so this is a safety policy,
+ * not a firmware limit.
+ */
+static const u8 fancurve_level_min[MAXFANCURVESIZE] = { 1, 1, 1, 1, 1,
+							1, 1, 1, 3, 5 };
 
 struct fancurve_point {
 	// rpm1 devided by 100
@@ -3328,6 +3348,18 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 			0, 255);
 		return true;
 	}
+	case FAN_SPEED_UNIT_LEVEL: {
+		int level = DIV_ROUND_CLOSEST(value * MAX_FAN_LEVEL, 255);
+
+		if (level < fancurve_level_min[point_id]) {
+			pr_err("Level %d (pwm %d) is below the minimum %d for pwm1_auto_point%d_pwm\n",
+			       level, value, fancurve_level_min[point_id],
+			       point_id + 1);
+			return false;
+		}
+		*speed = level;
+		return true;
+	}
 	default:
 		pr_info("No method to set for fan_speed_unit %d.",
 			fancurve->fan_speed_unit);
@@ -3364,6 +3396,9 @@ static bool fancurve_get_speed_pwm(const struct fancurve *fancurve,
 		*value = speed * 255 * 100 / max_rpm;
 		return true;
 	}
+	case FAN_SPEED_UNIT_LEVEL:
+		*value = min_t(int, speed, MAX_FAN_LEVEL) * 255 / MAX_FAN_LEVEL;
+		return true;
 	default:
 		pr_info("No method to get for fan_speed_unit %d.",
 			fancurve->fan_speed_unit);
@@ -4072,6 +4107,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	fancurve->fan_speed_unit =
 		model == &model_n2cn ? FAN_SPEED_UNIT_PERCENT_NEAREST :
 		model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
+		model == &model_kwcn ? FAN_SPEED_UNIT_LEVEL :
 				       FAN_SPEED_UNIT_PERCENT;
 
 	for (i = 0; i < size; i++) {
@@ -4079,16 +4115,51 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 
 		if (speed > U8_MAX)
 			return -ERANGE;
+		if (fancurve->fan_speed_unit == FAN_SPEED_UNIT_LEVEL &&
+		    speed > MAX_FAN_LEVEL)
+			pr_warn_once(
+				"fan table point %zu holds %u, above level %d (stale percent write?)\n",
+				i + 1, speed, MAX_FAN_LEVEL);
 		fancurve->points[i].speed1 = speed;
+		/* Fan_Set_Table carries one table for all fans (FSID = 0). */
+		fancurve->points[i].speed2 = speed;
 	}
 
 	return 0;
+}
+
+/*
+ * Make a level table safe to send. Fan_Get_Table returns ten zeros until
+ * something has written the table (EC RAM untouched since boot), and an
+ * older driver may have left percent-unit values above MAX_FAN_LEVEL
+ * behind. Unset points get Legion Toolkit's default curve (1..10), the
+ * rest is pulled inside [fancurve_level_min, MAX_FAN_LEVEL].
+ */
+static void fancurve_level_table_sanitize(u8 speeds[MAXFANCURVESIZE])
+{
+	size_t i;
+
+	for (i = 0; i < MAXFANCURVESIZE; i++) {
+		u8 fixed = speeds[i];
+
+		if (fixed == 0)
+			fixed = i + 1;
+		fixed = clamp_t(u8, fixed, fancurve_level_min[i],
+				MAX_FAN_LEVEL);
+		if (fixed != speeds[i]) {
+			pr_info("fan table point %zu: level %u sent as %u\n",
+				i + 1, speeds[i], fixed);
+			speeds[i] = fixed;
+		}
+	}
 }
 
 static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 					 const struct fancurve *fancurve)
 {
 	u8 buffer[0x40];
+	u8 speeds[MAXFANCURVESIZE];
+	size_t point;
 	int err;
 
 	// The buffer is read like this in ACPI firmware
@@ -4108,16 +4179,12 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	// CreateByteField (Arg2, 0x18, FSS9)
 
 	memset(buffer, 0, sizeof(buffer));
-	buffer[0x06] = fancurve->points[0].speed1;
-	buffer[0x08] = fancurve->points[1].speed1;
-	buffer[0x0A] = fancurve->points[2].speed1;
-	buffer[0x0C] = fancurve->points[3].speed1;
-	buffer[0x0E] = fancurve->points[4].speed1;
-	buffer[0x10] = fancurve->points[5].speed1;
-	buffer[0x12] = fancurve->points[6].speed1;
-	buffer[0x14] = fancurve->points[7].speed1;
-	buffer[0x16] = fancurve->points[8].speed1;
-	buffer[0x18] = fancurve->points[9].speed1;
+	for (point = 0; point < MAXFANCURVESIZE; point++)
+		speeds[point] = fancurve->points[point].speed1;
+	if (fancurve->fan_speed_unit == FAN_SPEED_UNIT_LEVEL)
+		fancurve_level_table_sanitize(speeds);
+	for (point = 0; point < MAXFANCURVESIZE; point++)
+		buffer[0x06 + 2 * point] = speeds[point];
 
 	print_hex_dump(KERN_DEBUG, "legion_laptop fan table wmi write buffer",
 		       DUMP_PREFIX_ADDRESS, 16, 1, buffer, sizeof(buffer),

@@ -384,9 +384,9 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 风扇曲线以表格形式展示，列说明如下：
 
 ```text
-u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM）
-speed1[u]: fan1 在该点的速度（rpm 除以 100）
-speed2[u]: fan2 在该点的速度（rpm 除以 100）
+u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM/100, 4-百分比、四舍五入, 5-固件风扇表等级索引 0-10）
+speed1[u]: fan1 在该点的速度（单位由 u 决定）
+speed2[u]: fan2 在该点的速度（单位由 u 决定）
 speed1[pwm]: fan1 在该点的 pwm（0-255）
 speed2[pwm]: fan2 在该点的 pwm（0-255）
 acceleration: 加速时间（数值越大越慢）
@@ -476,6 +476,7 @@ cat /sys/kernel/debug/legion/fancurve
 
 - 如果你按下 Ctrl+Q（或某些设备的 FN+Q）更改电源模式，或等待时间过长，控制器可能会加载默认值；此时请重试
 - 风扇曲线中的对应条目值应被设置为你输入的数值，其它值不相关（用 XXXX 表示）
+- 在 Legion Zone v3 固件上（例如 Legion Pro 5 16IRX8，BIOS KWCN），风扇表保存的是 0-10 的风扇等级（`u` = 5）：写入的 pwm 会四舍五入到最近的等级（写入 0、26、51 … 255），读回时为 `level * 255 / 10`（0、25、51、76、102、127、153、178、204、229、255）；第 9、10 点至少需要 pwm 64 和 115，低于某点最小值的写入会返回 `Operation not supported`
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
