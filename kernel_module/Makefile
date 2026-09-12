@@ -2,6 +2,18 @@ SHELL := /bin/bash
 KERNELVERSION  ?= $(shell uname -r)
 KSRC := /lib/modules/$(KERNELVERSION)/build
 
+# Kernels built with clang (CONFIG_CC_IS_CLANG=y, e.g. CachyOS) need the LLVM
+# toolchain for out-of-tree modules: gcc rejects the kernel's clang-only flags.
+# Detect it so that plain `make`, `make install` and DKMS (dkms.conf runs this
+# Makefile) work; override with LLVM=1 / LLVM=0 on the command line. dkms >= 3.x
+# does the same detection for the build command it runs itself.
+ifeq ($(shell grep -qs '^CONFIG_CC_IS_CLANG=y' $(KSRC)/include/config/auto.conf $(KSRC)/.config && echo 1),1)
+LLVM ?= 1
+endif
+# LLVM is always passed explicitly: make exports the variable to the sub-make
+# through MAKEOVERRIDES, so an empty value is needed for LLVM=0 to take effect.
+KMAKEFLAGS := -C $(KSRC) M=$(CURDIR) $(if $(filter-out 0,$(LLVM)),LLVM=$(LLVM),LLVM=)
+
 #install dir for kernel drivers
 INSTALLDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
 MODDESTDIR := /lib/modules/$(KERNELVERSION)/kernel/drivers/platform/x86
@@ -10,27 +22,27 @@ DKMSDIR := /usr/src/LenovoLegionLinux-1.0.0
 obj-m += legion-laptop.o
 
 all:
-	$(MAKE) -C $(KSRC) M=$(shell pwd) modules
+	$(MAKE) $(KMAKEFLAGS) modules
 
 moduleInContainer:
 	docker run -it --rm -v "$(shell pwd)":/kernel_module -w /kernel_module  -v /usr/src/:/usr/src/  -v /lib/modules/:/lib/modules gcc:12.2.0 bash
 
 allWarn:
-	$(MAKE) -C $(KSRC) M=$(shell pwd) KCFLAGS=-W modules
+	$(MAKE) $(KMAKEFLAGS) KCFLAGS=-W modules
 
 clean:
-	make -C $(KSRC) M=$(shell pwd) clean
+	$(MAKE) $(KMAKEFLAGS) clean
 
 install: all
 	@rm -fv $(INSTALLDIR)/legion-laptop.ko
 	@mkdir -pv $(MODDESTDIR)
 	@install -p -D -m 644 *.ko $(INSTALLDIR)
-	@depmod -a $(KVER)
+	@depmod -a $(KERNELVERSION)
 	@printf "%s\n" "Installion finished."
 
 uninstall:
 	@rm -f $(INSTALLDIR)/legion-laptop.ko
-	@depmod -a
+	@depmod -a $(KERNELVERSION)
 	@printf "%s\n" "Uninstall finished."
 
 install_forcereload:
