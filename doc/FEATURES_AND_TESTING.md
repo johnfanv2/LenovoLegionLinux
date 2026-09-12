@@ -10,6 +10,51 @@ and the notice explains that custom fan curves are unsupported. Check that
 Run `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -p
 'test_gui_startup.py'` for the startup regression tests.
 
+## Legion Pro 7 16IAX10H (83F5, Q7CN)
+
+BIOS Q7CN78WW, EC firmware 1.78, Intel Arrow Lake-HX + RTX 50. DMI entry
+`Q7CN` is qualified on product name `83F5`; config `model_q7cn` in
+`kernel_module/legion-laptop.c` (the header comment cites the DSDT lines).
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6, power limits via `WMAE`
+  (`ACCESS_METHOD_WMI3_CLAMPED`, the CPU Method GUID is an empty stub).
+  No EC RAM is written; the EC-internal `0xC4xx` offsets are only inferred.
+- The fan table is a list of fan **levels 0..10** (one per temperature
+  step), not percent or RPM. The EC applies it only in custom mode
+  (`powermode` 0xFF) while on AC; on battery the firmware parks the
+  request and reads it back as if applied. Until the fan-level unit
+  change is merged, `pwm1_auto_point*_pwm` is scaled as percent, so only
+  write small values (a value of 100 landing in a 0..10 level byte
+  matches the thermal shutdowns reported on Q7CN).
+- Only `pwm1_auto_point*_pwm` is exposed for the fan curve
+  (`wmi_fancurve_speed_only`); `minifancurve` and `lockfancontroller` are
+  hidden because the EC does not declare those bytes.
+- Keyboard is a USB-HID ITE "Spectrum" (048d:c197); the WMI light methods
+  do not drive it, so there is no keyboard, Y-logo or IO-port light
+  control.
+- Rapid charge and battery conservation are exposed through
+  `VPC0.GBMD`/`VPC0.SBMC` (present in the DSDT); enabling rapid charge
+  also clears conservation mode in firmware.
+
+Recommended setup on kernels with the in-tree `lenovo-wmi-*` drivers
+(>= 6.18), which already own the GameZone GUID and platform profile:
+
+```
+# /etc/modprobe.d/legion_laptop.conf
+options legion_laptop ec_readonly=1 enable_platformprofile=0
+softdep legion_laptop pre: lenovo_wmi_gamezone lenovo_wmi_other ideapad_laptop
+```
+
+On clang-built kernels (for example CachyOS, `CONFIG_CC_IS_CLANG=y`) build
+the module with `make LLVM=1`; a bare `make` fails on clang-only flags.
+
+Verify: `sudo dmesg | grep -i legion` (no "not in allowlist"), `sensors`
+shows `legion_hwmon` temps and fan RPM, `cat /sys/kernel/debug/legion/fancurve`
+dumps the WMI fan table, and `/sys/firmware/acpi/platform_profile` keeps
+its `lenovo_wmi_gamezone` choices.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
