@@ -278,10 +278,13 @@ struct model_config {
 	const char *acpi_paths[ACPI_PATH_MAX];
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
-	/* WMI3 fan tables on Gen-10+ firmware hold fan levels 0..max_level,
-	 * not percent/RPM; 0 = legacy percent behaviour
+	/* WMI3 fan tables on Gen-10+ firmware hold fan levels
+	 * min_level..max_level, not percent/RPM; max_level 0 = legacy
+	 * percent behaviour. min_level is the lowest level the firmware
+	 * documents (0 = no lower bound); writes below it are clamped.
 	 */
 	u8 wmi_fancurve_max_level;
+	u8 wmi_fancurve_min_level;
 	bool require_unlocked_fan_controller;
 	bool has_pl_coupling;
 	/* Lift the firmware-imposed fan ceiling via WMAA(0, 0x0D, arg) on the
@@ -1668,8 +1671,10 @@ static const struct model_config
 // BIOS: Q7CN78WW, EC firmware 1.78. Facts below are from this unit's DSDT
 // (L = DSDT.dsl line); the EC-internal 0xC4xx offsets are only inferred.
 // - EC RAM window ERAX @0xFE500400 (L37243, plus F9FT/ECB2 at +0x100/
-//   +0x200) is used only by debugfs ecmemoryram; nothing writes EC RAM,
-//   so lockfancontroller/minifancurve (undeclared bytes) are hidden.
+//   +0x200, ramio_size 0x300) is used only by debugfs ecmemoryram; it is
+//   byte-identical to the EC I2EC bank at 0xC400 and to the ACPI EC I/O
+//   space (verified on hardware). Nothing writes EC RAM, so
+//   lockfancontroller/minifancurve (undeclared bytes) are hidden.
 // - Power mode: GameZone WMAA 0x2C set / 0x2D get (L61539-61800):
 //   1 quiet, 2 balanced, 3 performance, 0xFF custom, 0xE0 extreme.
 //   custom/performance/extreme need AC; on battery the request is
@@ -1677,9 +1682,14 @@ static const struct model_config
 // - Fan table: Fan Method WMAB has only Fan_Get_Table(5)/Fan_Set_Table(6)
 //   (L62277-62351); set copies the byte at each even offset 0x06..0x18
 //   of the 0x40-byte buffer to EC F9F0..F9F9 and calls LECR(0xD0), no
-//   range check. The bytes are fan LEVELS 0..10, not percent: until
-//   feat/wmi-fan-level-unit is merged the pwm scale is percent and only
-//   small values are safe.
+//   range check. The bytes are fan LEVELS 1..10 (LENOVO_FAN_TABLE_DATA
+//   WQA3, L46562-47779: level 1 = per-fan minimum RPM, 10 = maximum; one
+//   table shared by all fans; the temperature axis is fixed by the EC;
+//   level 0 is undocumented), hence wmi_fancurve_max_level/min_level.
+//   Fan_Get_Table returns a static 1..10 placeholder in extreme mode
+//   (ODV1 == 4) instead of the live table, and Fan_Set_Table ignores the
+//   mode byte, so has_fancurve_defaults stays off. Read on hardware:
+//   1,2,3,4,5,6,7,8,8,8 (performance mode).
 // - RPM/temps/full speed: Other Method WMAE Get(17)/SetFeatureValue(18)
 //   ids 0x04030001/0x04030002 (RPM), 0x05040000/0x05050000 (CPU/GPU
 //   temp, L62942-62965), 0x04020000 (full speed, L62877-62888).
@@ -1692,13 +1702,13 @@ static const struct model_config
 //   gpu_power_target_offset stay visible.
 // - Keyboard is USB-HID ITE 048d:c197 "Spectrum" that the WMI light
 //   methods do not drive -> NO_ACCESS; Y-logo / IO-port light skipped.
-// - EC id 0x5508 is reported by other 83F5 units (issue #385); enable
-//   the check once confirmed on this unit.
+// - EC id 0x5508 (version 2b0) read on this unit via Super-I/O port I/O;
+//   also reported for other 83F5 units (issue #385).
 // - Rapid charge via VPC0 GBMD/SBMC (L39816/L40033); SBMC(7) also
 //   clears conservation mode.
 static const struct model_config model_q7cn = {
 	.registers = &ec_register_offsets_v0,
-	.check_embedded_controller_id = false,
+	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x5508,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
@@ -1721,15 +1731,17 @@ static const struct model_config model_q7cn = {
 	.skip_ioport_light = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE500400,
-	.ramio_size = 0x600,
+	.ramio_size = 0x300,
 	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
 			[ACPI_PATH_READ_RAPIDCHARGE] =
 				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
 			[ACPI_PATH_WRITE_RAPIDCHARGE] =
 				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
-	.has_fancurve_defaults = true,
+	.has_fancurve_defaults = false,
 	.wmi_fancurve_speed_only = true,
+	.wmi_fancurve_max_level = 10,
+	.wmi_fancurve_min_level = 1,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -3364,8 +3376,9 @@ struct fancurve {
 	struct fancurve_point points[MAXFANCURVESIZE];
 	enum fan_speed_unit fan_speed_unit;
 	u16 max_rpm;
-	// highest valid speed for FAN_SPEED_UNIT_LEVEL; 0 for other units
+	// valid speed range for FAN_SPEED_UNIT_LEVEL; 0 for other units
 	u8 max_level;
+	u8 min_level;
 	// number of points used; must be <= MAXFANCURVESIZE
 	size_t size;
 	// the point at which fans are run currently
@@ -3433,7 +3446,7 @@ static bool fancurve_set_speed_pwm(struct fancurve *fancurve, int point_id,
 			return false;
 		}
 		*speed = clamp_t(u8, DIV_ROUND_CLOSEST(value * max_level, 255),
-				 0, max_level);
+				 fancurve->min_level, max_level);
 		return true;
 	}
 	default:
@@ -3610,7 +3623,8 @@ static ssize_t fancurve_print_seqfile(const struct fancurve *fancurve,
 	seq_printf(s, "Fan curve points size: %ld\n", fancurve->size);
 	seq_printf(s, "Fan curve speed unit: %d\n", fancurve->fan_speed_unit);
 	if (fancurve->fan_speed_unit == FAN_SPEED_UNIT_LEVEL)
-		seq_printf(s, "Fan curve max level: %u\n", fancurve->max_level);
+		seq_printf(s, "Fan curve level range: %u..%u\n",
+			   fancurve->min_level, fancurve->max_level);
 
 	seq_printf(
 		s,
@@ -4196,6 +4210,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		// Table holds discrete fan levels 0..max_level, not percent.
 		fancurve->fan_speed_unit = FAN_SPEED_UNIT_LEVEL;
 		fancurve->max_level = model->wmi_fancurve_max_level;
+		fancurve->min_level = model->wmi_fancurve_min_level;
 	} else {
 		fancurve->fan_speed_unit =
 			model == &model_n2cn ? FAN_SPEED_UNIT_PERCENT_NEAREST :
@@ -4256,9 +4271,12 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 		}
 		for (i = 0; i < MAXFANCURVESIZE; i++) {
 			if (fancurve->points[i].speed1 >
-			    model->wmi_fancurve_max_level) {
-				pr_err("Refusing to write fan level %u > max level %u at point %zu\n",
+				    model->wmi_fancurve_max_level ||
+			    fancurve->points[i].speed1 <
+				    model->wmi_fancurve_min_level) {
+				pr_err("Refusing to write fan level %u outside %u..%u at point %zu\n",
 				       fancurve->points[i].speed1,
+				       model->wmi_fancurve_min_level,
 				       model->wmi_fancurve_max_level, i);
 				return -ERANGE;
 			}

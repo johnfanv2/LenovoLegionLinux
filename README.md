@@ -124,7 +124,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
 - Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
 - Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
-- Lenovo Legion Pro 7 16IAX10H (83F5) (BIOS Q7CN78WW), Gen 10: sensors, power profile, fan curve via WMI (fan levels 0..10, applied by the EC only in custom mode on AC), no keyboard/light control; see [Q7CN notes](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
+- Lenovo Legion Pro 7 16IAX10H (83F5) (BIOS Q7CN78WW), Gen 10: sensors, power profile, fan curve via WMI (fan levels 1..10, applied by the EC only in custom mode on AC), no keyboard/light control; see [Q7CN notes](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
 
 Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
 
@@ -955,7 +955,7 @@ A graphical GNOME applet uses `power-profiles-daemon` to change the power mode u
 
 For KDE, there is the graphical tool `powerdevil`, which also uses `power-profiles-daemon` internally.
 
-If KDE only shows `balanced` and `performance` in `/sys/firmware/acpi/platform_profile_choices` but the Legion device (for example `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`) includes `quiet`, check whether `lenovo_wmi_gamezone` is also loaded. If both providers are active, the global profile choices are the intersection of both providers and quiet mode might disappear. On kernels >= 6.18 that ship the in-tree `lenovo_wmi_gamezone` driver, prefer keeping it as the platform-profile provider and load `legion_laptop` with `enable_platformprofile=0` (for example `options legion_laptop enable_platformprofile=0` in `/etc/modprobe.d/legion_laptop.conf`) so only one provider registers. Unloading or blacklisting `lenovo_wmi_gamezone` to keep `legion_laptop` as the single provider is only for older setups.
+If KDE only shows `balanced` and `performance` in `/sys/firmware/acpi/platform_profile_choices` but the Legion device (for example `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`) includes `quiet`, check whether `lenovo_wmi_gamezone` is also loaded. If both providers are active, the global profile choices are the intersection of both providers and quiet mode might disappear. On kernels >= 6.17 that ship the in-tree `lenovo_wmi_gamezone` driver, prefer keeping it as the platform-profile provider and load `legion_laptop` with `enable_platformprofile=0` (for example `options legion_laptop enable_platformprofile=0` in `/etc/modprobe.d/legion_laptop.conf`) so only one provider registers. Unloading or blacklisting `lenovo_wmi_gamezone` to keep `legion_laptop` as the single provider is only for older setups.
 
 ### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
 

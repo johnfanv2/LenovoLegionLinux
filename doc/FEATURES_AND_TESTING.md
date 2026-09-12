@@ -25,14 +25,19 @@ BIOS Q7CN78WW, EC firmware 1.78, Intel Arrow Lake-HX + RTX 50. DMI entry
   limit and OC attributes are hidden (`skip_oc_controls`) - use the
   in-tree `lenovo_wmi_other` firmware-attributes for PL1/PL2/tau/cTGP.
   No EC RAM is written; the EC-internal `0xC4xx` offsets are only inferred.
-- The fan table is a list of fan **levels 0..10** (one per temperature
-  step), not percent or RPM. The EC applies it only in custom mode
-  (`powermode` 0xFF) while on AC; on battery the firmware parks the
-  custom-mode request (`powermode` still reads back 0xFF while the EC
-  stays in balanced). Until the fan-level unit
-  change is merged, `pwm1_auto_point*_pwm` is scaled as percent, so only
-  write small values (a value of 100 landing in a 0..10 level byte
-  matches the thermal shutdowns reported on Q7CN).
+- The fan table is a list of ten fan **levels 1..10** (one per EC
+  temperature step), not percent or RPM: the firmware's
+  `LENOVO_FAN_TABLE_DATA` maps level 1..10 to 1600..5200 RPM (fan 1),
+  1700..5400 (fan 2) and 2300..6500 (fan 4); one table is shared by all
+  fans and the temperature axis is fixed by the EC. `model_q7cn` sets
+  `wmi_fancurve_max_level = 10` / `wmi_fancurve_min_level = 1`, so
+  `pwm1_auto_point*_pwm` 0..255 maps to level 1..10 (see "Fan tables
+  holding fan levels" below); level 0 is not documented by the firmware.
+  The EC applies the table only in custom mode (`powermode` 0xFF) while
+  on AC; on battery the firmware parks the custom-mode request
+  (`powermode` still reads back 0xFF while the EC stays in balanced).
+  Writing the table as percent (older driver builds, a value of 100 in a
+  1..10 level byte) matches the thermal shutdowns reported on Q7CN.
 - Only `pwm1_auto_point*_pwm` is exposed for the fan curve
   (`wmi_fancurve_speed_only`); `minifancurve` and `lockfancontroller` are
   hidden because the EC does not declare those bytes.
@@ -44,7 +49,7 @@ BIOS Q7CN78WW, EC firmware 1.78, Intel Arrow Lake-HX + RTX 50. DMI entry
   also clears conservation mode in firmware.
 
 Recommended setup on kernels with the in-tree `lenovo-wmi-*` drivers
-(>= 6.18), which already own the GameZone GUID and platform profile:
+(>= 6.17), which already own the GameZone GUID and platform profile:
 
 ```
 # /etc/modprobe.d/legion_laptop.conf
@@ -349,7 +354,7 @@ Models whose table works like this set `.wmi_fancurve_max_level` in their
 `model_config` (0 keeps the legacy percent behaviour). The driver then
 reads and writes the table with unit `FAN_SPEED_UNIT_LEVEL` (`5` in the
 `u(speed_of_unit)` column of `/sys/kernel/debug/legion/fancurve`, which
-also prints `Fan curve max level`) and converts the standard hwmon
+also prints `Fan curve level range`) and converts the standard hwmon
 `pwm1_auto_pointN_pwm` range `0..255` to levels:
 
 - write: `level = round(pwm * max_level / 255)`, clamped to `0..max_level`
@@ -371,7 +376,7 @@ Test on real hardware:
 
 ```bash
 sudo cat /sys/kernel/debug/legion/fancurve
-# expect: "Fan curve speed unit: 5", "Fan curve max level: 10" and speed1[u] in 0..10
+# expect: "Fan curve speed unit: 5", "Fan curve level range: 1..10" and speed1[u] in 1..10
 echo 26 | sudo tee /sys/class/hwmon/hwmonX/pwm1_auto_point1_pwm   # -> level 1
 cat /sys/class/hwmon/hwmonX/pwm1_auto_point1_pwm                    # 26
 sudo dmesg | grep -i "fan level"                                    # no "Refusing" lines
