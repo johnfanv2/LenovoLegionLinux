@@ -37,6 +37,8 @@ on Linux through this driver's hwmon interface: entering custom mode seeds an em
 2100 RPM (the EC ramps at roughly 100 RPM/s). The DSDT's Fan_Set_Table handler copies the ten bytes
 to EC RAM F9F0..F9F9 (`ecmemoryram` offset 0x1F0) and ignores the FSTM/FSID/FSTL header, so the
 `Fan_Get_Table` readback and that block are the same bytes.
+The Python tools (`legion_cli`, `legion_gui`, `legiond` presets) map RPM to the nearest level through
+`LEVEL_FAN_TABLES` in `legion.py` (keyed by BIOS prefix) and clamp to the per-point minimum.
 On the Legion Pro 7 16IRX8H with the same BIOS the EC resets the table to 1..10 when
 mode 0xE0 is entered and ignores later writes (issue #429); use mode 255 and check
 `/sys/kernel/debug/legion/ecmemory` offset 0x1F0..0x1F9 after a write.
