@@ -821,6 +821,13 @@ LEVEL_FAN_TABLES = {
         [1700, 1900, 2100, 2300, 2500, 2900, 3400, 3700, 4400, 5400],
         [1700, 1900, 2100, 2200, 2700, 2900, 3500, 3700, 4600, 5400],
     ),
+    # Legion Pro 7 16IAX10H (83F5, BIOS Q7CN78WW), decoded from the DSDT's
+    # LENOVO_FAN_TABLE_DATA (WQA3, GSKU 2); the third fan (id 4) runs
+    # 2300..6500 RPM from the same level.
+    "Q7CN": (
+        [1600, 1800, 1900, 2200, 2400, 2800, 3300, 3700, 4400, 5200],
+        [1700, 1800, 1900, 2100, 2400, 2700, 3400, 3800, 4500, 5400],
+    ),
 }
 # Lowest level the firmware accepts per curve point (the kernel module rejects
 # anything below with EOPNOTSUPP).
