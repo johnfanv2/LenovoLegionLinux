@@ -10,6 +10,61 @@ and the notice explains that custom fan curves are unsupported. Check that
 Run `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -p
 'test_gui_startup.py'` for the startup regression tests.
 
+## Legion Pro 7 16IAX10H (83F5, Q7CN)
+
+BIOS Q7CN78WW, EC firmware 1.78, Intel Arrow Lake-HX + RTX 50. DMI entry
+`Q7CN` is qualified on product name `83F5`; config `model_q7cn` in
+`kernel_module/legion-laptop.c` (the header comment cites the DSDT lines).
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6. The CPU Method GUID is an empty
+  stub, so the remaining limit attributes (`cpu_temperature_limit`,
+  `cpu_l1_tau`, `gpu_power_target_offset`) go through `WMAE` clamped to
+  the capability data (`ACCESS_METHOD_WMI3_CLAMPED`); the CPU/GPU power
+  limit and OC attributes are hidden (`skip_oc_controls`) - use the
+  in-tree `lenovo_wmi_other` firmware-attributes for PL1/PL2/tau/cTGP.
+  No EC RAM is written; the EC-internal `0xC4xx` offsets are only inferred.
+- The fan table is a list of ten fan **levels 1..10** (one per EC
+  temperature step), not percent or RPM: the firmware's
+  `LENOVO_FAN_TABLE_DATA` maps level 1..10 to 1600..5200 RPM (fan 1),
+  1700..5400 (fan 2) and 2300..6500 (fan 4); one table is shared by all
+  fans and the temperature axis is fixed by the EC. `model_q7cn` sets
+  `wmi_fancurve_max_level = 10` / `wmi_fancurve_min_level = 1`, so
+  `pwm1_auto_point*_pwm` 0..255 maps to level 1..10 (see "Fan tables
+  holding fan levels" below); level 0 is not documented by the firmware.
+  The EC applies the table only in custom mode (`powermode` 0xFF) while
+  on AC; on battery the firmware parks the custom-mode request
+  (`powermode` still reads back 0xFF while the EC stays in balanced).
+  Writing the table as percent (older driver builds, a value of 100 in a
+  1..10 level byte) matches the thermal shutdowns reported on Q7CN.
+- Only `pwm1_auto_point*_pwm` is exposed for the fan curve
+  (`wmi_fancurve_speed_only`); `minifancurve` and `lockfancontroller` are
+  hidden because the EC does not declare those bytes.
+- Keyboard is a USB-HID ITE "Spectrum" (048d:c197); the WMI light methods
+  do not drive it, so there is no keyboard, Y-logo or IO-port light
+  control.
+- Rapid charge and battery conservation are exposed through
+  `VPC0.GBMD`/`VPC0.SBMC` (present in the DSDT); enabling rapid charge
+  also clears conservation mode in firmware.
+
+Recommended setup on kernels with the in-tree `lenovo-wmi-*` drivers
+(>= 6.17), which already own the GameZone GUID and platform profile:
+
+```
+# /etc/modprobe.d/legion_laptop.conf
+options legion_laptop ec_readonly=1 enable_platformprofile=0
+softdep legion_laptop pre: lenovo_wmi_gamezone lenovo_wmi_other ideapad_laptop
+```
+
+On clang-built kernels (for example CachyOS, `CONFIG_CC_IS_CLANG=y`) build
+the module with `make LLVM=1`; a bare `make` fails on clang-only flags.
+
+Verify: `sudo dmesg | grep -i legion` (no "not in allowlist"), `sensors`
+shows `legion_hwmon` temps and fan RPM, `cat /sys/kernel/debug/legion/fancurve`
+dumps the WMI fan table, and `/sys/firmware/acpi/platform_profile` keeps
+its `lenovo_wmi_gamezone` choices.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
@@ -283,6 +338,48 @@ cat /proc/acpi/call; printf '\n'
 # set to full speed
 echo '\_SB.GZFD.WMB2 0 0x2 1' > /proc/acpi/call
 cat /proc/acpi/call; printf '\n'
+```
+
+#### Fan tables holding fan levels (FAN_SPEED_UNIT_LEVEL)
+
+On Gen-10+ firmware (e.g. Legion Pro 7 16IAX10H, BIOS Q7CN) the
+`Fan_Set_Table`/`Fan_Get_Table` WMI methods do not carry a percentage or
+RPM per point. Each byte is a discrete **fan level** `0..max_level` that
+the EC maps onto its own duty-cycle ladder (the firmware placeholder table
+is `1, 2, ..., 10`; `Fan_Set_Table` copies the bytes to EC RAM without a
+range check). Writing a percentage such as `100` into such a byte selects
+a non-existent level and has been reported to end in thermal shutdown.
+
+Models whose table works like this set `.wmi_fancurve_max_level` in their
+`model_config` (0 keeps the legacy percent behaviour). The driver then
+reads and writes the table with unit `FAN_SPEED_UNIT_LEVEL` (`5` in the
+`u(speed_of_unit)` column of `/sys/kernel/debug/legion/fancurve`, which
+also prints `Fan curve level range`) and converts the standard hwmon
+`pwm1_auto_pointN_pwm` range `0..255` to levels:
+
+- write: `level = round(pwm * max_level / 255)`, clamped to `0..max_level`
+- read: `pwm = round(level * 255 / max_level)`, clamped to `255`
+
+On a 10-level firmware `pwm 26 ~= level 1`, `128 = level 5`, `255 = level
+10`; every level round-trips exactly. Any level above `max_level` is
+refused with `-ERANGE` before the WMI method is evaluated. If the firmware
+table already holds an out-of-range value (for example written by an
+older driver) it is clamped to `max_level` when read and a warning is
+logged, so the next write of any point replaces it with the highest valid
+level. Such tables store only speeds, so these models are usually also
+flagged `wmi_fancurve_speed_only`; on speed-only models
+`fancurve_defaults_powermode` (writes the firmware ladder `1..10`) is
+still exposed when `has_fancurve_defaults` is set, so a bad table can be
+reset from Linux.
+
+Test on real hardware:
+
+```bash
+sudo cat /sys/kernel/debug/legion/fancurve
+# expect: "Fan curve speed unit: 5", "Fan curve level range: 1..10" and speed1[u] in 1..10
+echo 26 | sudo tee /sys/class/hwmon/hwmonX/pwm1_auto_point1_pwm   # -> level 1
+cat /sys/class/hwmon/hwmonX/pwm1_auto_point1_pwm                    # 26
+sudo dmesg | grep -i "fan level"                                    # no "Refusing" lines
 ```
 
 ## ACPI

@@ -134,6 +134,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 - 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
 - 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
+- 联想拯救者 Pro 7 16IAX10H (83F5)（BIOS Q7CN78WW），第十代：传感器、电源配置、通过 WMI 设置风扇曲线（风扇档位 1..10，仅在接通电源的自定义模式下由 EC 应用）、无键盘/灯光控制；详见 [Q7CN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
 
@@ -384,7 +385,7 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 风扇曲线以表格形式展示，列说明如下：
 
 ```text
-u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM）
+u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM, 5-风扇档位 0..max_level，参见 doc/FEATURES_AND_TESTING.md）
 speed1[u]: fan1 在该点的速度（rpm 除以 100）
 speed2[u]: fan2 在该点的速度（rpm 除以 100）
 speed1[pwm]: fan1 在该点的 pwm（0-255）
@@ -981,7 +982,7 @@ GNOME 的图形小程序会用 `power-profiles-daemon` 以软件方式切换电�
 
 对于 KDE，有图形工具 `powerdevil`，其内部同样利用 `power-profiles-daemon`。
 
-如果 KDE 在 `/sys/firmware/acpi/platform_profile_choices` 中只显示 `balanced` 和 `performance`，但 Legion 设备（例如 `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`）包含 `quiet`，请检查是否同时加载了 `lenovo_wmi_gamezone`。如果两个驱动同时处于活动状态，全局可选模式会取两者的交集，quiet 模式可能会消失。此时可卸载或拉黑（blacklist）`lenovo_wmi_gamezone`，让 `legion_laptop` 成为唯一的电源模式提供者。
+如果 KDE 在 `/sys/firmware/acpi/platform_profile_choices` 中只显示 `balanced` 和 `performance`，但 Legion 设备（例如 `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`）包含 `quiet`，请检查是否同时加载了 `lenovo_wmi_gamezone`。如果两个驱动同时处于活动状态，全局可选模式会取两者的交集，quiet 模式可能会消失。在自带 `lenovo_wmi_gamezone` 内核驱动的内核（>= 6.17）上，建议保留它作为 platform-profile 提供者，并以 `enable_platformprofile=0` 加载 `legion_laptop`（例如在 `/etc/modprobe.d/legion_laptop.conf` 中写入 `options legion_laptop enable_platformprofile=0`），这样只会注册一个提供者。卸载或拉黑（blacklist）`lenovo_wmi_gamezone`、让 `legion_laptop` 成为唯一提供者的做法仅适用于旧环境。
 
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
