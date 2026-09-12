@@ -806,6 +806,66 @@ class LenovoLegionLaptopSupportService(SystemDServiceFeature):
         super().__init__("legiond.service legiond-onresume.service legiond-cpuset.service legiond-cpuset.timer")
 
 
+# Models whose WMI3 fan curve takes level indices 0-10 instead of percentages
+# (FAN_SPEED_UNIT_LEVEL in the kernel module, debugfs unit 5), keyed by the BIOS
+# version prefix the kernel module uses for its DMI allowlist. The values are the
+# nominal RPM per level from the firmware's LENOVO_FAN_TABLE_DATA (fan 1, fan 2).
+# The firmware drives both fans from one table, so fan 1's table selects the
+# level and fan 2's is only used to display the resulting speed.
+# The KWCN numbers were read from a Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW);
+# other machines matched by the same prefix (e.g. the Legion Pro 7 16IRX8H) use
+# them as well, which only affects which level an RPM preset rounds to and the
+# RPM shown for a level, never the validity of the level written.
+LEVEL_FAN_TABLES = {
+    "KWCN": (
+        [1700, 1900, 2100, 2300, 2500, 2900, 3400, 3700, 4400, 5400],
+        [1700, 1900, 2100, 2200, 2700, 2900, 3500, 3700, 4600, 5400],
+    ),
+}
+# Lowest level the firmware accepts per curve point (the kernel module rejects
+# anything below with EOPNOTSUPP).
+LEVEL_POINT_MIN = [1, 1, 1, 1, 1, 1, 1, 1, 3, 5]
+MAX_FAN_LEVEL = 10
+
+
+def read_bios_version_prefix():
+    """Returns the first four characters of the BIOS version (e.g. KWCN), or an empty string."""
+    try:
+        with open("/sys/class/dmi/id/bios_version", "r", encoding=DEFAULT_ENCODING) as filepointer:
+            return filepointer.read().strip()[:4]
+    except OSError:
+        return ""
+
+
+def fan_level_to_pwm(level):
+    """Hwmon pwm value the kernel module maps back to exactly this level."""
+    return round(level * 255 / MAX_FAN_LEVEL)
+
+
+def fan_pwm_to_level(pwm):
+    """Level the kernel module derives from a pwm value (DIV_ROUND_CLOSEST(pwm * 10, 255))."""
+    return (pwm * MAX_FAN_LEVEL + 127) // 255
+
+
+def fan_rpm_to_level(rpm, point_id, table):
+    """Nearest level for an RPM value, clamped to the point's minimum and MAX_FAN_LEVEL.
+
+    An RPM exactly between two levels resolves to the lower (quieter) one.
+    """
+    if rpm <= 0:
+        level = 0
+    else:
+        level = 1 + min(range(len(table)), key=lambda i: abs(table[i] - rpm))
+    return max(LEVEL_POINT_MIN[point_id - 1], min(MAX_FAN_LEVEL, level))
+
+
+def fan_level_to_rpm(level, table):
+    """Nominal RPM of a level (0 for level 0)."""
+    if 1 <= level <= len(table):
+        return table[level - 1]
+    return 0
+
+
 class FanCurveIO(Feature):
     hwmon_dir_pattern = os.path.join(LEGION_SYS_BASEPATH, "hwmon/hwmon*")
     pwm1_fan_speed = "pwm1_auto_point{}_pwm"
@@ -828,8 +888,13 @@ class FanCurveIO(Feature):
     def __init__(self, expect_hwmon=True):
         super().__init__()
         self.hwmon_path = self._find_hwmon_dir()
+        self.level_tables = LEVEL_FAN_TABLES.get(read_bios_version_prefix())
         if (not self.hwmon_path) and expect_hwmon:
             raise FileNotFoundError("hwmon dir not found")
+
+    def uses_fan_levels(self):
+        """True when the fan curve speeds are firmware level indices, not percentages."""
+        return self.level_tables is not None
 
     def exists(self):
         if self.hwmon_path is not None:
@@ -923,7 +988,17 @@ class FanCurveIO(Feature):
         file_path = self.hwmon_path + self.pwm2_fan_speed.format(point_id)
         self._write_file(file_path, value)
 
+    def _rpm_to_pwm_by_level(self, point_id, value, table):
+        point_id = self._validate_point_id(point_id)
+        level = fan_rpm_to_level(value, point_id, table)
+        nominal = fan_level_to_rpm(level, table)
+        if abs(nominal - value) >= 50:
+            log.info("Fan curve point %d: %s rpm becomes level %d (%d rpm)", point_id, value, level, nominal)
+        return fan_level_to_pwm(level)
+
     def set_fan_1_speed_rpm(self, point_id, value):
+        if self.level_tables is not None:
+            return self.set_fan_1_speed_pwm(point_id, self._rpm_to_pwm_by_level(point_id, value, self.level_tables[0]))
         max_rpm = self.get_fan_1_max_rpm()
         if max_rpm == 0:
             raise ValueError("fan1_max is 0, cannot convert rpm to pwm")
@@ -931,6 +1006,8 @@ class FanCurveIO(Feature):
         return self.set_fan_1_speed_pwm(point_id, pwm)
 
     def set_fan_2_speed_rpm(self, point_id, value):
+        if self.level_tables is not None:
+            return self.set_fan_2_speed_pwm(point_id, self._rpm_to_pwm_by_level(point_id, value, self.level_tables[1]))
         max_rpm = self.get_fan_2_max_rpm()
         if max_rpm == 0:
             raise ValueError("fan2_max is 0, cannot convert rpm to pwm")
@@ -989,10 +1066,17 @@ class FanCurveIO(Feature):
 
     def get_fan_1_speed_rpm(self, point_id):
         pwm = self.get_fan_1_speed_pwm(point_id)
+        if self.level_tables is not None:
+            return fan_level_to_rpm(fan_pwm_to_level(pwm), self.level_tables[0])
         return round(((pwm * self.get_fan_1_max_rpm() + (100 * 255) - 1) // (100 * 255)) * 100, ndigits=2)
 
     def get_fan_2_speed_rpm(self, point_id):
+        if self.level_tables is not None and not self.has_fan_2_speed():
+            # one level drives both fans; report fan 2's nominal speed for that level
+            return fan_level_to_rpm(fan_pwm_to_level(self.get_fan_1_speed_pwm(point_id)), self.level_tables[1])
         pwm = self.get_fan_2_speed_pwm(point_id)
+        if self.level_tables is not None:
+            return fan_level_to_rpm(fan_pwm_to_level(pwm), self.level_tables[1])
         return round(((pwm * self.get_fan_2_max_rpm() + (100 * 255) - 1) // (100 * 255)) * 100, ndigits=2)
 
     def get_lower_cpu_temperature(self, point_id):
@@ -1109,7 +1193,9 @@ class FanCurveIO(Feature):
         has_acceleration_curve = self.has_acceleration_curve()
         for point_id in range(1, 11):
             fan1_speed = self.get_fan_1_speed_rpm(point_id)
-            fan2_speed = self.get_fan_2_speed_rpm(point_id) if has_fan_2_speed else fan1_speed
+            fan2_speed = (
+                self.get_fan_2_speed_rpm(point_id) if (has_fan_2_speed or self.level_tables is not None) else fan1_speed
+            )
             if has_temperature_curve:
                 cpu_lower_temp = self.get_lower_cpu_temperature(point_id)
                 cpu_upper_temp = self.get_upper_cpu_temperature(point_id)
