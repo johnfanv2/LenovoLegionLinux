@@ -4594,14 +4594,19 @@ static void fantable_refresh(struct legion_private *priv)
 	priv->fantable_powermode = priv->current_powermode;
 }
 
+static void sync_powermode_locked(struct legion_private *priv);
+
 /*
  * Return the ladders for the current power mode, refreshing the cache
  * when the power mode changed since the last scan. -ENODATA when the
  * block is unavailable or holds no usable row (transient failures keep
- * the cache invalid so the next call rescans).
+ * the cache invalid so the next call rescans). Caller holds
+ * fancurve_mutex.
  */
 static int fantable_ensure(struct legion_private *priv)
 {
+	sync_powermode_locked(priv);
+
 	if ((priv->fantable_fan1_valid || priv->fantable_fan2_valid) &&
 	    priv->fantable_powermode == priv->current_powermode)
 		return 0;
@@ -5577,6 +5582,29 @@ static ssize_t read_powermode(struct legion_private *priv, int *powermode)
 			priv->conf->access_method_powermode);
 		return -EINVAL;
 	}
+}
+
+/*
+ * powermode_store() is the only mode write that also updates
+ * priv->current_powermode; the mode changes without it too:
+ * legion_platform_profile_set() writes it directly (platform_profile
+ * sysfs, power-profiles-daemon), the mainline lenovo-wmi-gamezone
+ * driver owns the platform profile when legion_laptop runs with
+ * enable_platformprofile=0, and Fn+Q goes through lenovo-wmi-events
+ * when both are loaded. So anything that selects per-mode firmware
+ * data (capability rows for clamping, the fan table ladders) refreshes
+ * the cache through this helper first. Caller holds fancurve_mutex, as
+ * does powermode_store() when it writes the cache. On a read error the
+ * cached value is kept. Consumers sync right before they use the value,
+ * so a read that lands in the firmware's settling window after a mode
+ * write only affects that one call.
+ */
+static void sync_powermode_locked(struct legion_private *priv)
+{
+	int powermode;
+
+	if (read_powermode(priv, &powermode) >= 0)
+		priv->current_powermode = powermode;
 }
 
 static ssize_t write_powermode(struct legion_private *priv,
@@ -6618,17 +6646,24 @@ static int clamped_value(struct legion_private *priv,
 	const struct capdata01 *cd = NULL;
 	const struct discrete_feature *df = NULL;
 	u32 fkey = (u32)feature >> 16;
+	int powermode;
 	int i, err;
 
 	err = kstrtoint(buf, 10, value);
 	if (err)
 		return err;
 
+	/* Snapshot: powermode_store() may update the cache once we unlock. */
+	mutex_lock(&priv->fancurve_mutex);
+	sync_powermode_locked(priv);
+	powermode = priv->current_powermode;
+	mutex_unlock(&priv->fancurve_mutex);
+
 	for (i = 0; i < priv->capdata_count; i++) {
 		const struct capdata01 *p = &priv->capdata[i];
 
 		if ((p->id >> 16) == fkey &&
-		    ((p->id >> 8) & 0xFF) == (u32)priv->current_powermode &&
+		    ((p->id >> 8) & 0xFF) == (u32)powermode &&
 		    (p->id & 0xFF) == 0 && (p->supported & BIT(0))) {
 			cd = p;
 			break;
@@ -7294,7 +7329,8 @@ static ssize_t powermode_show(struct device *dev, struct device_attribute *attr,
 	int power_mode;
 
 	mutex_lock(&priv->fancurve_mutex);
-	read_powermode(priv, &power_mode);
+	sync_powermode_locked(priv);
+	power_mode = priv->current_powermode;
 	mutex_unlock(&priv->fancurve_mutex);
 	return sysfs_emit(buf, "%d\n", power_mode);
 }
@@ -7319,11 +7355,11 @@ static ssize_t powermode_store(struct device *dev,
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = write_powermode(priv, powermode);
+	if (!err)
+		priv->current_powermode = powermode;
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EINVAL;
-
-	priv->current_powermode = powermode;
 
 	// TODO: better?
 	// we have to wait a bit before change is done in hardware and
