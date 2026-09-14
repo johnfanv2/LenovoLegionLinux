@@ -103,6 +103,47 @@ Verify: `sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
 `sensors` shows `legion_hwmon` temps and fan RPM, and
 `sudo cat /sys/kernel/debug/legion/fancurve` prints `u` = 5 with speed1 in 1..10.
 
+## Legion Pro 5 16ADR10 (83LT, RLCN)
+
+BIOS RLCN31WW, EC 0x5508, AMD + RTX 50 (Legion Pro 5 16ADR10; the R9000P
+2025 83LV shares the RLCN BIOS line but is a different chassis and needs
+its own validation). DMI entry `RLCN` is qualified on product name `83LT`;
+config `model_rlcn` in `kernel_module/legion-laptop.c` (the header comment
+cites the DSDT lines from issue #445).
+
+Same firmware layout as the Q7CN (83F5) above, on the AMD chassis:
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (read the table in another mode). `LENOVO_FAN_TABLE_DATA`
+  (WQA3) maps level 1..10 to 1700..5100 RPM on fan 1, so
+  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+- The keyboard backlight and the Y-logo light are driven by the
+  KBBACKLIGHT WMI methods (`WMAF`); the IO-port light ID is
+  unimplemented on this firmware and the attribute is skipped
+  automatically.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode; on this unit a
+  full-speed write through the wrong WMI method (old fallback config)
+  wedged the fans at ~18000 RPM until reboot, so validate with care and
+  be ready to reboot.
+- Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
+  `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
+  are visible, as on Q7CN. Rapid charge uses `VPC0.GBMD`/`SBMC`.
+- `minifancurve` and `lockfancontroller` are hidden (undeclared EC
+  bytes on the 0x5508 generation); the EC RAM window (`ERAX @0xFEEC2400`,
+  len 0xFF) is only used for the read-only `ecmemoryram` debugfs dump.
+
+Validation status: config derived from the DSDT analysis in issue #445;
+runtime validation on the reporter's unit is in progress - check the
+issue for the results, and verify locally with
+`sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
+`sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
+speed1 in 1..10).
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
