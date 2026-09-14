@@ -3711,6 +3711,13 @@ struct light {
 // Implemented like ideapad-laptop.c but currently still
 // without dynamic memory allocation (instead global _priv)
 /*
+ * Rows of the LENOVO_FAN_TABLE_DATA WMI data block carry the firmware's
+ * per-level RPM table; known models top out at 10 levels, leave
+ * headroom for the row-size checks.
+ */
+#define FANTABLE_MAX_LEVELS 16
+
+/*
  * Per-fan RPM ladder for one power mode, derived from a matching row of
  * the LENOVO_FAN_TABLE_DATA WMI data block (see the fantable section
  * below for the row layout and refresh logic).
@@ -4305,8 +4312,6 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
  */
 #define WMI_GUID_LENOVO_FANTABLE_DATA "87FB2A6D-D802-48E7-9208-4576C5F5C8D8"
 
-/* Known models top out at 10 levels; leave headroom for the checks. */
-#define FANTABLE_MAX_LEVELS 16
 /* Rows to scan: power modes x fans (15 on current models). */
 #define FANTABLE_MAX_ROWS 32
 
