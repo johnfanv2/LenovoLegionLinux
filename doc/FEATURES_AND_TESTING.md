@@ -50,7 +50,11 @@ cat $D/fan1_level_rpm_table   # e.g. 1700 1900 2100 2300 2500 2900 3400 3700 440
 
 The same table row also carries the fan's real maximum (`current_fan_max_speed`),
 which the driver reports through hwmon `fan1_max`/`fan2_max` on these models instead
-of a per-model hardcoded value.
+of a per-model hardcoded value. `fan_maxspeed` (Fan Method ids 3/4) is hidden on
+`model_kwcn`, `model_q7cn` and `model_rlcn` (`skip_fan_maxspeed`): their `WMAB` implements
+only ids 5/6, so the attribute cannot work (on KWCN the read returned a meaningless 0 and a
+write was a no-op; Q7CN/RLCN follow from their DSDTs); `fan_control.sh` skips the attribute
+when it is absent.
 On the Legion Pro 7 16IRX8H with the same BIOS the EC resets the table to 1..10 when
 mode 0xE0 is entered and ignores later writes (issue #429); use mode 255 and check
 `/sys/kernel/debug/legion/ecmemory` offset 0x1F0..0x1F9 after a write.
