@@ -2255,14 +2255,10 @@ static int eval_int(struct acpi_device *adev, const char *name,
 	unsigned long long result;
 	acpi_status status;
 	acpi_handle handle;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
-	status = acpi_get_handle(NULL, (char *)name, &handle);
-	if (ACPI_FAILURE(status))
-		return -EIO;
-#else
+
 	if (!adev) {
-		/* No ACPI companion device: resolve the full-qualified name
-		 * from the ACPI root, same as on kernel 7.0+.
+		/* No ACPI device to evaluate relative to: resolve the
+		 * fully-qualified name from the ACPI root.
 		 */
 		status = acpi_get_handle(NULL, (char *)name, &handle);
 		if (ACPI_FAILURE(status))
@@ -2270,7 +2266,6 @@ static int eval_int(struct acpi_device *adev, const char *name,
 	} else {
 		handle = adev->handle;
 	}
-#endif
 	status = acpi_evaluate_integer(handle, (char *)name, NULL, &result);
 	if (ACPI_FAILURE(status))
 		return -EIO;
@@ -2286,14 +2281,10 @@ static int exec_simple_method(struct acpi_device *adev, const char *name,
 {
 	acpi_handle handle;
 	acpi_status status;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
-	status = acpi_get_handle(NULL, (char *)name, &handle);
-	if (ACPI_FAILURE(status))
-		return -EIO;
-#else
+
 	if (!adev) {
-		/* No ACPI companion device: resolve the full-qualified name
-		 * from the ACPI root, same as on kernel 7.0+.
+		/* No ACPI device to evaluate relative to: resolve the
+		 * fully-qualified name from the ACPI root.
 		 */
 		status = acpi_get_handle(NULL, (char *)name, &handle);
 		if (ACPI_FAILURE(status))
@@ -2301,7 +2292,6 @@ static int exec_simple_method(struct acpi_device *adev, const char *name,
 	} else {
 		handle = adev->handle;
 	}
-#endif
 	status = acpi_execute_simple_method(handle, (char *)name, arg);
 
 	return ACPI_FAILURE(status) ? -EIO : 0;
@@ -8308,7 +8298,35 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 	struct device *dev = &priv->platform_device->dev;
 	const char *acpi_path;
 
+	/*
+	 * Ownership of priv->adev differs by kernel: before 7.0 it is the
+	 * caller's ACPI companion reference (borrowed, never put here);
+	 * on 7.0+ the virtual platform device has no companion, so the
+	 * EC device looked up below is owned by the driver and put in
+	 * acpi_exit(). acpi_dev_put() is only called on the owned case.
+	 */
 	priv->adev = adev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	/*
+	 * The virtual platform device has no ACPI companion. The default
+	 * ACPI paths are names relative to the embedded controller device
+	 * (_STA, _CFG, VPC0.GBMD, ...), which is where the driver bound
+	 * before kernel 7.0, so look that device up by its HID and keep
+	 * evaluating relative to it. The reference is dropped in
+	 * acpi_exit().
+	 *
+	 * Note: this only returns the first PNP0C09 device; Legion
+	 * platforms declare a single embedded controller, but if a DSDT
+	 * ever declared more than one, the first match might not be the
+	 * right one -- absolute per-model paths are the fallback then.
+	 */
+	if (!priv->adev) {
+		priv->adev = acpi_dev_get_first_match_dev("PNP0C09", NULL, -1);
+		if (priv->adev)
+			dev_info(dev, "Using ACPI device %s for EC methods\n",
+				 dev_name(&priv->adev->dev));
+	}
+#endif
 	if (!priv->adev)
 		dev_info(dev, "No ACPI handle, will use FQN paths\n");
 	skip_acpi_sta_check = force || (!priv->conf->acpi_check_dev);
@@ -8316,17 +8334,24 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_STA);
 		err = eval_int(priv->adev, acpi_path, &cfg);
 		if (err) {
-			dev_info(dev, "Could not evaluate ACPI _STA\n");
+			dev_info(dev, "Could not evaluate ACPI %s: %d\n",
+				 acpi_path, err);
 			goto err_acpi_init;
 		}
 
+		/*
+		 * _CFG is only reported (here and in debugfs), never used to
+		 * gate a feature, and not every Lenovo DSDT defines it on the
+		 * embedded controller device, so its absence must not stop
+		 * the probe; _STA above is the presence check.
+		 */
 		acpi_path = get_model_acpi_path(_model, ACPI_PATH_CFG);
 		err = eval_int(priv->adev, acpi_path, &cfg);
-		if (err) {
-			dev_info(dev, "Could not evaluate ACPI _CFG\n");
-			goto err_acpi_init;
-		}
-		dev_info(dev, "ACPI CFG: %lu\n", cfg);
+		if (err)
+			dev_info(dev, "Could not evaluate ACPI %s: %d\n",
+				 acpi_path, err);
+		else
+			dev_info(dev, "ACPI CFG: %lu\n", cfg);
 	} else {
 		dev_info(dev, "Skipping ACPI _STA check");
 	}
@@ -8335,6 +8360,15 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 
 err_acpi_init:
 	return err;
+}
+
+static void acpi_exit(struct legion_private *priv)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	/* Reference taken in acpi_init(); acpi_dev_put() accepts NULL. */
+	acpi_dev_put(priv->adev);
+#endif
+	priv->adev = NULL;
 }
 
 /* =============================  */
@@ -8915,6 +8949,7 @@ err_ecram_init:
 	ecram_memoryio_exit(&priv->ec_memoryio);
 err_ecram_memoryio_init:
 err_acpi_init:
+	acpi_exit(priv);
 	legion_shared_exit(priv);
 err_legion_shared_init:
 err_model_mismtach:
@@ -8947,6 +8982,7 @@ static void legion_remove(struct platform_device *pdev)
 	legion_debugfs_exit(priv);
 	ecram_exit(&priv->ecram);
 	ecram_memoryio_exit(&priv->ec_memoryio);
+	acpi_exit(priv);
 	legion_shared_exit(priv);
 
 	pr_info("Legion platform unloaded\n");
