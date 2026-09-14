@@ -681,7 +681,11 @@ static const struct model_config model_bvcn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_WMI,
 	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	/* BVCN firmware has no FAN_METHOD WMI data block
+	 * (GUID 92549549-4bde-4f06-ac04-ce8bf898dbaa), so fan_fullspeed
+	 * has no backend here and only errors with ENODEV (issue #94)
+	 */
+	.access_method_fanfullspeed = ACCESS_METHOD_NO_ACCESS,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFC7E0800,
 	.ramio_size = 0x600
