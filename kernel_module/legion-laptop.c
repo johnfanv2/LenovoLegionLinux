@@ -746,6 +746,9 @@ static const struct model_config model_kwcn = {
 				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
 	/* WMAA(0, 0x0D, 0x01) raises the firmware fan ceiling from ~4400 RPM to
 	 * ~7000-7100 RPM on KWCN54WW (Legion Pro 7 16IRX8H, EC 0x5507).
+	 * Shared with the Pro 5 16IRX8 (82WK): validated only on the 16IRX8H
+	 * sibling; on the 82WK fan_unlock was not exercised, and the level
+	 * table caps the fans at 5400 RPM regardless.
 	 */
 	.has_fan_unlock = true
 };
@@ -6413,16 +6416,19 @@ static ssize_t cpu_peak_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
+	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
+	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_CPU_PEAK_POWER_LIMIT);
-
-	return show_simple_wmi_attribute(dev, attr, buf,
-					 WMI_GUID_LENOVO_GPU_METHOD, 0,
-					 WMI_METHOD_ID_CPU_GET_PEAK_POWERLIMIT,
-					 false, 1);
+	default:
+		return show_simple_wmi_attribute(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_GET_PEAK_POWERLIMIT, false, 1);
+	}
 }
 
 static ssize_t cpu_peak_powerlimit_store(struct device *dev,
@@ -6430,6 +6436,11 @@ static ssize_t cpu_peak_powerlimit_store(struct device *dev,
 					 const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_clamped_store(
+			priv, buf, count,
+			OtherMethodFeature_CPU_PEAK_POWER_LIMIT);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
@@ -6450,13 +6461,16 @@ static ssize_t cpu_apu_sppt_powerlimit_show(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+	switch (priv->conf->access_method_powerlimits) {
+	case ACCESS_METHOD_WMI3_CLAMPED:
+	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_APU_PPT_POWER_LIMIT);
-
-	return show_simple_wmi_attribute(
-		dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
-		WMI_METHOD_ID_CPU_GET_APU_SPPT_POWERLIMIT, false, 1);
+	default:
+		return show_simple_wmi_attribute(
+			dev, attr, buf, WMI_GUID_LENOVO_GPU_METHOD, 0,
+			WMI_METHOD_ID_CPU_GET_APU_SPPT_POWERLIMIT, false, 1);
+	}
 }
 
 static ssize_t cpu_apu_sppt_powerlimit_store(struct device *dev,
@@ -6464,6 +6478,11 @@ static ssize_t cpu_apu_sppt_powerlimit_store(struct device *dev,
 					     const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
+		return wmi_clamped_store(
+			priv, buf, count,
+			OtherMethodFeature_APU_PPT_POWER_LIMIT);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
