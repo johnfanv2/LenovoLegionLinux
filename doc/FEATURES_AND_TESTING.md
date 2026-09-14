@@ -37,8 +37,16 @@ on Linux through this driver's hwmon interface: entering custom mode seeds an em
 2100 RPM (the EC ramps at roughly 100 RPM/s). The DSDT's Fan_Set_Table handler copies the ten bytes
 to EC RAM F9F0..F9F9 (`ecmemoryram` offset 0x1F0) and ignores the FSTM/FSID/FSTL header, so the
 `Fan_Get_Table` readback and that block are the same bytes.
-The Python tools (`legion_cli`, `legion_gui`, `legiond` presets) map RPM to the nearest level through
-`LEVEL_FAN_TABLES` in `legion.py` (keyed by BIOS prefix) and clamp to the per-point minimum.
+The Python tools (`legion_cli`, `legion_gui`, `legiond` presets) map RPM to the nearest
+level and clamp to the per-point minimum; the per-level RPM ladders they use are not
+hardcoded but read at runtime from `fan1_level_rpm_table`/`fan2_level_rpm_table` on
+the platform device, which the driver fills from the firmware's
+`LENOVO_FAN_TABLE_DATA` WMI data block for the current power mode:
+
+```bash
+D=/sys/bus/platform/drivers/legion/legion
+cat $D/fan1_level_rpm_table   # e.g. 1700 1900 2100 2300 2500 2900 3400 3700 4400 5400
+```
 On the Legion Pro 7 16IRX8H with the same BIOS the EC resets the table to 1..10 when
 mode 0xE0 is entered and ignores later writes (issue #429); use mode 255 and check
 `/sys/kernel/debug/legion/ecmemory` offset 0x1F0..0x1F9 after a write.
@@ -60,8 +68,9 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware
   maps level 1..10 to 1600..5200 RPM (fan 1), 1700..5400 (fan 2) and
-  2300..6500 (fan 4); `LEVEL_FAN_TABLES["Q7CN"]` in `legion.py` carries the
-  first two so RPM presets round to the right level. The EC applies the table
+  2300..6500 (fan 4); the first two are what the driver's
+  `fan1_level_rpm_table`/`fan2_level_rpm_table` attributes expose for the
+  Python tools, so RPM presets round to the right level. The EC applies the table
   only in custom mode (`powermode` 0xFF) on AC; on battery the firmware parks
   the custom-mode request while `powermode` still reads back 0xFF.
   `Fan_Get_Table` returns a static 1..10 placeholder in extreme mode, so read

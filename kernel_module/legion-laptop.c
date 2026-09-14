@@ -278,6 +278,14 @@ struct model_config {
 	const char *acpi_paths[ACPI_PATH_MAX];
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
+	/*
+	 * The firmware publishes the per-level RPM table of the fans in the
+	 * LENOVO_FAN_TABLE_DATA WMI data block (level-index fan tables, see
+	 * FAN_SPEED_UNIT_LEVEL). Enable only on models where that block was
+	 * validated; the per-fan ladders are exposed as
+	 * fan1_level_rpm_table/fan2_level_rpm_table.
+	 */
+	bool has_fantable_data;
 	bool require_unlocked_fan_controller;
 	bool has_pl_coupling;
 	/* Lift the firmware-imposed fan ceiling via WMAA(0, 0x0D, arg) on the
@@ -740,6 +748,12 @@ static const struct model_config model_kwcn = {
 	 */
 	.wmi_fancurve_speed_only = true,
 	.fan_max_rpm = 5400,
+	/*
+	 * LENOVO_FAN_TABLE_DATA carries one RPM ladder per fan (fan 1 /
+	 * sensor 0x04 and fan 2 / sensor 0x05), identical in every power
+	 * mode; exposes fan1_level_rpm_table/fan2_level_rpm_table.
+	 */
+	.has_fantable_data = true,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
@@ -1774,6 +1788,12 @@ static const struct model_config model_q7cn = {
 				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
 	.has_fancurve_defaults = false,
 	.wmi_fancurve_speed_only = true,
+	/*
+	 * LENOVO_FAN_TABLE_DATA carries one RPM ladder per fan (fan 1 /
+	 * sensor 0x04, fan 2 / sensor 0x05 and fan 4 / sensor 0x05; fan 4
+	 * is not surfaced yet), identical in every power mode.
+	 */
+	.has_fantable_data = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -3690,6 +3710,23 @@ struct light {
 /* =============================  */
 // Implemented like ideapad-laptop.c but currently still
 // without dynamic memory allocation (instead global _priv)
+/*
+ * Rows of the LENOVO_FAN_TABLE_DATA WMI data block carry the firmware's
+ * per-level RPM table; known models top out at 10 levels, leave
+ * headroom for the row-size checks.
+ */
+#define FANTABLE_MAX_LEVELS 16
+
+/*
+ * Per-fan RPM ladder for one power mode, derived from a matching row of
+ * the LENOVO_FAN_TABLE_DATA WMI data block (see the fantable section
+ * below for the row layout and refresh logic).
+ */
+struct fantable_ladder {
+	u16 rpms[FANTABLE_MAX_LEVELS];
+	u8 level_count;
+};
+
 struct legion_private {
 	struct platform_device *platform_device;
 	// TODO: remove or keep? init?
@@ -3739,6 +3776,13 @@ struct legion_private {
 
 	struct discrete_feature discrete_features[MAX_DISCRETE_FEATURES];
 	int discrete_feature_count;
+
+	/* LENOVO_FAN_TABLE_DATA cache (models with has_fantable_data) */
+	struct fantable_ladder fantable_fan1;
+	struct fantable_ladder fantable_fan2;
+	bool fantable_fan1_valid;
+	bool fantable_fan2_valid;
+	int fantable_powermode;
 };
 
 // keep state of fancurve defaults powermode
@@ -4249,6 +4293,238 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	}
 
 	return 0;
+}
+
+/* ================================ */
+/* WMI fan table data (per-level    */
+/* fan RPM ladders)                 */
+/* ================================ */
+
+/*
+ * LENOVO_FAN_TABLE_DATA (WMI data block GUID; the ACPI query method is
+ * \_SB_.GZFD.WQA3/WQA7/... depending on the DSDT) publishes the
+ * firmware's per-level RPM table: one row per power mode, fan and
+ * sensor. Row layout as in PR #509 (struct WMIFanTableDefaultData,
+ * validated on LZCN) and in the fields Lenovo Legion Toolkit reads via
+ * WQL; the two variable-size arrays are validated against the returned
+ * buffer length so models with more or fewer levels do not parse
+ * garbage.
+ */
+#define WMI_GUID_LENOVO_FANTABLE_DATA "87FB2A6D-D802-48E7-9208-4576C5F5C8D8"
+
+/* Rows to scan: power modes x fans (15 on current models). */
+#define FANTABLE_MAX_ROWS 32
+
+#define FANTABLE_SENSOR_IC 0x01
+#define FANTABLE_SENSOR_CPU 0x04
+#define FANTABLE_SENSOR_GPU 0x05
+
+/* Row size up to the variable arrays, between them, and the tail. */
+#define FANTABLE_ROW_HEADER_SIZE (2 + 2 + 4)
+#define FANTABLE_ROW_MIDDLE_SIZE (4 + 4)
+#define FANTABLE_ROW_TAIL_SIZE (1 + 1 + 2 + 1 + 1 + 2 + 2 + 2 + 2 + 2)
+
+struct wmi_fantable_row {
+	u16 mode;
+	u16 fan_id;
+	u32 fan_table_len;
+	u16 fan_speed[FANTABLE_MAX_LEVELS];
+	u32 sensor_id;
+	u32 sensor_table_len;
+	u16 sensor_temp[FANTABLE_MAX_LEVELS];
+	u8 start_only_upward_adjust_nbr;
+	u8 end_only_upward_adjust_nbr;
+	u16 current_fan_max_speed;
+	u8 design_max_fan_speed_nbr;
+	u8 reserved;
+	u16 current_fan_min_speed;
+	u16 fan_speed_step;
+	u16 max_sensor_temp;
+	u16 min_sensor_temp;
+	u16 sensor_temp_step;
+} __packed;
+
+/* Per-fan RPM ladder for one power mode, derived from a matching row. */
+static int wmi_query_fantable_row(u8 index, struct wmi_fantable_row *row)
+{
+	struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
+	union acpi_object *obj;
+	acpi_status status;
+	size_t need;
+	int err = 0;
+
+	status = wmi_query_block(WMI_GUID_LENOVO_FANTABLE_DATA, index, &out);
+	if (ACPI_FAILURE(status))
+		return -EIO;
+
+	obj = out.pointer;
+	if (!obj || obj->type != ACPI_TYPE_BUFFER) {
+		err = -EIO;
+		goto out_free;
+	}
+
+	if (obj->buffer.length < FANTABLE_ROW_HEADER_SIZE +
+					 FANTABLE_ROW_MIDDLE_SIZE +
+					 FANTABLE_ROW_TAIL_SIZE) {
+		err = -EIO;
+		goto out_free;
+	}
+
+	memcpy(row, obj->buffer.pointer,
+	       min_t(size_t, obj->buffer.length, sizeof(*row)));
+
+	if (row->fan_table_len > FANTABLE_MAX_LEVELS ||
+	    row->sensor_table_len > FANTABLE_MAX_LEVELS) {
+		err = -ERANGE;
+		goto out_free;
+	}
+
+	need = FANTABLE_ROW_HEADER_SIZE + 2 * row->fan_table_len +
+	       FANTABLE_ROW_MIDDLE_SIZE + 2 * row->sensor_table_len +
+	       FANTABLE_ROW_TAIL_SIZE;
+	if (obj->buffer.length < need) {
+		err = -EIO;
+		goto out_free;
+	}
+
+out_free:
+	kfree(out.pointer);
+	return err;
+}
+
+/*
+ * Some tables carry a leading 0 entry for "fan off" (level 0), others
+ * start at level 1; fan_speed[0] == 0 tells the two apart. Returns false
+ * if the row does not hold a usable strictly ascending ladder.
+ */
+static bool fantable_row_to_ladder(const struct wmi_fantable_row *row,
+				   struct fantable_ladder *ladder)
+{
+	bool has_off_slot = row->fan_speed[0] == 0;
+	u8 count = row->fan_table_len - has_off_slot;
+	u8 i;
+
+	if (count < 1 || count > FANTABLE_MAX_LEVELS)
+		return false;
+
+	for (i = 0; i < count; i++) {
+		u16 rpm = has_off_slot ? row->fan_speed[i + 1] :
+					 row->fan_speed[i];
+
+		if (rpm < 1)
+			return false;
+		if (i > 0 && rpm <= ladder->rpms[i - 1])
+			return false;
+		ladder->rpms[i] = rpm;
+	}
+
+	ladder->level_count = count;
+	return true;
+}
+
+static bool fantable_row_matches_mode(const struct wmi_fantable_row *row,
+				      int powermode)
+{
+	/* Standard mode rows carry the power mode id (1 quiet .. 3 perf). */
+	if (row->mode == powermode)
+		return true;
+	/* Legion Zone firmware numbers custom mode rows as 0x100 and, by
+	 * the same convention, extreme mode rows as 0xE1.
+	 */
+	if (powermode == 0xFF && row->mode == 0x100)
+		return true;
+	if (powermode == 0xE0 && row->mode == 0xE1)
+		return true;
+	return false;
+}
+
+/*
+ * Rebuild the per-fan RPM ladders for the current power mode. Rows are
+ * scanned by index until the block runs out of entries; the fan/sensor
+ * pairs are the ones Lenovo Legion Toolkit documents. The first row seen
+ * for a fan is kept as a fallback and replaced when a row for the current
+ * power mode shows up, so a refresh never leaves the cache empty on
+ * firmware that numbers modes differently.
+ */
+static void fantable_refresh(struct legion_private *priv)
+{
+	struct wmi_fantable_row row, fan1_row, fan2_row;
+	bool fan1_have = false, fan1_match = false;
+	bool fan2_have = false, fan2_match = false;
+	u8 index;
+
+	priv->fantable_fan1_valid = false;
+	priv->fantable_fan2_valid = false;
+
+	for (index = 0; index < FANTABLE_MAX_ROWS; index++) {
+		bool want_fan1, want_fan2, mode_match;
+
+		if (wmi_query_fantable_row(index, &row))
+			break;
+
+		want_fan1 = row.fan_id == 1 &&
+			    row.sensor_id == FANTABLE_SENSOR_CPU;
+		want_fan2 = row.fan_id == 2 &&
+			    row.sensor_id == FANTABLE_SENSOR_GPU;
+		if (!want_fan1 && !want_fan2)
+			continue;
+
+		mode_match = fantable_row_matches_mode(&row,
+						       priv->current_powermode);
+
+		if (want_fan1 && (!fan1_have || (!fan1_match && mode_match))) {
+			fan1_row = row;
+			fan1_have = true;
+			fan1_match = mode_match;
+		}
+		if (want_fan2 && (!fan2_have || (!fan2_match && mode_match))) {
+			fan2_row = row;
+			fan2_have = true;
+			fan2_match = mode_match;
+		}
+	}
+
+	if (fan1_have &&
+	    fantable_row_to_ladder(&fan1_row, &priv->fantable_fan1)) {
+		priv->fantable_fan1_valid = true;
+		dev_info(&priv->platform_device->dev,
+			 "fan table data: fan 1 has %u levels, %u..%u RPM\n",
+			 priv->fantable_fan1.level_count,
+			 priv->fantable_fan1.rpms[0],
+			 priv->fantable_fan1
+				 .rpms[priv->fantable_fan1.level_count - 1]);
+	}
+	if (fan2_have &&
+	    fantable_row_to_ladder(&fan2_row, &priv->fantable_fan2)) {
+		priv->fantable_fan2_valid = true;
+		dev_info(&priv->platform_device->dev,
+			 "fan table data: fan 2 has %u levels, %u..%u RPM\n",
+			 priv->fantable_fan2.level_count,
+			 priv->fantable_fan2.rpms[0],
+			 priv->fantable_fan2
+				 .rpms[priv->fantable_fan2.level_count - 1]);
+	}
+
+	priv->fantable_powermode = priv->current_powermode;
+}
+
+/*
+ * Return the ladders for the current power mode, refreshing the cache
+ * when the power mode changed since the last scan. -ENODATA when the
+ * block is unavailable or holds no usable row (transient failures keep
+ * the cache invalid so the next call rescans).
+ */
+static int fantable_ensure(struct legion_private *priv)
+{
+	if ((priv->fantable_fan1_valid || priv->fantable_fan2_valid) &&
+	    priv->fantable_powermode == priv->current_powermode)
+		return 0;
+
+	fantable_refresh(priv);
+
+	return priv->fantable_fan1_valid || priv->fantable_fan2_valid ?
+		       0 :
+		       -ENODATA;
 }
 
 /*
@@ -6510,7 +6786,6 @@ static ssize_t cpu_peak_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
@@ -7057,7 +7332,66 @@ static ssize_t powermode_store(struct device *dev,
 
 static DEVICE_ATTR_RW(powermode);
 
+static ssize_t fantable_ladder_show(const struct fantable_ladder *ladder,
+				    char *buf)
+{
+	ssize_t count = 0;
+	int i;
+
+	for (i = 0; i < ladder->level_count; i++)
+		count += sysfs_emit_at(buf, count, i ? " %u" : "%u",
+				       ladder->rpms[i]);
+	count += sysfs_emit_at(buf, count, "\n");
+
+	return count;
+}
+
+static ssize_t fan1_level_rpm_table_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	ssize_t err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = fantable_ensure(priv);
+	if (!err) {
+		if (priv->fantable_fan1_valid)
+			err = fantable_ladder_show(&priv->fantable_fan1, buf);
+		else
+			err = -ENODATA;
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+
+	return err;
+}
+
+static ssize_t fan2_level_rpm_table_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	ssize_t err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = fantable_ensure(priv);
+	if (!err) {
+		if (priv->fantable_fan2_valid)
+			err = fantable_ladder_show(&priv->fantable_fan2, buf);
+		else
+			err = -ENODATA;
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+
+	return err;
+}
+
+static DEVICE_ATTR_RO(fan1_level_rpm_table);
+static DEVICE_ATTR_RO(fan2_level_rpm_table);
+
 static struct attribute *legion_sysfs_attributes[] = {
+	&dev_attr_fan1_level_rpm_table.attr,
+	&dev_attr_fan2_level_rpm_table.attr,
 	&dev_attr_powermode.attr,
 	&dev_attr_lockfancontroller.attr,
 	&dev_attr_fan_unlock.attr,
@@ -7163,6 +7497,11 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 
 	if (attr == &dev_attr_fan_fullspeed.attr &&
 	    priv->conf->access_method_fanfullspeed == ACCESS_METHOD_NO_ACCESS)
+		return 0;
+
+	if ((attr == &dev_attr_fan1_level_rpm_table.attr ||
+	     attr == &dev_attr_fan2_level_rpm_table.attr) &&
+	    !priv->conf->has_fantable_data)
 		return 0;
 
 	if (priv->conf->skip_oc_controls &&

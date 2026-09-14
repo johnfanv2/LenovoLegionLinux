@@ -807,41 +807,43 @@ class LenovoLegionLaptopSupportService(SystemDServiceFeature):
 
 
 # Models whose WMI3 fan curve takes level indices 0-10 instead of percentages
-# (FAN_SPEED_UNIT_LEVEL in the kernel module, debugfs unit 5), keyed by the BIOS
-# version prefix the kernel module uses for its DMI allowlist. The values are the
-# nominal RPM per level from the firmware's LENOVO_FAN_TABLE_DATA (fan 1, fan 2).
-# The firmware drives both fans from one table, so fan 1's table selects the
-# level and fan 2's is only used to display the resulting speed.
-# The KWCN numbers were read from a Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW);
-# other machines matched by the same prefix (e.g. the Legion Pro 7 16IRX8H) use
-# them as well, which only affects which level an RPM preset rounds to and the
-# RPM shown for a level, never the validity of the level written.
-LEVEL_FAN_TABLES = {
-    "KWCN": (
-        [1700, 1900, 2100, 2300, 2500, 2900, 3400, 3700, 4400, 5400],
-        [1700, 1900, 2100, 2200, 2700, 2900, 3500, 3700, 4600, 5400],
-    ),
-    # Legion Pro 7 16IAX10H (83F5, BIOS Q7CN78WW), decoded from the DSDT's
-    # LENOVO_FAN_TABLE_DATA (WQA3, GSKU 2); the third fan (id 4) runs
-    # 2300..6500 RPM from the same level.
-    "Q7CN": (
-        [1600, 1800, 1900, 2200, 2400, 2800, 3300, 3700, 4400, 5200],
-        [1700, 1800, 1900, 2100, 2400, 2700, 3400, 3800, 4500, 5400],
-    ),
-}
+# (FAN_SPEED_UNIT_LEVEL in the kernel module, debugfs unit 5) expose the
+# firmware's per-level RPM ladders through these platform device attributes.
+# The kernel module reads them from the LENOVO_FAN_TABLE_DATA WMI data block
+# (per fan and power mode), so nothing per-model is hardcoded here and the
+# values always match the current power mode.
+FAN_LEVEL_RPM_TABLE_FILES = ("fan1_level_rpm_table", "fan2_level_rpm_table")
 # Lowest level the firmware accepts per curve point (the kernel module rejects
 # anything below with EOPNOTSUPP).
 LEVEL_POINT_MIN = [1, 1, 1, 1, 1, 1, 1, 1, 3, 5]
 MAX_FAN_LEVEL = 10
 
 
-def read_bios_version_prefix():
-    """Returns the first four characters of the BIOS version (e.g. KWCN), or an empty string."""
-    try:
-        with open("/sys/class/dmi/id/bios_version", "r", encoding=DEFAULT_ENCODING) as filepointer:
-            return filepointer.read().strip()[:4]
-    except OSError:
-        return ""
+def read_fan_level_rpm_tables():
+    """Read the per-fan level->RPM ladders from the kernel module.
+
+    Returns a tuple (fan 1 ladder, fan 2 ladder) where each ladder maps level
+    i+1 to its nominal RPM, or (None, None) when the running kernel module
+    does not expose the attributes (older module, or a model whose firmware
+    does not publish the WMI fan table data block).
+    """
+    ladders = []
+    for name in FAN_LEVEL_RPM_TABLE_FILES:
+        path = os.path.join(LEGION_SYS_BASEPATH, name)
+        try:
+            with open(path, "r", encoding=DEFAULT_ENCODING) as filepointer:
+                rpm_strings = filepointer.read().split()
+        except OSError:
+            ladders.append(None)
+            continue
+        try:
+            ladders.append([int(rpm) for rpm in rpm_strings] or None)
+        except ValueError:
+            log.warning("Unexpected content in %s: %s", path, rpm_strings)
+            ladders.append(None)
+    if ladders[0] is None and ladders[1] is None:
+        return None, None
+    return ladders[0], ladders[1]
 
 
 def fan_level_to_pwm(level):
@@ -895,7 +897,12 @@ class FanCurveIO(Feature):
     def __init__(self, expect_hwmon=True):
         super().__init__()
         self.hwmon_path = self._find_hwmon_dir()
-        self.level_tables = LEVEL_FAN_TABLES.get(read_bios_version_prefix())
+        fan1_table, fan2_table = read_fan_level_rpm_tables()
+        if fan1_table is not None and fan2_table is None:
+            # One table drives both fans on this firmware family; fan 2's
+            # ladder is then only used to display the resulting speed.
+            fan2_table = fan1_table
+        self.level_tables = (fan1_table, fan2_table) if fan1_table is not None else None
         if (not self.hwmon_path) and expect_hwmon:
             raise FileNotFoundError("hwmon dir not found")
 
