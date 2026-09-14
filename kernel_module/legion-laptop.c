@@ -253,6 +253,12 @@ struct model_config {
 	bool three_state_keyboard;
 	bool skip_ic_temp;
 	bool skip_oc_controls;
+	/* The lockfancontroller attribute writes EC byte
+	 * EXT_LOCKFANCONTROLLER through Super-I/O port I/O regardless of
+	 * the configured access methods; set on models whose EC does not
+	 * declare that byte.
+	 */
+	bool skip_lockfancontroller;
 	bool acpi_fanspeed_is_rpm;
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
@@ -1695,6 +1701,84 @@ static const struct model_config
 				       "\\_SB.PC00.LPCB.EC0.VPC0.SBMC",
 		       } };
 
+// Legion Pro 7 16IAX10H (83F5) - 2025, Intel Arrow Lake-HX + RTX 50
+// BIOS: Q7CN78WW, EC firmware 1.78. Facts below are from this unit's DSDT
+// (L = DSDT.dsl line); the EC-internal 0xC4xx offsets are only inferred.
+// - EC RAM window ERAX @0xFE500400 (L37243, plus F9FT/ECB2 at +0x100/
+//   +0x200, ramio_size 0x300) is used only by debugfs ecmemoryram; it is
+//   byte-identical to the EC I2EC bank at 0xC400 and to the ACPI EC I/O
+//   space (verified on hardware). Nothing writes EC RAM, so
+//   lockfancontroller/minifancurve (undeclared bytes) are hidden.
+// - Power mode: GameZone WMAA 0x2C set / 0x2D get (L61539-61800):
+//   1 quiet, 2 balanced, 3 performance, 0xFF custom, 0xE0 extreme.
+//   custom/performance/extreme need AC; on battery the request is
+//   parked and read back as if applied.
+// - Fan table: Fan Method WMAB has only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L62277-62351); set copies the byte at each even offset 0x06..0x18
+//   of the 0x40-byte buffer to EC F9F0..F9F9 and calls LECR(0xD0), no
+//   range check. The bytes are fan LEVELS 1..10 (LENOVO_FAN_TABLE_DATA
+//   WQA3, L46562-47779: level 1 = per-fan minimum RPM, 10 = maximum; one
+//   table shared by all fans; the temperature axis is fixed by the EC;
+//   level 0 is undocumented), hence FAN_SPEED_UNIT_LEVEL for this model.
+//   Fan_Get_Table returns a static 1..10 placeholder in extreme mode
+//   (ODV1 == 4) instead of the live table, and Fan_Set_Table ignores the
+//   mode byte, so has_fancurve_defaults stays off. Read on hardware:
+//   1,2,3,4,5,6,7,8,8,8 (performance mode).
+// - RPM/temps/full speed: Other Method WMAE Get(17)/SetFeatureValue(18)
+//   ids 0x04030001/0x04030002 (RPM), 0x05040000/0x05050000 (CPU/GPU
+//   temp, L62942-62965), 0x04020000 (full speed, L62877-62888).
+// - Power limits: CPU Method WMAC is an empty stub (L62354), so WMAE via
+//   WMI3_CLAMPED. WMAE stores 0x0101/0x0102/0x0104/0x0106 and
+//   0x0201..0x0204 raw in the EC (get L62534-62690, set L63327-63600);
+//   0x0103 always reads back 0, 0x0105 is unimplemented and 0x0107 (tau)
+//   goes through a 13-entry lookup. skip_oc_controls hides the PL/OC
+//   attributes; only cpu_temperature_limit, cpu_l1_tau and
+//   gpu_power_target_offset stay visible.
+// - Keyboard is USB-HID ITE 048d:c197 "Spectrum" that the WMI light
+//   methods do not drive -> NO_ACCESS; Y-logo / IO-port light skipped.
+// - EC id 0x5508 (version 2b0) read on this unit via Super-I/O port I/O;
+//   also reported for other 83F5 units (issue #385).
+// - Rapid charge via VPC0 GBMD/SBMC (L39816/L40033); SBMC(7) also
+//   clears conservation mode.
+static const struct model_config model_q7cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	.fan_max_rpm = 5200,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE500400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = false,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_flip_to_start = true,
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -2191,6 +2275,17 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "RXCN"),
 		},
 		.driver_data = (void *)&model_rxcn
+	},
+	{
+		// Legion Pro 7 16IAX10H (83F5), BIOS Q7CN; product-qualified
+		// because the Q6CN/83LU and 83F3 siblings are different chassis
+		.ident = "Q7CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83F5"),
+			DMI_MATCH(DMI_BIOS_VERSION, "Q7CN"),
+		},
+		.driver_data = (void *)&model_q7cn
 	},
 	{
 		// Legion 5 15IAX10 (83F0)
@@ -4135,6 +4230,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		model == &model_n2cn ? FAN_SPEED_UNIT_PERCENT_NEAREST :
 		model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
 		model == &model_kwcn ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_q7cn ? FAN_SPEED_UNIT_LEVEL :
 				       FAN_SPEED_UNIT_PERCENT;
 
 	for (i = 0; i < size; i++) {
@@ -7090,6 +7186,10 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return 0;
 
 	if (attr == &dev_attr_fan_unlock.attr && !priv->conf->has_fan_unlock)
+		return 0;
+
+	if (attr == &dev_attr_lockfancontroller.attr &&
+	    priv->conf->skip_lockfancontroller)
 		return 0;
 
 	return attr->mode;

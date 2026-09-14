@@ -43,6 +43,53 @@ On the Legion Pro 7 16IRX8H with the same BIOS the EC resets the table to 1..10 
 mode 0xE0 is entered and ignores later writes (issue #429); use mode 255 and check
 `/sys/kernel/debug/legion/ecmemory` offset 0x1F0..0x1F9 after a write.
 
+## Legion Pro 7 16IAX10H (83F5, Q7CN)
+
+BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
+`Q7CN` is qualified on product name `83F5`; config `model_q7cn` in
+`kernel_module/legion-laptop.c` (the header comment cites the DSDT lines).
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6. The CPU Method GUID is an empty
+  stub, so the limit attributes that stay visible (`cpu_temperature_limit`,
+  `cpu_l1_tau`, `gpu_power_target_offset`) use `ACCESS_METHOD_WMI3_CLAMPED`;
+  the CPU/GPU power-limit and OC attributes are hidden (`skip_oc_controls`),
+  use the in-tree `lenovo_wmi_other` firmware-attributes for PL1/PL2/tau/cTGP.
+- The fan table is the level-index kind described in "Fan curve on Legion
+  Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
+  temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware
+  maps level 1..10 to 1600..5200 RPM (fan 1), 1700..5400 (fan 2) and
+  2300..6500 (fan 4); `LEVEL_FAN_TABLES["Q7CN"]` in `legion.py` carries the
+  first two so RPM presets round to the right level. The EC applies the table
+  only in custom mode (`powermode` 0xFF) on AC; on battery the firmware parks
+  the custom-mode request while `powermode` still reads back 0xFF.
+  `Fan_Get_Table` returns a static 1..10 placeholder in extreme mode, so read
+  the table in another mode. Writing the table as percent (older driver
+  builds: 100 into a 1..10 byte) matches the thermal shutdowns reported for
+  this model.
+- Only `pwm1_auto_point*_pwm` is exposed (`wmi_fancurve_speed_only`);
+  `minifancurve` and `lockfancontroller` are hidden because the EC does not
+  declare those bytes (new `skip_lockfancontroller`).
+- Keyboard and lid lighting are USB-HID ITE devices (048d:c197); the WMI light
+  methods do not drive them, so there is no keyboard, Y-logo or IO-port light
+  control.
+- Rapid charge / battery conservation go through `VPC0.GBMD`/`VPC0.SBMC`
+  (present in the DSDT, not exercised); enabling rapid charge clears
+  conservation mode in firmware.
+
+Validated on Linux 7.2.4 next to the in-tree `lenovo_wmi_*` drivers with
+`enable_platformprofile=0` (see the README's KDE/coexistence section):
+`ecmemory`, `ecmemoryram` and the ACPI EC I/O space are byte-identical; the
+WMI table read `1,2,3,4,5,6,7,8,8,8` matches EC RAM `F9F0..F9F9`
+(`ecmemoryram` offset 0x180); `powermode` 3/2/3 and custom mode were
+reflected by the EC `SPMO` byte (0x11/0x10/0x13); writing point 10 to level 9
+set EC byte 0x189 to 09 and restoring level 8 set it back.
+
+Verify: `sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
+`sensors` shows `legion_hwmon` temps and fan RPM, and
+`sudo cat /sys/kernel/debug/legion/fancurve` prints `u` = 5 with speed1 in 1..10.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
