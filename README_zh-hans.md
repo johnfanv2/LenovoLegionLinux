@@ -466,14 +466,16 @@ sensors
 # 获取 root 权限
 sudo su
 # 以 root 身份输入：
+# hwmon 目录名随内核版本变化（7.0 之前为 PNP0C09:00，7.0+ 为 legion），通过 hwmon 名称定位：
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
 # 第2点，第1风扇（大约 1500 rpm 的 pwm 值）
-echo 38 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point2_pwm
+echo 38 > $H/pwm1_auto_point2_pwm
 # 第2点，第2风扇（大约 1600 rpm 的 pwm 值）
-echo 40 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point2_pwm
+echo 40 > $H/pwm2_auto_point2_pwm
 # 第3点，第1风扇（大约 1700 rpm 的 pwm 值）
-echo 43 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point3_pwm
+echo 43 > $H/pwm1_auto_point3_pwm
 # 第3点，第2风扇（大约 1800 rpm 的 pwm 值）
-echo 45 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point3_pwm
+echo 45 > $H/pwm2_auto_point3_pwm
 
 # 读取当前风扇曲线并检查更改是否生效
 cat /sys/kernel/debug/legion/fancurve

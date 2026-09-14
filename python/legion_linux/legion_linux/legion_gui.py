@@ -907,7 +907,14 @@ class LegionController:
     def on_write_fan_curve_to_hw(self):
         if not self._read_fancurve_from_view():
             return
-        self.model.write_fancurve_to_hw()
+        try:
+            self.model.write_fancurve_to_hw()
+        except OSError as ex:
+            QMessageBox.warning(
+                self.main_window,
+                "Fan Curve Write Failed",
+                f"The fan controller refused the fan curve: {ex}",
+            )
         self.model.read_fancurve_from_hw()
         self.update_fancurve_gui()
 
@@ -1049,6 +1056,12 @@ class FanCurveEntryView:
             raise ValueError(
                 f"Invalid value in fan curve point {self.point_id_label.text()}: all fields must be numbers."
             ) from ex
+        if not 2 <= acceleration <= 5 or not 2 <= deceleration <= 5:
+            raise ValueError(
+                f"Invalid value in fan curve point {self.point_id_label.text()}: "
+                "acceleration and deceleration time must be between 2 and 5 "
+                "(the fan controller rejects other values)."
+            )
         entry = FanCurveEntry(
             fan1_speed=fan1_speed,
             fan2_speed=fan2_speed,
