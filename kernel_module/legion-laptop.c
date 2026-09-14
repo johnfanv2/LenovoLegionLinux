@@ -195,7 +195,6 @@ enum access_method {
 	ACCESS_METHOD_WMI = 3,
 	ACCESS_METHOD_WMI2 = 4,
 	ACCESS_METHOD_WMI3 = 5,
-	ACCESS_METHOD_WMI3_CLAMPED = 6,
 	ACCESS_METHOD_EC2 = 10, // ideapad fancurve method
 	ACCESS_METHOD_EC3 = 11, // loq
 	ACCESS_METHOD_EC4 = 12, // legion 2024 (e.g. 16IRX9)
@@ -278,14 +277,6 @@ struct model_config {
 	const char *acpi_paths[ACPI_PATH_MAX];
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
-	/*
-	 * The firmware publishes the per-level RPM table of the fans in the
-	 * LENOVO_FAN_TABLE_DATA WMI data block (level-index fan tables, see
-	 * FAN_SPEED_UNIT_LEVEL). Enable only on models where that block was
-	 * validated; the per-fan ladders are exposed as
-	 * fan1_level_rpm_table/fan2_level_rpm_table.
-	 */
-	bool has_fantable_data;
 	bool require_unlocked_fan_controller;
 	bool has_pl_coupling;
 	/* Lift the firmware-imposed fan ceiling via WMAA(0, 0x0D, arg) on the
@@ -735,25 +726,25 @@ static const struct model_config model_kwcn = {
 	 * full-speed methods (ids 1/2) and the legacy power-limit methods
 	 * cannot work. LENOVO_OTHER_METHOD answers for the plain feature IDs
 	 * and LENOVO_CAPABILITY_DATA_01 / LENOVO_DISCRETE_DATA publish the
-	 * per-mode ranges, so use the Other Method paths, clamped.
+	 * per-mode ranges, so use the Other Method paths (writes are clamped
+	 * to the capability-data ranges).
 	 */
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.fanfullspeed_requires_custom_powermode = true,
-	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	/*
 	 * Fan_Set_Table carries one level per point for both fans; the pwm2,
 	 * temperature and accel/decel curve attributes have no effect, so
-	 * hide them as model_n2cn does. Level 10 was measured at 5400 RPM
-	 * (= LENOVO_FAN_TABLE_DATA.CurrentFanMaxSpeed).
+	 * hide them as model_n2cn does. Level 10 was measured at 5400 RPM,
+	 * which the driver now reports from the fan table data itself.
 	 */
 	.wmi_fancurve_speed_only = true,
-	.fan_max_rpm = 5400,
 	/*
 	 * LENOVO_FAN_TABLE_DATA carries one RPM ladder per fan (fan 1 /
 	 * sensor 0x04 and fan 2 / sensor 0x05), identical in every power
 	 * mode; exposes fan1_level_rpm_table/fan2_level_rpm_table.
 	 */
-	.has_fantable_data = true,
+	.has_fancurve_defaults = true,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
@@ -1660,7 +1651,7 @@ static const struct model_config model_secn = {
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_EC3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
-	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0F00,
 	.ramio_size = 0x600,
@@ -1736,13 +1727,13 @@ static const struct model_config
 //   level 0 is undocumented), hence FAN_SPEED_UNIT_LEVEL for this model.
 //   Fan_Get_Table returns a static 1..10 placeholder in extreme mode
 //   (ODV1 == 4) instead of the live table, and Fan_Set_Table ignores the
-//   mode byte, so has_fancurve_defaults stays off. Read on hardware:
+//   mode byte. Read on hardware:
 //   1,2,3,4,5,6,7,8,8,8 (performance mode).
 // - RPM/temps/full speed: Other Method WMAE Get(17)/SetFeatureValue(18)
 //   ids 0x04030001/0x04030002 (RPM), 0x05040000/0x05050000 (CPU/GPU
 //   temp, L62942-62965), 0x04020000 (full speed, L62877-62888).
 // - Power limits: CPU Method WMAC is an empty stub (L62354), so WMAE via
-//   WMI3_CLAMPED. WMAE stores 0x0101/0x0102/0x0104/0x0106 and
+//   WMI3 (writes are clamped to the capability-data ranges). WMAE stores 0x0101/0x0102/0x0104/0x0106 and
 //   0x0201..0x0204 raw in the EC (get L62534-62690, set L63327-63600);
 //   0x0103 always reads back 0, 0x0105 is unimplemented and 0x0107 (tau)
 //   goes through a 13-entry lookup. skip_oc_controls hides the PL/OC
@@ -1769,11 +1760,10 @@ static const struct model_config model_q7cn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
-	.access_method_powerlimits = ACCESS_METHOD_WMI3_CLAMPED,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	.skip_ic_temp = true,
 	.skip_oc_controls = true,
 	.skip_lockfancontroller = true,
-	.fan_max_rpm = 5200,
 	.fanfullspeed_requires_custom_powermode = true,
 	.skip_ylogo_light = true,
 	.skip_ioport_light = true,
@@ -1786,14 +1776,14 @@ static const struct model_config model_q7cn = {
 				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
 			[ACPI_PATH_WRITE_RAPIDCHARGE] =
 				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
-	.has_fancurve_defaults = false,
-	.wmi_fancurve_speed_only = true,
 	/*
 	 * LENOVO_FAN_TABLE_DATA carries one RPM ladder per fan (fan 1 /
 	 * sensor 0x04, fan 2 / sensor 0x05 and fan 4 / sensor 0x05; fan 4
-	 * is not surfaced yet), identical in every power mode.
+	 * is not surfaced yet), identical in every power mode; exposes
+	 * fan1_level_rpm_table/fan2_level_rpm_table.
 	 */
-	.has_fantable_data = true,
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -2631,6 +2621,22 @@ static int wmi_exec_noarg_int(const char *guid, u8 instance, u32 method_id,
 	params.length = 0;
 	params.pointer = NULL;
 	return wmi_exec_int(guid, instance, method_id, &params, res);
+}
+
+/* Query a WMI data block instance and copy the result into a struct of
+ * exactly ressize bytes (as in PR #347). Fails when the block's buffer
+ * has a different size, so variable-size rows are rejected up front.
+ */
+static int wmi_exec_query_ints(const char *guid, u8 instance, u8 *res,
+			       size_t ressize)
+{
+	struct acpi_buffer out_buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+	acpi_status status;
+
+	status = wmi_query_block(guid, instance, &out_buffer);
+
+	return acpi_process_buffer_to_ints(guid, instance, status, &out_buffer,
+					   res, ressize);
 }
 
 static int wmi_exec_noarg_int_or_buffer(const char *guid, u8 instance,
@@ -3712,10 +3718,10 @@ struct light {
 // without dynamic memory allocation (instead global _priv)
 /*
  * Rows of the LENOVO_FAN_TABLE_DATA WMI data block carry the firmware's
- * per-level RPM table; known models top out at 10 levels, leave
- * headroom for the row-size checks.
+ * per-level RPM table; known models always have 10 levels (Lenovo
+ * Legion Toolkit rejects tables with a different length).
  */
-#define FANTABLE_MAX_LEVELS 16
+#define FANTABLE_MAX_LEVELS 10
 
 /*
  * Per-fan RPM ladder for one power mode, derived from a matching row of
@@ -3724,6 +3730,8 @@ struct light {
  */
 struct fantable_ladder {
 	u16 rpms[FANTABLE_MAX_LEVELS];
+	/* current_fan_max_speed from the row, or the ladder's top RPM */
+	u16 max_rpm;
 	u8 level_count;
 };
 
@@ -3777,7 +3785,7 @@ struct legion_private {
 	struct discrete_feature discrete_features[MAX_DISCRETE_FEATURES];
 	int discrete_feature_count;
 
-	/* LENOVO_FAN_TABLE_DATA cache (models with has_fantable_data) */
+	/* LENOVO_FAN_TABLE_DATA cache (models with has_fancurve_defaults) */
 	struct fantable_ladder fantable_fan1;
 	struct fantable_ladder fantable_fan2;
 	bool fantable_fan1_valid;
@@ -4305,24 +4313,16 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
  * \_SB_.GZFD.WQA3/WQA7/... depending on the DSDT) publishes the
  * firmware's per-level RPM table: one row per power mode, fan and
  * sensor. Row layout as in PR #509 (struct WMIFanTableDefaultData,
- * validated on LZCN) and in the fields Lenovo Legion Toolkit reads via
- * WQL; the two variable-size arrays are validated against the returned
- * buffer length so models with more or fewer levels do not parse
- * garbage.
+ * validated on LZCN) and the fields Lenovo Legion Toolkit reads via
+ * WQL. Tables always have 10 levels, so rows are parsed with an
+ * exact-size struct through wmi_exec_query_ints(), which rejects rows
+ * whose buffer size does not match.
  */
 #define WMI_GUID_LENOVO_FANTABLE_DATA "87FB2A6D-D802-48E7-9208-4576C5F5C8D8"
-
-/* Rows to scan: power modes x fans (15 on current models). */
-#define FANTABLE_MAX_ROWS 32
 
 #define FANTABLE_SENSOR_IC 0x01
 #define FANTABLE_SENSOR_CPU 0x04
 #define FANTABLE_SENSOR_GPU 0x05
-
-/* Row size up to the variable arrays, between them, and the tail. */
-#define FANTABLE_ROW_HEADER_SIZE (2 + 2 + 4)
-#define FANTABLE_ROW_MIDDLE_SIZE (4 + 4)
-#define FANTABLE_ROW_TAIL_SIZE (1 + 1 + 2 + 1 + 1 + 2 + 2 + 2 + 2 + 2)
 
 struct wmi_fantable_row {
 	u16 mode;
@@ -4344,51 +4344,15 @@ struct wmi_fantable_row {
 	u16 sensor_temp_step;
 } __packed;
 
-/* Per-fan RPM ladder for one power mode, derived from a matching row. */
 static int wmi_query_fantable_row(u8 index, struct wmi_fantable_row *row)
 {
-	struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
-	union acpi_object *obj;
-	acpi_status status;
-	size_t need;
-	int err = 0;
+	int err = wmi_exec_query_ints(WMI_GUID_LENOVO_FANTABLE_DATA, index,
+				      (u8 *)row, sizeof(*row));
 
-	status = wmi_query_block(WMI_GUID_LENOVO_FANTABLE_DATA, index, &out);
-	if (ACPI_FAILURE(status))
-		return -EIO;
+	if (!err && (row->fan_table_len > FANTABLE_MAX_LEVELS ||
+		     row->sensor_table_len > FANTABLE_MAX_LEVELS))
+		return -ERANGE;
 
-	obj = out.pointer;
-	if (!obj || obj->type != ACPI_TYPE_BUFFER) {
-		err = -EIO;
-		goto out_free;
-	}
-
-	if (obj->buffer.length < FANTABLE_ROW_HEADER_SIZE +
-					 FANTABLE_ROW_MIDDLE_SIZE +
-					 FANTABLE_ROW_TAIL_SIZE) {
-		err = -EIO;
-		goto out_free;
-	}
-
-	memcpy(row, obj->buffer.pointer,
-	       min_t(size_t, obj->buffer.length, sizeof(*row)));
-
-	if (row->fan_table_len > FANTABLE_MAX_LEVELS ||
-	    row->sensor_table_len > FANTABLE_MAX_LEVELS) {
-		err = -ERANGE;
-		goto out_free;
-	}
-
-	need = FANTABLE_ROW_HEADER_SIZE + 2 * row->fan_table_len +
-	       FANTABLE_ROW_MIDDLE_SIZE + 2 * row->sensor_table_len +
-	       FANTABLE_ROW_TAIL_SIZE;
-	if (obj->buffer.length < need) {
-		err = -EIO;
-		goto out_free;
-	}
-
-out_free:
-	kfree(out.pointer);
 	return err;
 }
 
@@ -4419,6 +4383,9 @@ static bool fantable_row_to_ladder(const struct wmi_fantable_row *row,
 	}
 
 	ladder->level_count = count;
+	ladder->max_rpm = row->current_fan_max_speed;
+	if (!ladder->max_rpm)
+		ladder->max_rpm = ladder->rpms[count - 1];
 	return true;
 }
 
@@ -4451,16 +4418,26 @@ static void fantable_refresh(struct legion_private *priv)
 	struct wmi_fantable_row row, fan1_row, fan2_row;
 	bool fan1_have = false, fan1_match = false;
 	bool fan2_have = false, fan2_match = false;
-	u8 index;
+	int rows, index;
 
 	priv->fantable_fan1_valid = false;
 	priv->fantable_fan2_valid = false;
 
-	for (index = 0; index < FANTABLE_MAX_ROWS; index++) {
+	/*
+	 * The block holds one row per power mode, fan and state (AC/DC,
+	 * hybrid mode, ...); the instance count is the exact row count
+	 * (15 on current models, 50+ on some), so query it instead of
+	 * scanning a fixed range.
+	 */
+	rows = wmi_instance_count(WMI_GUID_LENOVO_FANTABLE_DATA);
+	if (rows <= 0)
+		return;
+
+	for (index = 0; index < rows; index++) {
 		bool want_fan1, want_fan2, mode_match;
 
 		if (wmi_query_fantable_row(index, &row))
-			break;
+			continue;
 
 		want_fan1 = row.fan_id == 1 &&
 			    row.sensor_id == FANTABLE_SENSOR_CPU;
@@ -6525,30 +6502,6 @@ static ssize_t wmi_common_method_other_show(struct legion_private *priv,
 	return sysfs_emit(buf, "%d\n", out);
 }
 
-static ssize_t wmi_common_method_other_store(struct legion_private *priv,
-					     const char *buf, size_t count,
-					     int feature_id)
-{
-	// TODO:  use DEV, TYP, FEA, plus Powermode as key to lookup
-	// on capability data CD0, CD1 for :
-	//  - if feature is enabled for laptop model
-	//  - if value (DAT1) is valid (on/off, exact value, step, range)
-	int err, value, output;
-
-	err = kstrtoint(buf, 0, &value);
-	if (err)
-		return err;
-
-	mutex_lock(&priv->fancurve_mutex);
-	err = wmi_other_method_set_value(feature_id, value, &output);
-	mutex_unlock(&priv->fancurve_mutex);
-
-	if (err)
-		return -EINVAL;
-
-	return count;
-}
-
 static int clamped_value(struct legion_private *priv,
 			 enum OtherMethodFeature feature, const char *buf,
 			 int *value)
@@ -6584,20 +6537,30 @@ static int clamped_value(struct legion_private *priv,
 	return 0;
 }
 
-static ssize_t wmi_clamped_store(struct legion_private *priv, const char *buf,
-				 size_t count, enum OtherMethodFeature feature)
+static ssize_t wmi_common_method_other_store(struct legion_private *priv,
+					     const char *buf, size_t count,
+					     enum OtherMethodFeature feature_id)
 {
-	char clamped_buf[16];
-	int value, err;
+	/*
+	 * Writes are clamped to the ranges the firmware publishes in
+	 * LENOVO_CAPABILITY_DATA_01 / LENOVO_DISCRETE_DATA for the current
+	 * power mode; features without a capability row pass through
+	 * unchanged (see clamped_value).
+	 */
+	int err, value, output;
 
-	err = clamped_value(priv, feature, buf, &value);
+	err = clamped_value(priv, feature_id, buf, &value);
 	if (err)
 		return err;
 
-	snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-	err = wmi_common_method_other_store(priv, clamped_buf,
-					    strlen(clamped_buf), feature);
-	return err < 0 ? err : count;
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_set_value(feature_id, value, &output);
+	mutex_unlock(&priv->fancurve_mutex);
+
+	if (err)
+		return -EINVAL;
+
+	return count;
 }
 
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
@@ -6608,7 +6571,6 @@ static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf,
@@ -6628,43 +6590,36 @@ static ssize_t cpu_shortterm_powerlimit_store(struct device *dev,
 	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits ==
-	    ACCESS_METHOD_WMI3_CLAMPED) {
-		char clamped_buf[16];
-
-		err = clamped_value(
-			priv, OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT,
-			buf, &value);
-		if (err)
-			return err;
-
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		/*
+		 * PL1/PL2 coupling: keep the long-term limit at or below
+		 * the short-term one (only models with has_pl_coupling).
+		 * Both writes go through wmi_common_method_other_store(),
+		 * which clamps against the capability data.
+		 */
 		if (priv->cpu_pl_coupling) {
 			int pl1;
+
+			err = clamped_value(
+				priv,
+				OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT,
+				buf, &value);
+			if (err)
+				return err;
 
 			if (!wmi_other_method_get_value(
 				    OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT,
 				    &pl1) &&
-			    pl1 > value) {
-				char pl1_buf[16];
-
-				snprintf(pl1_buf, sizeof(pl1_buf), "%d", value);
+			    pl1 > value)
 				wmi_common_method_other_store(
-					priv, pl1_buf, strlen(pl1_buf),
+					priv, buf, count,
 					OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
-			}
 		}
 
-		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-		err = wmi_common_method_other_store(
-			priv, clamped_buf, strlen(clamped_buf),
-			OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
-		return err < 0 ? err : count;
-	}
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
 			priv, buf, count,
 			OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+	}
 
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
@@ -6681,7 +6636,6 @@ static ssize_t cpu_longterm_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf,
@@ -6701,43 +6655,36 @@ static ssize_t cpu_longterm_powerlimit_store(struct device *dev,
 	int value, err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits ==
-	    ACCESS_METHOD_WMI3_CLAMPED) {
-		char clamped_buf[16];
-
-		err = clamped_value(
-			priv, OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT, buf,
-			&value);
-		if (err)
-			return err;
-
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3) {
+		/*
+		 * PL1/PL2 coupling: keep the short-term limit at or above
+		 * the long-term one (only models with has_pl_coupling).
+		 * Both writes go through wmi_common_method_other_store(),
+		 * which clamps against the capability data.
+		 */
 		if (priv->cpu_pl_coupling) {
 			int pl2;
+
+			err = clamped_value(
+				priv,
+				OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT,
+				buf, &value);
+			if (err)
+				return err;
 
 			if (!wmi_other_method_get_value(
 				    OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT,
 				    &pl2) &&
-			    value > pl2) {
-				char pl2_buf[16];
-
-				snprintf(pl2_buf, sizeof(pl2_buf), "%d", value);
+			    value > pl2)
 				wmi_common_method_other_store(
-					priv, pl2_buf, strlen(pl2_buf),
+					priv, buf, count,
 					OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
-			}
 		}
 
-		snprintf(clamped_buf, sizeof(clamped_buf), "%d", value);
-		err = wmi_common_method_other_store(
-			priv, clamped_buf, strlen(clamped_buf),
-			OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
-		return err < 0 ? err : count;
-	}
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
 			priv, buf, count,
 			OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+	}
 
 	return store_simple_wmi_attribute(
 		dev, attr, buf, count, WMI_GUID_LENOVO_CPU_METHOD, 0,
@@ -6789,7 +6736,6 @@ static ssize_t cpu_peak_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_CPU_PEAK_POWER_LIMIT);
@@ -6805,11 +6751,6 @@ static ssize_t cpu_peak_powerlimit_store(struct device *dev,
 					 const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(
-			priv, buf, count,
-			OtherMethodFeature_CPU_PEAK_POWER_LIMIT);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
@@ -6831,7 +6772,6 @@ static ssize_t cpu_apu_sppt_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_APU_PPT_POWER_LIMIT);
@@ -6847,11 +6787,6 @@ static ssize_t cpu_apu_sppt_powerlimit_store(struct device *dev,
 					     const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(
-			priv, buf, count,
-			OtherMethodFeature_APU_PPT_POWER_LIMIT);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
@@ -6873,7 +6808,6 @@ static ssize_t cpu_cross_loading_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf,
@@ -6893,11 +6827,6 @@ static ssize_t cpu_cross_loading_powerlimit_store(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(
-			priv, buf, count,
-			OtherMethodFeature_CPU_CROSS_LOAD_POWER_LIMIT);
-
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
 			priv, buf, count,
@@ -6913,31 +6842,20 @@ static DEVICE_ATTR_RW(cpu_cross_loading_powerlimit);
 static ssize_t gpu_oc_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
-	int err;
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
-		return wmi_common_method_other_show(
-			priv, buf, OtherMethodFeature_GPU_POWER_BOOST);
-	default:
-		err = show_simple_wmi_attribute(dev, attr, buf,
-						WMI_GUID_LENOVO_GPU_METHOD, 0,
-						WMI_METHOD_ID_GPU_GET_OC_STATUS,
-						false, 1);
-	}
-	return err;
+	/*
+	 * The Other Method GUID has no GPU OC feature; on models using it
+	 * for power limits the boost budget is gpu_ppab_powerlimit instead
+	 * (0x0201), and gpu_oc is hidden there (legion_attribute_uses_gpu_wmi).
+	 */
+	return show_simple_wmi_attribute(dev, attr, buf,
+					 WMI_GUID_LENOVO_GPU_METHOD, 0,
+					 WMI_METHOD_ID_GPU_GET_OC_STATUS, false,
+					 1);
 }
 
 static ssize_t gpu_oc_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
-	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(priv, buf, count,
-					 OtherMethodFeature_GPU_POWER_BOOST);
-
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  WMI_GUID_LENOVO_GPU_METHOD, 0,
 					  WMI_METHOD_ID_GPU_SET_OC_STATUS,
@@ -6951,10 +6869,6 @@ static ssize_t gpu_ppab_powerlimit_show(struct device *dev,
 					char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_common_method_other_show(
-			priv, buf, OtherMethodFeature_GPU_POWER_BOOST);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_show(
@@ -6970,10 +6884,6 @@ static ssize_t gpu_ppab_powerlimit_store(struct device *dev,
 					 const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(priv, buf, count,
-					 OtherMethodFeature_GPU_POWER_BOOST);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
@@ -6995,7 +6905,6 @@ static ssize_t gpu_ctgp_powerlimit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_GPU_cTGP);
@@ -7012,10 +6921,6 @@ static ssize_t gpu_ctgp_powerlimit_store(struct device *dev,
 					 const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(priv, buf, count,
-					 OtherMethodFeature_GPU_cTGP);
 
 	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
 		return wmi_common_method_other_store(
@@ -7059,7 +6964,6 @@ static ssize_t gpu_temperature_limit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
@@ -7077,8 +6981,8 @@ static ssize_t gpu_temperature_limit_store(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_store(
 			priv, buf, count,
 			OtherMethodFeature_GPU_TEMPERATURE_LIMIT);
 
@@ -7094,11 +6998,9 @@ static ssize_t cpu_temperature_limit_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
-			priv, buf,
-			OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
+			priv, buf, OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
 	default:
 		return -EINVAL;
 	}
@@ -7110,8 +7012,8 @@ static ssize_t cpu_temperature_limit_store(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_store(
 			priv, buf, count,
 			OtherMethodFeature_CPU_TEMPERATURE_LIMIT);
 
@@ -7124,7 +7026,6 @@ static ssize_t cpu_l1_tau_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf, OtherMethodFeature_CPU_L1_TAU);
@@ -7139,9 +7040,9 @@ static ssize_t cpu_l1_tau_store(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(priv, buf, count,
-					 OtherMethodFeature_CPU_L1_TAU);
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_store(
+			priv, buf, count, OtherMethodFeature_CPU_L1_TAU);
 
 	return -EINVAL;
 }
@@ -7153,7 +7054,6 @@ static ssize_t gpu_power_target_offset_show(struct device *dev,
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
-	case ACCESS_METHOD_WMI3_CLAMPED:
 	case ACCESS_METHOD_WMI3:
 		return wmi_common_method_other_show(
 			priv, buf,
@@ -7169,8 +7069,8 @@ static ssize_t gpu_power_target_offset_store(struct device *dev,
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
 
-	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3_CLAMPED)
-		return wmi_clamped_store(
+	if (priv->conf->access_method_powerlimits == ACCESS_METHOD_WMI3)
+		return wmi_common_method_other_store(
 			priv, buf, count,
 			OtherMethodFeature_GPU_POWER_TARGET_ON_AC_OFFSET_FROM_BASELINE);
 
@@ -7501,7 +7401,9 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 
 	if ((attr == &dev_attr_fan1_level_rpm_table.attr ||
 	     attr == &dev_attr_fan2_level_rpm_table.attr) &&
-	    !priv->conf->has_fantable_data)
+	    !(priv->conf->has_fancurve_defaults &&
+	      priv->conf->access_method_fancurve == ACCESS_METHOD_WMI3 &&
+	      wmi_has_guid(WMI_GUID_LENOVO_FANTABLE_DATA)))
 		return 0;
 
 	if (priv->conf->skip_oc_controls &&
@@ -8075,6 +7977,26 @@ static ssize_t fan_max_show(struct device *dev,
 			    struct device_attribute *devattr, char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+	int channel = to_sensor_dev_attr(devattr)->index;
+	const struct fantable_ladder *ladder;
+
+	/* Prefer the firmware's per-level fan table when the model has it:
+	 * the row's current_fan_max_speed is the fan's real maximum.
+	 */
+	ladder = channel == 1 ? &priv->fantable_fan2 : &priv->fantable_fan1;
+	if (priv->conf->has_fancurve_defaults &&
+	    priv->conf->access_method_fancurve == ACCESS_METHOD_WMI3) {
+		mutex_lock(&priv->fancurve_mutex);
+		if (!fantable_ensure(priv) &&
+		    (channel == 1 ? priv->fantable_fan2_valid :
+				    priv->fantable_fan1_valid)) {
+			int max_rpm = ladder->max_rpm;
+
+			mutex_unlock(&priv->fancurve_mutex);
+			return sysfs_emit(buf, "%d\n", max_rpm);
+		}
+		mutex_unlock(&priv->fancurve_mutex);
+	}
 
 	if (priv && priv->conf->fan_max_rpm)
 		return sysfs_emit(buf, "%d\n", priv->conf->fan_max_rpm);
@@ -8344,7 +8266,7 @@ static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point9_pwm, autopoint,
 static SENSOR_DEVICE_ATTR_2_RW(pwm1_auto_point10_pwm, autopoint,
 			       FANCURVE_ATTR_PWM1, 9);
 // pwm2
-static SENSOR_DEVICE_ATTR_RO(fan2_max, fan_max, 0);
+static SENSOR_DEVICE_ATTR_RO(fan2_max, fan_max, 1);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point1_pwm, autopoint,
 			       FANCURVE_ATTR_PWM2, 0);
 static SENSOR_DEVICE_ATTR_2_RW(pwm2_auto_point2_pwm, autopoint,
