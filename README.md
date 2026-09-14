@@ -453,14 +453,17 @@ Unexpected output:
 # Get root
 sudo su
 # As root enter
+# The hwmon directory is named after the platform device, which is PNP0C09:00 before kernel 7.0 and "legion" on 7.0+;
+# find it via the hwmon name instead:
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
 # 2. point, 1. fan (around 1500 rpm in pwm)
-echo 38 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point2_pwm
+echo 38 > $H/pwm1_auto_point2_pwm
 # 2. point, 2.fan (around 1600 rpm in pwm)
-echo 40 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point2_pwm
+echo 40 > $H/pwm2_auto_point2_pwm
 # 3. point, 1. fan (around 1700 rpm in pwm)
-echo 43 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point3_pwm
+echo 43 > $H/pwm1_auto_point3_pwm
 # 3. point, 2.fan (around 1800 rpm in pwm)
-echo 45 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point3_pwm
+echo 45 > $H/pwm2_auto_point3_pwm
 
 
 # Read the current fancurve and check if changes were made
