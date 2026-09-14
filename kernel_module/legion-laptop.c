@@ -8290,6 +8290,13 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 	struct device *dev = &priv->platform_device->dev;
 	const char *acpi_path;
 
+	/*
+	 * Ownership of priv->adev differs by kernel: before 7.0 it is the
+	 * caller's ACPI companion reference (borrowed, never put here);
+	 * on 7.0+ the virtual platform device has no companion, so the
+	 * EC device looked up below is owned by the driver and put in
+	 * acpi_exit(). acpi_dev_put() is only called on the owned case.
+	 */
 	priv->adev = adev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
 	/*
@@ -8299,6 +8306,11 @@ static int acpi_init(struct legion_private *priv, struct acpi_device *adev)
 	 * before kernel 7.0, so look that device up by its HID and keep
 	 * evaluating relative to it. The reference is dropped in
 	 * acpi_exit().
+	 *
+	 * Note: this only returns the first PNP0C09 device; Legion
+	 * platforms declare a single embedded controller, but if a DSDT
+	 * ever declared more than one, the first match might not be the
+	 * right one -- absolute per-model paths are the fallback then.
 	 */
 	if (!priv->adev) {
 		priv->adev = acpi_dev_get_first_match_dev("PNP0C09", NULL, -1);
