@@ -1793,6 +1793,84 @@ static const struct model_config model_q7cn = {
 	.has_flip_to_start = true,
 };
 
+// Legion Pro 5 16ADR10 (83LT) - 2025, AMD + RTX 50
+// BIOS: RLCN31WW, EC 0x5508. Facts below are from this unit's DSDT
+// (L = dsdt.dsl line, issue #445); the WMA* methods live in \_SB.GZFD:
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L29032): get returns the 0x58-byte wmi_fan_table_read buffer, live
+//   EC fields F9F0..F9F9 unless ODV1 == 4 (extreme), which returns the
+//   static 1..10 placeholder; set copies the ten speeds (bytes
+//   0x06..0x18 at even offsets, FSS0..FSS9) to F9F0..F9F9 and commits
+//   via LECR(0xD0,1,1,2), no range check, mode/FSID bytes ignored.
+//   Identical semantics to Q7CN, so FAN_SPEED_UNIT_LEVEL (see
+//   wmi_read_fancurve_custom()) and only the speed attributes are
+//   exposed (wmi_fancurve_speed_only). LENOVO_FAN_TABLE_DATA (WQA3,
+//   L14777) maps level 1..10 to 1700..5100 RPM on fan 1, so
+//   fan1_level_rpm_table/fan2_level_rpm_table appear automatically.
+// - Other Method WMAE Get(0x11)/Set(0x12) (L29136) implements the
+//   standard feature IDs: fan RPM 0x04030001/2 (FANS*0x64), CPU/GPU
+//   temp 0x05040000/0x05050000, full speed 0x04020000 -> EC FNST (both
+//   directions, mutex-protected), PL/OC 0x0101..0x0107/0x0201..0x0204
+//   stored raw in the EC. 0x05010000 is the CPU socket temp (CPUS),
+//   not a labeled IC sensor -> skip_ic_temp. PL/OC attributes stay
+//   hidden (skip_oc_controls) until validated; only
+//   cpu_temperature_limit, cpu_l1_tau and gpu_power_target_offset are
+//   visible, as on Q7CN.
+// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
+//   (L28308): quiet/balanced/performance, 0xFF custom, 0xE0 extreme;
+//   performance/custom are parked on battery (ACTY check).
+// - CPU Method WMAC only handles 0x0E (AMD thermal thresholds via
+//   WECM, L29109), which the driver never calls.
+// - Lights: KBBACKLIGHT WMAF get(1)/set(2) (L30748) drives the
+//   keyboard (LECR 0xDA) and the Y-logo (LCST: 1 = on, 2 = off,
+//   matching the driver's Gen 10 handling); light ID 0x05 (IO-port) is
+//   unimplemented and reads 0, so it is skipped at runtime (-ENODEV).
+// - EC0 at \_SB.PCI0.LPC0.EC0 (PNP0C09, GPE 7, IO 0x62/0x66, _STA
+//   0x0F, L6910); EC RAM window ERAX @0xFEEC2400 len 0xFF (L7144, used
+//   only for the read-only debugfs ecmemoryram dump); VPC0 GBMD/SBMC
+//   (L9341/L9558) present. EC register offsets are not trusted on the
+//   0x5508 generation (issue #491) - everything else goes through WMI.
+// fan_fullspeed needs custom power mode (WMI3 FNST, cf. model_q7cn):
+// on this unit a full-speed write through the wrong WMI method (GKCN
+// fallback config) wedged the fans at ~18000 RPM until reboot, so the
+// write is gated and must be validated with care (set in custom mode,
+// then clear; reboot if it does not release).
+static const struct model_config model_rlcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFEEC2400,
+	.ramio_size = 0xFF,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_flip_to_start = true,
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -2300,6 +2378,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "Q7CN"),
 		},
 		.driver_data = (void *)&model_q7cn
+	},
+	{
+		// Legion Pro 5 16ADR10 (83LT), BIOS RLCN (issue #445); the
+		// 83LV R9000P 2025 shares the RLCN BIOS line but is a different
+		// chassis, so match the product name and add it only after its
+		// own validation
+		.ident = "RLCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83LT"),
+			DMI_MATCH(DMI_BIOS_VERSION, "RLCN"),
+		},
+		.driver_data = (void *)&model_rlcn
 	},
 	{
 		// Legion 5 15IAX10 (83F0)
@@ -4287,6 +4378,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
 		model == &model_kwcn ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_q7cn ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_rlcn ? FAN_SPEED_UNIT_LEVEL :
 				       FAN_SPEED_UNIT_PERCENT;
 
 	for (i = 0; i < size; i++) {
