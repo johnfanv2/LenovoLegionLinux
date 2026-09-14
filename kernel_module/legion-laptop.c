@@ -258,6 +258,14 @@ struct model_config {
 	 * declare that byte.
 	 */
 	bool skip_lockfancontroller;
+	/*
+	 * fan_maxspeed calls Fan_Get_MaxSpeed/Fan_Set_MaxSpeed (ids 3/4) on
+	 * LENOVO_FAN_METHOD; set on firmware whose fan method does not
+	 * implement them, where the call runs off the end of the dispatcher
+	 * without a Return and succeeds, so the attribute reads a meaningless 0
+	 * and a write is a no-op.
+	 */
+	bool skip_fan_maxspeed;
 	bool acpi_fanspeed_is_rpm;
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
@@ -727,14 +735,15 @@ static const struct model_config model_kwcn = {
 	 * KWCN54WW (Legion Pro 5 16IRX8, 82WK) declares only Fan_Get_Table and
 	 * Fan_Set_Table on LENOVO_FAN_METHOD, only CPU_Set_OC_Data on
 	 * LENOVO_CPU_METHOD and nothing on LENOVO_GPU_METHOD, so the fan
-	 * full-speed methods (ids 1/2) and the legacy power-limit methods
-	 * cannot work. LENOVO_OTHER_METHOD answers for the plain feature IDs
-	 * and LENOVO_CAPABILITY_DATA_01 / LENOVO_DISCRETE_DATA publish the
-	 * per-mode ranges, so use the Other Method paths (writes are clamped
-	 * to the capability-data ranges).
+	 * full-speed methods (ids 1/2), the max-speed methods (ids 3/4) and
+	 * the legacy power-limit methods cannot work. LENOVO_OTHER_METHOD
+	 * answers for the plain feature IDs and LENOVO_CAPABILITY_DATA_01 /
+	 * LENOVO_DISCRETE_DATA publish the per-mode ranges, so use the Other
+	 * Method paths (writes are clamped to the capability-data ranges).
 	 */
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.fanfullspeed_requires_custom_powermode = true,
+	.skip_fan_maxspeed = true,
 	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	/*
 	 * Fan_Set_Table carries one level per point for both fans; the pwm2,
@@ -1768,6 +1777,8 @@ static const struct model_config model_q7cn = {
 	.skip_ic_temp = true,
 	.skip_oc_controls = true,
 	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
 	.fanfullspeed_requires_custom_powermode = true,
 	.skip_ylogo_light = true,
 	.skip_ioport_light = true,
@@ -1855,6 +1866,8 @@ static const struct model_config model_rlcn = {
 	.skip_ic_temp = true,
 	.skip_oc_controls = true,
 	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFEEC2400,
 	.ramio_size = 0xFF,
@@ -7523,6 +7536,10 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return 0;
 
 	if (attr == &dev_attr_fan_unlock.attr && !priv->conf->has_fan_unlock)
+		return 0;
+
+	if (attr == &dev_attr_fan_maxspeed.attr &&
+	    priv->conf->skip_fan_maxspeed)
 		return 0;
 
 	if (attr == &dev_attr_lockfancontroller.attr &&

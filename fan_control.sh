@@ -27,6 +27,13 @@ set_attr_checked() {
 	exit 1
 }
 
+# fan_maxspeed is hidden on models whose firmware lacks Fan_Get/Set_MaxSpeed (e.g. KWCN)
+set_attr_if_present() {
+	if [ -e "$1/$3" ]; then
+		set_attr_checked "$@"
+	fi
+}
+
 read_attr() {
 	cat "$1/$2" 2>/dev/null || echo "n/a"
 }
@@ -52,14 +59,14 @@ case "$1" in
 	"enable")
 		echo "🔥 Enabling high-performance fan mode..."
 		set_attr_checked "$BASE" 1 fan_fullspeed
-		set_attr_checked "$BASE" 1 fan_maxspeed
+		set_attr_if_present "$BASE" 1 fan_maxspeed
 		echo "✅ High-performance fan mode enabled!"
 		show_status "$BASE"
 		;;
 	"disable")
 		echo "🌡️ Disabling high-performance fan mode..."
 		set_attr_checked "$BASE" 0 fan_fullspeed
-		set_attr_checked "$BASE" 0 fan_maxspeed
+		set_attr_if_present "$BASE" 0 fan_maxspeed
 		echo "✅ Automatic fan control restored!"
 		show_status "$BASE"
 		;;
