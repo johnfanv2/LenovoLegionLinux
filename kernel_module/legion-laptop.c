@@ -3710,6 +3710,16 @@ struct light {
 /* =============================  */
 // Implemented like ideapad-laptop.c but currently still
 // without dynamic memory allocation (instead global _priv)
+/*
+ * Per-fan RPM ladder for one power mode, derived from a matching row of
+ * the LENOVO_FAN_TABLE_DATA WMI data block (see the fantable section
+ * below for the row layout and refresh logic).
+ */
+struct fantable_ladder {
+	u16 rpms[FANTABLE_MAX_LEVELS];
+	u8 level_count;
+};
+
 struct legion_private {
 	struct platform_device *platform_device;
 	// TODO: remove or keep? init?
@@ -4330,11 +4340,6 @@ struct wmi_fantable_row {
 } __packed;
 
 /* Per-fan RPM ladder for one power mode, derived from a matching row. */
-struct fantable_ladder {
-	u16 rpms[FANTABLE_MAX_LEVELS];
-	u8 level_count;
-};
-
 static int wmi_query_fantable_row(u8 index, struct wmi_fantable_row *row)
 {
 	struct acpi_buffer out = { ACPI_ALLOCATE_BUFFER, NULL };
@@ -6776,7 +6781,6 @@ static ssize_t cpu_peak_powerlimit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
 	switch (priv->conf->access_method_powerlimits) {
