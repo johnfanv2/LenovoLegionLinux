@@ -928,8 +928,6 @@ class LegionController:
 
     def on_load_from_preset(self):
         name = self.view_fancurve.preset_combobox.currentText()
-        if not self._read_fancurve_from_view():
-            return
         try:
             self.model.load_fancurve_from_preset(name)
         except FileNotFoundError:

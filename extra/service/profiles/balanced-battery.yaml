@@ -88,8 +88,8 @@ entries:
   gpu_upper_temp: 127
   ic_lower_temp: 127
   ic_upper_temp: 127
-  acceleration: 1
-  deceleration: 1
+  acceleration: 2
+  deceleration: 2
 - fan1_speed: 0
   fan2_speed: 0
   cpu_lower_temp: 0
@@ -98,6 +98,6 @@ entries:
   gpu_upper_temp: 0
   ic_lower_temp: 0
   ic_upper_temp: 0
-  acceleration: 0
-  deceleration: 0
+  acceleration: 2
+  deceleration: 2
 enable_minifancurve: false
