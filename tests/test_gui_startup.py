@@ -62,3 +62,22 @@ class GuiStartupTest(unittest.TestCase):
 
     def test_no_hwmon(self):
         self.check_startup(None, False, False)
+
+    def test_load_from_preset_with_uninitialized_view(self):
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
+        window = MainWindow(controller, QIcon())
+        try:
+            controller.init(read_from_hw=False)
+            # Default view entries have acceleration = 0, deceleration = 0.
+            # Loading a preset must not be blocked by validating the uninitialized view.
+            with patch.object(controller.model, "load_fancurve_from_preset") as mock_load, patch.object(
+                controller, "update_fancurve_gui"
+            ) as mock_update:
+                controller.view_fancurve.preset_combobox.addItem("performance-ac")
+                controller.view_fancurve.preset_combobox.setCurrentText("performance-ac")
+                controller.on_load_from_preset()
+                mock_load.assert_called_once_with("performance-ac")
+                mock_update.assert_called_once()
+        finally:
+            window.deleteLater()
+            self.app.processEvents()
