@@ -486,7 +486,7 @@ cat /sys/kernel/debug/legion/fancurve
 
 - 如果你按下 Ctrl+Q（或某些设备的 FN+Q）更改电源模式，或等待时间过长，控制器可能会加载默认值；此时请重试
 - 风扇曲线中的对应条目值应被设置为你输入的数值，其它值不相关（用 XXXX 表示）
-- 在 Legion Zone v3 固件上（例如 Legion Pro 5 16IRX8，BIOS KWCN），风扇表保存的是 0-10 的风扇等级（`u` = 5）：写入的 pwm 会四舍五入到最近的等级（写入 0、26、51 … 255），读回时为 `level * 255 / 10`（0、25、51、76、102、127、153、178、204、229、255）；第 9、10 点至少需要 pwm 64 和 115，低于某点最小值的写入会返回 `Operation not supported`。在这些机型上，Python 工具（`legion_cli`、`legion_gui` 以及 `legiond` 预设）会把 RPM 值转换为最接近的固件等级（例如 4400 rpm → 9 级），并把 0 rpm 的点提升到该点的最低等级，因此现有预设仍可使用。转换所用的每级 RPM 阶梯在运行时从驱动提供的 `fan1_level_rpm_table`/`fan2_level_rpm_table` 平台属性读取（由固件的 `LENOVO_FAN_TABLE_DATA` WMI 数据块填充），并非硬编码
+- 在 Legion Zone v3 固件上（例如 Legion Pro 5 16IRX8，BIOS KWCN），风扇表保存的是 0-10 的风扇等级（`u` = 5）：写入的 pwm 会四舍五入到最近的等级（写入 0、26、51 … 255），读回时为 `level * 255 / 10`（0、25、51、76、102、127、153、178、204、229、255）；第 9、10 点至少需要 pwm 64 和 115，低于某点最小值的写入会返回 `Operation not supported`。在这些机型上，Python 工具（`legion_cli`、`legion_gui` 以及 `legiond` 预设）会把 RPM 值转换为最接近的固件等级（例如 4400 rpm → 9 级），并把 0 rpm 的点提升到该点的最低等级，因此现有预设仍可使用。转换所用的每级 RPM 阶梯在运行时从驱动提供的 `fan1_level_rpm_table`/`fan2_level_rpm_table` 平台属性读取（由固件的 `LENOVO_FAN_TABLE_DATA` WMI 数据块填充），并非硬编码。这些机型（KWCN、Q7CN、RLCN）不会暴露 `fan_maxspeed`（Fan Method 3/4 号方法）：固件未实现这两个方法，该属性无法工作（在 KWCN 上读取只得到无意义的 0）；`fan_control.sh` 在该属性不存在时会跳过它
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
