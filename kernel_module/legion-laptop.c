@@ -9432,10 +9432,18 @@ static int legion_add(struct platform_device *pdev)
 	}
 #else
 	err = acpi_init(priv, NULL);
-	if (err) {
-		dev_info(&pdev->dev, "Could not init ACPI access: %d\n", err);
-		goto err_acpi_init;
-	}
+	/*
+	 * Do not fail the probe when ACPI init fails on 7.x: the driver
+	 * binds a virtual platform device there and the per-model ACPI
+	 * paths do not match every DSDT (e.g. LPC0 vs LPCB, or a missing
+	 * VPC0._STA), so a failing _STA evaluation is a false negative.
+	 * ACPI is only one access method; EC RAM and WMI stay fully
+	 * functional without it. Check and log the error, but carry on.
+	 */
+	if (err)
+		dev_info(&pdev->dev,
+			 "Could not init ACPI access: %d; continuing without ACPI\n",
+			 err);
 #endif
 	// TODO: remove; only used for reverse engineering
 	pr_info("Creating RAM access to embedded controller\n");
@@ -9570,7 +9578,9 @@ err_ecram_id:
 err_ecram_init:
 	ecram_memoryio_exit(&priv->ec_memoryio);
 err_ecram_memoryio_init:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 err_acpi_init:
+#endif
 	acpi_exit(priv);
 	legion_shared_exit(priv);
 err_legion_shared_init:
