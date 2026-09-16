@@ -1654,7 +1654,8 @@ static const struct model_config model_m3cn_8227 = {
 		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
 		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
 	},
-	.has_extreme_powermode = true
+	.has_extreme_powermode = true,
+	.wmi_fancurve_speed_only = true
 };
 // LOQ 15IAX9E
 static const struct model_config model_q8cn = {
@@ -4447,6 +4448,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		model == &model_kwcn ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_q7cn ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_rlcn ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
 				       FAN_SPEED_UNIT_PERCENT;
 
 	for (i = 0; i < size; i++) {
@@ -4699,9 +4701,12 @@ static void fancurve_level_table_sanitize(u8 speeds[MAXFANCURVESIZE])
 	}
 }
 
-static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
+static ssize_t read_powermode(struct legion_private *priv, int *powermode);
+
+static ssize_t wmi_write_fancurve_custom(struct legion_private *priv,
 					 const struct fancurve *fancurve)
 {
+	const struct model_config *model = priv->conf;
 	u8 buffer[0x40];
 	u8 speeds[MAXFANCURVESIZE];
 	size_t point;
@@ -4724,6 +4729,14 @@ static ssize_t wmi_write_fancurve_custom(const struct model_config *model,
 	// CreateByteField (Arg2, 0x18, FSS9)
 
 	memset(buffer, 0, sizeof(buffer));
+	if (model == &model_m3cn_8227) {
+		int powermode = 0xFF;
+
+		if (read_powermode(priv, &powermode) < 0)
+			powermode = priv->current_powermode ?
+				    priv->current_powermode : 0xFF;
+		buffer[0] = (u8)powermode;
+	}
 	for (point = 0; point < MAXFANCURVESIZE; point++)
 		speeds[point] = fancurve->points[point].speed1;
 	if (fancurve->fan_speed_unit == FAN_SPEED_UNIT_LEVEL)
@@ -5264,7 +5277,7 @@ static int write_fancurve(struct legion_private *priv,
 						   fancurve);
 		break;
 	case ACCESS_METHOD_WMI3:
-		err = wmi_write_fancurve_custom(priv->conf, fancurve);
+		err = wmi_write_fancurve_custom(priv, fancurve);
 		break;
 	default:
 		pr_info("No access method for fancurve: %d\n",
