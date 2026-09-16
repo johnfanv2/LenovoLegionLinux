@@ -22,9 +22,7 @@ class GuiStartupTest(unittest.TestCase):
         logging.disable(logging.CRITICAL)
 
     def check_startup(self, hwmon_path, read_from_hw, supported):
-        with patch.object(
-            FanCurveIO, "_find_hwmon_dir", return_value=hwmon_path
-        ), patch.object(
+        with patch.object(FanCurveIO, "_find_hwmon_dir", return_value=hwmon_path), patch.object(
             FileFeature,
             "_write_file",
             side_effect=AssertionError("Startup must not write to hardware"),
@@ -36,23 +34,13 @@ class GuiStartupTest(unittest.TestCase):
             )
             window = MainWindow(controller, QIcon())
             try:
-                with patch.object(
-                    controller.model, "read_fancurve_from_hw"
-                ) as read_curve:
+                with patch.object(controller.model, "read_fancurve_from_hw") as read_curve:
                     controller.init(read_from_hw=read_from_hw)
-                    self.assertEqual(
-                        read_curve.call_count, int(supported and read_from_hw)
-                    )
-                self.assertEqual(
-                    controller.view_fancurve.load_button.isEnabled(), supported
-                )
-                self.assertEqual(
-                    controller.view_fancurve.write_button.isEnabled(), supported
-                )
+                    self.assertEqual(read_curve.call_count, int(supported and read_from_hw))
+                self.assertEqual(controller.view_fancurve.load_button.isEnabled(), supported)
+                self.assertEqual(controller.view_fancurve.write_button.isEnabled(), supported)
                 if hwmon_path and not supported:
-                    self.assertIn(
-                        "not supported", controller.view_fancurve.note_label2.text()
-                    )
+                    self.assertIn("not supported", controller.view_fancurve.note_label2.text())
             finally:
                 window.deleteLater()
                 self.app.processEvents()
@@ -76,23 +64,17 @@ class GuiStartupTest(unittest.TestCase):
         self.check_startup(None, False, False)
 
     def test_load_from_preset_with_uninitialized_view(self):
-        controller = LegionController(
-            self.app, expect_hwmon=False, use_legion_cli_to_write=True
-        )
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
         window = MainWindow(controller, QIcon())
         try:
             controller.init(read_from_hw=False)
             # Default view entries have acceleration = 0, deceleration = 0.
             # Loading a preset must not be blocked by validating the uninitialized view.
-            with patch.object(
-                controller.model, "load_fancurve_from_preset"
-            ) as mock_load, patch.object(
+            with patch.object(controller.model, "load_fancurve_from_preset") as mock_load, patch.object(
                 controller, "update_fancurve_gui"
             ) as mock_update:
                 controller.view_fancurve.preset_combobox.addItem("performance-ac")
-                controller.view_fancurve.preset_combobox.setCurrentText(
-                    "performance-ac"
-                )
+                controller.view_fancurve.preset_combobox.setCurrentText("performance-ac")
                 controller.on_load_from_preset()
                 mock_load.assert_called_once_with("performance-ac")
                 mock_update.assert_called_once()
@@ -101,9 +83,7 @@ class GuiStartupTest(unittest.TestCase):
             self.app.processEvents()
 
     def test_write_ignores_padding_in_accel_validation(self):
-        controller = LegionController(
-            self.app, expect_hwmon=False, use_legion_cli_to_write=True
-        )
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
         window = MainWindow(controller, QIcon())
         try:
             controller.init(read_from_hw=False)
@@ -114,13 +94,9 @@ class GuiStartupTest(unittest.TestCase):
                 entry_view.fan_speed1_edit.setText("2000")
                 entry_view.accel_edit.setText("2")
                 entry_view.decel_edit.setText("2")
-            with patch.object(
-                controller.model, "write_fancurve_to_hw"
-            ) as mock_write, patch.object(
+            with patch.object(controller.model, "write_fancurve_to_hw") as mock_write, patch.object(
                 controller.model, "read_fancurve_from_hw"
-            ), patch.object(
-                controller, "update_fancurve_gui"
-            ):
+            ), patch.object(controller, "update_fancurve_gui"):
                 controller.on_write_fan_curve_to_hw()
                 mock_write.assert_called_once()
                 # Padding entries stay in the curve (FanCurveIO.write_fan_curve
@@ -131,9 +107,7 @@ class GuiStartupTest(unittest.TestCase):
             self.app.processEvents()
 
     def test_write_rejects_out_of_range_accel_on_real_point(self):
-        controller = LegionController(
-            self.app, expect_hwmon=False, use_legion_cli_to_write=True
-        )
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
         window = MainWindow(controller, QIcon())
         try:
             controller.init(read_from_hw=False)

@@ -171,15 +171,11 @@ def log_ui_feature_action(widget, feature):
 
 
 def open_web_link():
-    QtGui.QDesktopServices.openUrl(
-        QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux")
-    )
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
 
 
 def open_star_link():
-    QtGui.QDesktopServices.openUrl(
-        QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux")
-    )
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/johnfanv2/LenovoLegionLinux"))
 
 
 class EnumFeatureController:
@@ -475,9 +471,7 @@ class EnumFeatureTrayController:
         self.update_view_from_feature()
         if self.dependent_controllers:
             for contr in self.dependent_controllers:
-                log.info(
-                    "Update dependent view %s in EnumFeatureTrayController", str(contr)
-                )
+                log.info("Update dependent view %s in EnumFeatureTrayController", str(contr))
                 contr.update_view_from_feature()
 
 
@@ -510,12 +504,7 @@ class IntFeatureController:
                     log.info("Set to value: %s", gui_value)
                     self.feature.set(gui_value)
                 else:
-                    log.info(
-                        "Value for gui_value %s not ignored with limits %s and %s",
-                        gui_value,
-                        low,
-                        upper,
-                    )
+                    log.info("Value for gui_value %s not ignored with limits %s and %s", gui_value, low, upper)
             else:
                 self.widget.setDisabled(True)
         # pylint: disable=broad-except
@@ -663,12 +652,8 @@ class LegionController:
     power_mode_tray_controller: EnumFeatureTrayController
     preset_tray_controller: PresetTrayController
 
-    def __init__(
-        self, app: QApplication, expect_hwmon=True, use_legion_cli_to_write=False
-    ):
-        self.model = LegionModelFacade(
-            expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write
-        )
+    def __init__(self, app: QApplication, expect_hwmon=True, use_legion_cli_to_write=False):
+        self.model = LegionModelFacade(expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
         self.app = app
         self.view_fancurve = None
         self.view_otheroptions = None
@@ -676,9 +661,7 @@ class LegionController:
         self.log_view = None
         self.tray = None
         self.view_automation = None
-        self.show_root_dialog = (not self.model.is_root_user()) and (
-            not use_legion_cli_to_write
-        )
+        self.show_root_dialog = (not self.model.is_root_user()) and (not use_legion_cli_to_write)
         self.monitoring_threadpool = QThreadPool()
         self.monitoring_worker = MonitorWorker(None)
 
@@ -694,37 +677,23 @@ class LegionController:
             self.view_fancurve.maximumfanspeed_check, self.model.maximum_fanspeed
         )
         # other
-        self.fnlock_controller = BoolFeatureController(
-            self.view_otheroptions.fnlock_check, self.model.fn_lock
-        )
-        self.winkey_controller = BoolFeatureController(
-            self.view_otheroptions.winkey_check, self.model.winkey
-        )
-        self.touchpad_controller = BoolFeatureController(
-            self.view_otheroptions.touchpad_check, self.model.touchpad
-        )
+        self.fnlock_controller = BoolFeatureController(self.view_otheroptions.fnlock_check, self.model.fn_lock)
+        self.winkey_controller = BoolFeatureController(self.view_otheroptions.winkey_check, self.model.winkey)
+        self.touchpad_controller = BoolFeatureController(self.view_otheroptions.touchpad_check, self.model.touchpad)
         self.camera_power_controller = BoolFeatureController(
             self.view_otheroptions.camera_power_check, self.model.camera_power
         )
-        self.overdrive_controller = BoolFeatureController(
-            self.view_otheroptions.overdrive_check, self.model.overdrive
-        )
+        self.overdrive_controller = BoolFeatureController(self.view_otheroptions.overdrive_check, self.model.overdrive)
         self.batteryconservation_controller = BoolFeatureController(
-            self.view_otheroptions.batteryconservation_check,
-            self.model.battery_conservation,
+            self.view_otheroptions.batteryconservation_check, self.model.battery_conservation
         )
         self.rapid_charging_controller = BoolFeatureController(
             self.view_otheroptions.rapid_charging_check, self.model.rapid_charging
         )
-        self.batteryconservation_controller.dependent_controllers.append(
-            self.rapid_charging_controller
-        )
-        self.rapid_charging_controller.dependent_controllers.append(
-            self.batteryconservation_controller
-        )
+        self.batteryconservation_controller.dependent_controllers.append(self.rapid_charging_controller)
+        self.rapid_charging_controller.dependent_controllers.append(self.batteryconservation_controller)
         self.always_on_usb_controller = BoolFeatureController(
-            self.view_otheroptions.always_on_usb_check,
-            self.model.always_on_usb_charging,
+            self.view_otheroptions.always_on_usb_check, self.model.always_on_usb_charging
         )
         self.power_mode_controller = EnumFeatureController(
             self.view_otheroptions.power_mode_combo, self.model.platform_profile
@@ -737,43 +706,31 @@ class LegionController:
         )
 
         # power limits
-        self.cpu_overclock = BoolFeatureController(
-            self.view_otheroptions.cpu_overclock_ckeck, self.model.cpu_overclock
-        )
-        self.gpu_overclock = BoolFeatureController(
-            self.view_otheroptions.gpu_overclock_check, self.model.gpu_overclock
-        )
+        self.cpu_overclock = BoolFeatureController(self.view_otheroptions.cpu_overclock_ckeck, self.model.cpu_overclock)
+        self.gpu_overclock = BoolFeatureController(self.view_otheroptions.gpu_overclock_check, self.model.gpu_overclock)
         self.cpu_longterm_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.cpu_longterm_power_limit_spinbox,
-            self.model.cpu_longterm_power_limit,
+            self.view_otheroptions.cpu_longterm_power_limit_spinbox, self.model.cpu_longterm_power_limit
         )
         self.cpu_shortterm_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.cpu_shortterm_power_limit_spinbox,
-            self.model.cpu_shortterm_power_limit,
+            self.view_otheroptions.cpu_shortterm_power_limit_spinbox, self.model.cpu_shortterm_power_limit
         )
         self.cpu_peak_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.cpu_peak_power_limit_spinbox,
-            self.model.cpu_peak_power_limit,
+            self.view_otheroptions.cpu_peak_power_limit_spinbox, self.model.cpu_peak_power_limit
         )
         self.cpu_cross_loading_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.cpu_cross_loading_power_limit_spinbox,
-            self.model.cpu_cross_loading_power_limit,
+            self.view_otheroptions.cpu_cross_loading_power_limit_spinbox, self.model.cpu_cross_loading_power_limit
         )
         self.cpu_apu_sppt_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.cpu_apu_sppt_power_limit_spinbox,
-            self.model.cpu_apu_sppt_power_limit,
+            self.view_otheroptions.cpu_apu_sppt_power_limit_spinbox, self.model.cpu_apu_sppt_power_limit
         )
         self.gpu_ctgp_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.gpu_ctgp_power_limit_spinbox,
-            self.model.gpu_ctgp_power_limit,
+            self.view_otheroptions.gpu_ctgp_power_limit_spinbox, self.model.gpu_ctgp_power_limit
         )
         self.gpu_ppab_power_limit_controller = IntFeatureController(
-            self.view_otheroptions.gpu_ppab_power_limit_spinbox,
-            self.model.gpu_ppab_power_limit,
+            self.view_otheroptions.gpu_ppab_power_limit_spinbox, self.model.gpu_ppab_power_limit
         )
         self.gpu_temperature_limit_controller = IntFeatureController(
-            self.view_otheroptions.gpu_temperature_limit_spinbox,
-            self.model.gpu_temperature_limit,
+            self.view_otheroptions.gpu_temperature_limit_spinbox, self.model.gpu_temperature_limit
         )
 
         # light
@@ -786,34 +743,27 @@ class LegionController:
 
         # services and automation
         self.power_profiles_deamon_service_controller = BoolFeatureController(
-            self.view_automation.power_profiles_deamon_service_check,
-            self.model.power_profiles_deamon_service,
+            self.view_automation.power_profiles_deamon_service_check, self.model.power_profiles_deamon_service
         )
         self.lenovo_legion_laptop_support_service_controller = BoolFeatureController(
             self.view_automation.lenovo_legion_laptop_support_service_check,
             self.model.lenovo_legion_laptop_support_service,
         )
         self.legion_gui_autstart_controller = BoolFeatureController(
-            self.view_automation.legion_gui_autostart_check,
-            self.model.legion_gui_autostart,
+            self.view_automation.legion_gui_autostart_check, self.model.legion_gui_autostart
         )
         self.close_to_tray_controller = BoolFeatureController(
             self.view_automation.close_to_tray_check, self.model.app_model.close_to_tray
         )
         self.open_closed_to_tray = BoolFeatureController(
-            self.view_automation.open_closed_to_tray_check,
-            self.model.app_model.open_closed_to_tray,
+            self.view_automation.open_closed_to_tray_check, self.model.app_model.open_closed_to_tray
         )
         self.enable_gui_monitoring_controller = BoolFeatureController(
-            self.view_automation.enable_gui_monitoring_check,
-            self.model.app_model.enable_gui_monitoring,
+            self.view_automation.enable_gui_monitoring_check, self.model.app_model.enable_gui_monitoring
         )
-        self.model.app_model.enable_gui_monitoring.add_callback(
-            self.on_enable_monitoring_change
-        )
+        self.model.app_model.enable_gui_monitoring.add_callback(self.on_enable_monitoring_change)
         self.icon_color_mode_controller = EnumFeatureController(
-            self.view_automation.icon_color_mode_combobox,
-            self.model.app_model.icon_color_mode,
+            self.view_automation.icon_color_mode_combobox, self.model.app_model.icon_color_mode
         )
         self.icon_color_mode_controller.update_view_from_feature(0, True)
 
@@ -834,39 +784,23 @@ class LegionController:
         self.batteryconservation_tray_controller = BoolFeatureTrayController(
             self.tray.batteryconservation_action, self.model.battery_conservation
         )
-        set_dependent(
-            self.batteryconservation_controller,
-            self.batteryconservation_tray_controller,
-        )
-        set_dependent(
-            self.rapid_charging_controller, self.batteryconservation_tray_controller
-        )
+        set_dependent(self.batteryconservation_controller, self.batteryconservation_tray_controller)
+        set_dependent(self.rapid_charging_controller, self.batteryconservation_tray_controller)
         self.batteryconservation_tray_controller.update_view_from_feature()
 
         self.rapid_charging_tray_controller = BoolFeatureTrayController(
             self.tray.rapid_charging_action, self.model.rapid_charging
         )
-        set_dependent(
-            self.batteryconservation_controller, self.rapid_charging_tray_controller
-        )
-        set_dependent(
-            self.rapid_charging_controller, self.rapid_charging_tray_controller
-        )
-        set_dependent(
-            self.batteryconservation_tray_controller,
-            self.rapid_charging_tray_controller,
-        )
+        set_dependent(self.batteryconservation_controller, self.rapid_charging_tray_controller)
+        set_dependent(self.rapid_charging_controller, self.rapid_charging_tray_controller)
+        set_dependent(self.batteryconservation_tray_controller, self.rapid_charging_tray_controller)
         self.rapid_charging_tray_controller.update_view_from_feature()
 
-        self.fnlock_tray_controller = BoolFeatureTrayController(
-            self.tray.fnlock_action, self.model.fn_lock
-        )
+        self.fnlock_tray_controller = BoolFeatureTrayController(self.tray.fnlock_action, self.model.fn_lock)
         set_dependent(self.fnlock_tray_controller, self.fnlock_controller)
         self.fnlock_tray_controller.update_view_from_feature()
 
-        self.touchpad_tray_controller = BoolFeatureTrayController(
-            self.tray.touchpad_action, self.model.touchpad
-        )
+        self.touchpad_tray_controller = BoolFeatureTrayController(self.tray.touchpad_action, self.model.touchpad)
         set_dependent(self.touchpad_tray_controller, self.touchpad_controller)
         self.touchpad_tray_controller.update_view_from_feature()
 
@@ -920,33 +854,15 @@ class LegionController:
         self.hybrid_gsync_controller.update_view_from_feature()
 
     def update_power_gui(self, update_bounds=False):
-        self.power_mode_controller.update_view_from_feature(
-            0, update_items=update_bounds
-        )
-        self.cpu_longterm_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.cpu_shortterm_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.cpu_peak_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.cpu_cross_loading_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.cpu_apu_sppt_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.gpu_ctgp_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.gpu_ppab_power_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
-        self.gpu_temperature_limit_controller.update_view_from_feature(
-            update_bounds=update_bounds
-        )
+        self.power_mode_controller.update_view_from_feature(0, update_items=update_bounds)
+        self.cpu_longterm_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.cpu_shortterm_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.cpu_peak_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.cpu_cross_loading_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.cpu_apu_sppt_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.gpu_ctgp_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.gpu_ppab_power_limit_controller.update_view_from_feature(update_bounds=update_bounds)
+        self.gpu_temperature_limit_controller.update_view_from_feature(update_bounds=update_bounds)
 
     def power_gui_write_to_hw(self):
         self.cpu_longterm_power_limit_controller.update_feature_from_view(False)
@@ -1109,11 +1025,7 @@ class FanCurveEntryView:
         self.decel_edit.setText(str(entry.deceleration))
 
     def set_disabled(
-        self,
-        value: bool,
-        has_fan_2_speed: bool,
-        has_temperature_curve: bool,
-        has_acceleration_curve: bool,
+        self, value: bool, has_fan_2_speed: bool, has_temperature_curve: bool, has_acceleration_curve: bool
     ):
         self.fan_speed1_edit.setDisabled(value)
         self.fan_speed2_edit.setDisabled(value or not has_fan_2_speed)
@@ -1184,12 +1096,7 @@ class FanCurveTab(QWidget):
         empty_entry = FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         for entry_view in self.entry_edits:
             entry_view.set(empty_entry)
-            entry_view.set_disabled(
-                not enabled,
-                has_fan_2_speed,
-                has_temperature_curve,
-                has_acceleration_curve,
-            )
+            entry_view.set_disabled(not enabled, has_fan_2_speed, has_temperature_curve, has_acceleration_curve)
         for i, entry in enumerate(fancurve.entries):
             if i >= len(self.entry_edits):
                 break
@@ -1220,11 +1127,7 @@ class FanCurveTab(QWidget):
                     "acceleration and deceleration time must be between 2 and 5 "
                     "(the fan controller rejects other values)."
                 )
-        return FanCurve(
-            name="unknown",
-            entries=entries,
-            enable_minifancurve=self.minfancurve_check.isChecked(),
-        )
+        return FanCurve(name="unknown", entries=entries, enable_minifancurve=self.minfancurve_check.isChecked())
 
     def create_fancurve_entry_view(self, layout, point_id):
         self.entry_edits.append(FanCurveEntryView(point_id, layout))
@@ -1279,9 +1182,7 @@ class FanCurveTab(QWidget):
 
         self.load_button = QPushButton("Read from HW")
         self.write_button = QPushButton("Apply to HW")
-        self.note_label = QLabel(
-            "Fan curve is reset to default if you toggle power mode (Fn + Q)."
-        )
+        self.note_label = QLabel("Fan curve is reset to default if you toggle power mode (Fn + Q).")
         self.load_button.clicked.connect(self.controller.on_read_fan_curve_from_hw)
         self.write_button.clicked.connect(self.controller.on_write_fan_curve_to_hw)
         self.button1_group.setLayout(self.button1_layout)
@@ -1294,9 +1195,7 @@ class FanCurveTab(QWidget):
         self.save_to_preset_button = QPushButton("Save to Preset")
         self.load_from_preset_button = QPushButton("Load from Preset")
         self.save_to_preset_button.clicked.connect(self.controller.on_save_to_preset)
-        self.load_from_preset_button.clicked.connect(
-            self.controller.on_load_from_preset
-        )
+        self.load_from_preset_button.clicked.connect(self.controller.on_load_from_preset)
         self.preset_combobox = QComboBox(self)
         self.button2_group.setLayout(self.button2_layout)
         self.button2_layout.addWidget(self.preset_combobox, 0, 0)
@@ -1341,9 +1240,7 @@ class OtherOptionsTab(QWidget):
         self.winkey_check = QCheckBox("Win Key Enabled")
         self.options_layout.addWidget(self.winkey_check, 0)
 
-        self.touchpad_check = QCheckBox(
-            "Touchpad Enabled (Lock or unlock touchpad; same as Fn + F10)"
-        )
+        self.touchpad_check = QCheckBox("Touchpad Enabled (Lock or unlock touchpad; same as Fn + F10)")
         self.options_layout.addWidget(self.touchpad_check, 1)
 
         self.camera_power_check = QCheckBox("Camera Power Enabled")
@@ -1415,15 +1312,11 @@ class OtherOptionsTab(QWidget):
             self.update_bootlogo_view()
 
     def on_select_image(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Image", "", "Images (*.png *.jpg *.bmp)"
-        )
+        path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.jpg *.bmp)")
         if path:
             try:
                 self.controller.model.enable_boot_logo(path)
-                QMessageBox.information(
-                    self, "Success", f"Boot Logo enabled with {path}."
-                )
+                QMessageBox.information(self, "Success", f"Boot Logo enabled with {path}.")
             except Exception as e:  # pylint: disable=broad-exception-caught
                 QMessageBox.critical(self, "Error", f"Enable failed: {e}")
                 self.bootlogo_checkbox.setChecked(False)
@@ -1449,16 +1342,12 @@ class OtherOptionsTab(QWidget):
         self.gpu_overclock_check = QCheckBox("GPU Overclock")
         self.power_layout.addWidget(self.gpu_overclock_check, 1, 1)
 
-        self.cpu_longterm_power_limit_spinbox_label = QLabel(
-            "CPU Long Term Power Limit [W]"
-        )
+        self.cpu_longterm_power_limit_spinbox_label = QLabel("CPU Long Term Power Limit [W]")
         self.cpu_longterm_power_limit_spinbox = QSpinBox()
         self.power_layout.addWidget(self.cpu_longterm_power_limit_spinbox_label, 3, 0)
         self.power_layout.addWidget(self.cpu_longterm_power_limit_spinbox, 3, 1)
 
-        self.cpu_shortterm_power_limit_spinbox_label = QLabel(
-            "CPU Short Term Power Limit [W]"
-        )
+        self.cpu_shortterm_power_limit_spinbox_label = QLabel("CPU Short Term Power Limit [W]")
         self.cpu_shortterm_power_limit_spinbox = QSpinBox()
         self.power_layout.addWidget(self.cpu_shortterm_power_limit_spinbox_label, 4, 0)
         self.power_layout.addWidget(self.cpu_shortterm_power_limit_spinbox, 4, 1)
@@ -1468,18 +1357,12 @@ class OtherOptionsTab(QWidget):
         self.power_layout.addWidget(self.cpu_peak_power_limit_spinbox_label, 5, 0)
         self.power_layout.addWidget(self.cpu_peak_power_limit_spinbox, 5, 1)
 
-        self.cpu_cross_loading_power_limit_spinbox_label = QLabel(
-            "CPU Cross Loading Power Limit [W]"
-        )
+        self.cpu_cross_loading_power_limit_spinbox_label = QLabel("CPU Cross Loading Power Limit [W]")
         self.cpu_cross_loading_power_limit_spinbox = QSpinBox()
-        self.power_layout.addWidget(
-            self.cpu_cross_loading_power_limit_spinbox_label, 6, 0
-        )
+        self.power_layout.addWidget(self.cpu_cross_loading_power_limit_spinbox_label, 6, 0)
         self.power_layout.addWidget(self.cpu_cross_loading_power_limit_spinbox, 6, 1)
 
-        self.cpu_apu_sppt_power_limit_spinbox_label = QLabel(
-            "CPU APU SPPT Power Limit [W]"
-        )
+        self.cpu_apu_sppt_power_limit_spinbox_label = QLabel("CPU APU SPPT Power Limit [W]")
         self.cpu_apu_sppt_power_limit_spinbox = QSpinBox()
         self.power_layout.addWidget(self.cpu_apu_sppt_power_limit_spinbox_label, 7, 0)
         self.power_layout.addWidget(self.cpu_apu_sppt_power_limit_spinbox, 7, 1)
@@ -1527,21 +1410,13 @@ class AutomationTab(QWidget):
         self.options_layout = QVBoxLayout()
         self.options_group.setLayout(self.options_layout)
 
-        self.power_profiles_deamon_service_check = QCheckBox(
-            "Power Profiles Daemon Enabled"
-        )
+        self.power_profiles_deamon_service_check = QCheckBox("Power Profiles Daemon Enabled")
         self.options_layout.addWidget(self.power_profiles_deamon_service_check, 0)
 
-        self.lenovo_legion_laptop_support_service_check = QCheckBox(
-            "Lenovo Legion Laptop Support Daemon Enabled"
-        )
-        self.options_layout.addWidget(
-            self.lenovo_legion_laptop_support_service_check, 1
-        )
+        self.lenovo_legion_laptop_support_service_check = QCheckBox("Lenovo Legion Laptop Support Daemon Enabled")
+        self.options_layout.addWidget(self.lenovo_legion_laptop_support_service_check, 1)
 
-        self.legion_gui_autostart_check = QCheckBox(
-            "Autostart Legion GUI on Session Startup"
-        )
+        self.legion_gui_autostart_check = QCheckBox("Autostart Legion GUI on Session Startup")
         self.options_layout.addWidget(self.legion_gui_autostart_check, 1)
 
         self.close_to_tray_check = QCheckBox("Close Legion GUI to Tray")
@@ -1550,16 +1425,12 @@ class AutomationTab(QWidget):
         self.open_closed_to_tray_check = QCheckBox("Open Legion GUI Closed to Tray")
         self.options_layout.addWidget(self.open_closed_to_tray_check, 3)
 
-        self.icon_color_mode_label = QLabel(
-            "Icon Color Mode (requires reopening the app)"
-        )
+        self.icon_color_mode_label = QLabel("Icon Color Mode (requires reopening the app)")
         self.options_layout.addWidget(self.icon_color_mode_label, 3)
         self.icon_color_mode_combobox = QComboBox()
         self.options_layout.addWidget(self.icon_color_mode_combobox, 3)
 
-        self.enable_gui_monitoring_check = QCheckBox(
-            "Enable Monitoring while GUI is Running"
-        )
+        self.enable_gui_monitoring_check = QCheckBox("Enable Monitoring while GUI is Running")
         self.options_layout.addWidget(self.enable_gui_monitoring_check, 3)
 
         self.note_label = QLabel(
@@ -1756,8 +1627,7 @@ class MainWindow(QMainWindow):
         self.setWindowFlag(QtCore.Qt.WindowType.Window)
         self.setWindowFlags(self.windowFlags() & (~QtCore.Qt.WindowType.Tool))
         self.setWindowState(
-            self.windowState() & ~QtCore.Qt.WindowState.WindowMinimized
-            | QtCore.Qt.WindowState.WindowActive
+            self.windowState() & ~QtCore.Qt.WindowState.WindowMinimized | QtCore.Qt.WindowState.WindowActive
         )
         self.activateWindow()
         self.show()
@@ -1900,9 +1770,7 @@ def main():
 
     use_legion_cli_to_write = "--use_legion_cli_to_write" in sys.argv
     expect_hwmon = bool(glob.glob(legion_linux.legion.FanCurveIO.hwmon_dir_pattern))
-    controller = LegionController(
-        app, expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write
-    )
+    controller = LegionController(app, expect_hwmon=expect_hwmon, use_legion_cli_to_write=use_legion_cli_to_write)
 
     # Load savable settings from file if exists
     controller.model.load_settings()

@@ -113,9 +113,7 @@ class FanCurveIOLevelTest(unittest.TestCase):
     def make_io(self, files):
         with mock.patch.object(legion, "LEGION_SYS_BASEPATH", "/fake/sys/path"):
             with fake_sysfs(files):
-                with mock.patch.object(
-                    legion.FanCurveIO, "_find_hwmon_dir", return_value="/fake/hwmon/"
-                ):
+                with mock.patch.object(legion.FanCurveIO, "_find_hwmon_dir", return_value="/fake/hwmon/"):
                     return legion.FanCurveIO(expect_hwmon=False)
 
     def test_uses_fan_levels_when_attributes_exist(self):

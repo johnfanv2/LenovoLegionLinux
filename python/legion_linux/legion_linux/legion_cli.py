@@ -24,32 +24,18 @@ log.setLevel("ERROR")
 
 
 class CLIFeatureCommand:
-    def __init__(
-        self, name: str, parser_subcommands, cmd_group: list, writeable: bool = True
-    ):
+    def __init__(self, name: str, parser_subcommands, cmd_group: list, writeable: bool = True):
         self.name = name
         self.model = None
-        status_parser = parser_subcommands.add_parser(
-            f"{self.name}-status", help=f"Get current value for {self.name}"
-        )
-        status_parser.set_defaults(
-            func=lambda l, *args, **kwargs: self.command_status_cli(**kwargs)
-        )
+        status_parser = parser_subcommands.add_parser(f"{self.name}-status", help=f"Get current value for {self.name}")
+        status_parser.set_defaults(func=lambda l, *args, **kwargs: self.command_status_cli(**kwargs))
 
         if writeable:
-            enable_parser = parser_subcommands.add_parser(
-                f"{self.name}-enable", help=f"Enable {self.name}"
-            )
-            enable_parser.set_defaults(
-                func=lambda l, *args, **kwargs: self.command_enable_cli(**kwargs)
-            )
+            enable_parser = parser_subcommands.add_parser(f"{self.name}-enable", help=f"Enable {self.name}")
+            enable_parser.set_defaults(func=lambda l, *args, **kwargs: self.command_enable_cli(**kwargs))
 
-            disable_parser = parser_subcommands.add_parser(
-                f"{self.name}-disable", help=f"Disable {self.name}"
-            )
-            disable_parser.set_defaults(
-                func=lambda l, *args, **kwargs: self.command_disable_cli(**kwargs)
-            )
+            disable_parser = parser_subcommands.add_parser(f"{self.name}-disable", help=f"Disable {self.name}")
+            disable_parser.set_defaults(func=lambda l, *args, **kwargs: self.command_disable_cli(**kwargs))
 
         if cmd_group is not None:
             cmd_group.append(self)
@@ -60,9 +46,7 @@ class CLIFeatureCommand:
     def check_if_exist(self):
         if self.exists():
             return True
-        print(
-            "Command not available because feature is not available or kernel module is not loaded."
-        )
+        print("Command not available because feature is not available or kernel module is not loaded.")
         return False
 
     def command_status_cli(self, **_) -> int:
@@ -319,9 +303,7 @@ class HybridMode(CLIFeatureCommand):
         return self.model.gsync.exists()
 
     def command_status(self, **_) -> int:
-        print(
-            "This is the current state. Changing it by setting it will apply only after a reboot."
-        )
+        print("This is the current state. Changing it by setting it will apply only after a reboot.")
         print(self.model.gsync.get())
         return 0
 
@@ -379,11 +361,7 @@ def fancurve_write_preset_for_current_profile(legion: LegionModelFacade, **_) ->
 def conservation_apply_mode_for_current_battery_capacity(
     legion: LegionModelFacade, lowerlimit=50, upperlimit=60, **_
 ) -> int:
-    print(
-        legion.conservation_apply_mode_for_current_battery_capacity(
-            lowerlimit, upperlimit
-        )
-    )
+    print(legion.conservation_apply_mode_for_current_battery_capacity(lowerlimit, upperlimit))
     return 0
 
 
@@ -406,18 +384,9 @@ def set_feature(legion: LegionModelFacade, name, values, **_) -> int:
 def create_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Legion CLI")
     parser.add_argument(
-        "--donotexpecthwmon",
-        action="store_true",
-        help="Do not check hwmon dir when not needed",
-        default=False,
+        "--donotexpecthwmon", action="store_true", help="Do not check hwmon dir when not needed", default=False
     )
-    parser.add_argument(
-        "--loglevel",
-        type=str,
-        help="Level of log output",
-        choices=loglevels,
-        default="ERROR",
-    )
+    parser.add_argument("--loglevel", type=str, help="Level of log output", choices=loglevels, default="ERROR")
 
     subcommands = parser.add_subparsers(title="subcommands", dest="subcommand")
 
@@ -430,18 +399,14 @@ def create_argparser() -> argparse.ArgumentParser:
         "fancurve-write-preset-to-hw", help="Write fan curve from preset to hardware"
     )
     preset_to_hw_parser.add_argument("presetname", type=str, help="Name of the preset")
-    preset_to_hw_parser.add_argument(
-        "--preset-dir", type=str, help="Path of the directory with presets"
-    )
+    preset_to_hw_parser.add_argument("--preset-dir", type=str, help="Path of the directory with presets")
     preset_to_hw_parser.set_defaults(func=fancurve_write_preset_to_hw)
 
     hw_to_preset_parser = subcommands.add_parser(
         "fancurve-write-hw-to-preset", help="Write fan curve from hardware to preset"
     )
     hw_to_preset_parser.add_argument("presetname", type=str, help="Name of the preset")
-    hw_to_preset_parser.add_argument(
-        "--preset-dir", type=str, help="Path of the directory with presets"
-    )
+    hw_to_preset_parser.add_argument("--preset-dir", type=str, help="Path of the directory with presets")
     hw_to_preset_parser.set_defaults(func=fancurve_write_hw_to_preset)
 
     file_to_hw_parser = subcommands.add_parser(
@@ -463,31 +428,18 @@ def create_argparser() -> argparse.ArgumentParser:
     hw_to_file_parser.set_defaults(func=fancurve_write_preset_for_current_profile)
 
     custom_conservation_mode = subcommands.add_parser(
-        "custom-conservation-mode-apply",
-        help="Turn conservation mode on or off depending on battery level",
+        "custom-conservation-mode-apply", help="Turn conservation mode on or off depending on battery level"
     )
     custom_conservation_mode.add_argument(
-        "lowerlimit",
-        type=int,
-        help="Limit when conservation mode should be turned off, e.g. 60",
-        default=61,
+        "lowerlimit", type=int, help="Limit when conservation mode should be turned off, e.g. 60", default=61
     )
     custom_conservation_mode.add_argument(
-        "upperlimit",
-        type=int,
-        help="Limit when conservation mode should be turned on, e.g. 80",
-        default=81,
+        "upperlimit", type=int, help="Limit when conservation mode should be turned on, e.g. 80", default=81
     )
-    custom_conservation_mode.set_defaults(
-        func=conservation_apply_mode_for_current_battery_capacity
-    )
+    custom_conservation_mode.set_defaults(func=conservation_apply_mode_for_current_battery_capacity)
 
-    monitor_cmd = subcommands.add_parser(
-        "monitor", help="Run monitors with notifications"
-    )
-    monitor_cmd.add_argument(
-        "period", type=int, nargs="?", help="Monitoring period in seconds", default=60
-    )
+    monitor_cmd = subcommands.add_parser("monitor", help="Run monitors with notifications")
+    monitor_cmd.add_argument("period", type=int, nargs="?", help="Monitoring period in seconds", default=60)
     monitor_cmd.set_defaults(func=monitor)
 
     set_feature_cmd = subcommands.add_parser("set-feature", help="Set feature")
@@ -498,13 +450,9 @@ def create_argparser() -> argparse.ArgumentParser:
     bootlogo_parser = subcommands.add_parser("boot-logo", help="Custom Boot Logo")
     bootlogo_sub = bootlogo_parser.add_subparsers(dest="bootlogo_cmd")
     enable_parser = bootlogo_sub.add_parser("enable", help="Set Boot Logo")
-    enable_parser.add_argument(
-        "image_path", type=str, help="Path to the image to be used"
-    )
+    enable_parser.add_argument("image_path", type=str, help="Path to the image to be used")
     enable_parser.set_defaults(func=boot_logo_enable)
-    restore_parser = bootlogo_sub.add_parser(
-        "restore", help="Restore modified boot logo"
-    )
+    restore_parser = bootlogo_sub.add_parser("restore", help="Restore modified boot logo")
     restore_parser.set_defaults(func=boot_logo_restore)
     status_parser = bootlogo_sub.add_parser("status", help="View status")
     status_parser.set_defaults(func=boot_logo_status)
@@ -512,9 +460,7 @@ def create_argparser() -> argparse.ArgumentParser:
     return parser, subcommands
 
 
-def boot_logo_enable(
-    legion: LegionModelFacade, image_path: str, **kwargs
-) -> int:  # pylint: disable=unused-argument
+def boot_logo_enable(legion: LegionModelFacade, image_path: str, **kwargs) -> int:  # pylint: disable=unused-argument
     try:
         legion.enable_boot_logo(image_path)
         print("Boot Logo enabled.")
@@ -524,9 +470,7 @@ def boot_logo_enable(
         return 1
 
 
-def boot_logo_restore(
-    legion: LegionModelFacade, **kwargs
-) -> int:  # pylint: disable=unused-argument
+def boot_logo_restore(legion: LegionModelFacade, **kwargs) -> int:  # pylint: disable=unused-argument
     try:
         legion.restore_boot_logo()
         print("Boot Logo restored.")
@@ -536,13 +480,9 @@ def boot_logo_restore(
         return 1
 
 
-def boot_logo_status(
-    legion: LegionModelFacade, **kwargs
-) -> int:  # pylint: disable=unused-argument
+def boot_logo_status(legion: LegionModelFacade, **kwargs) -> int:  # pylint: disable=unused-argument
     is_on, w, h = legion.get_boot_logo_status()
-    print(
-        f"Current Boot Logo status: {'ON' if is_on else 'OFF'}; Required image dimensions: {w} x {h}"
-    )
+    print(f"Current Boot Logo status: {'ON' if is_on else 'OFF'}; Required image dimensions: {w} x {h}")
     return 0
 
 
