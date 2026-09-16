@@ -125,3 +125,23 @@ class GuiStartupTest(unittest.TestCase):
         finally:
             window.deleteLater()
             self.app.processEvents()
+
+    def test_write_handles_runtime_error(self):
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
+        window = MainWindow(controller, QIcon())
+        try:
+            controller.init(read_from_hw=False)
+            with patch.object(
+                controller.model, "write_fancurve_to_hw", side_effect=RuntimeError("legion_cli failed")
+            ), patch.object(
+                controller.model, "read_fancurve_from_hw"
+            ), patch.object(
+                controller, "update_fancurve_gui"
+            ), patch.object(
+                QMessageBox, "warning"
+            ) as mock_warning:
+                controller.on_write_fan_curve_to_hw()
+                mock_warning.assert_called_once()
+        finally:
+            window.deleteLater()
+            self.app.processEvents()
