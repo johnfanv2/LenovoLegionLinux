@@ -3937,6 +3937,9 @@ struct legion_private {
 	int capdata_count;
 	int current_powermode;
 
+	// Fan ceiling unlock state (cached: firmware exposes no clean read-back)
+	u8 fan_unlock_state;
+
 	struct discrete_feature discrete_features[MAX_DISCRETE_FEATURES];
 	int discrete_feature_count;
 
@@ -4033,7 +4036,7 @@ static int get_simple_wmi_attribute_bool(struct legion_private *priv,
 static int set_simple_wmi_attribute(struct legion_private *priv,
 				    const char *guid, u8 instance,
 				    u32 method_id, bool invert, int scale,
-				    int state)
+				    unsigned int state)
 {
 	int err;
 	u8 in_param;
@@ -4045,6 +4048,11 @@ static int set_simple_wmi_attribute(struct legion_private *priv,
 
 	if (invert)
 		state = !state;
+
+	// state is passed to the firmware as a u8 (state / scale); reject
+	// inputs that would silently truncate instead of writing garbage.
+	if (scale * 255U < state)
+		return -EINVAL;
 
 	in_param = state / scale;
 
@@ -6184,7 +6192,7 @@ static int store_simple_wmi_attribute(struct device *dev,
 				      const char *guid, u8 instance,
 				      u32 method_id, bool invert, int scale)
 {
-	int state;
+	unsigned int state;
 	int err;
 	struct legion_private *priv = dev_get_drvdata(dev);
 
@@ -6242,12 +6250,17 @@ static DEVICE_ATTR_RW(lockfancontroller);
 // Fan ceiling unlock — see WMI_METHOD_ID_FAN_EXTREME_TOGGLE comment for context.
 // Cached state because the firmware exposes no clean read-back path; the value
 // reflects the last value successfully written through this attribute.
-static u8 fan_unlock_state;
 
 static ssize_t fan_unlock_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
-	return sysfs_emit(buf, "%d\n", fan_unlock_state);
+	struct legion_private *priv = dev_get_drvdata(dev);
+	u8 state;
+
+	mutex_lock(&priv->fancurve_mutex);
+	state = priv->fan_unlock_state;
+	mutex_unlock(&priv->fancurve_mutex);
+	return sysfs_emit(buf, "%d\n", state);
 }
 
 static ssize_t fan_unlock_store(struct device *dev,
@@ -6268,7 +6281,7 @@ static ssize_t fan_unlock_store(struct device *dev,
 	err = wmi_exec_arg(LEGION_WMI_GAMEZONE_GUID, 0,
 			   WMI_METHOD_ID_FAN_EXTREME_TOGGLE, &arg, sizeof(arg));
 	if (!err)
-		fan_unlock_state = arg;
+		priv->fan_unlock_state = arg;
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return -EIO;
@@ -6298,10 +6311,10 @@ static ssize_t rapidcharge_store(struct device *dev,
 				 size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	int state;
+	bool state;
 	int err;
 
-	err = kstrtouint(buf, 0, &state);
+	err = kstrtobool(buf, &state);
 	if (err)
 		return err;
 
@@ -6338,10 +6351,10 @@ static ssize_t battery_conservation_store(struct device *dev,
 					  const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	int state;
+	bool state;
 	int err;
 
-	err = kstrtouint(buf, 0, &state);
+	err = kstrtobool(buf, &state);
 	if (err)
 		return err;
 
@@ -7326,10 +7339,10 @@ static ssize_t fan_fullspeed_store(struct device *dev,
 				   const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	int state;
+	bool state;
 	int err;
 
-	err = kstrtouint(buf, 0, &state);
+	err = kstrtobool(buf, &state);
 	if (err)
 		return err;
 
@@ -7393,12 +7406,23 @@ static ssize_t powermode_store(struct device *dev,
 			       size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	int powermode;
+	unsigned int powermode;
 	int err;
 
 	err = kstrtouint(buf, 0, &powermode);
 	if (err)
 		return err;
+
+	switch (powermode) {
+	case LEGION_WMI_POWERMODE_LOW_POWER:
+	case LEGION_WMI_POWERMODE_BALANCED:
+	case LEGION_WMI_POWERMODE_PERFORMANCE:
+	case LEGION_WMI_POWERMODE_CUSTOM:
+	case LEGION_WMI_POWERMODE_MAX_POWER:
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	mutex_lock(&priv->fancurve_mutex);
 	err = write_powermode(priv, powermode);
@@ -7684,7 +7708,7 @@ static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 
 	mutex_lock(&legion_shared_mutex);
 	priv = legion_shared;
-	if ((!priv) || (priv->loaded)) {
+	if ((!priv) || (!priv->loaded)) {
 		pr_info("Received WMI event while not initialized!\n");
 		goto unlock;
 	}
