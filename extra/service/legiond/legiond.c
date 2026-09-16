@@ -1,3 +1,5 @@
+#define _GNU_SOURCE /* struct ucred / SO_PEERCRED */
+
 #include "public.h"
 #include "modules/output.h"
 #include "modules/parseconf.h"
@@ -42,7 +44,8 @@ static int signal_pipe[2] = { -1, -1 };
 static void reload_config(void)
 {
 	if (parseconf(&config) != 0)
-		fprintf(stderr, "legiond: failed to parse config, using defaults\n");
+		fprintf(stderr,
+			"legiond: failed to parse config, using defaults\n");
 }
 
 static void clear_socket(void)
@@ -117,7 +120,8 @@ static int recv_request(int fd, LEGIOND_REQUEST *request)
 		struct timespec now;
 		if (clock_gettime(CLOCK_MONOTONIC, &now) != -1 &&
 		    (now.tv_sec > deadline.tv_sec ||
-		     (now.tv_sec == deadline.tv_sec && now.tv_nsec > deadline.tv_nsec)))
+		     (now.tv_sec == deadline.tv_sec &&
+		      now.tv_nsec > deadline.tv_nsec)))
 			return -1;
 
 		struct pollfd pfd = { .fd = fd, .events = POLLIN };
@@ -136,6 +140,17 @@ static int recv_request(int fd, LEGIOND_REQUEST *request)
 	return 0;
 }
 
+/* only root may drive the fan/power hardware through the control socket */
+static bool is_root_peer(int fd)
+{
+	struct ucred cred = { 0 };
+	socklen_t len = sizeof(cred);
+
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1)
+		return false;
+	return cred.uid == 0;
+}
+
 static void handle_command(const LEGIOND_REQUEST *request)
 {
 	pthread_mutex_lock(&state_lock);
@@ -150,8 +165,12 @@ static void handle_command(const LEGIOND_REQUEST *request)
 		} else if (request->delay_s <= 0) {
 			// <= 0 is an authoritative reset to the default delay
 			printf("reset timer\n");
-			if (set_timer(delay_s_default, delay_ns_default) == -1)
+			if (set_timer(delay_s_default, delay_ns_default) ==
+			    -1) {
 				delayed = 0;
+				break;
+			}
+			delayed = 0;
 		} else {
 			printf("reset timer with delay %d s\n",
 			       request->delay_s);
@@ -193,15 +212,16 @@ int main(void)
 	struct sockaddr_un probe_addr = {
 		.sun_family = AF_UNIX,
 	};
-	if (snprintf(probe_addr.sun_path, sizeof(probe_addr.sun_path), "%s", socket_path) >=
-	    (int)sizeof(probe_addr.sun_path)) {
+	if (snprintf(probe_addr.sun_path, sizeof(probe_addr.sun_path), "%s",
+		     socket_path) >= (int)sizeof(probe_addr.sun_path)) {
 		fprintf(stderr, "socket path too long\n");
 		return 1;
 	}
 	auto_fd probe_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (probe_fd != -1 &&
-	    connect(probe_fd, (struct sockaddr *)&probe_addr, sizeof(probe_addr)) == 0) {
-		fprintf(stderr, "another legiond instance is already running\n");
+	if (probe_fd != -1 && connect(probe_fd, (struct sockaddr *)&probe_addr,
+				      sizeof(probe_addr)) == 0) {
+		fprintf(stderr,
+			"another legiond instance is already running\n");
 		return 1;
 	}
 
@@ -272,7 +292,8 @@ int main(void)
 	}
 	for (int i = 0; i < 2; i++) {
 		int flags = fcntl(signal_pipe[i], F_GETFL, 0);
-		if (flags == -1 || fcntl(signal_pipe[i], F_SETFL, flags | O_NONBLOCK) == -1) {
+		if (flags == -1 ||
+		    fcntl(signal_pipe[i], F_SETFL, flags | O_NONBLOCK) == -1) {
 			perror("fcntl");
 			return 1;
 		}
@@ -329,7 +350,8 @@ int main(void)
 
 		if (FD_ISSET(signal_pipe[0], &readfds)) {
 			char discard[64];
-			while (read(signal_pipe[0], discard, sizeof(discard)) > 0) {
+			while (read(signal_pipe[0], discard, sizeof(discard)) >
+			       0) {
 			}
 			break;
 		}
@@ -338,6 +360,11 @@ int main(void)
 			auto_fd client_fd = accept(server_fd, NULL, NULL);
 			if (client_fd == -1)
 				continue;
+
+			if (!is_root_peer(client_fd)) {
+				printf("ignoring request from unprivileged client\n");
+				continue;
+			}
 
 			LEGIOND_REQUEST request = { 0 };
 			if (recv_request(client_fd, &request) != 0) {
