@@ -73,6 +73,7 @@ rm -rf %{buildroot}/usr/lib/debug
 %{_datadir}/legion_linux/balanced-battery.yaml
 %{_datadir}/legion_linux/balanced-performance-ac.yaml
 %{_datadir}/legion_linux/balanced-performance-battery.yaml
+%{_datadir}/legion_linux/extreme-ac.yaml
 %{_datadir}/legion_linux/performance-ac.yaml
 %{_datadir}/legion_linux/performance-battery.yaml
 %{_datadir}/legion_linux/quiet-ac.yaml

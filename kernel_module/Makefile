@@ -91,13 +91,18 @@ forcereloadmodule_disableplatformprofile:
 	@dmesg | grep -i legion | tail -5 || true
 	bash -c "./issue-warning.sh"
 
+# Only the files DKMS needs to build the module go into the DKMS source tree.
+# Copying build artifacts (*.o, *.ko, *.mod.c, Module.symvers, ...) there makes
+# DKMS link stale objects against newer kernels on the next kernel upgrade.
+DKMS_SRC_FILES := Makefile dkms.conf legion-laptop.c issue-warning.sh
+
 dkms: all
-	if [ -d $(DKMSDIR) ]; then\
-    	rm -r $(DKMSDIR)/*;\
-        cp -r * $(DKMSDIR)/;\
+	@if [ -d $(DKMSDIR) ]; then\
+		rm -rf $(DKMSDIR)/*;\
+		cp $(DKMS_SRC_FILES) $(DKMSDIR)/;\
 	else \
 		mkdir -v $(DKMSDIR);\
-        cp -r * $(DKMSDIR);\
+		cp $(DKMS_SRC_FILES) $(DKMSDIR);\
 		dkms add -m LenovoLegionLinux -v 1.0.0;\
 	fi
 	dkms build LenovoLegionLinux --force -v 1.0.0

@@ -20,6 +20,13 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Check release branch
+      run: |
+        if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          echo "Releases may only be created from the main branch (ref: ${{ github.ref }})"
+          exit 1
+        fi
+
     - name: Validate version
       run: |
         VERSION="${{ inputs.version }}"
