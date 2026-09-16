@@ -98,6 +98,6 @@ entries:
   gpu_upper_temp: 0
   ic_lower_temp: 0
   ic_upper_temp: 0
-  acceleration: 2
-  deceleration: 2
+  acceleration: 0
+  deceleration: 0
 enable_minifancurve: false
