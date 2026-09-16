@@ -909,7 +909,7 @@ class LegionController:
             return
         try:
             self.model.write_fancurve_to_hw()
-        except OSError as ex:
+        except (OSError, RuntimeError) as ex:
             QMessageBox.warning(
                 self.main_window,
                 "Fan Curve Write Failed",
