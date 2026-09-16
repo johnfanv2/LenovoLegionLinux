@@ -5,6 +5,10 @@ if [ ! -f "$ACPI_CALL" ]; then
     modprobe acpi_call 2>/dev/null
 fi
 
+RUNDIR="/run/smartfan"
+PIDFILE="$RUNDIR/pid"
+MODEFILE="$RUNDIR/mode"
+
 HWMON=""
 for h in /sys/class/hwmon/hwmon*/name; do
     if [ "$(cat "$h" 2>/dev/null)" = "legion_hwmon" ]; then
@@ -16,8 +20,14 @@ done
 current=$(cat /sys/firmware/acpi/platform_profile)
 
 sf_status="OFF"
-if [ -f /tmp/smartfan.pid ] && kill -0 "$(cat /tmp/smartfan.pid 2>/dev/null)" 2>/dev/null; then
-    sf_status="$(cat /tmp/smartfan_mode 2>/dev/null || echo 'unknown')"
+if [ -f "$PIDFILE" ]; then
+    sf_pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [[ "$sf_pid" =~ ^[0-9]+$ ]] && kill -0 "$sf_pid" 2>/dev/null; then
+        sf_status="$(cat "$MODEFILE" 2>/dev/null || echo 'unknown')"
+        if [ -f "$RUNDIR/pause" ]; then
+            sf_status="$sf_status (paused)"
+        fi
+    fi
 fi
 
 echo "╔══════════════════════════════════════╗"
@@ -42,6 +52,9 @@ case $choice in
     3) wmi_arg="0x03"; fanmode="performance"; label="performance" ;;
     4) wmi_arg="0xE0"; fanmode="extreme"; label="extreme" ;;
     5)
+        # Turbo fights the daemon: pause it first so the max-speed write
+        # sticks until the daemon is resumed.
+        /usr/local/bin/smartfan pause
         turboon
         exit 0
         ;;
@@ -59,12 +72,15 @@ cat "$ACPI_CALL" > /dev/null 2>&1
 echo "Switched to: $label"
 
 # If daemon already running, just update mode file — don't spawn another
-if [ -f /tmp/smartfan.pid ] && kill -0 "$(cat /tmp/smartfan.pid)" 2>/dev/null; then
-    echo "$fanmode" > /tmp/smartfan_mode
-    echo "Smart fan mode updated to: $fanmode"
-else
-    /usr/local/bin/smartfan start "$fanmode"
+if [ -f "$PIDFILE" ]; then
+    sf_pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [[ "$sf_pid" =~ ^[0-9]+$ ]] && kill -0 "$sf_pid" 2>/dev/null; then
+        echo "$fanmode" > "$MODEFILE"
+        echo "Smart fan mode updated to: $fanmode"
+        exit 0
+    fi
 fi
+/usr/local/bin/smartfan start "$fanmode"
 
 echo ""
 echo "Temps:"

@@ -74,12 +74,22 @@ smartfan status
 # Stop daemon (returns fans to EC auto control)
 sudo smartfan stop
 
-# Turbo mode (bypass daemon, max fans)
+# Turbo mode (max fans now) - the daemon is auto-paused in workmode so the
+# override sticks; 'turboon' on its own is overwritten by the daemon
+# within ~2 seconds unless you pause it first
+workmode        # select option 5 (turbo) which pauses the daemon
+sudo smartfan pause   # hand the fans over manually
 sudo turboon
+sudo turbooff         # or: sudo smartfan restore
 
-# Back to normal
-sudo turbooff
+# Back under daemon control
+sudo smartfan resume
 ```
+
+Runtime state (PID, mode, stop flag, log) lives in root-owned
+`/run/smartfan/` rather than `/tmp`, so local users cannot stop the daemon
+or plant symlinks the root daemon would append its log to. Flip the mode
+on the fly with `smartfan mode performance`.
 
 ## How It Works
 

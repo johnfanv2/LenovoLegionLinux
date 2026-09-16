@@ -2,12 +2,25 @@
 # Smart Fan Daemon for Legion 7 Gen 10
 # Uses LECR(0xD1) via acpi_call for direct fan control
 
-MODEFILE="/tmp/smartfan_mode"
-PIDFILE="/tmp/smartfan.pid"
+RUNDIR="/run/smartfan"
+MODEFILE="$RUNDIR/mode"
+PIDFILE="$RUNDIR/pid"
 ACPI_CALL="/proc/acpi/call"
-STOPFILE="/tmp/smartfan_stop"
-LOG="/tmp/smartfan.log"
+STOPFILE="$RUNDIR/stop"
+PAUSEFILE="$RUNDIR/pause"
+LOG="$RUNDIR/log"
 #DEBUG=1  # Set to 1 for verbose logging
+
+# Runtime state lives in /run/smartfan (root-owned) instead of /tmp so an
+# unprivileged local user cannot plant a symlink for the root daemon to
+# append its log to, nor stop/pause the daemon by creating the control
+# files themselves.
+ensure_run_dir() {
+    install -d -m 0755 "$RUNDIR" 2>/dev/null || {
+        echo "Error: cannot create $RUNDIR (run as root)" >&2
+        return 1
+    }
+}
 
 log() {
     # Best-effort: the log file is root-owned once the systemd-run daemon
@@ -111,6 +124,34 @@ set_fan_speed() {
     echo "\_SB_.GZFD.WMAE 0 0x12 {0x02, 0x00, 0x03, 0x04, $b0, $b1, $b2, $b3}" > "$ACPI_CALL" 2>/dev/null
 }
 
+# Map the current platform_profile to the WMAA power-mode argument used by
+# workmode.sh. Empty on unknown profiles so we never force one.
+platform_profile_to_wmi() {
+    local current
+    current=$(cat /sys/firmware/acpi/platform_profile 2>/dev/null)
+    case "$current" in
+        low-power) echo "0x01" ;;
+        balanced) echo "0x02" ;;
+        performance) echo "0x03" ;;
+        custom) echo "0xFF" ;;
+        high-performance) echo "0xE0" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Hand control back to the EC: re-assert the current power mode (the same
+# WMAA write turbooff used to hardcode to quiet, which silently dropped a
+# performance user back to quiet) and leave a 30% baseline while the
+# firmware re-takes the fans.
+restore_ec_control() {
+    local wmi_arg
+    wmi_arg=$(platform_profile_to_wmi)
+    if [ -n "$wmi_arg" ]; then
+        echo "\_SB_.GZFD.WMAA 0 0x2C {$wmi_arg, 0x00, 0x00, 0x00}" > "$ACPI_CALL" 2>/dev/null
+    fi
+    set_fan_speed 30
+}
+
 get_max_temp() {
     local cpu_temp=0
     local gpu_temp=0
@@ -188,13 +229,19 @@ get_target_pct() {
 
 run_daemon() {
     local mode="$1"
-    echo "$$" > "$PIDFILE"
-    echo "$mode" > "$MODEFILE"
-    rm -f "$STOPFILE"
-    
+    ensure_run_dir || exit 1
+    echo "$$" > "$PIDFILE" 2>/dev/null
+    echo "$mode" > "$MODEFILE" 2>/dev/null
+    # Let a plain user flip profiles and append to the log without giving
+    # away control: the directory stays root-owned so no one can replace
+    # these files with symlinks.
+    chmod 0666 "$MODEFILE" 2>/dev/null
+    chmod 0666 "$LOG" 2>/dev/null
+    rm -f "$STOPFILE" "$PAUSEFILE"
+
     find_hwmon
     get_profile "$mode"
-    
+
     local current_pct
     current_pct=$(echo "$FAN_POINTS" | awk '{print $1}')
     local down_count=0
@@ -202,20 +249,26 @@ run_daemon() {
     local temp_history=""
     local temp_samples=5
     local last_temp=0
-    
+
     log "Daemon started: mode=$mode, PID=$$, CPU_HWMON=$CPU_HWMON, GPU_HWMON=$GPU_HWMON"
     set_fan_speed "$current_pct"
-    
-    trap 'log "Stopping daemon"; set_fan_speed 0; rm -f "$PIDFILE"; exit 0' TERM INT
-    
+
+    trap 'log "Stopping daemon"; restore_ec_control; rm -f "$PIDFILE"; exit 0' TERM INT
+
     local iteration=0
     while true; do
         # Check stop file
         if [ -f "$STOPFILE" ]; then
             log "Stop file detected"
-            set_fan_speed 0
+            restore_ec_control
             rm -f "$PIDFILE" "$STOPFILE"
             exit 0
+        fi
+
+        # While paused (e.g. turbo override) do not touch the fans
+        if [ -f "$PAUSEFILE" ]; then
+            sleep 2
+            continue
         fi
         
         # Check mode changes
@@ -321,7 +374,7 @@ stop_daemon() {
     log "Stopping daemon..."
     
     # Create stop file
-    touch "$STOPFILE"
+    touch "$STOPFILE" 2>/dev/null
     
     # Kill by PID
     if [ -f "$PIDFILE" ]; then
@@ -340,8 +393,8 @@ stop_daemon() {
     fi
     
     # Cleanup
-    rm -f "$PIDFILE" "$STOPFILE" "$MODEFILE"
-    set_fan_speed 0
+    rm -f "$PIDFILE" "$STOPFILE" "$MODEFILE" "$PAUSEFILE"
+    restore_ec_control
     log "Daemon stopped"
 }
 
@@ -366,6 +419,17 @@ case "$1" in
     stop)
         stop_daemon
         ;;
+    pause)
+        ensure_run_dir || exit 1
+        touch "$PAUSEFILE" && echo "Daemon paused (fans left as-is, turbo can take over)"
+        ;;
+    resume)
+        rm -f "$PAUSEFILE" && echo "Daemon resumed"
+        ;;
+    restore)
+        restore_ec_control
+        echo "Fan control restored to EC"
+        ;;
     mode)
         if [ -z "$2" ]; then
             if [ -f "$MODEFILE" ]; then
@@ -386,24 +450,32 @@ case "$1" in
         fi
         ;;
     status)
-        if [ -f "$PIDFILE" ] && pid_running "$(cat "$PIDFILE")"; then
-            echo "Smart fan: RUNNING (PID $(cat "$PIDFILE"))"
-            echo "Mode: $(cat "$MODEFILE" 2>/dev/null)"
-            
-            find_hwmon
-            cpu_temp=$(cat "$CPU_HWMON/temp1_input" 2>/dev/null)
-            gpu_temp=$(cat "$GPU_HWMON/temp1_input" 2>/dev/null)
-            
-            [ -n "$cpu_temp" ] && echo "CPU: $((cpu_temp / 1000))°C"
-            [ -n "$gpu_temp" ] && echo "GPU: $((gpu_temp / 1000))°C"
-            
-            fan1=$(cat /sys/class/hwmon/hwmon*/fan1_input 2>/dev/null | head -1)
-            fan2=$(cat /sys/class/hwmon/hwmon*/fan2_input 2>/dev/null | head -1)
-            
-            [ -n "$fan1" ] && echo "Fan1: $fan1 RPM"
-            [ -n "$fan2" ] && echo "Fan2: $fan2 RPM"
-            
-            echo "Log: $LOG"
+        if [ -f "$PIDFILE" ]; then
+            pid=$(cat "$PIDFILE" 2>/dev/null)
+            if pid_running "$pid"; then
+                echo "Smart fan: RUNNING (PID $pid)"
+                echo "Mode: $(cat "$MODEFILE" 2>/dev/null)"
+                if [ -f "$PAUSEFILE" ]; then
+                    echo "State: PAUSED (turbo override active)"
+                fi
+
+                find_hwmon
+                cpu_temp=$(cat "$CPU_HWMON/temp1_input" 2>/dev/null)
+                gpu_temp=$(cat "$GPU_HWMON/temp1_input" 2>/dev/null)
+
+                [ -n "$cpu_temp" ] && echo "CPU: $((cpu_temp / 1000))°C"
+                [ -n "$gpu_temp" ] && echo "GPU: $((gpu_temp / 1000))°C"
+
+                fan1=$(cat /sys/class/hwmon/hwmon*/fan1_input 2>/dev/null | head -1)
+                fan2=$(cat /sys/class/hwmon/hwmon*/fan2_input 2>/dev/null | head -1)
+
+                [ -n "$fan1" ] && echo "Fan1: $fan1 RPM"
+                [ -n "$fan2" ] && echo "Fan2: $fan2 RPM"
+
+                echo "Log: $LOG"
+            else
+                echo "Smart fan: NOT RUNNING (stale pid file)"
+            fi
         else
             echo "Smart fan: NOT RUNNING"
         fi
@@ -420,7 +492,7 @@ case "$1" in
         done
         ;;
     *)
-        echo "Usage: $0 {start [mode]|stop|mode [name]|status|debug}"
+        echo "Usage: $0 {start [mode]|stop|pause|resume|mode [name]|status|debug}"
         echo "Modes: quiet, balanced, performance, extreme"
         ;;
 esac

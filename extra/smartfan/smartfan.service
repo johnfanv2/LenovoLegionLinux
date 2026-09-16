@@ -6,7 +6,7 @@ After=multi-user.target systemd-modules-load.service
 Type=forking
 ExecStart=/usr/local/bin/smartfan start balanced
 ExecStop=/usr/local/bin/smartfan stop
-PIDFile=/tmp/smartfan.pid
+PIDFile=/run/smartfan/pid
 Restart=on-failure
 RestartSec=5
 
