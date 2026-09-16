@@ -77,6 +77,10 @@ jobs:
         if: always()
         run: ./tests/test_python.sh
         shell: bash
+      - name: Build legiond
+        if: always()
+        run: ./tests/test_legiond_build.sh
+        shell: bash
       - name: Test python CLI
         if: always()
         run: ./tests/test_python_cli.sh
@@ -137,25 +141,21 @@ jobs:
       run: |
         # Tolerate an already existing release (e.g. created by release.yml)
         gh release create "${{ steps.tag.outputs.tag }}" --draft --notes "" || true
-        echo "upload_url=$(gh release view "${{ steps.tag.outputs.tag }}" --json uploadUrl --jq .uploadUrl)" >> "$GITHUB_OUTPUT"
         echo "id=$(gh release view "${{ steps.tag.outputs.tag }}" --json id --jq .id)" >> "$GITHUB_OUTPUT"
     - name: Upload Release - Kernel Patch
       if: steps.check_if_tagged.outputs.hastag == 1
-      uses: actions/upload-release-asset@v1.0.1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: /tmp/linux/linux/0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch
-        asset_name: 0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch
-        asset_content_type: text/plain
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload "${{ steps.tag.outputs.tag }}" \
+          "/tmp/linux/linux/0001-Add-legion-laptop-v${{ steps.tag.outputs.tag_version }}.patch" \
+          --clobber
     - name: Publish Release
       if: steps.check_if_tagged.outputs.hastag == 1
-      uses: eregon/publish-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        release_id: ${{ steps.create_release.outputs.id }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release edit "${{ steps.tag.outputs.tag }}" --draft=false
 
   test-in-docker-container:
     needs: [build, run-tests]
