@@ -9,6 +9,7 @@ import traceback
 import logging
 import random
 import time
+from math import isfinite
 from typing import List, Optional
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
@@ -1050,10 +1051,14 @@ class FanCurveEntryView:
             ic_upper_temp = int(self.ic_upper_temp_edit.text())
             acceleration = int(self.accel_edit.text())
             deceleration = int(self.decel_edit.text())
-        except ValueError as ex:
+        except (ValueError, OverflowError) as ex:
             raise ValueError(
                 f"Invalid value in fan curve point {self.point_id_label.text()}: all fields must be numbers."
             ) from ex
+        if not (isfinite(fan1_speed) and isfinite(fan2_speed)):
+            raise ValueError(
+                f"Invalid value in fan curve point {self.point_id_label.text()}: fan speeds must be finite numbers."
+            )
         # The acceleration/deceleration range is checked in
         # FanCurveTab.get_fancurve() instead: trailing all-zero entries
         # are EC padding (issue #493) that is never written to hardware

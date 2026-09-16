@@ -537,7 +537,7 @@ if __name__ == "__main__":
     except RuntimeError as err:
         log.error(str(err))
         sys.exit(1)
-    except (OSError, KeyError, TypeError, ValueError) as err:
+    except (OSError, KeyError, TypeError, ValueError, OverflowError) as err:
         log.error(str(err))
         print(f"Error: {err}", file=sys.stderr)
         sys.exit(1)

@@ -245,6 +245,16 @@ class BoolSettingFeature(Feature):
         self.value = value
         self._notify()
 
+    def set_str_value(self, value: str):
+        parsed = str(value).strip().lower()
+        if parsed in ("1", "true", "yes", "on"):
+            enabled = True
+        elif parsed in ("0", "false", "no", "off"):
+            enabled = False
+        else:
+            raise ValueError(f"Invalid boolean value {value}")
+        return self.set(enabled)
+
     def get(self) -> bool:
         return self.value
 
@@ -270,6 +280,9 @@ class EnumSettingFeature(Feature):
         else:
             log.error("Setting invalid value %s", value)
             raise ValueError(f"Invalid value {value}")
+
+    def set_str_value(self, value: str):
+        return self.set(value)
 
     def get(self) -> str:
         return self.value
@@ -860,11 +873,12 @@ def fan_rpm_to_level(rpm, point_id, table):
     """Nearest level for an RPM value, clamped to the point's minimum and MAX_FAN_LEVEL.
 
     An RPM exactly between two levels resolves to the lower (quieter) one.
+    A request of 0 rpm (or lower) means "fan off" and maps to level 0, which
+    must not be clamped back up to the point's minimum.
     """
     if rpm <= 0:
-        level = 0
-    else:
-        level = 1 + min(range(len(table)), key=lambda i: abs(table[i] - rpm))
+        return 0
+    level = 1 + min(range(len(table)), key=lambda i: abs(table[i] - rpm))
     return max(LEVEL_POINT_MIN[point_id - 1], min(MAX_FAN_LEVEL, level))
 
 
