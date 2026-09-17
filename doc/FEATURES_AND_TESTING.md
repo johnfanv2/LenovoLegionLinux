@@ -201,7 +201,10 @@ Known gaps:
 
 Validated on Linux 7.0.0-30-generic / 7.0.0-31-generic (Ubuntu 26.04.1
 LTS) across five module reloads, a `main` merge, and a BIOS update
-(Q6CN32WW -> Q6CN79WW). Verify: `sudo dmesg | grep -i legion` (no "not in
+(Q6CN32WW -> Q6CN79WW). Re-confirmed with a clean 20-cycle
+`tests/test_kernel_reload.sh` run (no `force=1`): every reload matched
+through the real DMI allowlist and loaded successfully, with no "not in
+allowlist" rejection. Verify: `sudo dmesg | grep -i legion` (no "not in
 allowlist", EC id 0x5508), `sensors`, and
 `sudo cat /sys/kernel/debug/legion/fancurve`.
 
