@@ -1126,13 +1126,14 @@ class FanCurveTab(QWidget):
         writable_size = len(entries)
         while writable_size > 0 and entries[writable_size - 1].is_empty():
             writable_size -= 1
-        for index, entry in enumerate(entries[:writable_size]):
-            if not 2 <= entry.acceleration <= 5 or not 2 <= entry.deceleration <= 5:
-                raise ValueError(
-                    f"Invalid value in fan curve point {index + 1}: "
-                    "acceleration and deceleration time must be between 2 and 5 "
-                    "(the fan controller rejects other values)."
-                )
+        if self.controller.model.fancurve_io.has_acceleration_curve():
+            for index, entry in enumerate(entries[:writable_size]):
+                if not 2 <= entry.acceleration <= 5 or not 2 <= entry.deceleration <= 5:
+                    raise ValueError(
+                        f"Invalid value in fan curve point {index + 1}: "
+                        "acceleration and deceleration time must be between 2 and 5 "
+                        "(the fan controller rejects other values)."
+                    )
         return FanCurve(name="unknown", entries=entries, enable_minifancurve=self.minfancurve_check.isChecked())
 
     def create_fancurve_entry_view(self, layout, point_id):

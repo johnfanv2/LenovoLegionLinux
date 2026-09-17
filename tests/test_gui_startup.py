@@ -117,7 +117,9 @@ class GuiStartupTest(unittest.TestCase):
             entry_view.fan_speed1_edit.setText("2000")
             entry_view.accel_edit.setText("1")
             entry_view.decel_edit.setText("2")
-            with patch.object(QMessageBox, "warning"), patch.object(
+            with patch.object(
+                controller.model.fancurve_io, "has_acceleration_curve", return_value=True
+            ), patch.object(QMessageBox, "warning"), patch.object(
                 controller.model, "write_fancurve_to_hw"
             ) as mock_write:
                 controller.on_write_fan_curve_to_hw()
@@ -144,6 +146,33 @@ class GuiStartupTest(unittest.TestCase):
                 mock_warning.assert_called_once()
                 mock_read.assert_not_called()
                 mock_update.assert_not_called()
+        finally:
+            window.deleteLater()
+            self.app.processEvents()
+
+    def test_write_allows_zero_accel_when_acceleration_curve_unsupported(self):
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
+        window = MainWindow(controller, QIcon())
+        try:
+            controller.init(read_from_hw=False)
+            # On models without acceleration curves (wmi_fancurve_speed_only),
+            # accel/decel are 0 and disabled in the UI. Writing a real point
+            # with accel=0 must not be blocked by validation.
+            entry_view = controller.view_fancurve.entry_edits[0]
+            entry_view.fan_speed1_edit.setText("2000")
+            entry_view.accel_edit.setText("0")
+            entry_view.decel_edit.setText("0")
+            with patch.object(
+                controller.model.fancurve_io, "has_acceleration_curve", return_value=False
+            ), patch.object(
+                controller.model, "write_fancurve_to_hw"
+            ) as mock_write, patch.object(
+                controller.model, "read_fancurve_from_hw"
+            ), patch.object(
+                controller, "update_fancurve_gui"
+            ):
+                controller.on_write_fan_curve_to_hw()
+                mock_write.assert_called_once()
         finally:
             window.deleteLater()
             self.app.processEvents()
