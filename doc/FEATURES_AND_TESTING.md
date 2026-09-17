@@ -148,6 +148,63 @@ issue for the results, and verify locally with
 `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
 speed1 in 1..10).
 
+## Legion 5 16IAX10 (83NX, Q6CN)
+
+BIOS Q6CN32WW (also confirmed on Q6CN79WW after a BIOS update), EC 0x5508,
+Intel Core Ultra 9 275HX + RTX 5060 Max-Q. DMI entry `Q6CN` is qualified on
+product name `83NX`, since the BIOS prefix is also shared by the Q7CN
+entry's 83LU/83F3 siblings above - a different chassis (different
+`ramio_physical_start`, no minifancurve). Config `model_q6cn` in
+`kernel_module/legion-laptop.c` is a copy of `model_rxcn` (Legion 7
+16IAX10, 83KY, same EC/ramio generation) that additionally enables WMI3
+power limits.
+
+- Raw EC reads are garbage on this chassis (fan RPM exceeding the reported
+  max, EC values unrelated to real sensors) and the ACPI path failed
+  outright before upstream's ACPI EC companion-device fix; WMI3 is used
+  for all fan/temp/power-limit operations, matching `model_rxcn`.
+- `cpu_temperature_limit` (103), `cpu_l1_tau` (56),
+  `gpu_power_target_offset` (55), `cpu_longterm_powerlimit` (70 W) and
+  `cpu_shortterm_powerlimit` (125 W) are all gated by
+  `access_method_powerlimits = ACCESS_METHOD_WMI3` (as on `model_q8cn`/
+  `model_nmcn`/`model_lpcn`/`model_lzcn`) and reproduced identically
+  across five reloads, a `main` merge, and a BIOS update.
+- After upstream's ACPI EC companion-device fix landed (dmesg switched
+  from "No ACPI handle, will use FQN paths" to "Using ACPI device
+  PNP0C09:00 for EC methods"), the ACPI-path diagnostic reads started
+  succeeding too and independently agree with WMI3 (CPU/GPU temp, fan
+  RPM); raw EC reads are still garbage, confirming the EC-offset mismatch
+  is a real, ACPI-independent quirk of this chassis.
+- Write-path round trips confirmed working: `winkey`, `touchpad`,
+  keyboard-backlight brightness (flip, verify, restore).
+- `fan_fullspeed` writes are accepted and read back correctly (0 -> 1 ->
+  0) but produced no observed RPM change in testing; `fan_maxspeed` reads
+  0 throughout - untested/unexplained, not chased further.
+- Fan curve initially read all-zero in balanced mode; after a BIOS update
+  and setting fan control to custom, the speed/pwm columns populate with
+  real data matching the EC, but `*_min_temp`/`*_max_temp` columns still
+  read 0 for every point.
+
+Known gaps:
+
+- `cpu_default_powerlimit` and `cpumaxfrequency` still read `0`/garbage
+  regardless of model config - these sysfs handlers call
+  `WMI_GUID_LENOVO_CPU_METHOD`/GameZone methods unconditionally, not
+  gated by `model_config`, so this looks like an unrelated firmware quirk
+  on this generation rather than an allowlist problem.
+- Custom power mode does not activate via the driver's own write path
+  (`EINVAL` on `SetSmartFanMode(255)`), reproducible across a BIOS update
+  and independent of fan-curve state; root cause not yet identified.
+- No fan-curve or power-limit writes attempted, per `AGENTS.md`'s
+  guidance that these are the highest-risk hardware writes; left for a
+  maintainer or a follow-up session.
+
+Validated on Linux 7.0.0-30-generic / 7.0.0-31-generic (Ubuntu 26.04.1
+LTS) across five module reloads, a `main` merge, and a BIOS update
+(Q6CN32WW -> Q6CN79WW). Verify: `sudo dmesg | grep -i legion` (no "not in
+allowlist", EC id 0x5508), `sensors`, and
+`sudo cat /sys/kernel/debug/legion/fancurve`.
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
