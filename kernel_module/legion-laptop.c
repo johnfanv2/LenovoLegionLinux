@@ -1655,6 +1655,10 @@ static const struct model_config model_m3cn_8227 = {
 		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
 	},
 	.has_extreme_powermode = true,
+	/* Fan_Set_Table carries only per-point speeds on this EC (0x8227);
+	 * temperature thresholds, fan2 speed and accel/decel have no WMI
+	 * backing, so hide them like model_lpcn does (issue #582).
+	 */
 	.wmi_fancurve_speed_only = true
 };
 // LOQ 15IAX9E
@@ -4729,12 +4733,19 @@ static ssize_t wmi_write_fancurve_custom(struct legion_private *priv,
 	// CreateByteField (Arg2, 0x18, FSS9)
 
 	memset(buffer, 0, sizeof(buffer));
+	/* On M3CN (EC 0x8227) firmware, \_SB.GZFD.SFAN aborts with
+	 * AE_AML_OPERAND_TYPE when FSTM (buffer[0]) is 0; it requires the
+	 * active WMI powermode (1 quiet, 2 balanced, 3 performance,
+	 * 0xFF custom). Other WMI3 models accept 0, so keep this scoped
+	 * (issue #582).
+	 */
 	if (model == &model_m3cn_8227) {
 		int powermode = 0xFF;
 
 		if (read_powermode(priv, &powermode) < 0)
 			powermode = priv->current_powermode ?
-				    priv->current_powermode : 0xFF;
+					    priv->current_powermode :
+					    0xFF;
 		buffer[0] = (u8)powermode;
 	}
 	for (point = 0; point < MAXFANCURVESIZE; point++)
