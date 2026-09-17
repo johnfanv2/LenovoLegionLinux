@@ -10,8 +10,19 @@ LOG="/tmp/smartfan.log"
 #DEBUG=1  # Set to 1 for verbose logging
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S'): $1" >> "$LOG"
+    # Best-effort: the log file is root-owned once the systemd-run daemon
+    # has created it, so a plain-user invocation (e.g. `smartfan status`)
+    # can't append to it - don't let that leak a "Permission denied" line.
+    { echo "$(date '+%Y-%m-%d %H:%M:%S'): $1" >> "$LOG"; } 2>/dev/null
     [ "$DEBUG" = "1" ] && echo "$1"
+}
+
+# Existence check that doesn't depend on signal permissions: `kill -0`
+# fails with EPERM (not just ESRCH) when the daemon runs as root and the
+# caller doesn't, which looks identical to "not running" to a plain exit
+# code check. /proc/<pid> existence needs no special privilege to read.
+pid_running() {
+    [ -n "$1" ] && [ -d "/proc/$1" ]
 }
 
 # Check for acpi_call
@@ -316,15 +327,15 @@ stop_daemon() {
     if [ -f "$PIDFILE" ]; then
         local pid
         pid=$(cat "$PIDFILE" 2>/dev/null)
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        if pid_running "$pid"; then
             kill -TERM "$pid" 2>/dev/null
             # Wait for graceful shutdown
             for i in {1..5}; do
-                kill -0 "$pid" 2>/dev/null || break
+                pid_running "$pid" || break
                 sleep 1
             done
             # Force kill if still running
-            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+            pid_running "$pid" && kill -9 "$pid" 2>/dev/null
         fi
     fi
     
@@ -342,7 +353,7 @@ case "$1" in
         echo "Starting smart fan daemon in '$mode' mode..."
         nohup "$0" daemon "$mode" > /dev/null 2>&1 &
         sleep 2
-        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        if [ -f "$PIDFILE" ] && pid_running "$(cat "$PIDFILE")"; then
             echo "Smart fan running (PID: $(cat "$PIDFILE"))"
         else
             echo "Failed to start daemon. Check $LOG for details"
@@ -375,7 +386,7 @@ case "$1" in
         fi
         ;;
     status)
-        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        if [ -f "$PIDFILE" ] && pid_running "$(cat "$PIDFILE")"; then
             echo "Smart fan: RUNNING (PID $(cat "$PIDFILE"))"
             echo "Mode: $(cat "$MODEFILE" 2>/dev/null)"
             
