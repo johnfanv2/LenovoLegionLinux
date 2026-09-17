@@ -1,7 +1,6 @@
 [Unit]
 Description=Smart Fan Control Daemon
-After=multi-user.target
-Wants=acpi_call.service
+After=multi-user.target systemd-modules-load.service
 
 [Service]
 Type=forking
