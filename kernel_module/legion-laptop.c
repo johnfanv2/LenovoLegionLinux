@@ -1644,7 +1644,8 @@ static const struct model_config model_m3cn_8227 = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
@@ -1654,7 +1655,12 @@ static const struct model_config model_m3cn_8227 = {
 		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
 		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
 	},
-	.has_extreme_powermode = true,
+	/* max-power (the "extreme" platform_profile choice) cuts power
+	 * instantly on this EC (hard power-off, no shutdown sequence) instead
+	 * of raising limits like on other has_extreme_powermode models, so
+	 * keep it out of platform_profile's choices entirely.
+	 */
+	.has_extreme_powermode = false,
 	/* Fan_Set_Table carries only per-point speeds on this EC (0x8227);
 	 * temperature thresholds, fan2 speed and accel/decel have no WMI
 	 * backing, so hide them like model_lpcn does (issue #582).
