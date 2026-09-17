@@ -1550,6 +1550,38 @@ static const struct model_config model_rxcn = {
 	.has_fancurve_defaults = true
 };
 
+// Legion 5 16IAX10 (83NX) - 2025, Intel Arrow Lake HX + RTX 5060 Max-Q
+// BIOS: Q6CN32WW, EC chip: 0x5508 (confirmed on-hardware)
+// Same chassis generation/EC id/ramio window as model_rxcn (Legion 7
+// 16IAX10, 83KY); on-hardware testing showed raw EC and ACPI fan/temp
+// reads return garbage (fan RPM exceeding the reported max, EC values
+// unrelated to actual sensors) while WMI3 reads back correct values, so
+// this uses WMI3 for all fan/temp/power-limit operations like model_rxcn.
+// Also enables WMI3 power limits (cpu_temperature_limit/cpu_l1_tau/
+// gpu_power_target_offset), confirmed returning plausible values on the
+// unit, same as model_q8cn/model_nmcn/model_lpcn/model_lzcn.
+static const struct model_config model_q6cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600,
+	.has_fancurve_defaults = true
+};
+
 // Legion 5 15IAX10 (83F0) - same EC Chip ID (0x5508) as R3CN (LOQ 15IRX10)
 static const struct model_config model_s2cn = {
 	.registers = &ec_register_offsets_loq_v1,
@@ -2380,6 +2412,21 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "RXCN"),
 		},
 		.driver_data = (void *)&model_rxcn
+	},
+	{
+		// Legion 5 16IAX10 (83NX, Intel Core Ultra 9 275HX + RTX 5060 Max-Q)
+		// EC chip id 0x5508, WMI3 fan/temp/power-limit reads confirmed on
+		// the unit; see model_q6cn comment. Product-qualified because the
+		// Q7CN entry below notes Q6CN is also shared by the 83LU/83F3
+		// Legion Pro 7 16IAX10H siblings, which are a different chassis
+		// (different ramio window, no minifancurve, etc. - see model_q7cn)
+		.ident = "Q6CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83NX"),
+			DMI_MATCH(DMI_BIOS_VERSION, "Q6CN"),
+		},
+		.driver_data = (void *)&model_q6cn
 	},
 	{
 		// Legion Pro 7 16IAX10H (83F5), BIOS Q7CN; product-qualified
