@@ -916,6 +916,7 @@ class LegionController:
                 "Fan Curve Write Failed",
                 f"The fan controller refused the fan curve: {ex}",
             )
+            return
         self.model.read_fancurve_from_hw()
         self.update_fancurve_gui()
 

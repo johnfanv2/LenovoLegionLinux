@@ -135,13 +135,15 @@ class GuiStartupTest(unittest.TestCase):
                 controller.model, "write_fancurve_to_hw", side_effect=RuntimeError("legion_cli failed")
             ), patch.object(
                 controller.model, "read_fancurve_from_hw"
-            ), patch.object(
+            ) as mock_read, patch.object(
                 controller, "update_fancurve_gui"
-            ), patch.object(
+            ) as mock_update, patch.object(
                 QMessageBox, "warning"
             ) as mock_warning:
                 controller.on_write_fan_curve_to_hw()
                 mock_warning.assert_called_once()
+                mock_read.assert_not_called()
+                mock_update.assert_not_called()
         finally:
             window.deleteLater()
             self.app.processEvents()
