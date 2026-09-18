@@ -1665,7 +1665,8 @@ static const struct model_config model_m3cn_8227 = {
 	 * temperature thresholds, fan2 speed and accel/decel have no WMI
 	 * backing, so hide them like model_lpcn does (issue #582).
 	 */
-	.wmi_fancurve_speed_only = true
+	.wmi_fancurve_speed_only = true,
+	.skip_lockfancontroller = true,
 };
 // LOQ 15IAX9E
 static const struct model_config model_q8cn = {
