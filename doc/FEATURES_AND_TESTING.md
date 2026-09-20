@@ -148,6 +148,46 @@ issue for the results, and verify locally with
 `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
 speed1 in 1..10).
 
+## Legion 5 15AHP10 (83M0, RGCN)
+
+BIOS RGCN27WW/RGCN35WW/RGCN36WW (issue #373), EC 0x5508, AMD Ryzen 7 260
++ RTX 5060. DMI entry `RGCN` is qualified on product name `83M0`; config
+`model_rgcn` in `kernel_module/legion-laptop.c` (the header comment cites
+the DSDT lines from the RGCN35WW dsdt.dsl attached in issue #373).
+
+Same firmware layout as the RLCN (83LT) above, on the Legion 5 chassis:
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (ODV1 == 4; read the table in another mode).
+  `LENOVO_FAN_TABLE_DATA` (WQA3) maps level 1..10 to 1800..4600 RPM on
+  both fans, so `fan1_level_rpm_table`/`fan2_level_rpm_table` are
+  available.
+- The keyboard backlight is driven by the KBBACKLIGHT WMI methods
+  (`WMAF`, LECR 0xDA); the reporters' units have no lid/logo and no
+  IO-port lights (issue #373 report), so both light attributes are
+  skipped.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode, as on Q7CN/RLCN.
+- Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
+  `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
+  are visible, as on Q7CN/RLCN. Rapid charge uses `VPC0.GBMD`/`SBMC`.
+- `minifancurve` and `lockfancontroller` are hidden (undeclared EC
+  bytes on the 0x5508 generation); the EC RAM window (`ERAX @0xFEEC2400`,
+  len 0xFF) is only used for the read-only `ecmemoryram` debugfs dump.
+
+Validation status: config derived from the DSDT analysis in issue #373
+(RGCN35WW dsdt.dsl; the WMI fan-table readback in the original report
+shows the static 1..10 placeholder, i.e. that unit was in extreme mode).
+Runtime validation on the reporters' units is in progress - check the
+issue for the results, and verify locally with
+`sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
+`sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
+speed1 in 1..10).
+
 ## Legion 5 16IAX10 (83NX, Q6CN)
 
 BIOS Q6CN32WW (also confirmed on Q6CN79WW after a BIOS update), EC 0x5508,
