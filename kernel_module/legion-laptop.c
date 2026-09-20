@@ -1582,6 +1582,93 @@ static const struct model_config model_q6cn = {
 	.has_fancurve_defaults = true
 };
 
+// Legion Pro 5 16IAX10H (83LU) - 2025, Intel Arrow Lake-HX + RTX 5070 Ti
+// BIOS: Q6CN26WW (issue #337), EC chip 0x5508 (read on the unit, fw 2b0).
+// The Q6CN BIOS prefix is shared with the Legion 5 16IAX10 (83NX) above,
+// but this is the Legion Pro 5 chassis; the DSDT (L = dsdt.dsl line, issue
+// #337) shows the same WMI-only firmware layout as model_q7cn (Legion Pro
+// 7 16IAX10H, 83F5, the Q7CN-BIOS sibling of this chassis):
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L55540): get returns the 0x58-byte LFGT buffer with the live EC
+//   fields F9F0..F9F9 (static 1..10 placeholder when ODV1 == 4, i.e.
+//   extreme mode); set copies the ten speeds (bytes 0x06..0x18 at even
+//   offsets) to F9F0..F9F9 and commits via LECR(0xD0,1,1,2), no range
+//   check, mode/FSID bytes ignored. The bytes are fan LEVELS 1..10
+//   (LENOVO_FAN_TABLE_DATA, instance A3, is present in the _WDG), one
+//   table for all fans, temperature axis fixed by the EC, hence
+//   FAN_SPEED_UNIT_LEVEL and only the speed attributes are exposed
+//   (wmi_fancurve_speed_only).
+// - Other Method WMAE Get(17)/Set(18) (L55623/L56286) implements the
+//   standard feature ids: fan RPM 0x04030001/2 (FANS*0x64), CPU/GPU temp
+//   0x05040000/0x05050000 (CPUT/GPUT), full speed 0x04020000 -> EC FNST
+//   (both directions), PL/OC 0x0101..0x0107/0x0201..0x0204 stored raw in
+//   the EC. 0x05010000 is the CPU socket temp (CPUS), not a labeled IC
+//   sensor -> skip_ic_temp.
+// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
+//   (L54931/L54802): quiet/balanced/performance, 0xFF custom, 0xE0
+//   extreme; requests are parked on battery (ACTY() checks).
+// - CPU Method WMAC is an empty stub (L55617), so power limits go
+//   through WMAE (WMI3), as on model_q7cn/model_rlcn.
+// - Keyboard backlight (white, off/medium/bright) is driven by the
+//   KBBACKLIGHT WMAF get(1)/set(2) (L57234/L57288, LECR 0xDA func 3,
+//   levels 1..3); light ids 0x03/0x04 exist in the DSDT but the chassis
+//   has no Y-logo or IO-port lights (issue #337 report), so both are
+//   skipped.
+// - EC RAM window ERAX @0xFE500400 (L37121, len 0xFF; F9FT/ECB2 at
+//   +0x100/+0x200, ramio_size 0x300) is used only by the read-only
+//   debugfs ecmemoryram dump; EC register offsets are not trusted on the
+//   0x5508 generation (issue #491) - everything else goes through WMI.
+// - Rapid charge via VPC0 GBMD/SBMC (L39548/L39765); SBMC(7) also
+//   clears conservation mode.
+// Runtime validation on the reporter's unit (issue #337, tramp-tm):
+// legion_wmi_other reports plausible fan RPM (2400/2100) while raw EC and
+// ACPI-path reads are garbage (e.g. 18045 RPM with the fans at ~2400),
+// matching the EC-misalignment quirk of this generation; dmesg with
+// force=1 shows EC id 0x5508 fw 2b0 and all five WMI blocks (GameZone,
+// Fan Method, Other Method, CPU Method, KBBACKLIGHT) registering.
+// fan_fullspeed is gated behind custom power mode like model_q7cn/
+// model_rlcn: on this generation a full-speed write through the wrong
+// path can wedge the fans at maximum speed until reboot (model_rlcn).
+static const struct model_config model_q6cn_lu = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE500400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_flip_to_start = true,
+};
+
 // Legion 5 15IAX10 (83F0) - same EC Chip ID (0x5508) as R3CN (LOQ 15IRX10)
 static const struct model_config model_s2cn = {
 	.registers = &ec_register_offsets_loq_v1,
@@ -2429,9 +2516,9 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		// Legion 5 16IAX10 (83NX, Intel Core Ultra 9 275HX + RTX 5060 Max-Q)
 		// EC chip id 0x5508, WMI3 fan/temp/power-limit reads confirmed on
 		// the unit; see model_q6cn comment. Product-qualified because the
-		// Q7CN entry below notes Q6CN is also shared by the 83LU/83F3
-		// Legion Pro 7 16IAX10H siblings, which are a different chassis
-		// (different ramio window, no minifancurve, etc. - see model_q7cn)
+		// Q6CN BIOS is also shared by the 83LU Legion Pro 5 16IAX10H
+		// (model_q6cn_lu below, issue #337) and the 83F3 sibling, which are
+		// different chassis (different ramio window, no minifancurve, etc.)
 		.ident = "Q6CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -2439,6 +2526,20 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "Q6CN"),
 		},
 		.driver_data = (void *)&model_q6cn
+	},
+	{
+		// Legion Pro 5 16IAX10H (83LU, Intel Core Ultra 9 275HX +
+		// RTX 5070 Ti), BIOS Q6CN (issue #337); DSDT-validated sibling of
+		// the 83F5 Legion Pro 7 16IAX10H below (same ERAX window and
+		// WMAA/WMAB/WMAE/WMAF layout), distinct from the 83NX Legion 5
+		// entry above
+		.ident = "Q6CN 83LU",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83LU"),
+			DMI_MATCH(DMI_BIOS_VERSION, "Q6CN"),
+		},
+		.driver_data = (void *)&model_q6cn_lu
 	},
 	{
 		// Legion Pro 7 16IAX10H (83F5), BIOS Q7CN; product-qualified
@@ -4458,6 +4559,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
 		model == &model_kwcn ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_q7cn ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_q6cn_lu ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_rlcn ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
 				       FAN_SPEED_UNIT_PERCENT;

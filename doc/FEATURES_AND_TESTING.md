@@ -152,8 +152,9 @@ speed1 in 1..10).
 
 BIOS Q6CN32WW (also confirmed on Q6CN79WW after a BIOS update), EC 0x5508,
 Intel Core Ultra 9 275HX + RTX 5060 Max-Q. DMI entry `Q6CN` is qualified on
-product name `83NX`, since the BIOS prefix is also shared by the Q7CN
-entry's 83LU/83F3 siblings above - a different chassis (different
+product name `83NX`, since the BIOS prefix is also shared by the 83LU
+Legion Pro 5 16IAX10H (own entry and `model_q6cn_lu` below, issue #337)
+and the 83F3 sibling - different chassis (different
 `ramio_physical_start`, no minifancurve). Config `model_q6cn` in
 `kernel_module/legion-laptop.c` is a copy of `model_rxcn` (Legion 7
 16IAX10, 83KY, same EC/ramio generation) that additionally enables WMI3
@@ -207,6 +208,55 @@ through the real DMI allowlist and loaded successfully, with no "not in
 allowlist" rejection. Verify: `sudo dmesg | grep -i legion` (no "not in
 allowlist", EC id 0x5508), `sensors`, and
 `sudo cat /sys/kernel/debug/legion/fancurve`.
+
+## Legion Pro 5 16IAX10H (83LU, Q6CN)
+
+BIOS Q6CN26WW (issue #337), EC 0x5508 (fw 2b0), Intel Core Ultra 9 275HX
++ RTX 5070 Ti. DMI entry `Q6CN 83LU` is qualified on product name `83LU`;
+config `model_q6cn_lu` in `kernel_module/legion-laptop.c` (the header
+comment cites the DSDT lines from issue #337).
+
+Same firmware layout as the Q7CN (83F5) above, on the Legion Pro 5
+chassis; the Q6CN BIOS prefix is shared with the Legion 5 (83NX) above,
+which is a different chassis and keeps its own entry:
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (read the table in another mode). `LENOVO_FAN_TABLE_DATA`
+  (WQA3) is present in the `_WDG`, so `fan1_level_rpm_table`/
+  `fan2_level_rpm_table` are available.
+- `0x05010000` is the CPU socket temperature (`CPUS`), not a labeled IC
+  sensor, so the IC temperature attribute is hidden (`skip_ic_temp`).
+- Only `pwm1_auto_point*_pwm` is exposed (`wmi_fancurve_speed_only`);
+  `minifancurve`, `lockfancontroller` and `fan_maxspeed` are hidden (the
+  EC does not declare those bytes and `WMAB` implements neither
+  max-speed method).
+- The white keyboard backlight (off/medium/bright) is driven by the
+  KBBACKLIGHT WMI methods (`WMAF`); the chassis has no Y-logo or
+  IO-port lights (issue #337 report), so both light attributes are
+  skipped.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode, as on Q7CN/RLCN.
+- Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
+  `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
+  are visible, as on Q7CN/RLCN. Rapid charge uses `VPC0.GBMD`/`SBMC`.
+- The EC RAM window (`ERAX @0xFE500400`, `F9FT`/`ECB2` at +0x100/+0x200,
+  `ramio_size` 0x300) is only used for the read-only `ecmemoryram`
+  debugfs dump; raw EC reads return garbage on this generation (issue
+  #491); the ACPI-path reads agree with the WMI3 ones (the DSDT wires
+  both to the same EC fields), only direct EC/ramio reads are misaligned.
+
+Validation status: config derived from the DSDT and the validated reads
+in issue #337 (`legion_wmi_other` fan RPM 2400/2100 while raw EC/ACPI
+reads showed impossible values like 18045 RPM; EC id 0x5508 fw 2b0 in
+dmesg with `force=1`). Runtime validation on the reporter's unit is in
+progress - check the issue for the results, and verify locally with
+`sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
+`sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
+speed1 in 1..10).
 
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
