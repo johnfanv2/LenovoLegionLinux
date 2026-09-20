@@ -831,7 +831,7 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 由于硬件固件的限制，部分问题无法修复：
 
 - 风扇曲线的点数无法更改（性能模式下为 10 点，其它模式为 9 点），但你可以通过将温度限制设置为 127 来实际禁用某些点，在写入 `auto_points_size` 时已经采用了这种方式。
-- 在使用 WMI3 风扇表的机型上（LPCN 系列，如拯救者 Pro 5 16ARX8 / 拯救者 7 Pro 16ARX8H），WMI 方法只传输每个曲线点的风扇**速度**：温度阈值、第二个风扇的速度以及加/减速值无法通过 WMI 读取或写入（回读始终为 0）。因此内核模块在这些机型上只暴露速度属性；EC 继续使用自己的固件温度阈值。已在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上确认；LPCN 系列其余机型（如 LPCN47WW）暂按推测适用，待相关用户确认。[#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
+- 在使用 WMI3 风扇表的机型上（LPCN 系列，如拯救者 Pro 5 16ARX8 / 拯救者 7 Pro 16ARX8H，以及 EC 0x5508 代际：Legion 7 16IAX10 83KY/RXCN、Legion 5 16IAX10 83NX/Q6CN、Legion 5 15IAX10 83F0/S2CN、Legion Pro 5 16AFR10 83F2/RECN，以及上述 Q7CN/RLCN/83LU 机型），WMI 方法只传输每个曲线点的风扇**速度**：温度阈值、第二个风扇的速度以及加/减速值无法通过 WMI 读取或写入（回读始终为 0）。在 0x5508 代际上，速度值是 **1-10 风扇等级**而非百分比——把百分比值写入等级字节与该代际的热关机报告相符，因此内核模块在这些机型上只暴露速度属性并将其按等级处理；EC 继续使用自己的固件温度阈值。已在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上确认，并经 0x5508 各机箱的 DSDT 分析证实（issue #491）；LPCN 系列其余机型（如 LPCN47WW）暂按推测适用，待相关用户确认。[#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
 - 在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上，固件的 `max-power` 模式并非提升功耗限制，而是会**立即断电**（硬关机，无正常关机流程），还可能将 EC 的电池充电模式从养护模式重置为快充。因此内核模块在该机型上不将 `max-power` 作为平台配置文件选项暴露；安全的配置文件为 quiet/balanced/performance/custom。
 
 ## :clap: 鸣谢

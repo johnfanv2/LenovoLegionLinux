@@ -1453,6 +1453,10 @@ static const struct model_config model_t2cn = {
 // the unit in #527. ACPI CFG and rapidcharge (GBMD/SBMC) work via the
 // PCI0.LPC0 paths. The 83F2 has no Y-logo/lid and no IO-port light
 // (reporter-confirmed; the phantom WMI lid-light probe returns 1).
+// The WMI fan table is the level-index kind shared across the 0x5508
+// generation (issue #491: WMAB ids 5/6 only, EC F9F0..F9F9 levels, no
+// temperature fields - see model_q7cn), so only the speed attributes are
+// exposed and FAN_SPEED_UNIT_LEVEL applies.
 static const struct model_config model_recn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
@@ -1479,7 +1483,8 @@ static const struct model_config model_recn = {
 				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
 			[ACPI_PATH_WRITE_RAPIDCHARGE] =
 				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
-	.has_fancurve_defaults = true
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true
 };
 
 // Legion Slim 5 16AHP9 (2024) - Model 83DH
@@ -1528,7 +1533,13 @@ static const struct model_config model_r3cn = {
 
 // Legion 7 16IAX10 (83KY) - 2025, Intel Arrow Lake + RTX 5060
 // BIOS: RXCN79WW, EC chip: 0x5508
-// Uses WMI3 for all fan operations (safe - no direct EC memory writes)
+// Uses WMI3 for all fan operations (safe - no direct EC memory writes).
+// The WMI fan table behaves like the rest of the 0x5508 generation (issue
+// #491): per-point speed1 only, temperature columns always read 0, EC
+// values matching the F9F0..F9F9 level bytes - i.e. the level-index kind
+// (FAN_SPEED_UNIT_LEVEL, see model_q7cn). Only the speed attributes are
+// exposed (wmi_fancurve_speed_only); writing percent values into the
+// level bytes matches the thermal-shutdown reports for this generation.
 static const struct model_config model_rxcn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = false,
@@ -1547,7 +1558,8 @@ static const struct model_config model_rxcn = {
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600,
-	.has_fancurve_defaults = true
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true
 };
 
 // Legion 5 16IAX10 (83NX) - 2025, Intel Arrow Lake HX + RTX 5060 Max-Q
@@ -1560,6 +1572,12 @@ static const struct model_config model_rxcn = {
 // Also enables WMI3 power limits (cpu_temperature_limit/cpu_l1_tau/
 // gpu_power_target_offset), confirmed returning plausible values on the
 // unit, same as model_q8cn/model_nmcn/model_lpcn/model_lzcn.
+// The WMI fan table behaves like the rest of the 0x5508 generation (issue
+// #491): per-point speed1 only, temperature columns always read 0, EC
+// values matching the F9F0..F9F9 level bytes - i.e. the level-index kind
+// (FAN_SPEED_UNIT_LEVEL, see model_q7cn). Only the speed attributes are
+// exposed (wmi_fancurve_speed_only); writing percent values into the
+// level bytes matches the thermal-shutdown reports for this generation.
 static const struct model_config model_q6cn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -1579,7 +1597,8 @@ static const struct model_config model_q6cn = {
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600,
-	.has_fancurve_defaults = true
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true
 };
 
 // Legion Pro 5 16IAX10H (83LU) - 2025, Intel Arrow Lake-HX + RTX 5070 Ti
@@ -1670,6 +1689,17 @@ static const struct model_config model_q6cn_lu = {
 };
 
 // Legion 5 15IAX10 (83F0) - same EC Chip ID (0x5508) as R3CN (LOQ 15IRX10)
+// EC3 fancurve reads return garbage on this chassis (#359/#475), and the
+// DSDT disassembly in issue #491 (Silver-Rust-18) shows why the WMI path
+// is the right one: Fan Method WMAB implements only Fan_Get_Table(5)/
+// Fan_Set_Table(6) with the 0x58-byte LFGT buffer - ten fan LEVELS 1..10
+// in EC F9F0..F9F9, committed via LECR(0xD0,1,1,2), no temperature fields
+// anywhere (same layout as model_q7cn/model_rlcn/model_recn). The get
+// branch returns a static 1..10 placeholder while ODV1 == 4 (set by the
+// ASMC state machine, e.g. the extreme thermal mode), so read the table
+// in another mode. WMI3 temps/fans/powermode and monitoring are confirmed
+// on the unit (#475, gauthier1024 in #491); the EC3 offsets borrowed from
+// model_r3cn are wrong for this chassis and unsafe to write.
 static const struct model_config model_s2cn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
@@ -1683,14 +1713,15 @@ static const struct model_config model_s2cn = {
 	.access_method_keyboard = ACCESS_METHOD_WMI2,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_EC3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0F00,
 	.ramio_size = 0x600,
-	.acpi_paths = { [ACPI_PATH_STA] = "\\\\_SB.PC00.LPCB.EC0.VPC0._STA",
-			[ACPI_PATH_CFG] = "\\\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
-	.has_fancurve_defaults = true
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true
 };
 
 static const struct model_config model_m3cn = {
@@ -4555,14 +4586,18 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 	fancurve->current_point_i = 0;
 	fancurve->size = size;
 	fancurve->fan_speed_unit =
-		model == &model_n2cn ? FAN_SPEED_UNIT_PERCENT_NEAREST :
-		model == &model_secn ? FAN_SPEED_UNIT_RPM_HUNDRED :
-		model == &model_kwcn ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_q7cn ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_q6cn_lu ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_rlcn ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_n2cn	  ? FAN_SPEED_UNIT_PERCENT_NEAREST :
+		model == &model_secn	  ? FAN_SPEED_UNIT_RPM_HUNDRED :
+		model == &model_kwcn	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_q7cn	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_q6cn_lu	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_q6cn	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_rxcn	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_s2cn	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_recn	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_rlcn	  ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
-				       FAN_SPEED_UNIT_PERCENT;
+					    FAN_SPEED_UNIT_PERCENT;
 
 	for (i = 0; i < size; i++) {
 		u32 speed = le32_to_cpu(fan_table.fan_speed[i]);

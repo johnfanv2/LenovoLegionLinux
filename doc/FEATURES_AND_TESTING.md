@@ -181,10 +181,17 @@ power limits.
 - `fan_fullspeed` writes are accepted and read back correctly (0 -> 1 ->
   0) but produced no observed RPM change in testing; `fan_maxspeed` reads
   0 throughout - untested/unexplained, not chased further.
-- Fan curve initially read all-zero in balanced mode; after a BIOS update
-  and setting fan control to custom, the speed/pwm columns populate with
-  real data matching the EC, but `*_min_temp`/`*_max_temp` columns still
-  read 0 for every point.
+- The WMI fan table is the level-index speed-only kind shared across the
+  0x5508 generation (issue #491): the speed column matches the EC
+  `F9F0..F9F9` level bytes, and every `*_min_temp`/`*_max_temp` column
+  reads 0 because the firmware carries no temperature fields. The config
+  therefore exposes only the speed attributes (`wmi_fancurve_speed_only`)
+  and treats them as levels 1..10 (`FAN_SPEED_UNIT_LEVEL`), like
+  `model_q7cn`/`model_rlcn` - writing percent values into the level bytes
+  matches the thermal-shutdown reports for this generation. The table
+  initially read all-zero in balanced mode; after a BIOS update and
+  setting fan control to custom, the speed column populates with the live
+  levels.
 
 Known gaps:
 
