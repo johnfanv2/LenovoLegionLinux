@@ -346,6 +346,59 @@ verify locally with `sudo dmesg | grep -i legion` (no "not in allowlist",
 EC id 0x5508), `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve`
 (`u` = 5, speed1 in 1..10).
 
+## LOQ 15IRX10 (83JE, R3CN)
+
+BIOS R3CN (validated down to R3CN42WW, issue #374), EC 0x5508, Intel +
+RTX 50. DMI entry `R3CN` matches the BIOS prefix; config `model_r3cn` in
+`kernel_module/legion-laptop.c` (the header comment cites the SSDT4.dsl
+lines from the R3CN.zip package attached in issue #374 - the GZFD WMI
+device of this chassis lives in SSDT4, not the DSDT).
+
+- Fan table via Fan Method `WMAB` 5/6, which delegate to `GFAN`/`SFAN`
+  (unlike the inline LFGT buffers of the Legion chassis): get returns the
+  0x58-byte FAT2 buffer with ten fan LEVELS 1..10 from the EC custom
+  table `F101..F10A` (static 1..10 placeholder when `GZ44 == 0x07`,
+  i.e. extreme mode); set writes the levels back plus the derived
+  per-point RPM (CRP/GRP/ERP) and temperature-threshold fields from the
+  mode's RPM ladder, gated on `GZ44 != 0x07`. The levels are indices
+  into the firmware's per-level RPM tables (`FNT0` fan 1: 1100..4100,
+  fan 2: 4400 RPM max), so `FAN_SPEED_UNIT_LEVEL` and only the speed
+  attributes are exposed (`wmi_fancurve_speed_only`).
+  `LENOVO_FAN_TABLE_DATA` (WQA3) is present, so
+  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+- `SFAN` requires the first payload byte to be the active WMI powermode
+  (same quirk as the M3CN firmware, issue #582); the driver sends it
+  for this model. Write in custom power mode and read the table back in
+  a non-extreme mode.
+- Fan RPM / CPU temperature / fan full speed via Other Method `WMAE`
+  (standard dword feature ids through a DEV0/FEA0/TYP0 dispatch):
+  RPM `0x04030001/2` -> EC `FA1S/FA2S`, full speed `0x04020000` -> EC
+  `FFON` (writes require custom power mode), CPU temp `0x05040000` ->
+  EC `CTMP`; note `0x05050000` (labeled GPU) returns the socket
+  temperature `SKTC`, the only dGPU-side reading this firmware offers,
+  and `0x05010000` reads Zero, so the IC temperature attribute is
+  hidden (`skip_ic_temp`). Power limits map to EC `CSPL/CLPL/CCTL/
+  CCPL` and stay exposed. Power mode via GameZone `WMAA` 0x2C/0x2D
+  (quiet/balanced/performance/custom 0xFF/extreme 0xE0); keyboard
+  backlight via KBBACKLIGHT `WMAF`.
+- `minifancurve` stays enabled (LOQ EC layout, `ec_register_offsets_
+  loq_v1`); the read-only `ecmemoryram` debugfs dump uses the ramio
+  window `0xFE0B0F00`/0x600 (validated by dumps in issue #374). No
+  `SystemMemory` ERAX window is declared in this package.
+- The fancurve used to be `ACCESS_METHOD_EC3` here; it moved to WMI3
+  with the issue #491 consolidation once the SSDT4 disassembly
+  validated `WMAB` 5/6 on this exact BIOS.
+
+Validation status: WMI3 sensors and powermode runtime-validated on the
+reporter's unit (issue #374, alfrix: CPU temp 44-46 C, fan RPM
+1100/1400 while EC/ACPI-path reads return 0/-5, EC id 0x5508 fw 2b0);
+the fan-curve write path is DSDT-validated and pending a careful
+on-hardware round trip - write in custom mode, read back in a
+non-extreme mode, and be ready to reboot if full speed does not
+release. Verify locally with `sudo dmesg | grep -i legion`, `sensors`,
+and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in
+1..10).
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.
