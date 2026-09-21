@@ -305,6 +305,47 @@ progress - check the issue for the results, and verify locally with
 `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
 speed1 in 1..10).
 
+## Legion Pro 5 16IAX10 (83F3, Q6CN)
+
+BIOS Q6CN78WW/Q6CN79WW (issue #471), EC 0x5508, Intel Core Ultra 7
+255HX + RTX 5070. DMI entry `Q6CN 83F3` is qualified on product name
+`83F3`; config `model_q6cn_f3` in `kernel_module/legion-laptop.c` (the
+header comment cites the DSDT lines from the Q6CN79WW dsdt.dsl attached in
+issue #471). The Legion Pro 5 sibling of the 83LU above, sharing the Q6CN
+BIOS line and the ERAX window.
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (ODV1 == 4; read the table in another mode). Read on
+  hardware: 1,2,3,4,5,6,7,8,8,8 in performance mode. `LENOVO_FAN_TABLE_DATA`
+  (WQA3) maps level 1..10 to 1700..5300 RPM on both fans, so
+  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+- The keyboard backlight is driven by the KBBACKLIGHT WMI methods
+  (`WMAF`, LECR 0xDA); the chassis has no Y-logo or IO-port lights
+  (issue #471 report), so both light attributes are skipped.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode, as on Q7CN/RLCN.
+- Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
+  `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
+  are visible, as on Q7CN/RLCN. Rapid charge uses `VPC0.GBMD`/`SBMC`.
+- `minifancurve` and `lockfancontroller` are hidden (undeclared EC
+  bytes on the 0x5508 generation); the EC RAM window (`ERAX @0xFE500400`,
+  `F9FT`/`ECB2` at +0x100/+0x200, `ramio_size` 0x300) is only used for
+  the read-only `ecmemoryram` debugfs dump; raw EC reads return garbage
+  on this generation (issue #491) - the reporter's dump shows EC
+  80/87 C and 18045/16743 RPM while ACPI and WMI3 agree at 64 C and
+  2200 RPM.
+
+Validation status: config derived from the DSDT analysis and validated
+reads in issue #471 (inermage, Q6CN79WW). Runtime validation on the
+reporter's unit is in progress - check the issue for the results, and
+verify locally with `sudo dmesg | grep -i legion` (no "not in allowlist",
+EC id 0x5508), `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve`
+(`u` = 5, speed1 in 1..10).
+
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would
 be switching in hybrid mode to dGPU only as long as HDMI is attached or outputting via dGPU.

@@ -1688,6 +1688,96 @@ static const struct model_config model_q6cn_lu = {
 	.has_flip_to_start = true,
 };
 
+// Legion Pro 5 16IAX10 (83F3) - 2025, Intel Core Ultra 7 255HX + RTX 5070
+// BIOS: Q6CN78WW/Q6CN79WW (issue #471), EC 0x5508. Facts below are from
+// the Q6CN79WW DSDT (L = dsdt.dsl line, attachment in issue #471); the
+// WMA* methods live in \_SB.GZFD and the chassis is the Legion Pro 5
+// sibling of the 83LU (model_q6cn_lu, same Q6CN BIOS line):
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L59967/L60012): get returns the 0x58-byte LFGT buffer with the live
+//   EC fields F9F0..F9F9 (static 1..10 placeholder when ODV1 == 4, i.e.
+//   extreme mode, L59983); set copies the ten speeds (bytes 0x06..0x18
+//   at even offsets) to F9F0..F9F9 and commits via LECR(0xD0,1,1,2)
+//   (L60037), no range check, mode/FSID bytes ignored. The bytes are fan
+//   LEVELS 1..10, one table for all fans, temperature axis fixed by the
+//   EC, hence FAN_SPEED_UNIT_LEVEL and only the speed attributes are
+//   exposed (wmi_fancurve_speed_only). Read on hardware: 1,2,3,4,5,6,
+//   7,8,8,8 (performance mode, issue #471).
+// - LENOVO_FAN_TABLE_DATA (WQA3, L46178) maps level 1..10 to
+//   1700..5300 RPM on fan 1 (sensor 0x04) and fan 2 (sensor 0x05), so
+//   fan1_level_rpm_table/fan2_level_rpm_table appear automatically
+//   (has_fancurve_defaults); the _WDG carries both the Fan Method and
+//   the KBBACKLIGHT (offset 0x50) data blocks.
+// - Other Method WMAE Get(0x11)/Set(0x12) (L60048/L60711) implements the
+//   standard feature ids: fan RPM 0x04030001/2 (FANS*0x64), CPU/GPU temp
+//   0x05040000/0x05050000, full speed 0x04020000 -> EC FNST (both
+//   directions), PL/OC 0x0101..0x0108/0x0201..0x0204 stored raw in the
+//   EC. 0x05010000 is the CPU socket temp (CPUS), not a labeled IC
+//   sensor -> skip_ic_temp. PL/OC attributes stay hidden
+//   (skip_oc_controls) until validated; only cpu_temperature_limit,
+//   cpu_l1_tau and gpu_power_target_offset are visible.
+// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
+//   (L59356/L59227): quiet/balanced/performance, 0xFF custom, 0xE0
+//   extreme. CPU Method WMAC is an empty stub (L60042), so power
+//   limits go through WMAE (WMI3).
+// - Keyboard backlight (4-zone RGB; the WMI path drives the on/off and
+//   brightness levels, effects stay userspace) via KBBACKLIGHT WMAF
+//   get(1)/set(2) (L61749/L61803, LECR 0xDA); the chassis has no
+//   Y-logo or IO-port lights (issue #471 report), so both are skipped.
+// - EC0 at \_SB.PC00.LPCB.EC0 (L36695, in Scope (\_SB.PC00.LPCB)
+//   L36585, _STA L36731); EC RAM window ERAX @0xFE500400 (L36982,
+//   len 0xFF; F9FT/ECB2 at +0x100/+0x200, ramio_size 0x300) is used
+//   only by the read-only debugfs ecmemoryram dump; EC register
+//   offsets are not trusted on the 0x5508 generation (issue #491) -
+//   everything else goes through WMI. VPC0 (VPC2004) _STA/_CFG
+//   (L39301/L39306), GBMD/SBMC (L39468/L39685).
+// Runtime reads on the reporter's unit (issue #471, inermage): EC
+// column is garbage (80/87 C, 18045/16743 RPM) while ACPI and WMI3
+// agree (CPU 64 C, fans 2200 RPM), EC id 0x5508 fw 2b0, powermode
+// WMI 3 - matching the EC-misalignment quirk of this generation.
+// fan_fullspeed is gated behind custom power mode like model_q7cn/
+// model_rlcn: on this generation a full-speed write through the wrong
+// path can wedge the fans at maximum speed until reboot (model_rlcn).
+static const struct model_config model_q6cn_f3 = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE500400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_flip_to_start = true,
+};
+
 // Legion 5 15IAX10 (83F0) - same EC Chip ID (0x5508) as R3CN (LOQ 15IRX10)
 // EC3 fancurve reads return garbage on this chassis (#359/#475), and the
 // DSDT disassembly in issue #491 (Silver-Rust-18) shows why the WMI path
@@ -2656,6 +2746,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "Q6CN"),
 		},
 		.driver_data = (void *)&model_q6cn_lu
+	},
+	{
+		// Legion Pro 5 16IAX10 (83F3), BIOS Q6CN (issue #471); the
+		// Legion Pro 5 sibling of the 83LU above - same Q6CN BIOS line
+		// and ERAX window, own chassis validation. Product-qualified
+		// because the Q6CN BIOS is also shared with the 83NX Legion 5.
+		.ident = "Q6CN 83F3",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83F3"),
+			DMI_MATCH(DMI_BIOS_VERSION, "Q6CN"),
+		},
+		.driver_data = (void *)&model_q6cn_f3
 	},
 	{
 		// Legion Pro 7 16IAX10H (83F5), BIOS Q7CN; product-qualified
@@ -4690,6 +4793,7 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		model == &model_kwcn	  ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_q7cn	  ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_q6cn_lu	  ? FAN_SPEED_UNIT_LEVEL :
+		model == &model_q6cn_f3	  ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_q6cn	  ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_rxcn	  ? FAN_SPEED_UNIT_LEVEL :
 		model == &model_s2cn	  ? FAN_SPEED_UNIT_LEVEL :
