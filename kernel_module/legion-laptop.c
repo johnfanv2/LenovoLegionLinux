@@ -1508,84 +1508,57 @@ static const struct model_config model_nrcn = {
 	.ramio_size = 0x600
 };
 
-// LOQ 15IRX10 (83JE) - 2025, Intel + RTX 50, BIOS R3CN (issue #374).
-// The GZFD WMI device of this chassis lives in SSDT4.dsl (R3CN.zip in
-// issue #374; the DSDT only holds the classic EC0 with an
-// EmbeddedControl ERAM region, FANG/FANW methods and External field
-// refs). L = SSDT4.dsl line unless noted:
-// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
-//   (L19638), delegating to GFAN (L15463)/SFAN (L15534): get fills
-//   the 0x58-byte FAT2 buffer with ten fan LEVELS 1..10 read from the
-//   EC custom table F101..F10A (static EFST 1..10 placeholder,
-//   L15319, when EC GZ44 == 0x07, i.e. extreme mode); set writes the
-//   ten speeds to F101..F10A and derives the per-point RPM (CRP/GRP/
-//   ERP) and temperature-threshold fields from the mode's RPM ladder
-//   (FNT0/FNT1/FNT2, FI00..FI0E), gated on GZ44 != 0x07 (writes
-//   swallowed in extreme mode). The payload words are indices into
-//   the firmware's per-level RPM tables -> FAN_SPEED_UNIT_LEVEL, one
-//   table for all fans, temperature axis fixed by the EC, so only
-//   the speed attributes are exposed (wmi_fancurve_speed_only).
-// - SFAN requires the first payload byte (FSTM) to be the active WMI
-//   powermode (1/2/3/0xFF/0xE0); with 0 it derefs an unset local and
-//   aborts (AE_AML_OPERAND_TYPE) - the same quirk as model_m3cn_8227
-//   (issue #582), so wmi_write_fancurve_custom() sends the active
-//   powermode for this model too.
-// - LENOVO_FAN_TABLE_DATA (WQA3, L18101) is present in the _WDG
-//   (L24628), so fan1_level_rpm_table/fan2_level_rpm_table are
-//   exposed (has_fancurve_defaults); FNT0 maps level 1..10 to
-//   1100..4100 RPM on fan 1 (4400 on fan 2) per the extraction in
-//   issue #374.
-// - Other Method WMAE Get(0x11)/Set(0x12) (L19673/L20503) implements
-//   the standard dword feature ids through a DEV0/FEA0/TYP0 dispatch:
-//   fan RPM 0x04030001/2 -> EC FA1S/FA2S * 0x64 (L20344), full speed
-//   0x04020000 -> EC FFON (set at L21125), CPU temp 0x05040000 ->
-//   EC CTMP, GPU temp 0x05050000 -> EC SKTC (socket temp, the only
-//   dGPU-side reading this firmware offers), 0x05010000 reads Zero
-//   (not a labeled IC sensor -> skip_ic_temp), PL/OC 0x0101.. -> EC
-//   CSPL/CLPL/CCTL/CCPL (DEV0 == 1).
-// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
-//   (L19084/L19194); the capability bitmap advertises quiet/balance/
-//   perf/fullspeed/extreme/custom. CPU Method WMAC is a stub
-//   (L19658); KBBACKLIGHT WMAF get(1)/set(2) (L21582) drives the
-//   keyboard (GUID 8C5B9127 present in the _WDG).
-// - No SystemMemory ERAX window is declared anywhere in this
-//   package; the EC RAM window for the read-only debugfs ecmemoryram
-//   dump is ramio @0xFE0B0F00 len 0x600 (validated by dumps in
-//   issue #374).
-// Runtime validation (issue #374, LOQ 15IRX10 83JE, alfrix): WMI3
-// temps (CPU 44-46 C) and fan RPM (1100/1400) read correctly while
-// EC and ACPI-path reads return 0/-5; powermode WMI works; EC id
-// 0x5508 fw 2b0. fan_fullspeed is gated behind custom power mode
-// like the other 0x5508 configs: on this generation a full-speed
-// write through the wrong path can wedge the fans at maximum speed
-// until reboot (model_rlcn).
-// fancurve was ACCESS_METHOD_EC3 until this change; the switch to
-// WMI3 follows the issue #491 consolidation now that the SSDT4
-// disassembly validates WMAB 5/6 on this exact BIOS.
+// LOQ 15IRX10 (83JE) - 2025, Intel + RTX 50, BIOS R3CN (issues #374/#535).
+// Keep the EC3 LOQ curve: independent fan RPM and temperature/hysteresis
+// writes were verified in custom mode (255) on R3CN44WW under load (#535).
+// EC chip id 0x5508 alone does not imply the Legion EC layout is in use.
+// ec_register_offsets_loq_v1 supplies this model's existing register map;
+// accel/decel are not stored by the EC3 interface and must stay hidden.
+//
+// The GZFD WMI device is in SSDT4.dsl from R3CN.zip (#374), not the DSDT.
+// WMAB 5/6 (L19638) delegate to GFAN/SFAN (L15463/L15534): the ten values
+// in F101..F10A are level indices shared by both fans. SFAN derives RPM
+// and temperatures from FNT0..FNT2, writes the EFAN fields (L1661) and
+// ignores writes in extreme mode. This is NOT equivalent to EC3's RPM
+// curve. Keep FAN_SPEED_UNIT_LEVEL only for the WMI debugfs readout;
+// fan1/fan2_level_rpm_table must not be exposed for the active EC3 curve.
+// WQA3 (L18101) provides firmware ladders; has_fancurve_defaults permits
+// restoring them via SFAN, whose first payload byte must name the mode.
+//
+// WMAE Get(0x11)/Set(0x12) (L19673/L20503) uses DEV0/FEA0/TYP0 dispatch:
+// RPM 0x04030001/2 -> FA1S/FA2S * 100; full speed 0x04020000 -> FFON;
+// CPU temp 0x05040000 -> CTMP; GPU temp 0x05050000 -> SKTC (socket).
+// 0x05010000 returns Zero, so hide the IC sensor. PL/OC -> CSPL/CLPL/
+// CCTL/CCPL. WMI3 sensors and WMAA powermode were verified in #374;
+// bad EC sensor reads do not invalidate the separately mapped EC3 curve.
+// Keep fan_fullspeed restricted to custom mode (0x5508 wedge risk).
+// KBBACKLIGHT WMAF drives the keyboard; read-only ecmemoryram uses the
+// EFAN window at 0xFE0B0F00. Minifancurve and lockfancontroller have only
+// placeholder offsets in loq_v1, so never expose those writes.
 static const struct model_config model_r3cn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x5508,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.has_extreme_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI2,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_EC3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.fanfullspeed_requires_custom_powermode = true,
 	.skip_ic_temp = true,
+	.skip_lockfancontroller = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0F00,
 	.ramio_size = 0x600,
 	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
 	.has_fancurve_defaults = true,
-	.wmi_fancurve_speed_only = true,
 };
 
 // Legion 7 16IAX10 (83KY) - 2025, Intel Arrow Lake + RTX 5060
@@ -2758,9 +2731,8 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_nrcn
 	},
 	{
-		// LOQ 15IRX10 (83JE, Intel + RTX 50), BIOS R3CN; fan table
-		// validated as WMAB 5/6 level-indexed speed-only in the SSDT4
-		// disassembly attached to issue #374 (issue #491)
+		// LOQ 15IRX10 (83JE, Intel + RTX 50), BIOS R3CN;
+		// EC3 RPM/temperature curve verified in custom mode (#535)
 		.ident = "R3CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -5141,13 +5113,13 @@ static ssize_t wmi_write_fancurve_custom(struct legion_private *priv,
 	// CreateByteField (Arg2, 0x18, FSS9)
 
 	memset(buffer, 0, sizeof(buffer));
-	/* On M3CN (EC 0x8227) and R3CN (EC 0x5508, SSDT4) firmware,
-	 * \_SB.GZFD.SFAN aborts with AE_AML_OPERAND_TYPE when FSTM
-	 * (buffer[0]) is 0; it requires the active WMI powermode (1 quiet,
-	 * 2 balanced, 3 performance, 0xFF custom). Other WMI3 models
-	 * accept 0, so keep this scoped (issues #582, #491).
+	/* On M3CN (EC 0x8227) firmware, \_SB.GZFD.SFAN aborts with
+	 * AE_AML_OPERAND_TYPE when FSTM (buffer[0]) is 0; it requires the
+	 * active WMI powermode (1 quiet, 2 balanced, 3 performance,
+	 * 0xFF custom). Other WMI3 models accept 0, so keep this scoped
+	 * (issue #582).
 	 */
-	if (model == &model_m3cn_8227 || model == &model_r3cn) {
+	if (model == &model_m3cn_8227) {
 		int powermode = 0xFF;
 
 		if (read_powermode(priv, &powermode) < 0)
@@ -9290,13 +9262,10 @@ static bool legion_wmi_fancurve_speed_attribute(const struct attribute *attr)
 	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr;
 }
 
-// The EC4 fancurve interface (e.g. Legion 5 16IRX9, 83DG) stores per point
-// only the CPU/GPU max temperature thresholds and the fan speeds. The
-// acceleration/deceleration values have no EC registers: reads always return
-// 0 and writes are rejected, which breaks userspace that probes the
-// attributes to detect support. Hide them for those models.
-static bool
-legion_ec4_fancurve_unsupported_attribute(const struct attribute *attr)
+// EC3 (LOQ) and EC4 curves do not store acceleration/deceleration.
+// Hide these attributes so userspace can detect support without failing
+// partway through a curve write (issues #535 and #537).
+static bool legion_fancurve_accel_attribute(const struct attribute *attr)
 {
 	return attr == &sensor_dev_attr_pwm1_auto_point1_accel.dev_attr.attr ||
 	       attr == &sensor_dev_attr_pwm1_auto_point2_accel.dev_attr.attr ||
@@ -9355,8 +9324,9 @@ static umode_t legion_hwmon_fancurve_is_visible(struct kobject *kobj,
 	if (priv->conf->wmi_fancurve_speed_only &&
 	    !legion_wmi_fancurve_speed_attribute(attr))
 		return 0;
-	if (priv->conf->access_method_fancurve == ACCESS_METHOD_EC4 &&
-	    legion_ec4_fancurve_unsupported_attribute(attr))
+	if ((priv->conf->access_method_fancurve == ACCESS_METHOD_EC3 ||
+	     priv->conf->access_method_fancurve == ACCESS_METHOD_EC4) &&
+	    legion_fancurve_accel_attribute(attr))
 		return 0;
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
 		supported = priv->conf->has_minifancurve;

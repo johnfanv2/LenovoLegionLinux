@@ -826,8 +826,8 @@ class LenovoLegionLaptopSupportService(SystemDServiceFeature):
 # (per fan and power mode), so nothing per-model is hardcoded here and the
 # values always match the current power mode.
 FAN_LEVEL_RPM_TABLE_FILES = ("fan1_level_rpm_table", "fan2_level_rpm_table")
-# Lowest level the firmware accepts per curve point (the kernel module rejects
-# anything below with EOPNOTSUPP).
+# Lowest level allowed by the kernel's safety policy per curve point
+# (the kernel module rejects anything below with EOPNOTSUPP).
 LEVEL_POINT_MIN = [1, 1, 1, 1, 1, 1, 1, 1, 3, 5]
 MAX_FAN_LEVEL = 10
 
@@ -873,11 +873,9 @@ def fan_rpm_to_level(rpm, point_id, table):
     """Nearest level for an RPM value, clamped to the point's minimum and MAX_FAN_LEVEL.
 
     An RPM exactly between two levels resolves to the lower (quieter) one.
-    A request of 0 rpm (or lower) means "fan off" and maps to level 0, which
-    must not be clamped back up to the point's minimum.
+    Even a zero-RPM request must respect the point minimum: the kernel
+    rejects level 0. Native RPM curves do not use this conversion.
     """
-    if rpm <= 0:
-        return 0
     level = 1 + min(range(len(table)), key=lambda i: abs(table[i] - rpm))
     return max(LEVEL_POINT_MIN[point_id - 1], min(MAX_FAN_LEVEL, level))
 

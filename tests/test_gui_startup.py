@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python/legion_linu
 
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from legion_linux import legion
 from legion_linux.legion import FanCurveIO, FileFeature
 from legion_linux.legion_gui import LegionController, MainWindow
 
@@ -149,6 +150,91 @@ class GuiStartupTest(unittest.TestCase):
         finally:
             window.deleteLater()
             self.app.processEvents()
+
+    def test_ec3_rpm_and_temperature_edit_roundtrip(self):
+        # R3CN uses the EC3 RPM curve, not the shared WMI level table.
+        # Its sysfs exposes both fans and temperatures, but no accel/decel.
+        with tempfile.TemporaryDirectory() as directory:
+            hwmon = Path(directory, "hwmon", "hwmon0")
+            hwmon.mkdir(parents=True)
+            for name in (FanCurveIO.fan1_max, FanCurveIO.fan2_max):
+                (hwmon / name).write_text("10000\n")
+            (hwmon / FanCurveIO.auto_points_size).write_text("10\n")
+            patterns = (
+                FanCurveIO.pwm1_fan_speed,
+                FanCurveIO.pwm2_fan_speed,
+                FanCurveIO.pwm1_temp_hyst,
+                FanCurveIO.pwm1_temp,
+                FanCurveIO.pwm2_temp_hyst,
+                FanCurveIO.pwm2_temp,
+                FanCurveIO.pwm3_temp_hyst,
+                FanCurveIO.pwm3_temp,
+            )
+            for point_id in range(1, 11):
+                for pattern in patterns:
+                    (hwmon / pattern.format(point_id)).write_text("0\n")
+
+            def write_existing(file_path, value):
+                # Unlike normal files, sysfs cannot create unsupported attrs.
+                self.assertTrue(Path(file_path).is_file(), file_path)
+                self.assertEqual(Path(file_path).parent, hwmon)
+                Path(file_path).write_text(str(value))
+
+            with patch.object(legion, "LEGION_SYS_BASEPATH", directory), patch.object(
+                FanCurveIO, "hwmon_dir_pattern", str(hwmon)
+            ), patch.object(FanCurveIO, "_write_file", side_effect=write_existing), patch.object(
+                FileFeature, "_write_file", side_effect=AssertionError("Must not write to real hardware")
+            ), patch.object(
+                # Direct writes target the fixture, not privileged sysfs.
+                legion,
+                "is_root_user",
+                return_value=True,
+            ), patch.object(
+                QMessageBox, "warning"
+            ) as warning:
+                controller = LegionController(self.app, expect_hwmon=True, use_legion_cli_to_write=False)
+                window = MainWindow(controller, QIcon())
+                try:
+                    controller.init(read_from_hw=True)
+                    io = controller.model.fancurve_io
+                    self.assertFalse(io.uses_fan_levels())
+                    self.assertTrue(io.has_fan_2_speed())
+                    self.assertTrue(io.has_temperature_curve())
+                    self.assertFalse(io.has_acceleration_curve())
+                    self.assertFalse(controller.view_fancurve.minfancurve_check.isEnabled())
+                    entry = controller.view_fancurve.entry_edits[0]
+                    fields = {
+                        "fan_speed1_edit": "4500",
+                        "fan_speed2_edit": "4600",
+                        "cpu_lower_temp_edit": "50",
+                        "cpu_upper_temp_edit": "80",
+                        "gpu_lower_temp_edit": "45",
+                        "gpu_upper_temp_edit": "75",
+                        "ic_lower_temp_edit": "40",
+                        "ic_upper_temp_edit": "70",
+                    }
+                    for name, value in fields.items():
+                        field = getattr(entry, name)
+                        self.assertTrue(field.isEnabled(), name)
+                        field.setText(value)
+                    self.assertFalse(entry.accel_edit.isEnabled())
+                    self.assertFalse(entry.decel_edit.isEnabled())
+                    controller.on_write_fan_curve_to_hw()
+                    warning.assert_not_called()
+                    for name, value in fields.items():
+                        self.assertEqual(float(getattr(entry, name).text()), float(value))
+                    # Native EC3 must retain zero RPM, unlike the WMI level path.
+                    entry.fan_speed1_edit.setText("0")
+                    controller.on_write_fan_curve_to_hw()
+                    warning.assert_not_called()
+                    self.assertEqual(io.get_fan_1_speed_rpm(1), 0)
+                    self.assertEqual(io.get_fan_2_speed_rpm(1), 4600)
+                    self.assertEqual(io.get_upper_cpu_temperature(1), 80)
+                    for pattern in (FanCurveIO.pwm1_accel, FanCurveIO.pwm1_decel):
+                        self.assertFalse((hwmon / pattern.format(1)).exists())
+                finally:
+                    window.deleteLater()
+                    self.app.processEvents()
 
     def test_write_allows_zero_accel_when_acceleration_curve_unsupported(self):
         controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)

@@ -81,6 +81,12 @@ class RpmToLevelTest(unittest.TestCase):
         self.assertEqual(legion.fan_rpm_to_level(0, 1, FAN1_LADDER), 1)
         self.assertEqual(legion.fan_rpm_to_level(0, 10, FAN1_LADDER), 5)
 
+    def test_nonpositive_rpm_respects_each_point_minimum(self):
+        for point_id, minimum in enumerate(legion.LEVEL_POINT_MIN, start=1):
+            for rpm in (0, -1, -1000):
+                with self.subTest(point_id=point_id, rpm=rpm):
+                    self.assertEqual(legion.fan_rpm_to_level(rpm, point_id, FAN1_LADDER), minimum)
+
     def test_point_minimum_clamps_low_levels(self):
         # level 1 would be the nearest for 1800 rpm, but point 9 needs >= 3
         self.assertEqual(legion.fan_rpm_to_level(1800, 9, FAN1_LADDER), 3)

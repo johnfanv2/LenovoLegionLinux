@@ -348,28 +348,33 @@ EC id 0x5508), `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve`
 
 ## LOQ 15IRX10 (83JE, R3CN)
 
-BIOS R3CN (validated down to R3CN42WW, issue #374), EC 0x5508, Intel +
-RTX 50. DMI entry `R3CN` matches the BIOS prefix; config `model_r3cn` in
-`kernel_module/legion-laptop.c` (the header comment cites the SSDT4.dsl
-lines from the R3CN.zip package attached in issue #374 - the GZFD WMI
-device of this chassis lives in SSDT4, not the DSDT).
+BIOS R3CN, EC 0x5508, Intel + RTX 50. DMI entry `R3CN` matches the BIOS
+prefix; config `model_r3cn` in `kernel_module/legion-laptop.c` uses the
+existing `ec_register_offsets_loq_v1` map. Sensor/powermode evidence is
+in [#374](https://github.com/johnfanv2/LenovoLegionLinux/issues/374);
+EC3 curve writes were verified under gaming load on **R3CN44WW** in
+[#535](https://github.com/johnfanv2/LenovoLegionLinux/issues/535#issuecomment-5649774722).
 
-- Fan table via Fan Method `WMAB` 5/6, which delegate to `GFAN`/`SFAN`
-  (unlike the inline LFGT buffers of the Legion chassis): get returns the
-  0x58-byte FAT2 buffer with ten fan LEVELS 1..10 from the EC custom
-  table `F101..F10A` (static 1..10 placeholder when `GZ44 == 0x07`,
-  i.e. extreme mode); set writes the levels back plus the derived
-  per-point RPM (CRP/GRP/ERP) and temperature-threshold fields from the
-  mode's RPM ladder, gated on `GZ44 != 0x07`. The levels are indices
-  into the firmware's per-level RPM tables (`FNT0` fan 1: 1100..4100,
-  fan 2: 4400 RPM max), so `FAN_SPEED_UNIT_LEVEL` and only the speed
-  attributes are exposed (`wmi_fancurve_speed_only`).
-  `LENOVO_FAN_TABLE_DATA` (WQA3) is present, so
-  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
-- `SFAN` requires the first payload byte to be the active WMI powermode
-  (same quirk as the M3CN firmware, issue #582); the driver sends it
-  for this model. Write in custom power mode and read the table back in
-  a non-extreme mode.
+- Keep the **EC3 RPM curve**, not the WMI level curve. This supports
+  independent fan speeds in 100-RPM units, temperature thresholds and
+  hysteresis. Use custom power mode: `255`, **not `3`** (performance).
+  The chip ID alone does not identify a register layout: R3CN's verified
+  LOQ map must not be replaced merely because other 0x5508 models need
+  WMI. No new EC addresses are introduced by this correction.
+- EC3 does not store acceleration/deceleration. Their sysfs attributes
+  are hidden (as on EC4); GUI/CLI detect the missing attributes and skip
+  them, rather than failing partway through Apply to HW. Both fan speed
+  columns and temperature/hysteresis fields remain editable.
+- The GZFD WMI device lives in SSDT4.dsl from R3CN.zip (#374), not the
+  DSDT. `WMAB` 5/6 delegate to `GFAN`/`SFAN`, which transfer shared
+  **levels 1..10**, deriving RPM/temperatures from `FNT0..FNT2` before
+  writing the EFAN fields. That interface cannot preserve arbitrary
+  independent RPM/temperature edits and is not the active curve path.
+  Its diagnostic debugfs table still uses unit 5; the active EC3 table
+  uses unit 3. `fan1_level_rpm_table`/`fan2_level_rpm_table` stay hidden
+  for EC3, preventing userspace from treating its PWM values as levels.
+  WMI default-curve restoration remains available; its payload already
+  names the requested mode, as `SFAN` requires.
 - Fan RPM / CPU temperature / fan full speed via Other Method `WMAE`
   (standard dword feature ids through a DEV0/FEA0/TYP0 dispatch):
   RPM `0x04030001/2` -> EC `FA1S/FA2S`, full speed `0x04020000` -> EC
@@ -381,23 +386,37 @@ device of this chassis lives in SSDT4, not the DSDT).
   CCPL` and stay exposed. Power mode via GameZone `WMAA` 0x2C/0x2D
   (quiet/balanced/performance/custom 0xFF/extreme 0xE0); keyboard
   backlight via KBBACKLIGHT `WMAF`.
-- `minifancurve` stays enabled (LOQ EC layout, `ec_register_offsets_
-  loq_v1`); the read-only `ecmemoryram` debugfs dump uses the ramio
-  window `0xFE0B0F00`/0x600 (validated by dumps in issue #374). No
-  `SystemMemory` ERAX window is declared in this package.
-- The fancurve used to be `ACCESS_METHOD_EC3` here; it moved to WMI3
-  with the issue #491 consolidation once the SSDT4 disassembly
-  validated `WMAB` 5/6 on this exact BIOS.
+- `minifancurve` and `lockfancontroller` are hidden: their loq_v1 offsets
+  are placeholders, not validated controls. The read-only `ecmemoryram`
+  debugfs dump retains the `0xFE0B0F00`/0x600 EFAN window (#374).
+  The WMI sensor path, hidden IC sensor and custom-mode full-speed guard
+  are retained; restoring EC3 curves does not switch sensor access to EC.
 
-Validation status: WMI3 sensors and powermode runtime-validated on the
-reporter's unit (issue #374, alfrix: CPU temp 44-46 C, fan RPM
-1100/1400 while EC/ACPI-path reads return 0/-5, EC id 0x5508 fw 2b0);
-the fan-curve write path is DSDT-validated and pending a careful
-on-hardware round trip - write in custom mode, read back in a
-non-extreme mode, and be ready to reboot if full speed does not
-release. Verify locally with `sudo dmesg | grep -i legion`, `sensors`,
-and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in
-1..10).
+Hardware regression check (on AC; do not run thermal stress unattended):
+
+1. Select custom mode, for example
+   `echo 255 | sudo tee /sys/devices/platform/legion/powermode`, and read
+   it back. Record `sudo dmesg | grep -i legion`, `sensors`, and
+   `sudo cat /sys/kernel/debug/legion/fancurve`. The **first** curve table
+   must use `u = 3` (speed values multiplied by 100 give RPM).
+2. Read the curve in the GUI and save a backup preset (or use
+   `sudo legion_cli fancurve-write-hw-to-file r3cn-before.yaml`). Confirm
+   both fan columns and temperature fields are editable; accel/decel,
+   minifancurve and controller lock must be unavailable.
+3. Make a small, conservative change to one populated interior point
+   (e.g. increase its RPM within the original curve's maximum, or lower
+   a temperature threshold). Apply, read back, compare the native EC3
+   table and monitor `sensors`. Do not substitute level indices or raw
+   RPM numbers for the hwmon `pwm` values, which remain in 0..255.
+4. Restore the saved curve and verify the readback. New hardware results
+   should be reported with model/BIOS; this patch restores the path tested
+   in #535, rather than claiming a new on-hardware validation.
+
+Offline regression tests: `./tests/test_python_unit.sh` exercises RPM,
+zero-RPM and independent fan/temperature edits through a temporary EC3
+sysfs fixture and the offscreen GUI, without writing to hardware. It also
+runs the WMI level tests: zero-RPM requests there must clamp to the driver's
+per-point minimum rather than produce a rejected level-0 write.
 
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would

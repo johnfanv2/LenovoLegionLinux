@@ -89,11 +89,9 @@ jobs:
         if: always()
         run: ./tests/test_python_gui.sh
         shell: bash
-      - name: Test python GUI startup
+      - name: Test python library and GUI
         if: always()
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: python3 -m unittest discover -s tests -p test_gui_startup.py
+        run: ./tests/test_python_unit.sh
         shell: bash
       - name: Install python package
         if: always()
