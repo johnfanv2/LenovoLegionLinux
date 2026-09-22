@@ -428,8 +428,8 @@ static const struct ec_register_offsets ec_register_offsets_ideapad_v0 = {
 	.EXT_FAN1_RPM_MSB = 0xC5a0, // not found yet
 	.EXT_FAN2_RPM_LSB = 0xC5a0, // not found yet
 	.EXT_FAN2_RPM_MSB = 0xC5a0, // not found yet
-	.EXT_MINIFANCURVE_ON_COOL = 0xC5a0, // does not exists or not found
-	.EXT_LOCKFANCONTROLLER = 0xC5a0, // does not exists or not found
+	.EXT_MINIFANCURVE_ON_COOL = 0, // unsupported
+	.EXT_LOCKFANCONTROLLER = 0, // unsupported
 	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
@@ -461,8 +461,8 @@ static const struct ec_register_offsets ec_register_offsets_ideapad_v1 = {
 	.EXT_FAN1_RPM_MSB = 0xC5a0, // not found yet
 	.EXT_FAN2_RPM_LSB = 0xC5a0, // not found yet
 	.EXT_FAN2_RPM_MSB = 0xC5a0, // not found yet
-	.EXT_MINIFANCURVE_ON_COOL = 0xC5a0, // does not exists or not found
-	.EXT_LOCKFANCONTROLLER = 0xC5a0, // does not exists or not found
+	.EXT_MINIFANCURVE_ON_COOL = 0, // unsupported
+	.EXT_LOCKFANCONTROLLER = 0, // unsupported
 	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
@@ -494,8 +494,8 @@ static const struct ec_register_offsets ec_register_offsets_loq_v0 = {
 	.EXT_FAN1_RPM_MSB = 0xC5a0, // not found yet
 	.EXT_FAN2_RPM_LSB = 0xc530, // gpu fan base for reads
 	.EXT_FAN2_RPM_MSB = 0xC5a0, // not found yet
-	.EXT_MINIFANCURVE_ON_COOL = 0xC5a0, // not found yet
-	.EXT_LOCKFANCONTROLLER = 0xC5a0, // not found yet
+	.EXT_MINIFANCURVE_ON_COOL = 0, // unsupported
+	.EXT_LOCKFANCONTROLLER = 0, // unsupported
 	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
@@ -527,8 +527,8 @@ static const struct ec_register_offsets ec_register_offsets_loq_v1 = {
 	.EXT_FAN1_RPM_MSB = 0xC5a0, // not found yet
 	.EXT_FAN2_RPM_LSB = 0xc53c, // gpu fan base for reads
 	.EXT_FAN2_RPM_MSB = 0xC5a0, // not found yet
-	.EXT_MINIFANCURVE_ON_COOL = 0xC5a0, // not found yet
-	.EXT_LOCKFANCONTROLLER = 0xC5a0, // not found yet
+	.EXT_MINIFANCURVE_ON_COOL = 0, // unsupported
+	.EXT_LOCKFANCONTROLLER = 0, // unsupported
 	.EXT_CPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_GPU_TEMP_INPUT = 0xC5a0, // not found yet
 	.EXT_IC_TEMP_INPUT = 0xC5a0, // not found yet
@@ -1411,9 +1411,13 @@ static const struct model_config model_r8cn = {
 
 // Legion 5 15AHP11 (83Q7, AMD Ryzen 7 250 + RTX 5050) - same platform as
 // LOQ 15AHP10, BIOS T2CN33WW, EC chip 0x5509 (issue #504).
-// EC port I/O is blocked by the firmware (vendor EC RAM reads return 0),
-// so fancurve uses WMI3 like model_secn (EC 0x5508 generation); WMI3
-// temps/fans/fancurve-read and WMI powermode confirmed on the unit in #504.
+// EC port I/O is blocked by the firmware (vendor EC RAM reads return 0).
+// The DSDT supplied in #504 confirms WMAB 5/6 -> GFAN/SFAN: ten shared
+// LEVEL indices into FNT0/FNT1 (SFAN indexes level + 2). WQA7/SFTW exports
+// that same ladder, including level 1's zero RPM; never shift it away.
+// SFAN requires a valid powermode byte and WMAB drops writes in extreme
+// mode (GZ44 == 7). WMI3 sensors/powermode and curve reads are verified;
+// corrected curve writes still need an on-hardware round trip.
 // The 83Q7 has no Y-logo/lid and no IO-port light.
 // The minifancurve EC register never holds a valid value on this unit
 // (reads 0 or 8, never 0x04/0xA0), so the feature is disabled. Keyboard
@@ -1440,8 +1444,8 @@ static const struct model_config model_t2cn = {
 	.ramio_size = 0x600,
 	.skip_ylogo_light = true,
 	.skip_ioport_light = true,
-	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
-			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG" },
 	.has_fancurve_defaults = true
 };
 
@@ -1449,8 +1453,8 @@ static const struct model_config model_t2cn = {
 // EC chip 0x5508 (issue #527) - same EC generation as model_secn/model_s2cn.
 // EC fan curve reads return size 0 / all zeros on this EC generation while
 // the WMI fan curve table is populated, so fancurve uses WMI3; WMI3
-// temps/fans, WMI powermode, custom powermode and minifancurve confirmed on
-// the unit in #527. ACPI CFG and rapidcharge (GBMD/SBMC) work via the
+// temps/fans, WMI powermode and custom powermode confirmed on the unit
+// in #527. Minifancurve has no mapped LOQ control register. ACPI CFG and rapidcharge (GBMD/SBMC) work via the
 // PCI0.LPC0 paths. The 83F2 has no Y-logo/lid and no IO-port light
 // (reporter-confirmed; the phantom WMI lid-light probe returns 1).
 // The WMI fan table is the level-index kind shared across the 0x5508
@@ -3906,11 +3910,11 @@ enum fan_speed_unit {
 	FAN_SPEED_UNIT_RPM_HUNDRED = 3,
 	FAN_SPEED_UNIT_PERCENT_NEAREST = 4,
 	/*
-	 * Index 0..MAX_FAN_LEVEL into the firmware's per-level RPM table
+	 * Index 1..MAX_FAN_LEVEL into the firmware's per-level RPM table
 	 * (WMI data block LENOVO_FAN_TABLE_DATA.FanTable_Data), the unit
 	 * Lenovo Legion Toolkit uses for Fan_Set_Table on Legion Zone v3
-	 * firmware (e.g. KWCN54WW). Level 0 means "fan off"; the driver
-	 * never sends it, see fancurve_level_min.
+	 * firmware (e.g. KWCN54WW). The driver never sends index 0, see
+	 * fancurve_level_min. A valid level can itself map to zero RPM.
 	 */
 	FAN_SPEED_UNIT_LEVEL = 5,
 };
@@ -3966,6 +3970,30 @@ enum FANCURVE_ATTR {
 	FANCURVE_MINIFANCURVE_ON_COOL = 12
 };
 
+/* Match the fields actually consumed by each read/write implementation. */
+static bool fancurve_attr_supported(const struct model_config *model, int id)
+{
+	if (id == FANCURVE_SIZE)
+		return model->access_method_fancurve != ACCESS_METHOD_NO_ACCESS;
+
+	switch (model->access_method_fancurve) {
+	case ACCESS_METHOD_EC:
+		return true;
+	case ACCESS_METHOD_EC2:
+		return id <= FANCURVE_ATTR_GPU_HYST;
+	case ACCESS_METHOD_EC3:
+		return id <= FANCURVE_ATTR_IC_HYST;
+	case ACCESS_METHOD_EC4:
+		return id == FANCURVE_ATTR_PWM1 || id == FANCURVE_ATTR_PWM2 ||
+		       id == FANCURVE_ATTR_CPU_TEMP ||
+		       id == FANCURVE_ATTR_GPU_TEMP;
+	case ACCESS_METHOD_WMI3:
+		return id == FANCURVE_ATTR_PWM1;
+	default:
+		return false;
+	}
+}
+
 // used for clearing table entries
 static const struct fancurve_point fancurve_point_zero = { 0, 0, 0, 0, 0,
 							   0, 0, 0, 0, 0 };
@@ -3979,6 +4007,13 @@ struct fancurve {
 	// the point at which fans are run currently
 	size_t current_point_i;
 };
+
+static void fancurve_init(struct fancurve *fancurve,
+			  const struct model_config *model)
+{
+	memset(fancurve, 0, sizeof(*fancurve));
+	fancurve->max_rpm = model->fan_max_rpm;
+}
 
 // validation functions
 
@@ -4785,6 +4820,27 @@ struct wmi_fan_table_read {
 	__le32 sensor_value[MAXFANCURVESIZE];
 } __packed;
 
+static enum fan_speed_unit
+wmi_fancurve_speed_unit(const struct model_config *model)
+{
+	return model == &model_n2cn	 ? FAN_SPEED_UNIT_PERCENT_NEAREST :
+	       model == &model_secn	 ? FAN_SPEED_UNIT_RPM_HUNDRED :
+	       model == &model_kwcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_q7cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_q6cn_lu	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_q6cn_f3	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_q6cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_rxcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_s2cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_recn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_rlcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_rgcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_r3cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
+					   FAN_SPEED_UNIT_PERCENT;
+}
+
 static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 					struct fancurve *fancurve)
 {
@@ -4815,25 +4871,10 @@ static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
 		size = MAXFANCURVESIZE;
 	}
 
-	memset(fancurve, 0, sizeof(*fancurve));
+	fancurve_init(fancurve, model);
 	fancurve->current_point_i = 0;
 	fancurve->size = size;
-	fancurve->fan_speed_unit =
-		model == &model_n2cn	  ? FAN_SPEED_UNIT_PERCENT_NEAREST :
-		model == &model_secn	  ? FAN_SPEED_UNIT_RPM_HUNDRED :
-		model == &model_kwcn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_q7cn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_q6cn_lu	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_q6cn_f3	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_q6cn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_rxcn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_s2cn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_recn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_rlcn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_rgcn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_r3cn	  ? FAN_SPEED_UNIT_LEVEL :
-		model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
-					    FAN_SPEED_UNIT_PERCENT;
+	fancurve->fan_speed_unit = wmi_fancurve_speed_unit(model);
 
 	for (i = 0; i < size; i++) {
 		u32 speed = le32_to_cpu(fan_table.fan_speed[i]);
@@ -4907,30 +4948,28 @@ static int wmi_query_fantable_row(u8 index, struct wmi_fantable_row *row)
 }
 
 /*
- * Some tables carry a leading 0 entry for "fan off" (level 0), others
- * start at level 1; fan_speed[0] == 0 tells the two apart. Returns false
- * if the row does not hold a usable strictly ascending ladder.
+ * Entry i is firmware level i + 1, including zero-RPM or repeated steps.
+ * Dropping a leading zero shifts every requested level (T2CN SFAN indexes
+ * FNT[level + 2], while SFTW exports FNT[3..12] verbatim).
  */
 static bool fantable_row_to_ladder(const struct wmi_fantable_row *row,
 				   struct fantable_ladder *ladder)
 {
-	bool has_off_slot = row->fan_speed[0] == 0;
-	u8 count = row->fan_table_len - has_off_slot;
+	u32 count = row->fan_table_len;
 	u8 i;
 
 	if (count < 1 || count > FANTABLE_MAX_LEVELS)
 		return false;
 
 	for (i = 0; i < count; i++) {
-		u16 rpm = has_off_slot ? row->fan_speed[i + 1] :
-					 row->fan_speed[i];
+		u16 rpm = row->fan_speed[i];
 
-		if (rpm < 1)
-			return false;
-		if (i > 0 && rpm <= ladder->rpms[i - 1])
+		if (i > 0 && rpm < ladder->rpms[i - 1])
 			return false;
 		ladder->rpms[i] = rpm;
 	}
+	if (!ladder->rpms[count - 1])
+		return false;
 
 	ladder->level_count = count;
 	ladder->max_rpm = row->current_fan_max_speed;
@@ -4958,16 +4997,12 @@ static bool fantable_row_matches_mode(const struct wmi_fantable_row *row,
 /*
  * Rebuild the per-fan RPM ladders for the current power mode. Rows are
  * scanned by index until the block runs out of entries; the fan/sensor
- * pairs are the ones Lenovo Legion Toolkit documents. The first row seen
- * for a fan is kept as a fallback and replaced when a row for the current
- * power mode shows up, so a refresh never leaves the cache empty on
- * firmware that numbers modes differently.
+ * pairs are the ones Lenovo Legion Toolkit documents. Only matching-mode
+ * rows are usable: never substitute a different power mode's RPMs.
  */
-static void fantable_refresh(struct legion_private *priv)
+static void fantable_refresh(struct legion_private *priv, int powermode)
 {
-	struct wmi_fantable_row row, fan1_row, fan2_row;
-	bool fan1_have = false, fan1_match = false;
-	bool fan2_have = false, fan2_match = false;
+	struct wmi_fantable_row row;
 	int rows, index;
 
 	priv->fantable_fan1_valid = false;
@@ -4984,36 +5019,25 @@ static void fantable_refresh(struct legion_private *priv)
 		return;
 
 	for (index = 0; index < rows; index++) {
-		bool want_fan1, want_fan2, mode_match;
+		bool want_fan1, want_fan2;
 
-		if (wmi_query_fantable_row(index, &row))
+		if (wmi_query_fantable_row(index, &row) ||
+		    !fantable_row_matches_mode(&row, powermode))
 			continue;
 
 		want_fan1 = row.fan_id == 1 &&
 			    row.sensor_id == FANTABLE_SENSOR_CPU;
 		want_fan2 = row.fan_id == 2 &&
 			    row.sensor_id == FANTABLE_SENSOR_GPU;
-		if (!want_fan1 && !want_fan2)
-			continue;
-
-		mode_match = fantable_row_matches_mode(&row,
-						       priv->current_powermode);
-
-		if (want_fan1 && (!fan1_have || (!fan1_match && mode_match))) {
-			fan1_row = row;
-			fan1_have = true;
-			fan1_match = mode_match;
-		}
-		if (want_fan2 && (!fan2_have || (!fan2_match && mode_match))) {
-			fan2_row = row;
-			fan2_have = true;
-			fan2_match = mode_match;
-		}
+		if (want_fan1 && !priv->fantable_fan1_valid)
+			priv->fantable_fan1_valid = fantable_row_to_ladder(
+				&row, &priv->fantable_fan1);
+		if (want_fan2 && !priv->fantable_fan2_valid)
+			priv->fantable_fan2_valid = fantable_row_to_ladder(
+				&row, &priv->fantable_fan2);
 	}
 
-	if (fan1_have &&
-	    fantable_row_to_ladder(&fan1_row, &priv->fantable_fan1)) {
-		priv->fantable_fan1_valid = true;
+	if (priv->fantable_fan1_valid) {
 		dev_info(&priv->platform_device->dev,
 			 "fan table data: fan 1 has %u levels, %u..%u RPM\n",
 			 priv->fantable_fan1.level_count,
@@ -5021,9 +5045,7 @@ static void fantable_refresh(struct legion_private *priv)
 			 priv->fantable_fan1
 				 .rpms[priv->fantable_fan1.level_count - 1]);
 	}
-	if (fan2_have &&
-	    fantable_row_to_ladder(&fan2_row, &priv->fantable_fan2)) {
-		priv->fantable_fan2_valid = true;
+	if (priv->fantable_fan2_valid) {
 		dev_info(&priv->platform_device->dev,
 			 "fan table data: fan 2 has %u levels, %u..%u RPM\n",
 			 priv->fantable_fan2.level_count,
@@ -5032,10 +5054,11 @@ static void fantable_refresh(struct legion_private *priv)
 				 .rpms[priv->fantable_fan2.level_count - 1]);
 	}
 
-	priv->fantable_powermode = priv->current_powermode;
+	priv->fantable_powermode = powermode;
 }
 
-static void sync_powermode_locked(struct legion_private *priv);
+static int sync_powermode_locked(struct legion_private *priv);
+static int wmi_fancurve_mode(struct legion_private *priv);
 
 /*
  * Return the ladders for the current power mode, refreshing the cache
@@ -5046,13 +5069,25 @@ static void sync_powermode_locked(struct legion_private *priv);
  */
 static int fantable_ensure(struct legion_private *priv)
 {
-	sync_powermode_locked(priv);
+	int powermode, err;
 
-	if ((priv->fantable_fan1_valid || priv->fantable_fan2_valid) &&
-	    priv->fantable_powermode == priv->current_powermode)
+	if (priv->conf == &model_t2cn) {
+		/* Calibration and SFAN must select the same live-mode ladder. */
+		powermode = wmi_fancurve_mode(priv);
+		if (powermode < 0)
+			return powermode;
+	} else {
+		err = sync_powermode_locked(priv);
+		if (err)
+			return err;
+		powermode = priv->current_powermode;
+	}
+
+	if (priv->fantable_fan1_valid && priv->fantable_fan2_valid &&
+	    priv->fantable_powermode == powermode)
 		return 0;
 
-	fantable_refresh(priv);
+	fantable_refresh(priv, powermode);
 
 	return priv->fantable_fan1_valid || priv->fantable_fan2_valid ?
 		       0 :
@@ -5085,7 +5120,59 @@ static void fancurve_level_table_sanitize(u8 speeds[MAXFANCURVESIZE])
 	}
 }
 
+enum legion_wmi_powermode {
+	LEGION_WMI_POWERMODE_LOW_POWER = 1,
+	LEGION_WMI_POWERMODE_BALANCED = 2,
+	LEGION_WMI_POWERMODE_PERFORMANCE = 3,
+	LEGION_WMI_POWERMODE_CUSTOM = 255,
+	LEGION_WMI_POWERMODE_MAX_POWER = 224
+};
+
 static ssize_t read_powermode(struct legion_private *priv, int *powermode);
+
+static int read_fan_control_mode(struct legion_private *priv, int *powermode)
+{
+	unsigned long value;
+	int err;
+
+	if (priv->conf != &model_t2cn && priv->conf != &model_r3cn)
+		return read_powermode(priv, powermode);
+
+	/* SmartFanMode is a saved request; ThermalMode reads live GZ44. */
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+				 WMI_METHOD_ID_GETTHERMALMODE, &value);
+	if (err)
+		return err;
+	if (value > U8_MAX)
+		return -ERANGE;
+	*powermode = value;
+	return 0;
+}
+
+/* These SFAN implementations dereference an unset local for mode 0. */
+static int wmi_fancurve_mode(struct legion_private *priv)
+{
+	int powermode, err;
+
+	/* R3CN uses this only for WMI default restoration, not its EC3 curve. */
+	if (priv->conf != &model_m3cn_8227 && priv->conf != &model_t2cn &&
+	    priv->conf != &model_r3cn)
+		return 0;
+
+	err = read_fan_control_mode(priv, &powermode);
+	if (err)
+		return err;
+	switch (powermode) {
+	case LEGION_WMI_POWERMODE_LOW_POWER:
+	case LEGION_WMI_POWERMODE_BALANCED:
+	case LEGION_WMI_POWERMODE_PERFORMANCE:
+	case LEGION_WMI_POWERMODE_CUSTOM:
+		return powermode;
+	default:
+		/* Do not report success for ignored/unsupported mode writes. */
+		return -EOPNOTSUPP;
+	}
+}
 
 static ssize_t wmi_write_fancurve_custom(struct legion_private *priv,
 					 const struct fancurve *fancurve)
@@ -5113,21 +5200,10 @@ static ssize_t wmi_write_fancurve_custom(struct legion_private *priv,
 	// CreateByteField (Arg2, 0x18, FSS9)
 
 	memset(buffer, 0, sizeof(buffer));
-	/* On M3CN (EC 0x8227) firmware, \_SB.GZFD.SFAN aborts with
-	 * AE_AML_OPERAND_TYPE when FSTM (buffer[0]) is 0; it requires the
-	 * active WMI powermode (1 quiet, 2 balanced, 3 performance,
-	 * 0xFF custom). Other WMI3 models accept 0, so keep this scoped
-	 * (issue #582).
-	 */
-	if (model == &model_m3cn_8227) {
-		int powermode = 0xFF;
-
-		if (read_powermode(priv, &powermode) < 0)
-			powermode = priv->current_powermode ?
-					    priv->current_powermode :
-					    0xFF;
-		buffer[0] = (u8)powermode;
-	}
+	err = wmi_fancurve_mode(priv);
+	if (err < 0)
+		return err;
+	buffer[0] = err;
 	for (point = 0; point < MAXFANCURVESIZE; point++)
 		speeds[point] = fancurve->points[point].speed1;
 	if (fancurve->fan_speed_unit == FAN_SPEED_UNIT_LEVEL)
@@ -5184,6 +5260,9 @@ static ssize_t wmi_write_fancurve_defaults(struct legion_private *priv,
 		pr_info("fancurve_defaults_powermode not supported for your model\n");
 		return err;
 	};
+	err = wmi_fancurve_mode(priv);
+	if (err < 0)
+		return err;
 	fan_table.F000 = value;
 	fan_table.F003 = 0x01;
 	fan_table.F004 = 0x02;
@@ -5434,7 +5513,6 @@ static int ec_read_fancurve_loq(struct ecram *ecram,
 	size_t struct_offset_ecramsys = 6;
 
 	fancurve->fan_speed_unit = FAN_SPEED_UNIT_RPM_HUNDRED;
-	fancurve->max_rpm = model->fan_max_rpm;
 	for (i = 0; i < FANCURVESIZE_LOQ; ++i) {
 		struct fancurve_point *point = &fancurve->points[i];
 
@@ -5607,6 +5685,9 @@ static int read_fancurve(struct legion_private *priv, struct fancurve *fancurve)
 {
 	int err;
 
+	/* Native backends fill only the fields present in their EC layout. */
+	fancurve_init(fancurve, priv->conf);
+
 	// TODO: use enums or function pointers?
 	switch (priv->conf->access_method_fancurve) {
 	case ACCESS_METHOD_EC:
@@ -5684,14 +5765,29 @@ static int write_fancurve(struct legion_private *priv,
 	return err;
 }
 
+static bool minifancurve_supported(const struct model_config *model)
+{
+	return model->has_minifancurve &&
+	       model->registers->EXT_MINIFANCURVE_ON_COOL;
+}
+
+static bool lockfancontroller_supported(const struct model_config *model)
+{
+	return !model->skip_lockfancontroller &&
+	       model->registers->EXT_LOCKFANCONTROLLER;
+}
+
 #define MINIFANCUVE_ON_COOL_ON 0x04
 #define MINIFANCUVE_ON_COOL_OFF 0xA0
 
 static int ec_read_minifancurve(struct ecram *ecram,
 				const struct model_config *model, bool *state)
 {
-	int value =
-		ecram_read(ecram, model->registers->EXT_MINIFANCURVE_ON_COOL);
+	int value;
+
+	if (!minifancurve_supported(model))
+		return -EOPNOTSUPP;
+	value = ecram_read(ecram, model->registers->EXT_MINIFANCURVE_ON_COOL);
 
 	switch (value) {
 	case MINIFANCUVE_ON_COOL_ON:
@@ -5714,6 +5810,8 @@ static ssize_t ec_write_minifancurve(struct ecram *ecram,
 {
 	u8 val = state ? MINIFANCUVE_ON_COOL_ON : MINIFANCUVE_ON_COOL_OFF;
 
+	if (!minifancurve_supported(model))
+		return -EOPNOTSUPP;
 	ecram_write(ecram, model->registers->EXT_MINIFANCURVE_ON_COOL, val);
 	return 0;
 }
@@ -5727,6 +5825,8 @@ static ssize_t ec_write_lockfancontroller(struct ecram *ecram,
 {
 	u8 val = state ? EC_LOCKFANCONTROLLER_ON : EC_LOCKFANCONTROLLER_OFF;
 
+	if (!lockfancontroller_supported(model))
+		return -EOPNOTSUPP;
 	ecram_write(ecram, model->registers->EXT_LOCKFANCONTROLLER, val);
 	return 0;
 }
@@ -5735,7 +5835,11 @@ static int ec_read_lockfancontroller(struct ecram *ecram,
 				     const struct model_config *model,
 				     bool *state)
 {
-	int value = ecram_read(ecram, model->registers->EXT_LOCKFANCONTROLLER);
+	int value;
+
+	if (!lockfancontroller_supported(model))
+		return -EOPNOTSUPP;
+	value = ecram_read(ecram, model->registers->EXT_LOCKFANCONTROLLER);
 
 	switch (value) {
 	case EC_LOCKFANCONTROLLER_ON:
@@ -5916,14 +6020,6 @@ enum legion_ec_powermode {
 	LEGION_EC_POWERMODE_EXTREME = 7 // based on GZ44
 };
 
-enum legion_wmi_powermode {
-	LEGION_WMI_POWERMODE_LOW_POWER = 1,
-	LEGION_WMI_POWERMODE_BALANCED = 2,
-	LEGION_WMI_POWERMODE_PERFORMANCE = 3,
-	LEGION_WMI_POWERMODE_CUSTOM = 255,
-	LEGION_WMI_POWERMODE_MAX_POWER = 224
-};
-
 static enum legion_wmi_powermode ec_to_wmi_powermode(int ec_mode)
 {
 	switch (ec_mode) {
@@ -6058,12 +6154,15 @@ static ssize_t read_powermode(struct legion_private *priv, int *powermode)
  * so a read that lands in the firmware's settling window after a mode
  * write only affects that one call.
  */
-static void sync_powermode_locked(struct legion_private *priv)
+static int sync_powermode_locked(struct legion_private *priv)
 {
 	int powermode;
+	int err = read_powermode(priv, &powermode);
 
-	if (read_powermode(priv, &powermode) >= 0)
-		priv->current_powermode = powermode;
+	if (err < 0)
+		return err;
+	priv->current_powermode = powermode;
+	return 0;
 }
 
 static ssize_t write_powermode(struct legion_private *priv,
@@ -6468,7 +6567,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 		   legion_wmi_light_get(priv, LIGHT_ID_YLOGO, 0, 4));
 
 	seq_printf(s, "EC minifancurve feature enabled: %d\n",
-		   priv->conf->has_minifancurve);
+		   minifancurve_supported(priv->conf));
 	err = ec_read_minifancurve(&priv->ecram, priv->conf, &is_minifancurve);
 	seq_printf(s, "EC minifancurve on cool: %s\n",
 		   err ? "error" : (is_minifancurve ? "true" : "false"));
@@ -7725,7 +7824,7 @@ static int fanfullspeed_write_allowed(struct legion_private *priv, bool state)
 	if (!state || !priv->conf->fanfullspeed_requires_custom_powermode)
 		return 0;
 
-	err = read_powermode(priv, &powermode);
+	err = read_fan_control_mode(priv, &powermode);
 	if (err)
 		return err;
 
@@ -7909,7 +8008,26 @@ static ssize_t fan2_level_rpm_table_show(struct device *dev,
 static DEVICE_ATTR_RO(fan1_level_rpm_table);
 static DEVICE_ATTR_RO(fan2_level_rpm_table);
 
+static ssize_t fancurve_speed_unit_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	enum fan_speed_unit unit = FAN_SPEED_UNIT_RPM_HUNDRED;
+
+	if (priv->conf->access_method_fancurve == ACCESS_METHOD_WMI3)
+		unit = wmi_fancurve_speed_unit(priv->conf);
+	if (unit == FAN_SPEED_UNIT_LEVEL)
+		return sysfs_emit(buf, "level\n");
+	if (unit == FAN_SPEED_UNIT_RPM_HUNDRED)
+		return sysfs_emit(buf, "rpm\n");
+	return sysfs_emit(buf, "percent\n");
+}
+
+static DEVICE_ATTR_RO(fancurve_speed_unit);
+
 static struct attribute *legion_sysfs_attributes[] = {
+	&dev_attr_fancurve_speed_unit.attr,
 	&dev_attr_fan1_level_rpm_table.attr,
 	&dev_attr_fan2_level_rpm_table.attr,
 	&dev_attr_powermode.attr,
@@ -8019,10 +8137,14 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	    priv->conf->access_method_fanfullspeed == ACCESS_METHOD_NO_ACCESS)
 		return 0;
 
+	if (attr == &dev_attr_fancurve_speed_unit.attr &&
+	    priv->conf->access_method_fancurve == ACCESS_METHOD_NO_ACCESS)
+		return 0;
+
 	if ((attr == &dev_attr_fan1_level_rpm_table.attr ||
 	     attr == &dev_attr_fan2_level_rpm_table.attr) &&
-	    !(priv->conf->has_fancurve_defaults &&
-	      priv->conf->access_method_fancurve == ACCESS_METHOD_WMI3 &&
+	    !(priv->conf->access_method_fancurve == ACCESS_METHOD_WMI3 &&
+	      wmi_fancurve_speed_unit(priv->conf) == FAN_SPEED_UNIT_LEVEL &&
 	      wmi_has_guid(WMI_GUID_LENOVO_FANTABLE_DATA)))
 		return 0;
 
@@ -8054,7 +8176,7 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return 0;
 
 	if (attr == &dev_attr_lockfancontroller.attr &&
-	    priv->conf->skip_lockfancontroller)
+	    !lockfancontroller_supported(priv->conf))
 		return 0;
 
 	return attr->mode;
@@ -8710,8 +8832,9 @@ static ssize_t autopoint_store(struct device *dev,
 	int point_id = to_sensor_dev_attr_2(devattr)->index;
 	bool write_fancurve_size = false;
 
-	if (priv->conf->wmi_fancurve_speed_only &&
-	    fancurve_attr_id != FANCURVE_ATTR_PWM1)
+	if (!fancurve_attr_supported(priv->conf, fancurve_attr_id) ||
+	    (fancurve_attr_id == FANCURVE_SIZE &&
+	     priv->conf->access_method_fancurve != ACCESS_METHOD_EC))
 		return -EOPNOTSUPP;
 
 	if (!(point_id >= 0 && point_id < MAXFANCURVESIZE)) {
@@ -9247,48 +9370,6 @@ static struct attribute *fancurve_hwmon_attributes[] = {
 	&sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr, NULL
 };
 
-static bool legion_wmi_fancurve_speed_attribute(const struct attribute *attr)
-{
-	return attr == &sensor_dev_attr_fan1_max.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point1_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point2_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point3_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point4_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point5_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point6_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point7_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point8_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point9_pwm.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point10_pwm.dev_attr.attr;
-}
-
-// EC3 (LOQ) and EC4 curves do not store acceleration/deceleration.
-// Hide these attributes so userspace can detect support without failing
-// partway through a curve write (issues #535 and #537).
-static bool legion_fancurve_accel_attribute(const struct attribute *attr)
-{
-	return attr == &sensor_dev_attr_pwm1_auto_point1_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point2_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point3_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point4_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point5_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point6_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point7_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point8_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point9_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point10_accel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point1_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point2_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point3_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point4_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point5_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point6_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point7_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point8_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point9_decel.dev_attr.attr ||
-	       attr == &sensor_dev_attr_pwm1_auto_point10_decel.dev_attr.attr;
-}
-
 static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 					      struct attribute *attr, int idx)
 {
@@ -9321,15 +9402,26 @@ static umode_t legion_hwmon_fancurve_is_visible(struct kobject *kobj,
 	struct device *dev = kobj_to_dev(kobj);
 	struct legion_private *priv = dev_get_drvdata(dev);
 
+	/* Retain the model-specific exclusions for auxiliary legacy controls. */
 	if (priv->conf->wmi_fancurve_speed_only &&
-	    !legion_wmi_fancurve_speed_attribute(attr))
+	    (attr == &sensor_dev_attr_minifancurve.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan2_max.dev_attr.attr))
 		return 0;
-	if ((priv->conf->access_method_fancurve == ACCESS_METHOD_EC3 ||
-	     priv->conf->access_method_fancurve == ACCESS_METHOD_EC4) &&
-	    legion_fancurve_accel_attribute(attr))
-		return 0;
+	if (container_of(attr, struct device_attribute, attr)->show ==
+	    autopoint_show) {
+		struct device_attribute *devattr =
+			container_of(attr, struct device_attribute, attr);
+		int id = to_sensor_dev_attr_2(devattr)->nr;
+
+		if (!fancurve_attr_supported(priv->conf, id))
+			return 0;
+		if (id == FANCURVE_SIZE &&
+		    priv->conf->access_method_fancurve != ACCESS_METHOD_EC)
+			return attr->mode & ~0222;
+	}
 	if (attr == &sensor_dev_attr_minifancurve.dev_attr.attr)
-		supported = priv->conf->has_minifancurve;
+		supported = minifancurve_supported(priv->conf);
 	if (attr == &sensor_dev_attr_fancurve_defaults_powermode.dev_attr.attr)
 		supported = priv->conf->has_fancurve_defaults;
 

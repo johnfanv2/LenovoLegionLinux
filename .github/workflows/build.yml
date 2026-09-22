@@ -89,7 +89,7 @@ jobs:
         if: always()
         run: ./tests/test_python_gui.sh
         shell: bash
-      - name: Test python library and GUI
+      - name: Test fan curve capabilities and GUI
         if: always()
         run: ./tests/test_python_unit.sh
         shell: bash

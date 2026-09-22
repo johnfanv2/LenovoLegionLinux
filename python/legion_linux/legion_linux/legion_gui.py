@@ -45,6 +45,7 @@ from legion_linux.legion import (
     LegionModelFacade,
     FanCurve,
     FanCurveEntry,
+    FanCurveIO,
     FileFeature,
     IntFileFeature,
     GsyncFeature,
@@ -159,6 +160,11 @@ def mark_error_combobox(combobox: QComboBox):
 def log_error(ex: Exception):
     print("Error occurred", ex)
     print(traceback.format_exc())
+
+
+def report_fancurve_write_error(error, parent=None):
+    """Report a failed curve operation without letting an exception escape a Qt callback."""
+    QMessageBox.warning(parent, "Fan Curve Write Failed", f"Could not apply the fan curve: {error}")
 
 
 def log_ui_feature_action(widget, feature):
@@ -407,7 +413,12 @@ class PresetTrayController:
 
     def on_action_click(self, name):
         log.info("Setting preset %s from tray action", name)
-        self.model.fancurve_write_preset_to_hw(name)
+        try:
+            self.model.fancurve_write_preset_to_hw(name)
+        # pylint: disable=broad-except
+        except Exception as error:
+            log_error(error)
+            report_fancurve_write_error(error)
 
 
 class EnumFeatureTrayController:
@@ -662,6 +673,7 @@ class LegionController:
         self.log_view = None
         self.tray = None
         self.view_automation = None
+        self.fancurve_error = None
         self.show_root_dialog = (not self.model.is_root_user()) and (not use_legion_cli_to_write)
         self.monitoring_threadpool = QThreadPool()
         self.monitoring_worker = MonitorWorker(None)
@@ -769,7 +781,7 @@ class LegionController:
         self.icon_color_mode_controller.update_view_from_feature(0, True)
 
         if read_from_hw and self.model.fancurve_io.exists():
-            self.model.read_fancurve_from_hw()
+            self._read_fancurve_from_hw()
             # fan controller
         # fan
         self.update_fancurve_gui()
@@ -877,7 +889,21 @@ class LegionController:
         self.update_power_gui()
 
     def update_fancurve_gui(self):
-        if self.model.fancurve_io.hwmon_path and not self.model.fancurve_io.exists():
+        exists = self.model.fancurve_io.exists()
+        point_count = 0
+        if exists and not self.fancurve_error:
+            try:
+                point_count = self.model.fancurve_io.get_point_count()
+            except (OSError, ValueError) as error:
+                self.fancurve_error = str(error)
+        self.view_fancurve.note_label2.setText(self.view_fancurve.default_note_text)
+        self.view_fancurve.note_label2.setStyleSheet(self.view_fancurve.default_note_style)
+        if self.fancurve_error:
+            self.view_fancurve.note_label2.setText(
+                f"Cannot read the fan curve: {self.fancurve_error}. "
+                "Writing is disabled. Use Read from HW to retry; sensor monitoring remains available."
+            )
+        elif self.model.fancurve_io.hwmon_path and not exists:
             self.view_fancurve.note_label2.setText(
                 "Custom fan curves are not supported on this laptop. "
                 "Sensor monitoring is available. See Other Options for supported settings."
@@ -886,11 +912,13 @@ class LegionController:
         self.view_fancurve.set_fancurve(
             self.model.fan_curve,
             self.model.fancurve_io.has_minifancurve(),
-            self.model.fancurve_io.exists(),
+            exists and not self.fancurve_error,
             has_fan_2_speed=self.model.fancurve_io.has_fan_2_speed(),
-            has_temperature_curve=self.model.fancurve_io.has_temperature_curve(),
+            temperature_fields=self.model.fancurve_io.temperature_fields(),
             has_acceleration_curve=self.model.fancurve_io.has_acceleration_curve(),
+            point_count=point_count,
         )
+        self.view_fancurve.load_button.setEnabled(exists)
 
     def update_automation(self):
         self.power_profiles_deamon_service_controller.update_view_from_feature()
@@ -901,8 +929,15 @@ class LegionController:
         self.enable_gui_monitoring_controller.update_view_from_feature()
         self.icon_color_mode_controller.update_view_from_feature()
 
+    def _read_fancurve_from_hw(self):
+        try:
+            self.model.read_fancurve_from_hw()
+            self.fancurve_error = None
+        except (OSError, RuntimeError, ValueError) as error:
+            self.fancurve_error = str(error)
+
     def on_read_fan_curve_from_hw(self):
-        self.model.read_fancurve_from_hw()
+        self._read_fancurve_from_hw()
         self.update_fancurve_gui()
 
     def on_write_fan_curve_to_hw(self):
@@ -910,14 +945,10 @@ class LegionController:
             return
         try:
             self.model.write_fancurve_to_hw()
-        except (OSError, RuntimeError) as ex:
-            QMessageBox.warning(
-                self.main_window,
-                "Fan Curve Write Failed",
-                f"The fan controller refused the fan curve: {ex}",
-            )
+        except (OSError, RuntimeError, ValueError) as ex:
+            report_fancurve_write_error(ex, self.main_window)
             return
-        self.model.read_fancurve_from_hw()
+        self._read_fancurve_from_hw()
         self.update_fancurve_gui()
 
     def _read_fancurve_from_view(self) -> bool:
@@ -1026,17 +1057,11 @@ class FanCurveEntryView:
         self.accel_edit.setText(str(entry.acceleration))
         self.decel_edit.setText(str(entry.deceleration))
 
-    def set_disabled(
-        self, value: bool, has_fan_2_speed: bool, has_temperature_curve: bool, has_acceleration_curve: bool
-    ):
+    def set_disabled(self, value: bool, has_fan_2_speed: bool, temperature_fields, has_acceleration_curve: bool):
         self.fan_speed1_edit.setDisabled(value)
         self.fan_speed2_edit.setDisabled(value or not has_fan_2_speed)
-        self.cpu_lower_temp_edit.setDisabled(value or not has_temperature_curve)
-        self.cpu_upper_temp_edit.setDisabled(value or not has_temperature_curve)
-        self.gpu_lower_temp_edit.setDisabled(value or not has_temperature_curve)
-        self.gpu_upper_temp_edit.setDisabled(value or not has_temperature_curve)
-        self.ic_lower_temp_edit.setDisabled(value or not has_temperature_curve)
-        self.ic_upper_temp_edit.setDisabled(value or not has_temperature_curve)
+        for name in FanCurveIO.temperature_files:
+            getattr(self, f"{name}_edit").setDisabled(value or name not in temperature_fields)
         self.accel_edit.setDisabled(value or not has_acceleration_curve)
         self.decel_edit.setDisabled(value or not has_acceleration_curve)
 
@@ -1095,20 +1120,23 @@ class FanCurveTab(QWidget):
         enabled: bool,
         *,
         has_fan_2_speed: bool,
-        has_temperature_curve: bool,
+        temperature_fields,
         has_acceleration_curve: bool,
+        point_count: int,
     ):
-        self.minfancurve_check.setDisabled(not has_minifancurve)
+        self.minfancurve_check.setDisabled(not has_minifancurve or not enabled)
         empty_entry = FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-        for entry_view in self.entry_edits:
+        for index, entry_view in enumerate(self.entry_edits):
             entry_view.set(empty_entry)
-            entry_view.set_disabled(not enabled, has_fan_2_speed, has_temperature_curve, has_acceleration_curve)
+            entry_view.set_disabled(
+                not enabled or index >= point_count, has_fan_2_speed, temperature_fields, has_acceleration_curve
+            )
         for i, entry in enumerate(fancurve.entries):
             if i >= len(self.entry_edits):
                 break
             self.entry_edits[i].set(entry)
         self.load_button.setDisabled(not enabled)
-        self.write_button.setDisabled(not enabled)
+        self.write_button.setDisabled(not enabled or point_count <= 0)
 
         self.minfancurve_check.setChecked(fancurve.enable_minifancurve)
 
@@ -1220,6 +1248,8 @@ class FanCurveTab(QWidget):
             "red, an unexpected error has occurred while accessing the hardware and you should notify the maintainer."
         )
         self.note_label2.setStyleSheet("color: red;")
+        self.default_note_text = self.note_label2.text()
+        self.default_note_style = self.note_label2.styleSheet()
         self.note_label2.setWordWrap(True)
         self.main_layout.addWidget(self.note_label2, 3)
 

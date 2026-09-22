@@ -85,8 +85,8 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   the table in another mode. Writing the table as percent (older driver
   builds: 100 into a 1..10 byte) matches the thermal shutdowns reported for
   this model.
-- Only `pwm1_auto_point*_pwm` is exposed (`wmi_fancurve_speed_only`);
-  `minifancurve` and `lockfancontroller` are hidden because the EC does not
+- Only `pwm1_auto_point*_pwm` is writable in the point table
+  (`wmi_fancurve_speed_only`); `minifancurve` and `lockfancontroller` are hidden because the EC does not
   declare those bytes (new `skip_lockfancontroller`).
 - Keyboard and lid lighting are USB-HID ITE devices (048d:c197); the WMI light
   methods do not drive them, so there is no keyboard, Y-logo or IO-port light
@@ -277,8 +277,8 @@ which is a different chassis and keeps its own entry:
   `fan2_level_rpm_table` are available.
 - `0x05010000` is the CPU socket temperature (`CPUS`), not a labeled IC
   sensor, so the IC temperature attribute is hidden (`skip_ic_temp`).
-- Only `pwm1_auto_point*_pwm` is exposed (`wmi_fancurve_speed_only`);
-  `minifancurve`, `lockfancontroller` and `fan_maxspeed` are hidden (the
+- Only `pwm1_auto_point*_pwm` is writable in the point table
+  (`wmi_fancurve_speed_only`); `minifancurve`, `lockfancontroller` and `fan_maxspeed` are hidden (the
   EC does not declare those bytes and `WMAB` implements neither
   max-speed method).
 - The white keyboard backlight (off/medium/bright) is driven by the
@@ -374,7 +374,12 @@ EC3 curve writes were verified under gaming load on **R3CN44WW** in
   uses unit 3. `fan1_level_rpm_table`/`fan2_level_rpm_table` stay hidden
   for EC3, preventing userspace from treating its PWM values as levels.
   WMI default-curve restoration remains available; its payload already
-  names the requested mode, as `SFAN` requires.
+  names the requested mode, as `SFAN` requires. It now refuses an unreadable
+  or extreme active mode rather than reporting an ignored reset as success.
+  It checks live `thermalmode`, not the saved `powermode` request; this WMI
+  guard does not change the native EC3 curve path. The full-speed enable guard
+  uses that same live mode; disabling full speed remains possible even if the
+  mode read fails.
 - Fan RPM / CPU temperature / fan full speed via Other Method `WMAE`
   (standard dword feature ids through a DEV0/FEA0/TYP0 dispatch):
   RPM `0x04030001/2` -> EC `FA1S/FA2S`, full speed `0x04020000` -> EC
@@ -417,6 +422,95 @@ zero-RPM and independent fan/temperature edits through a temporary EC3
 sysfs fixture and the offscreen GUI, without writing to hardware. It also
 runs the WMI level tests: zero-RPM requests there must clamp to the driver's
 per-point minimum rather than produce a rejected level-0 write.
+
+## Legion 5 15AHP11 (83Q7, T2CN)
+
+The firmware attached in [#504](https://github.com/johnfanv2/LenovoLegionLinux/issues/504#issuecomment-5377414566)
+contains 35 ACPI tables. The DSDT SHA-256 is
+`d88fb1646a86f40c6b7bfb92a7071f598b8e1cf1e1c36d16ab46b48678fac8e1`.
+Its `WMAB` 5/6 call `GFAN`/`SFAN`: ten shared **levels**, not percentages.
+`SFAN` reads the requested power mode from the first byte, selects an FNT0/FNT1
+ladder and uses `FNT[level + 2]` for RPM. Mode zero leaves that local unset;
+the driver now sends a freshly read valid mode, and refuses a failed mode read
+rather than guessing. Both calibration and the write payload use live
+`GetThermalMode` (0x37 / `thermalmode`), not `GetSmartFanMode` (0x2D /
+`powermode`), which reads a saved request that may differ from GZ44.
+Extreme mode (`GZ44 == 7`) silently discards writes in
+firmware, so curve writes/default resets now return an error in that mode.
+
+`WQA7`/`SFTW` publishes `FNT[3..12]` as the RPM ladder through the usual WMI
+GUID: entry 1 can be **0 RPM** and must remain at index 1. Dropping it made all
+subsequent RPM conversions off by one, potentially selecting a lower speed than
+requested. Keep zero and repeated RPM entries in their original positions;
+reject descending, empty, oversized or all-zero tables. Calibration is read
+from firmware, not hardcoded in Python. The `_STA`/`_CFG` paths also use the
+DSDT's actual `PCI0.LPC0.EC0.VPC0` namespace, not `PC00.LPCB`.
+
+This corrects the existing WMI curve transport; it does not enable direct EC
+curve access or claim new hardware validation. Monitoring/powermode and reads
+have reporter evidence in #504; the corrected write path still needs a careful
+on-device round trip. On AC, select custom mode, save the original curve, apply
+one small conservative change, compare the level/RPM readback and `sensors`,
+and restore the backup. Do not write while in extreme mode or change power mode
+partway through Apply to HW.
+
+## Fan-curve capability and unit checks
+
+The hwmon curve schema follows the fields the active backend actually writes:
+
+| Backend | Speed controls | Temperature controls | Accel/decel |
+| --- | --- | --- | --- |
+| EC | Both fans | CPU/GPU/IC bounds | Supported |
+| EC2 | Both fans, 8 points | CPU/GPU bounds | Not supported |
+| EC3 | Both fans | CPU/GPU/IC bounds | Not supported |
+| EC4 | Both fans | CPU/GPU upper thresholds only | Not supported |
+| WMI3 | One shared speed table | Not supported | Not supported |
+
+Unsupported fields are absent, not writable zero-valued placeholders. Userspace
+handles partial temperature support per field, including EC4's upper thresholds,
+and respects the driver's point count. `auto_points_size` is read-only unless the
+backend supports changing it. This does not select new EC layouts or change any
+model's access method. Unmapped minifancurve/controller-lock registers in the
+IdeaPad and LOQ maps are marked unavailable and guarded even in diagnostic reads.
+Native curve reads initialize the whole result and model-specific RPM scale before
+filling EC fields, so stack garbage cannot affect PWM conversion or unused points.
+
+`/sys/devices/platform/legion/fancurve_speed_unit` reports `rpm`, `percent` or
+`level` for the **active** curve; hwmon PWM values still use 0..255 in every case.
+Do not infer the unit from chip ID, WMI availability or default-reset support.
+Percentage backends round scaled RPM requests to a percentage step and encode
+PWM without the old double-floor loss of one percentage point; native RPM
+backends retain their 100-RPM steps. Conversion clamps finite oversized inputs
+before arithmetic, and rejects non-finite speeds or an invalid RPM scale.
+The per-fan `fan*_level_rpm_table` attrs are only exposed for active level curves
+with the firmware data block. Level curves still advertise their unit if the
+firmware cannot provide RPM calibration; this must never trigger linear-RPM
+fallback. Zero-RPM and repeated entries retain their level indices; they are
+not padding. Missing mode-specific data is not replaced by another mode's
+ladder, and a missing fan-2 ladder is not replaced with fan 1's RPMs. A partial
+query failure is retried rather than permanently caching only the other fan.
+
+GUI/CLI read current-mode calibration for each operation instead of caching it at
+startup. A malformed/missing ladder or unrepresentable level causes an explicit
+error, not a fabricated RPM. All requested speeds are calibrated before any curve
+write. A GUI read/calibration error disables Apply to HW without terminating
+monitoring; Read from HW retries and re-enables editing after a successful read.
+Tray preset failures use the same error dialog instead of escaping a Qt callback.
+Update the module and Python package together; older modules lack explicit unit
+metadata. Review the readback after applying and do not switch power mode during
+an apply operation.
+
+Offline validation: `./tests/test_python_unit.sh` runs the library, offscreen GUI
+and kernel capability tests. The latter compile the actual C configuration and
+visibility/guard functions against fake device/EC objects: 606 point-attribute
+cases, native vs level unit gates, default-reset independence, poisoned native
+read buffers, zero-RPM ladder indexing, SFAN live-mode payload/error handling,
+mode-specific calibration/retry and no I/O through unmapped control registers. Run with `CC=clang` to additionally test that harness
+with clang (gcc is the default). These are software regressions, not a claim of
+new thermal or firmware validation on every model. On hardware, compare the
+available controls with the table above, read a known curve before changing it,
+save a backup, make only a conservative adjustment in a supported power mode,
+check sysfs/debugfs and `sensors`, then restore the backup.
 
 ## External HDMI
 Usually attached to dGPU. So easiest way to make it work is enabling dGPU only in BIOS/UEFI. More advanced would

@@ -83,7 +83,7 @@ class MiniFancurveFeatureCommand(CLIFeatureCommand):
         self.model = model
 
     def exists(self) -> bool:
-        return self.model.fancurve_io.exists()
+        return self.model.fancurve_io.has_minifancurve()
 
     def command_status(self, **_) -> int:
         print(self.model.fancurve_io.get_minifancuve())

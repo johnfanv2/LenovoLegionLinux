@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python/legion_linux"))
 
@@ -13,7 +13,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from legion_linux import legion
 from legion_linux.legion import FanCurveIO, FileFeature
-from legion_linux.legion_gui import LegionController, MainWindow
+from legion_linux.legion_gui import LegionController, MainWindow, PresetTrayController
 
 
 class GuiStartupTest(unittest.TestCase):
@@ -151,26 +151,18 @@ class GuiStartupTest(unittest.TestCase):
             window.deleteLater()
             self.app.processEvents()
 
-    def test_ec3_rpm_and_temperature_edit_roundtrip(self):
-        # R3CN uses the EC3 RPM curve, not the shared WMI level table.
-        # Its sysfs exposes both fans and temperatures, but no accel/decel.
+    def check_native_curve_roundtrip(self, temperature_fields, point_count):
+        # Exercise the actual partial sysfs schemas, not mocked read/write calls.
         with tempfile.TemporaryDirectory() as directory:
             hwmon = Path(directory, "hwmon", "hwmon0")
             hwmon.mkdir(parents=True)
             for name in (FanCurveIO.fan1_max, FanCurveIO.fan2_max):
                 (hwmon / name).write_text("10000\n")
-            (hwmon / FanCurveIO.auto_points_size).write_text("10\n")
-            patterns = (
-                FanCurveIO.pwm1_fan_speed,
-                FanCurveIO.pwm2_fan_speed,
-                FanCurveIO.pwm1_temp_hyst,
-                FanCurveIO.pwm1_temp,
-                FanCurveIO.pwm2_temp_hyst,
-                FanCurveIO.pwm2_temp,
-                FanCurveIO.pwm3_temp_hyst,
-                FanCurveIO.pwm3_temp,
-            )
-            for point_id in range(1, 11):
+            (hwmon / FanCurveIO.auto_points_size).write_text(str(point_count))
+            Path(directory, legion.FANCURVE_SPEED_UNIT_FILE).write_text("rpm\n")
+            patterns = [FanCurveIO.pwm1_fan_speed, FanCurveIO.pwm2_fan_speed]
+            patterns.extend(FanCurveIO.temperature_files[name] for name in temperature_fields)
+            for point_id in range(1, point_count + 1):
                 for pattern in patterns:
                     (hwmon / pattern.format(point_id)).write_text("0\n")
 
@@ -200,6 +192,8 @@ class GuiStartupTest(unittest.TestCase):
                     self.assertFalse(io.uses_fan_levels())
                     self.assertTrue(io.has_fan_2_speed())
                     self.assertTrue(io.has_temperature_curve())
+                    self.assertEqual(io.temperature_fields(), temperature_fields)
+                    self.assertEqual(io.get_point_count(), point_count)
                     self.assertFalse(io.has_acceleration_curve())
                     self.assertFalse(controller.view_fancurve.minfancurve_check.isEnabled())
                     entry = controller.view_fancurve.entry_edits[0]
@@ -213,10 +207,19 @@ class GuiStartupTest(unittest.TestCase):
                         "ic_lower_temp_edit": "40",
                         "ic_upper_temp_edit": "70",
                     }
+                    fields = {
+                        name: value
+                        for name, value in fields.items()
+                        if name.startswith("fan_speed") or name.removesuffix("_edit") in temperature_fields
+                    }
                     for name, value in fields.items():
                         field = getattr(entry, name)
                         self.assertTrue(field.isEnabled(), name)
                         field.setText(value)
+                    for name in FanCurveIO.temperature_files.keys() - temperature_fields:
+                        self.assertFalse(getattr(entry, f"{name}_edit").isEnabled())
+                    for unused in controller.view_fancurve.entry_edits[point_count:]:
+                        self.assertFalse(unused.fan_speed1_edit.isEnabled())
                     self.assertFalse(entry.accel_edit.isEnabled())
                     self.assertFalse(entry.decel_edit.isEnabled())
                     controller.on_write_fan_curve_to_hw()
@@ -235,6 +238,55 @@ class GuiStartupTest(unittest.TestCase):
                 finally:
                     window.deleteLater()
                     self.app.processEvents()
+
+    def test_ec3_rpm_and_temperature_edit_roundtrip(self):
+        self.check_native_curve_roundtrip(set(FanCurveIO.temperature_files), 10)
+
+    def test_ec2_keeps_cpu_gpu_temperatures_and_eight_points(self):
+        self.check_native_curve_roundtrip({"cpu_lower_temp", "cpu_upper_temp", "gpu_lower_temp", "gpu_upper_temp"}, 8)
+
+    def test_ec4_keeps_writable_upper_temperatures(self):
+        self.check_native_curve_roundtrip({"cpu_upper_temp", "gpu_upper_temp"}, 10)
+
+    def test_unavailable_level_ladder_disables_writes_and_allows_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            hwmon = Path(directory, "hwmon", "hwmon0")
+            hwmon.mkdir(parents=True)
+            (hwmon / FanCurveIO.pwm1_fan_speed.format(1)).write_text("26\n")
+            (hwmon / FanCurveIO.auto_points_size).write_text("1\n")
+            Path(directory, legion.FANCURVE_SPEED_UNIT_FILE).write_text("level\n")
+            with patch.object(legion, "LEGION_SYS_BASEPATH", directory), patch.object(
+                FanCurveIO, "hwmon_dir_pattern", str(hwmon)
+            ), patch.object(FileFeature, "_write_file", side_effect=AssertionError("Must not write hardware")):
+                controller = LegionController(self.app, expect_hwmon=True, use_legion_cli_to_write=True)
+                window = MainWindow(controller, QIcon())
+                try:
+                    controller.init(read_from_hw=True)
+                    self.assertFalse(controller.view_fancurve.write_button.isEnabled())
+                    self.assertTrue(controller.view_fancurve.load_button.isEnabled())
+                    self.assertIn("ladder is unavailable", controller.view_fancurve.note_label2.text())
+                    Path(directory, legion.FAN_LEVEL_RPM_TABLE_FILES[0]).write_text("1700 2000 2500 3000 4000\n")
+                    Path(directory, legion.FAN_LEVEL_RPM_TABLE_FILES[1]).write_text("1800 2100 2600 3100 4100\n")
+                    controller.on_read_fan_curve_from_hw()
+                    self.assertIsNone(controller.fancurve_error)
+                    self.assertTrue(controller.view_fancurve.write_button.isEnabled())
+                    self.assertEqual(controller.model.fan_curve.entries[0].fan1_speed, 1700)
+                    self.assertEqual(controller.model.fan_curve.entries[0].fan2_speed, 1800)
+                finally:
+                    window.deleteLater()
+                    self.app.processEvents()
+
+    def test_tray_preset_failure_is_reported_without_escaping_callback(self):
+        model = Mock()
+        controller = PresetTrayController(model, [])
+        for error in (ValueError("RPM ladder unavailable"), FileNotFoundError("missing preset")):
+            with self.subTest(error=type(error).__name__), patch.object(
+                model, "fancurve_write_preset_to_hw", side_effect=error
+            ) as write, patch.object(QMessageBox, "warning") as warning, patch("legion_linux.legion_gui.log_error"):
+                controller.on_action_click("balanced-ac")
+                write.assert_called_once_with("balanced-ac")
+                warning.assert_called_once()
+                self.assertIn(str(error), warning.call_args[0][2])
 
     def test_write_allows_zero_accel_when_acceleration_curve_unsupported(self):
         controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
