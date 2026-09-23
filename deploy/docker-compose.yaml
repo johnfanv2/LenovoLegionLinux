@@ -10,10 +10,6 @@ services:
       dockerfile: deploy/Dockerfile.arch
       args:
         - "BASE_IMAGE=manjarolinux/base"
-  legion-fedora:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.fedora
   # legion-suse:
   #   build:
   #     context: ..

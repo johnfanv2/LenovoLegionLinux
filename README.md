@@ -34,10 +34,6 @@
 
 **This project is not affiliated with Lenovo in any way**
 
-<!-- # If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46).
-
-# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54). -->
-
 Lenovo Legion Linux (LLL) brings additional drivers and tools for Lenovo Legion series laptops to Linux. It
 is the alternative to Lenovo Vantage or Legion Zone (both Windows only).
 
@@ -65,13 +61,14 @@ It allows you to control features like the fan curve, power mode, power limits, 
     - Enable or disable touchpad
 - [X] Set a fully featured custom fan curve with up to 10 points:
   - Set temperature points for when the fan speed (level) should change
-  - Use CPU, GPU and IC temperature to control the fan all at the same it
+  - Use CPU, GPU and IC temperature to control the fan all at the same time
   - Set the fan speed (RPM) at each level
   - Even allows speed below 1600 RPM
   - Set minimum temperature for each level that must be fallen below before slowing down the fans again
   - Set acceleration and deceleration for each the fan when the fan speed should increase or decrease
   - Save and load presets for different modes
 - [X] Lock and unlock the fan controller and fan speed
+- [X] Lift the firmware-imposed fan ceiling on supported models (`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`). On the Legion Pro 7 16IRX8H (BIOS KWCN54WW) this raises the cap from ~4400 RPM to ~7100 RPM. Discovered via `WMAA(0, 0x0D, 0x01)` — see issue #429. The sysfs node is gated behind a `has_fan_unlock` model/BIOS allowlist and only exposed on validated firmwares (currently KWCN54WW).
 - [X] Switch power mode (quiet, balanced, performance) using software
   - Now you can do it using software in your system settings
   - Changing with `Fn+Q` is also possible
@@ -79,6 +76,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
   - Switch between different fan profiles depending on the power profile (See: [Lenovo Legion Laptop Support Daemon](#lenovo-legion-laptop-support-daemonlegiond))
 - [X] Monitor fan speeds and temperatures (CPU, GPU, IC) using the now available sensors
 - [X] Enable or disable automatic switching to a "Mini Fan Curve" if temperatures are low for a long time
+- [X] **SmartFan** — lightweight shell-based fan daemon for Legion 7 Gen 10+ using `acpi_call` (no full kernel module needed). 4 modes, smooth ramping, LED sync, TUI switcher. See [`extra/smartfan/`](extra/smartfan/)
 
 ## :mega: Overview
 
@@ -105,11 +103,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 ## :pushpin: Confirmed Compatible Models
 
-# If you have a 2022 or 2023 model, please help testing the new features [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/46).
-
-# If you have a light in the lid (Y-logo) or at the IO-ports (all Legion 7), please help testing controlling it  [here](https://github.com/johnfanv2/LenovoLegionLinux/issues/54).
-
-**Other Lenovo Legion models from 2020 to 2023 probably also work. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
+**Lenovo Legion models from 2020 up to the latest 2025 models probably work — the driver is actively maintained and new models are added regularly. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
 
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
@@ -127,6 +121,20 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 5 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion 7i 16ITHG6 (BIOS H1CN35WW): sensors, fan curve, power profile
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
+- Lenovo Legion Pro 5 16ARX8 (82WM) (BIOS LPCN65WW): sensors, fan curve (speed points only, see LPCN note below), power profile
+- Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
+- Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
+- Lenovo Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW): sensors, fan curve (level indices 0-10, custom power mode), power profile, power limits and fan full speed through the Other Method WMI path; fan curve verified on Linux in custom power mode (level 9 → 4400/4600 RPM, level 10 → 5400/5400 RPM)
+- Lenovo Legion Pro 7 16IAX10H (83F5, BIOS Q7CN78WW), Gen 10: sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), no keyboard/light control; verified on Linux (custom mode entered, table point written and read back from EC RAM); see [Q7CN notes](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
+- Lenovo Legion Pro 5 16ADR10 (83LT, BIOS RLCN31WW), Gen 10 (AMD): sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), keyboard backlight and Y-logo light, fan full speed (custom power mode only); enablement derived from the DSDT analysis in issue #445 with runtime validation in progress; see [RLCN notes](doc/FEATURES_AND_TESTING.md#legion-pro-5-16adr10-83lt-rlcn)
+- Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
+- Lenovo Legion 5 16IAX10 (83NX, BIOS Q6CN32WW), Gen 10 (Intel): sensors, power-limit attributes (`cpu_temperature_limit`, `cpu_l1_tau`, `gpu_power_target_offset`, long/short-term power limits) via WMI3; fan curve reads populate correctly but custom power mode does not currently activate (known gap); verified on Linux across five reloads, a `main` merge, and a BIOS update; see [Q6CN notes](doc/FEATURES_AND_TESTING.md#legion-5-16iax10-83nx-q6cn)
+- Lenovo Legion Pro 5 16IAX10H (83LU, BIOS Q6CN26WW), Gen 10 (Intel): sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), keyboard backlight (white), fan full speed (custom power mode only); same WMI firmware layout as the 83F5 Q7CN above, enablement derived from the DSDT and validated reads in issue #337 with runtime validation in progress; see [83LU notes](doc/FEATURES_AND_TESTING.md#legion-pro-5-16iax10h-83lu-q6cn)
+- Lenovo Legion 5 15AHP10 (83M0, BIOS RGCN27WW), Gen 10 (AMD): sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), keyboard backlight, fan full speed (custom power mode only); DSDT-validated sibling of the 83LT RLCN above (issue #373) with runtime validation in progress; see [RGCN notes](doc/FEATURES_AND_TESTING.md#legion-5-15ahp10-83m0-rgcn)
+- Lenovo Legion Pro 5 16IAX10 (83F3, BIOS Q6CN79WW), Gen 10 (Intel): sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), keyboard backlight, fan full speed (custom power mode only); DSDT-validated Legion Pro 5 sibling of the 83LU Q6CN above (issue #471) with runtime validation in progress; see [83F3 notes](doc/FEATURES_AND_TESTING.md#legion-pro-5-16iax10-83f3-q6cn)
+- Lenovo LOQ 15IRX10 (83JE, BIOS R3CN), Gen 10 (Intel): sensors, power profile, fan curve (independent RPM and temperature/hysteresis via the EC3 LOQ interface in custom mode, `powermode=255`), keyboard backlight, fan full speed (custom power mode only). EC3 curve writes were verified under load on R3CN44WW in [#535](https://github.com/johnfanv2/LenovoLegionLinux/issues/535); unsupported accel/decel, minifancurve and controller-lock controls are hidden. This model is not restricted to WMI fan levels; see [R3CN notes](doc/FEATURES_AND_TESTING.md#loq-15irx10-83je-r3cn).
+
+Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
 
 *Note:* Features that are not confirmed probably also work. They were just not tested.
 
@@ -135,7 +143,15 @@ Currently fan control is not working for the following models. Other features, p
 - Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
 
-- Mostly of Legion gen 8 (2023)
+## :handshake: Contributing
+
+**Pull requests are very welcome!** Filing an issue alone is helpful, but there is only so much developers can do without access to your hardware — especially for "does not work on my model" reports. If you can, please try to fix it yourself:
+
+1. Clone the repo and modify the code locally (e.g. add your model to the DMI allowlist in `kernel_module/legion-laptop.c`). AI coding assistants work well for this — the repo ships an [AGENTS.md](AGENTS.md) with build and test instructions written for them.
+2. Test it on your own laptop until everything works (see the verification commands in [AGENTS.md](AGENTS.md) and the tests in this README).
+3. Open a pull request that references your issue.
+
+Most of the model support in this project was contributed exactly this way. Also see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## :warning: Disclaimer
 
@@ -195,6 +211,8 @@ sudo zypper install dkms openssl mokutil
 
 ```bash
 sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect
+# Only for kernels built with clang (e.g. CachyOS); the Makefile then builds with LLVM=1 by itself
+sudo pacman -S clang llvm lld
 # Install the following for installation with DKMS
 sudo pacman -S dkms openssl mokutil
 ```
@@ -217,6 +235,8 @@ cd LenovoLegionLinux/kernel_module
 make
 sudo make reloadmodule
 ```
+
+*Note:* on kernels built with clang (`CONFIG_CC_IS_CLANG=y`, e.g. CachyOS) the Makefile detects this and passes `LLVM=1` to the kernel build by itself, for `make`, `make install` and DKMS alike; install `clang`, `llvm` and `lld` first.
 
 **For further instructions, problems, and tests see `Initial Usage Testing` below. Do them first before a permanent installation.**
 
@@ -298,7 +318,7 @@ A automatically generated patch is provided on the release page whenver a stable
 Please note:
 
 - Please test in the given order; try to fix a failed text before going to the next.
-- These tests are manual and in the terminal because this is an early version of this tool
+- These tests are manual and run in the terminal
 - You can copy-and-paste the commands. Paste with `Ctrl+Shift+V` inside the terminal.
 
 ### Quick Test: Module is properly loaded
@@ -320,7 +340,7 @@ Unexpected result:
 - `insmod: ERROR: could not insert module legion-laptop.ko: Invalid module format` after running `make reloadmodule`
 - `legion PNP0C09:00: legion_laptop not loaded for this device`. The kernel module was not loaded properly. Redo first test.
 - `insmod: ERROR: could not insert module legion-laptop.ko: Key was rejected by service`: because you enable secure boot, you cannot load kernel modules.   Disable secure boot (in BIOS) or sign the kernel module with a private key.
-- if you see the following, the driver was not tested for your laptop model; please raise an issue with the maintainer if you think it should be compatible. If you want to try it anyhow with your model use `sudo make forcereloadmodule`
+- if you see the following, the driver was not tested for your laptop model; please [create an issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/new/choose) with the maintainer if you think it should be compatible. If you want to try it anyhow with your model use `sudo make forcereloadmodule`
 
 ```text
 [126675.495983] legion PNP0C09:00: Module not usable for this laptop because it is not in allowlist. Notify maintainer if you want to add your device or force load with param force.
@@ -367,9 +387,9 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 The fan curve is displayed as a table with the following columns:
 
 ```text
-u(speed_of_unit): unit for the speed (1- Percentage, 2-PWM, 3-RPM)
-speed1[u]: speed in rpm divided by 100 for fan1 at this point
-speed2[u]: speed in rpm divided by 100 for fan2 at this point
+u(speed_of_unit): unit for the speed (1-Percentage, 2-PWM, 3-RPM/100, 4-Percentage rounded to nearest, 5-Level index 0-10 into the firmware fan table)
+speed1[u]: speed of fan1 at this point, in the unit given by u
+speed2[u]: speed of fan2 at this point, in the unit given by u
 speed1[pwm]: speed in pwm (0-255) for fan1 at this point
 speed2[pwm]: speed in pwm (0-255) for fan2 at this point
 acceleration: acceleration time (higher = slower)
@@ -439,14 +459,17 @@ Unexpected output:
 # Get root
 sudo su
 # As root enter
+# The hwmon directory is named after the platform device, which is PNP0C09:00 before kernel 7.0 and "legion" on 7.0+;
+# find it via the hwmon name instead:
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
 # 2. point, 1. fan (around 1500 rpm in pwm)
-echo 38 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point2_pwm
+echo 38 > $H/pwm1_auto_point2_pwm
 # 2. point, 2.fan (around 1600 rpm in pwm)
-echo 40 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point2_pwm
+echo 40 > $H/pwm2_auto_point2_pwm
 # 3. point, 1. fan (around 1700 rpm in pwm)
-echo 43 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point3_pwm
+echo 43 > $H/pwm1_auto_point3_pwm
 # 3. point, 2.fan (around 1800 rpm in pwm)
-echo 45 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point3_pwm
+echo 45 > $H/pwm2_auto_point3_pwm
 
 
 # Read the current fancurve and check if changes were made
@@ -457,6 +480,7 @@ Expected:
 
 - the controller might have loaded default values if you pressed Ctrl+Q(or FN+Q on certain devices) to change the power mode or waited too long; then try again
 - The entries in the fan curve are set to their values. The other values are not relevant (marked with XXXX)
+- On Legion Zone v3 firmware (e.g. Legion Pro 5 16IRX8, BIOS KWCN) the table holds fan levels 0-10 (`u` = 5): a written pwm is rounded to the nearest level (write 0, 26, 51, ... 255) and reads back as `level * 255 / 10` (0, 25, 51, 76, 102, 127, 153, 178, 204, 229, 255), points 9 and 10 need at least pwm 64 and 115, and a write below a point's minimum returns `Operation not supported`. The Python tools (`legion_cli`, `legion_gui` and the `legiond` presets) convert RPM values to the nearest firmware level on these models (for example 4400 rpm → level 9) and raise a 0 rpm point to the point's minimum level, so existing presets keep working. The per-level RPM ladders used for this are read at runtime from the driver's `fan1_level_rpm_table`/`fan2_level_rpm_table` platform attributes (filled from the firmware's `LENOVO_FAN_TABLE_DATA` WMI block), not hardcoded. `fan_maxspeed` (Fan Method ids 3/4) is not exposed on these models (KWCN, Q7CN, RLCN): the firmware implements neither method, so the attribute cannot work (on KWCN it read a meaningless 0); `fan_control.sh` skips the attribute when it is absent
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -511,6 +535,10 @@ psensor
 
 ### Changing and Setting your own Fan Curve with the Python GUI
 
+On models with sensors but no custom fan curve support, the GUI skips the
+unavailable fan curve at startup. Fan curve Read/Apply controls remain disabled.
+Other Options remains available for settings supported by the laptop.
+
 Start the GUI as root
 
 ```bash
@@ -523,6 +551,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 </p>
 
 - with `Read from HW` you can read the current fan curve that is saved in the hardware and display it.
+- the current fan curve is loaded automatically at start-up when the kernel module is present; otherwise the fan curve starts empty and `Read from HW` is greyed out
 - you can edit the values of the fancurve. They will not applied to hardware until your press `Apply to HW`
 - press `Apply to HW` to write the currently displayed fancurve to hardware and activate it
 - you can load and save a fancurve to a preset. Select the preset with the drop-down menu and press `Load from Preset` or `Save to preset`.
@@ -586,7 +615,6 @@ Unexpected output:
 Note:
 
 - **If you want to reset your fan curve, just toggle with Ctrl+Q or Fn+Q the power mode or restart and everything is gone.**
-- Currently, there is no GUI available.
 - Currently, the hardware resets the fan curve randomly or if you change power mode, suspend, or restart. Just run the script again.
 - You might want to create different scripts for different usages. Just copy it and adapt the values.
 
@@ -672,23 +700,25 @@ With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the 
 
 ### Lenovo Legion Laptop Support Daemon(legiond)
 
-The LLL Daemon is supported in Systemd and OpenRC(Experimental).
-If you install LLL manually(not throngh the package manager), you may need to run the [systemd_install.sh](extra/systemd_install.sh) unside the extra folder.
+The LLL daemon (`legiond`) is a small C program (see [extra/service/legiond](extra/service/legiond/)) supported on Systemd and OpenRC (experimental).
+If you install LLL manually (not through the package manager), you need to build `legiond` yourself (`make` in [extra/service/legiond](extra/service/legiond/), requires `libinih`) and install the binaries, service files, and example profiles — see [README.org](extra/service/legiond/README.org) for the setup.
 
-This Daemon allow to chnage automatically bettwen fan profiles set in the gui depending of the power mode and if the laptop is or not plug in:
-These are the profiles avaiable:
+This daemon automatically switches between the fan profiles set in the GUI depending on the power mode and whether the laptop is plugged in or not.
+These are the profiles available:
 
 - quiet-battery - Fan Profile on quiet mode on battery
-- balance-battery - Fan Profile on balance mode on battery
+- balanced-battery - Fan Profile on balance mode on battery
 - balanced-performance-battery - Fan Profile on custom mode on battery
+- performance-battery - Fan Profile on performance mode on battery
 - quiet-ac - Fan Profile on quiet mode on charger
-- balance-ac - Fan Profile on balance mode on charger
+- balanced-ac - Fan Profile on balance mode on charger
 - balanced-performance-ac - Fan Profile on custom mode on charger
 - performance-ac - Fan Profile on performance mode on charger
+- extreme-ac - Fan Profile on extreme mode on charger
 
 Example profiles are [here](extra/service/profiles) can also be set via the gui for easy set up:
 1 - Set the `Fan Curve` you like to use
-2 - Chose on the profile above in `Fancurve Preset` and hit Sate to Preset (will ask for you password)
+2 - Chose on the profile above in `Fancurve Preset` and hit Save to Preset (will ask for you password)
 3 - Set all the profiles
 4 - Go to the `Automation` tab and enable the option `Lenovo Legion Laptop Support Daemon Enable`
 
@@ -713,12 +743,26 @@ This systemd service also have extras features that can be activated by editing 
     - tdp_bat_b - Custom GPU TDP for balance mode on battery
     - tdp_ac_b - Custom GPU TDP for balance mode on charger
     - tdp_ac_p - Custom GPU TDP for performance mode on charger
-  - Note: The default values in the .env file are from RTX 3070
+  - Note: The default values in the `legiond.ini` file are from RTX 3070
 
-NOTE: `legiond.service` depends on `acpid.service` and if you enable `legiond.service`, `acpid.service` should be started automatically.
+NOTE: `legiond` watches power-state and power-profile changes directly via inotify, so it no longer depends on `acpid.service`.
 If your CPU tweaks often get reset to default, enable `legiond-cpuset.timer` to override it.
 
 See [README.org](extra/service/legiond/README.org)
+
+### Lift the Firmware Fan Ceiling (fan unlock)
+
+On supported models the firmware caps the maximum fan speed below what the hardware can do. The `fan_unlock` sysfs attribute lifts this ceiling. It is only exposed on validated model/BIOS combinations (see the `has_fan_unlock` allowlist in `kernel_module/legion-laptop.c`); on the Legion Pro 7 16IRX8H (BIOS KWCN54WW) it raises the cap from ~4400 RPM to ~7100 RPM.
+
+```bash
+# Check status / enable / disable
+sudo legion_cli fan-unlock-status
+sudo legion_cli fan-unlock-enable
+sudo legion_cli fan-unlock-disable
+
+# Or directly via sysfs
+cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
+```
 
 ### Lock and Unlock the Fan Controller and Fan Speed
 
@@ -763,6 +807,11 @@ With the GUI, the touch pad is enabled/disabled by checking/unchecking the box `
 Some bugs cannot be fixed due to the firmware in the hardware:
 
 - size of fan curve cannot be changed (size is 10 on performance mode, 9 otherwise) but you can practically disable points by setting the temperature limits to 127, as already done when writing to `auto_points_size`
+- on models using the WMI3 fan table (LPCN family, e.g. Legion Pro 5 16ARX8 / Legion 7 Pro 16ARX8H, and the EC 0x5508 generation: Legion 7 16IAX10 83KY/RXCN, Legion 5 16IAX10 83NX/Q6CN, Legion 5 15IAX10 83F0/S2CN, Legion Pro 5 16AFR10 83F2/RECN, Legion 5 15AHP10 83M0/RGCN, Legion Pro 5 16IAX10 83F3/Q6CN, plus the Q7CN/RLCN/83LU models above), the WMI method only transmits the fan **speed** of each curve point: temperature thresholds, the second fan's speed and accel/decel values are not readable or writable through WMI (they read back as 0). On these WMI3 0x5508 models the speeds are fan **levels 1-10**, not percentages - writing percent values into the level bytes matches the thermal-shutdown reports for these models, so the module exposes only the speed attributes and treats them as levels. The EC keeps using its own firmware temperature thresholds. Confirmed on the Legion Pro 5 16ARX8 (BIOS LPCN65WW) and by DSDT analysis across the 0x5508 chassis (issue #491); assumed to apply to the rest of the LPCN family (e.g. LPCN47WW) pending confirmation from those users. [#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
+- on level-based WMI curves, GUI/CLI RPM requests are rounded to firmware levels and clamped to the driver's per-point minimum, including zero-RPM requests. Native RPM curves, including R3CN's EC3 curve, retain zero-RPM support and are not quantized to WMI levels. The read-only `fancurve_speed_unit` attribute identifies the active curve's unit (`rpm`, `percent` or `level`); firmware RPM ladders are exposed only for level curves, independently of default-curve reset support. Userspace refreshes calibration for every read/apply operation; percentage backends also round-trip their percentage steps without losing speed through double rounding. Missing or invalid calibration blocks RPM writes instead of guessing a linear scale; the GUI keeps monitoring available and offers Read from HW to retry. Update the module and userspace together for explicit unit detection.
+- on Legion 5 15AHP11 (83Q7, T2CN), the WMI curve uses shared **levels**, not percentages. Its SFAN write and RPM calibration use the live thermal mode, not the saved power-profile request; writes/default resets are rejected in extreme mode or when the mode cannot be read. Firmware RPM tables retain zero-RPM and repeated entries at their original indices; dropping a leading zero shifts the speed mapping. See [T2CN firmware evidence and verification](doc/FEATURES_AND_TESTING.md#legion-5-15ahp11-83q7-t2cn).
+- fan-curve fields are exposed according to the implemented access method, not the EC chip ID. EC2 preserves CPU/GPU temperatures and eight points, EC3 preserves all temperature fields, and EC4 preserves CPU/GPU upper thresholds; none has programmable accel/decel. All WMI3 curves expose only the shared speed table. The GUI disables individual unsupported fields without disabling supported temperatures. Fixed-length curves report a read-only `auto_points_size`. Unmapped minifancurve/controller-lock registers are never accessed. See [capability checks](doc/FEATURES_AND_TESTING.md#fan-curve-capability-and-unit-checks).
+- on the Legion Pro 5 16ARX8 (BIOS LPCN65WW), the firmware's `max-power` mode **cuts power instantly** (hard power-off with no shutdown sequence) instead of raising limits, and can also reset the EC battery charge mode from conservation back to rapid charge. The kernel module therefore does not expose `max-power` as a platform profile choice on this model; the safe profiles are quiet/balanced/performance/custom.
 
 ## :clap: Credits
 
@@ -788,6 +837,7 @@ Thank you for your contribution for the Linux support:
 * [normaneye](https://github.com/normaneye), fixing GPU temperature bug in GUI
 * [Petingoso](https://github.com/Petingoso), fix script to run withou sudo
 * [XenHat](https://github.com/XenHat), fix README
+* [Hishammm0](https://github.com/Hishammm0), Legion Pro 5 16IRX8 (KWCN) fan levels, kernel 7.x ACPI probe fix, clang build support
 
 Also please tell me if it works or does not work on your laptop.
 
@@ -927,6 +977,17 @@ A graphical GNOME applet uses `power-profiles-daemon` to change the power mode u
 
 For KDE, there is the graphical tool `powerdevil`, which also uses `power-profiles-daemon` internally.
 
+If KDE only shows `balanced` and `performance` in `/sys/firmware/acpi/platform_profile_choices` but the Legion device (for example `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`) includes `quiet`, check whether `lenovo_wmi_gamezone` is also loaded. If both providers are active, the global profile choices are the intersection of both providers and quiet mode might disappear. In that case, unload or blacklist `lenovo_wmi_gamezone` and keep `legion_laptop` as the single provider for power mode.
+
+Alternatively keep both drivers and let each do what the other cannot: load `legion_laptop` with `enable_platformprofile=0`, so it registers no platform-profile provider and leaves the power mode (`platform_profile`) and the power limits (`/sys/class/firmware-attributes/lenovo-wmi-other-*`) to the mainline drivers. Its own `powermode` and power-limit attributes stay available under the platform device; what the mainline drivers do not offer at all, and what you keep `legion_laptop` for, is the fan curve, the fan speeds and fan full speed. Put
+
+```text
+options legion_laptop enable_platformprofile=0
+softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other lenovo_wmi_events lenovo_wmi_capdata
+```
+
+into `/etc/modprobe.d/legion_laptop.conf`; the `softdep` line loads the mainline drivers first so they bind the WMI devices both drivers list. The mainline `custom` profile is the same firmware mode as `powermode` 255; select it through `/sys/class/platform-profile/platform-profile-N/profile` of the device named `lenovo-wmi-gamezone`, because the legacy `/sys/firmware/acpi/platform_profile` file refuses `custom` by design. Verified on a Legion Pro 5 16IRX8 with kernel 7.2.
+
 ### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
 
 First, try to [reset the embedded controller](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem) OR do a BIOS update/downgrade to reset everything.
@@ -997,7 +1058,7 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 
 ## :information_desk_person: Overview for Developers
 
-The software consists of two parts:
+The software consists of the following parts:
 
 - Kernel module in the `kernel_module` folder:
   - Accesses the embedded controller by writing to its memory
@@ -1008,6 +1069,10 @@ The software consists of two parts:
   - `legion.py`: A Python module to modify the fan curve and other settings from Python; Encapsulate reading and writing to the "files" provided by the above kernel module and other modules like `ideapad_laptop`; All changes from `legion_gui.py` and `legion_cli.py` goes through this Python module.
   - `legion_gui.py`: a GUI program that uses `legion.py` to change setttings.
   - `legion_cli.py`: a CLI program that uses `legion.py` to change setttings.
+- `legiond` daemon in the `extra/service/legiond` folder:
+  - A small C daemon (with its `legiond-ctl` helper) that watches power state/power profile changes and applies the matching fan curve preset, plus optional CPU/GPU power tweaks configured in `legiond.ini`.
+- SmartFan in the `extra/smartfan` folder:
+  - A standalone shell-based fan daemon for Legion 7 Gen 10+ laptops that only needs `acpi_call` instead of the full kernel module.
 
 ## Legal Matters
 

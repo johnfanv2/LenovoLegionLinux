@@ -1,3 +1,8 @@
 [build-system]
 requires = ['setuptools>=42']
 build-backend = 'setuptools.build_meta'
+
+[tool.black]
+# Match the line length enforced by pylintrc ([FORMAT] max-line-length=120).
+line-length = 120
+target-version = ['py36']

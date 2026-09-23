@@ -46,7 +46,7 @@ jobs:
       run: ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh
       shell: bash
     - name: Build
-      run: ./tests/test_kenel_dkms_install.sh || true
+      run: ./tests/test_kernel_dkms_install.sh
       shell: bash
 
   run-tests:
@@ -66,44 +66,28 @@ jobs:
         if: always()
         run: ./tests/test_python.sh
         shell: bash
+      - name: Build legiond
+        if: always()
+        run: ./tests/test_legiond_build.sh
+        shell: bash
       - name: Test python CLI
         if: always()
         run: ./tests/test_python_cli.sh
         shell: bash
-          #- name: Test python GUI
-          #if: always()
-          #run: ./tests/test_python_gui.sh
-          #shell: bash
+      - name: Test python GUI
+        if: always()
+        run: ./tests/test_python_gui.sh
+        shell: bash
+      - name: Test python GUI startup
+        if: always()
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python3 -m unittest discover -s tests -p test_gui_startup.py
+        shell: bash
       - name: Install python package
         if: always()
-        run: ./deploy/python_install_pip_pkg.sh
+        run: sudo ./deploy/python_install_pip_pkg.sh
         shell: bash
-
-  check-kernel-module-change:
-    needs: [build, run-kernel-module-test, run-kernel-dkms-install-test, run-tests]
-    runs-on: ubuntu-24.04
-    outputs:
-      output1: ${{ steps.filter.outputs.workflows }}
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dorny/paths-filter@v3
-      id: filter
-      with:
-        filters: |
-          workflows:
-            - 'kernel_module/*'
-
-  release-kernel-patch:
-    needs: [check-kernel-module-change]
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Build kernel patch
-      if: steps.check-kernel-module-change.workflows == 'true'
-      run: ./deploy/build_kernelpatch.sh
-      shell: bash
 
   test-in-docker-container:
     needs: [build, run-tests]

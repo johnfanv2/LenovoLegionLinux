@@ -1,4 +1,4 @@
-FROM fedora:39
+FROM fedora:41
 
 # does not work
 # FROM redhat/ubi9

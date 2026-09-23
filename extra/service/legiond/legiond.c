@@ -1,38 +1,85 @@
+#define _GNU_SOURCE /* struct ucred / SO_PEERCRED */
+
 #include "public.h"
-#include "modules/parseconf.h"
-#include "modules/setapply.h"
-#include "modules/powerstate.h"
 #include "modules/output.h"
+#include "modules/parseconf.h"
+#include "modules/powerstate.h"
+#include "modules/setapply.h"
 
-#define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <pthread.h>
 
-LEGIOND_CONFIG config;
+#define events_max 10
+#define BUF_LEN (events_max * (sizeof(struct inotify_event) + NAME_MAX + 1))
 
-int delayed = 0;
-bool triggered = false;
-int fd, client_fd, inotify_fd, maxfd;
-fd_set readfds;
-char buffer[BUF_LEN], ret[20];
-struct inotify_event *event = NULL;
+/* type-safe maximum for the select(2) fd set */
+#define max_fd(a, b)                \
+	({                          \
+		typeof(a) _a = (a); \
+		typeof(b) _b = (b); \
+		_a > _b ? _a : _b;  \
+	})
 
-void clear_socket()
+static LEGIOND_CONFIG config;
+static int delayed; /* user supplied fanset delay in seconds, 0 = none */
+static bool triggered; /* set_all has run since the last fanset command */
+static int server_fd = -1;
+static timer_t timerid;
+static long delay_s_default;
+static long delay_ns_default;
+
+/*
+ * Serializes access to config/delayed/triggered between the SIGEV_THREAD
+ * timer thread and the main loop (socket commands).  It also serializes
+ * hardware writes (set_all/set_cpu), which must never run concurrently.
+ */
+static pthread_mutex_t state_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static volatile sig_atomic_t terminate_requested;
+static int signal_pipe[2] = { -1, -1 };
+
+/* reload config, warning visibly when the file is missing or malformed */
+static void reload_config(void)
 {
-	if (access(socket_path, F_OK) != -1) {
+	if (parseconf(&config) != 0)
+		fprintf(stderr,
+			"legiond: failed to parse config, using defaults\n");
+}
+
+static void clear_socket(void)
+{
+	if (access(socket_path, F_OK) != -1)
 		remove(socket_path);
-	}
 }
 
-void term_handler(int signum)
+/* registered via atexit(): unlinks the socket on SIGTERM and normal exit */
+static void cleanup_socket(void)
 {
-	close(fd);
+	if (server_fd >= 0)
+		close(server_fd);
 	clear_socket();
-	exit(0);
 }
 
-void timer_handler(union sigval sigev_value)
+/*
+ * Async-signal-safe.  Only writes to the self-pipe and sets a flag; real
+ * cleanup happens when the main loop observes the pipe and returns.
+ */
+static void term_handler([[maybe_unused]] int signum)
+{
+	int saved_errno = errno;
+	ssize_t ignored = write(signal_pipe[1], "", 1);
+	(void)ignored;
+	errno = saved_errno;
+	terminate_requested = 1;
+}
+
+static void timer_handler([[maybe_unused]] union sigval sigev_value)
 {
 	pretty("config reload start");
-	parseconf(&config);
+	pthread_mutex_lock(&state_lock);
+	reload_config();
 	pretty("config reload end");
 	pretty("set_all start");
 	set_all(get_powerstate(), &config);
@@ -42,127 +89,310 @@ void timer_handler(union sigval sigev_value)
 
 	triggered = true;
 	pretty("set_all end");
+	pthread_mutex_unlock(&state_lock);
 }
 
-void set_timer(struct itimerspec *its, long delay_s, long delay_ns,
-	       timer_t timerid)
+static int set_timer(long delay_s, long delay_ns)
 {
-	its->it_value.tv_sec = delay_s;
-	its->it_value.tv_nsec = delay_ns;
-	its->it_interval.tv_sec = 0;
-	its->it_interval.tv_nsec = 0;
-	timer_settime(timerid, 0, its, NULL);
+	struct itimerspec its = {
+		.it_value = { .tv_sec = delay_s, .tv_nsec = delay_ns },
+		.it_interval = { 0 },
+	};
+	if (timer_settime(timerid, 0, &its, NULL) == -1) {
+		perror("timer_settime");
+		return -1;
+	}
+	return 0;
 }
 
-int main()
+/*
+ * Reads one fixed-size request without blocking forever when a client
+ * connects but stalls mid-transfer.  Caps the wait at a total of 5 s.
+ */
+static int recv_request(int fd, LEGIOND_REQUEST *request)
 {
+	size_t received = 0;
+	struct timespec deadline;
+	if (clock_gettime(CLOCK_MONOTONIC, &deadline) != -1)
+		deadline.tv_sec += 5;
+
+	while (received < sizeof(*request)) {
+		struct timespec now;
+		if (clock_gettime(CLOCK_MONOTONIC, &now) != -1 &&
+		    (now.tv_sec > deadline.tv_sec ||
+		     (now.tv_sec == deadline.tv_sec &&
+		      now.tv_nsec > deadline.tv_nsec)))
+			return -1;
+
+		struct pollfd pfd = { .fd = fd, .events = POLLIN };
+		int ready = poll(&pfd, 1, 2000);
+		if (ready == -1 && errno == EINTR)
+			continue;
+		if (ready <= 0)
+			return -1;
+
+		ssize_t n = recv(fd, (char *)request + received,
+				 sizeof(*request) - received, 0);
+		if (n <= 0)
+			return -1;
+		received += (size_t)n;
+	}
+	return 0;
+}
+
+/* only root may drive the fan/power hardware through the control socket */
+static bool is_root_peer(int fd)
+{
+	struct ucred cred = { 0 };
+	socklen_t len = sizeof(cred);
+
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1)
+		return false;
+	return cred.uid == 0;
+}
+
+static void handle_command(const LEGIOND_REQUEST *request)
+{
+	pthread_mutex_lock(&state_lock);
+	switch (request->cmd) {
+	case CMD_FANSET:
+		// delayed means user use legiond-ctl fanset with a parameter
+		triggered = false;
+		if (delayed > 0) {
+			printf("extend delay\n");
+			if (set_timer(delayed, 0) == -1)
+				delayed = 0;
+		} else if (request->delay_s <= 0) {
+			// <= 0 is an authoritative reset to the default delay
+			printf("reset timer\n");
+			if (set_timer(delay_s_default, delay_ns_default) ==
+			    -1) {
+				delayed = 0;
+				break;
+			}
+			delayed = 0;
+		} else {
+			printf("reset timer with delay %d s\n",
+			       request->delay_s);
+			if (set_timer(request->delay_s, 0) == -1) {
+				delayed = 0;
+				break;
+			}
+			delayed = request->delay_s;
+		}
+		break;
+	case CMD_CPUSET:
+		if (triggered == true) {
+			pretty("set_cpu start");
+			int result = set_cpu(get_powerstate(), &config);
+			if (result != 0)
+				printf("set_cpu failed: %d\n", result);
+			pretty("set_cpu end");
+		} else {
+			printf("do nothing\n");
+		}
+		break;
+	case CMD_RELOAD:
+		pretty("config reload start");
+		reload_config();
+		set_all(get_powerstate(), &config);
+		pretty("config reload end");
+		break;
+	default:
+		printf("do nothing\n");
+		break;
+	}
+	pthread_mutex_unlock(&state_lock);
+}
+
+int main(void)
+{
+	// refuse to run when another instance is already listening, so we
+	// never unlink a live daemon's socket
+	struct sockaddr_un probe_addr = {
+		.sun_family = AF_UNIX,
+	};
+	if (snprintf(probe_addr.sun_path, sizeof(probe_addr.sun_path), "%s",
+		     socket_path) >= (int)sizeof(probe_addr.sun_path)) {
+		fprintf(stderr, "socket path too long\n");
+		return 1;
+	}
+	auto_fd probe_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (probe_fd != -1 && connect(probe_fd, (struct sockaddr *)&probe_addr,
+				      sizeof(probe_addr)) == 0) {
+		fprintf(stderr,
+			"another legiond instance is already running\n");
+		return 1;
+	}
+
 	// remove socket before create it
 	clear_socket();
 
-	parseconf(&config);
+	reload_config();
 
 	// calculate delay
-	long delay_s = (int)delay;
-	long delay_ns = (int)((delay - (int)delay) * 1000000000);
+	delay_s_default = (long)default_delay;
+	delay_ns_default =
+		(long)((default_delay - delay_s_default) * 1'000'000'000);
 
 	// not blocking output
 	setbuf(stdout, NULL);
 
 	// init timer
-	timer_t timerid;
-	struct itimerspec its;
+	struct sigevent sev = {
+		.sigev_notify = SIGEV_THREAD,
+		.sigev_notify_function = timer_handler,
+		.sigev_value = { .sival_ptr = &timerid },
+		.sigev_notify_attributes = NULL,
+	};
 
-	struct sigevent sev;
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_notify_function = timer_handler;
-	sev.sigev_value.sival_ptr = &timerid;
-	sev.sigev_notify_attributes = NULL;
-
-	timer_create(CLOCK_REALTIME, &sev, &timerid);
-
-	// init socket
-	fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	struct sockaddr_un addr;
-	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, socket_path);
-
-	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-		exit(1);
+	if (timer_create(CLOCK_REALTIME, &sev, &timerid) == -1) {
+		perror("timer_create");
+		return 1;
 	}
 
-	listen(fd, 5);
+	if (atexit(cleanup_socket) != 0) {
+		fprintf(stderr, "failed to register socket cleanup\n");
+		return 1;
+	}
+
+	// init socket
+	server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (server_fd == -1) {
+		perror("socket");
+		return 1;
+	}
+
+	struct sockaddr_un addr = {
+		.sun_family = AF_UNIX,
+	};
+	if (snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path) >=
+	    (int)sizeof(addr.sun_path)) {
+		fprintf(stderr, "socket path too long\n");
+		return 1;
+	}
+
+	if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+		return 1;
+	}
+
+	if (listen(server_fd, 5) == -1) {
+		perror("listen");
+		return 1;
+	}
 
 	// run fancurve-set on startup
-	set_timer(&its, delay, 0, timerid);
+	if (set_timer(delay_s_default, delay_ns_default) == -1)
+		return 1;
+
+	// self-pipe to wake the select loop from the signal handler
+	if (pipe(signal_pipe) == -1) {
+		perror("pipe");
+		return 1;
+	}
+	for (int i = 0; i < 2; i++) {
+		int flags = fcntl(signal_pipe[i], F_GETFL, 0);
+		if (flags == -1 ||
+		    fcntl(signal_pipe[i], F_SETFL, flags | O_NONBLOCK) == -1) {
+			perror("fcntl");
+			return 1;
+		}
+	}
 
 	// setup SIGTERM handler
-	struct sigaction action;
-	memset(&action, 0, sizeof(action));
-	action.sa_handler = term_handler;
+	struct sigaction action = {
+		.sa_handler = term_handler,
+	};
 	sigaction(SIGTERM, &action, NULL);
 
 	// inotify power-state/power-profile watcher
-	inotify_fd = inotify_init();
-	inotify_add_watch(inotify_fd, profile_path, IN_MODIFY);
-	inotify_add_watch(inotify_fd, ac_path, IN_MODIFY);
+	auto_fd inotify_fd = inotify_init();
+	if (inotify_fd == -1) {
+		perror("inotify_init");
+		return 1;
+	}
+	if (inotify_add_watch(inotify_fd, profile_path, IN_MODIFY) == -1)
+		perror("inotify_add_watch profile_path");
+	if (inotify_add_watch(inotify_fd, ac_path, IN_MODIFY) == -1)
+		perror("inotify_add_watch ac_path");
+	/*
+	 * Not all systems expose ADP0; get_powerstate() falls back to the
+	 * ACAD path (ac_path_alt), so watch it too. ENOENT is expected on
+	 * systems where the primary path exists.
+	 */
+	if (inotify_add_watch(inotify_fd, ac_path_alt, IN_MODIFY) == -1 &&
+	    errno != ENOENT)
+		perror("inotify_add_watch ac_path_alt");
+
+	auto_free char *buffer = malloc(BUF_LEN);
+	if (buffer == NULL) {
+		perror("malloc");
+		return 1;
+	}
 
 	// listen
-	while (1) {
+	while (!terminate_requested) {
+		fd_set readfds;
 		FD_ZERO(&readfds);
-		FD_SET(fd, &readfds);
+		FD_SET(server_fd, &readfds);
 		FD_SET(inotify_fd, &readfds);
+		FD_SET(signal_pipe[0], &readfds);
 
-		maxfd = (fd > inotify_fd) ? fd : inotify_fd;
+		int maxfd = max_fd(server_fd, inotify_fd);
+		maxfd = max_fd(maxfd, signal_pipe[0]);
 
-		select(maxfd + 1, &readfds, NULL, NULL, NULL);
+		if (select(maxfd + 1, &readfds, NULL, NULL, NULL) == -1) {
+			if (terminate_requested || errno == EINTR)
+				continue;
+			perror("select");
+			break;
+		}
 
-		if (FD_ISSET(fd, &readfds)) {
-			client_fd = accept(fd, NULL, NULL);
-			memset(ret, 0, sizeof(ret));
-			recv(client_fd, ret, sizeof(ret), 0);
-			printf("cmd: \"%s\" received\n", ret);
-			close(client_fd);
-
-			if (ret[0] == 'A') {
-				// delayed means user use legiond-ctl fanset with a parameter
-				triggered = false;
-				if (delayed) {
-					printf("extend delay\n");
-					set_timer(&its, delayed, 0, timerid);
-				} else if (ret[1] == '0') {
-					printf("reset timer\n");
-					set_timer(&its, delay_s, delay_ns,
-						  timerid);
-				} else {
-					printf("reset timer with delay\n");
-					int delay;
-					sscanf(ret, "A%d", &delay);
-					set_timer(&its, delay, 0, timerid);
-					delayed = delay;
-				}
-			} else if (ret[0] == 'B' && triggered == true) {
-				pretty("set_cpu start");
-				set_cpu(get_powerstate(), &config);
-				pretty("set_cpu end");
-			} else if (ret[0] == 'R') {
-				pretty("config reload start");
-				parseconf(&config);
-				set_all(get_powerstate(), &config);
-				pretty("config reload end");
-			} else {
-				printf("do nothing\n");
+		if (FD_ISSET(signal_pipe[0], &readfds)) {
+			char discard[64];
+			while (read(signal_pipe[0], discard, sizeof(discard)) >
+			       0) {
 			}
+			break;
+		}
+
+		if (FD_ISSET(server_fd, &readfds)) {
+			auto_fd client_fd = accept(server_fd, NULL, NULL);
+			if (client_fd == -1)
+				continue;
+
+			if (!is_root_peer(client_fd)) {
+				printf("ignoring request from unprivileged client\n");
+				continue;
+			}
+
+			LEGIOND_REQUEST request = { 0 };
+			if (recv_request(client_fd, &request) != 0) {
+				printf("ignoring malformed request\n");
+				continue;
+			}
+			if (request.magic != protocol_magic) {
+				printf("ignoring request with bad magic\n");
+				continue;
+			}
+
+			printf("cmd: %s received\n", cmd_name(request.cmd));
+			handle_command(&request);
 		}
 
 		if (FD_ISSET(inotify_fd, &readfds)) {
-			int lengh = read(inotify_fd, buffer, BUF_LEN);
+			ssize_t length = read(inotify_fd, buffer, BUF_LEN);
+			if (length <= 0)
+				continue;
+
 			char *p = buffer;
-			while (p < buffer + lengh) {
-				event = (struct inotify_event *)p;
+			while (p < buffer + length) {
+				struct inotify_event *event =
+					(struct inotify_event *)p;
 				if (event->mask & IN_MODIFY) {
 					pretty("power-state/power-profile change");
 					// as we used to use A3 in acpid cfg
-					set_timer(&its, 3, 0, timerid);
+					set_timer(3, 0);
 				}
 				p += sizeof(struct inotify_event) + event->len;
 			}

@@ -34,10 +34,6 @@
 
 **本项目与联想(Lenovo)官方无任何关联**  
 
-<!-- # 如果您拥有2022或2023款机型，请协助测试新功能[点击此处](https://github.com/johnfanv2/LenovoLegionLinux/issues/46)  
-
-# 如果您的设备带有顶盖Y字logo灯或IO接口指示灯（所有Legion 7机型），请协助测试灯光控制[点击此处](https://github.com/johnfanv2/LenovoLegionLinux/issues/54) -->  
-
 Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的Linux驱动和工具集，可作为Windows专属的"Lenovo Vantage"和"Legion Zone"控制软件的替代方案。  
 
 通过逆向工程和反汇编ACPI固件、嵌入式控制器(EC)的固件与内存，本项目实现了以下功能控制：  
@@ -59,7 +55,8 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
     <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="风扇曲线界面">
     <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="传感器监控">
     <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="性能模式">
-</p>  
+</p>
+
 - [x] 占用内存和 CPU 极小，无遥测
 - [x] 可完全通过脚本或命令行控制
 - [x] 替代 Lenovo Vantage 的简单 GUI：风扇曲线、Fn 锁、Win 键、触控板电源、摄像头电源、电池养护、快速充电、始终开启 USB 充电输出、显示器超频、Y-Logo 灯光、IO 端口灯光、混合模式 (GSync)、CPU/GPU 超频：
@@ -75,13 +72,15 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
   - 分别设置风扇加速和减速的响应参数
   - 支持不同模式下的预设保存与加载
 - [x] 锁定和解锁风扇控制器与风扇转速
+- [x] 在受支持的机型上解除固件风扇转速上限（`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`）。在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。该功能通过 `WMAA(0, 0x0D, 0x01)` 发现 —— 见 issue #429。此 sysfs 节点由 `has_fan_unlock` 机型/BIOS 白名单控制，仅在经过验证的固件上暴露（目前为 KWCN54WW）。
 - [x] 通过软件切换电源模式（静音、平衡、高性能）
   - 现在可在系统设置中通过软件切换
   - 也可通过 `Fn+Q` 切换
   - 根据桌面环境，可实现如在电池下自动切入静音模式，接电源时自动切入高性能模式（如 KDE 的节能设置）
-  - 可根据电源配置文件自动切换不同风扇曲线（见：[ Lenovo Legion Linux 守护进程（legiond）](# Lenovo Legion Linux 守护进程（legiond）)）
+  - 可根据电源配置文件自动切换不同风扇曲线（见：[Lenovo Legion Linux 守护进程（legiond）](#lenovo-legion-linux-守护进程legiond)）
 - [x] 通过新增的传感器监控风扇转速和温度（CPU、GPU、IC）
 - [x] 启用或禁用在长时间低温下自动切换为“迷你风扇曲线”
+- [x] **SmartFan** —— 面向 Legion 7 Gen 10+ 的轻量级 shell 风扇守护进程，基于 `acpi_call`（无需完整内核模块）。4 种模式、平滑调速、LED 同步、TUI 切换器。见 [`extra/smartfan/`](extra/smartfan/)
 
 ---
 
@@ -114,11 +113,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 ## :pushpin: 已确认兼容的型号
 
-# 如果你拥有2022或2023年的机型，请在[这里](https://github.com/johnfanv2/LenovoLegionLinux/issues/46)帮助测试新功能。
-
-# 如果你的笔记本在A面（Y标志）或接口区（所有Legion 7）有灯，请在[这里](https://github.com/johnfanv2/LenovoLegionLinux/issues/54)帮助测试灯控功能。
-
-**其他2020至2023年的联想拯救者机型大概率也能兼容。以下为已确认可用的具体型号。如果你的BIOS版本前缀相同，例如EFCN（如EFCN54WW），那很可能也能兼容。如果你想确认你的型号是否可用，或发现不可用，请提交issue。**
+**从 2020 年到最新的 2025 款联想拯救者机型大概率都能兼容 —— 本驱动仍在积极维护中，新机型会持续加入。以下为已确认可用的具体型号。如果你的 BIOS 版本前缀相同，例如 EFCN（如 EFCN54WW），那很可能也能兼容。如果你想确认你的型号是否可用，或发现不可用，请提交 issue。**
 
 - 联想拯救者 5 15IMH05, 15IMH05H（BIOS EFCN54WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 5 15ACH6H（BIOS GKCN58WW 或 GKCN57WW），第六代：传感器、风扇曲线、电源配置
@@ -136,6 +131,20 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 5 17ACH6（BIOS HHCN31WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7i 16ITHG6（BIOS H1CN35WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 7 Pro 16ARX8H（BIOS LPCN47WW）：传感器、风扇曲线、电源配置
+- 联想拯救者 Pro 5 16ARX8 (82WM)（BIOS LPCN65WW）：传感器、风扇曲线（仅速度点，见下方 LPCN 说明）、电源配置
+- 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
+- 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
+- 联想拯救者 Pro 5 16IRX8（82WK，BIOS KWCN54WW）：传感器、风扇曲线（0-10 等级索引，自定义电源模式）、电源配置、通过 Other Method WMI 路径的功耗限制与风扇全速；风扇曲线已在 Linux 自定义电源模式下验证（9 级 → 4400/4600 RPM，10 级 → 5400/5400 RPM）
+- 联想拯救者 Pro 7 16IAX10H（83F5，BIOS Q7CN78WW），第十代：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、无键盘/灯光控制；已在 Linux 上验证（进入自定义模式、写入风扇表点并从 EC RAM 读回）；详见 [Q7CN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
+- 联想拯救者 Pro 5 16ADR10（83LT，BIOS RLCN31WW），第十代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光与 Y 型 Logo 灯、风扇全速（仅限自定义模式）；基于 issue #445 的 DSDT 分析启用，真机验证进行中；详见 [RLCN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-5-16adr10-83lt-rlcn)
+- 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
+- 联想拯救者 5 16IAX10（83NX，BIOS Q6CN32WW），第十代（Intel）：通过 WMI3 提供的功耗限制属性（`cpu_temperature_limit`、`cpu_l1_tau`、`gpu_power_target_offset`、长/短期功耗限制）；风扇曲线读取正常，但自定义电源模式目前无法激活（已知问题）；已在 Linux 上历经五次重载、一次 main 合并及一次 BIOS 更新验证；详见 [Q6CN 说明](doc/FEATURES_AND_TESTING.md#legion-5-16iax10-83nx-q6cn)
+- 联想拯救者 Pro 5 16IAX10H（83LU，BIOS Q6CN26WW），第十代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、白色键盘背光、风扇全速（仅限自定义模式）；WMI 固件布局与上方 83F5 Q7CN 相同，基于 issue #337 的 DSDT 分析与已验证读数启用，真机验证进行中；详见 [83LU 说明](doc/FEATURES_AND_TESTING.md#legion-pro-5-16iax10h-83lu-q6cn)
+- 联想拯救者 5 15AHP10（83M0，BIOS RGCN27WW），第十代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光、风扇全速（仅限自定义模式）；经 DSDT 验证为上方 83LT RLCN 的同胞机型（issue #373），真机验证进行中；详见 [RGCN 说明](doc/FEATURES_AND_TESTING.md#legion-5-15ahp10-83m0-rgcn)
+- 联想拯救者 Pro 5 16IAX10（83F3，BIOS Q6CN79WW），第十代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光、风扇全速（仅限自定义模式）；经 DSDT 验证为上方 83LU Q6CN 的拯救者 Pro 5 同胞机型（issue #471），真机验证进行中；详见 [83F3 说明](doc/FEATURES_AND_TESTING.md#legion-pro-5-16iax10-83f3-q6cn)
+- 联想 LOQ 15IRX10（83JE，BIOS R3CN），第十代（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、键盘背光、风扇全速（仅限自定义模式）。R3CN44WW 的 EC3 曲线写入已在 [#535](https://github.com/johnfanv2/LenovoLegionLinux/issues/535) 中经过负载验证；不支持的加/减速、minifancurve 和风扇控制器锁定选项已隐藏。该机型不受 WMI 风扇等级限制；详见 [R3CN 说明](doc/FEATURES_AND_TESTING.md#loq-15irx10-83je-r3cn)。
+
+还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
 
 *注：未确认的功能大概率也能使用，只是暂无测试。*
 
@@ -143,7 +152,16 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 - BIOS为HACN*的Legion机型，如S7-15ACH6：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
 - Legion Y530和Legion Y540：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
-- 大部分Legion第8代（2023年）
+
+## :handshake: 参与贡献
+
+**非常欢迎提交 PR！** 只提 issue 虽然也有帮助，但开发者手头没有你的硬件，能做的事情非常有限 —— 尤其是“在我的机型上无法使用”这类报告。如果条件允许，请尝试自己动手修复：
+
+1. 克隆仓库并在本地修改代码（例如把你的机型加入 `kernel_module/legion-laptop.c` 的 DMI 白名单）。借助常用的 AI 编程工具会更轻松 —— 仓库自带 [AGENTS.md](AGENTS.md)，里面有专门为 AI 准备的构建和测试说明。
+2. 在你自己的电脑上测试，直到功能正常（验证命令见 [AGENTS.md](AGENTS.md) 及本 README 的测试章节）。
+3. 发起 Pull Request，并在描述中引用相关 issue。
+
+本项目中大部分机型的支持正是通过这种方式加入的。另请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## :warning: 免责声明
 
@@ -203,6 +221,8 @@ sudo zypper install dkms openssl mokutil
 
 ```bash
 sudo pacman -S linux-headers base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect
+# 仅用于 clang 编译的内核（例如 CachyOS）；Makefile 会自动以 LLVM=1 构建
+sudo pacman -S clang llvm lld
 # 如需通过 DKMS 安装，请安装以下包
 sudo pacman -S dkms openssl mokutil
 ```
@@ -225,6 +245,8 @@ cd LenovoLegionLinux/kernel_module
 make
 sudo make reloadmodule
 ```
+
+*注意：* 在使用 clang 编译的内核上（`CONFIG_CC_IS_CLANG=y`，例如 CachyOS），Makefile 会自动检测并在内核构建中传入 `LLVM=1`（`make`、`make install` 与 DKMS 均适用）；请先安装 `clang`、`llvm` 和 `lld`。
 
 **更多详细说明、问题和测试请见下方的 `首次使用测试` 部分，请务必先进行这些测试再进行永久安装。**
 
@@ -306,7 +328,7 @@ reboot
 请注意：
 
 - 请按给定顺序测试；在继续下一个之前请先尝试修复失败的测试。
-- 这些测试是手动在终端中进行的，因为这是该工具的早期版本。
+- 这些测试需在终端中手动进行。
 - 你可以复制并粘贴命令。在终端内使用 `Ctrl+Shift+V` 粘贴。
 
 ### 快速测试：模块是否正确加载
@@ -375,9 +397,9 @@ u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|decele
 风扇曲线以表格形式展示，列说明如下：
 
 ```text
-u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM）
-speed1[u]: fan1 在该点的速度（rpm 除以 100）
-speed2[u]: fan2 在该点的速度（rpm 除以 100）
+u(speed_of_unit): 风扇速度的单位（1-百分比, 2-PWM, 3-RPM/100, 4-百分比、四舍五入, 5-固件风扇表等级索引 0-10）
+speed1[u]: fan1 在该点的速度（单位由 u 决定）
+speed2[u]: fan2 在该点的速度（单位由 u 决定）
 speed1[pwm]: fan1 在该点的 pwm（0-255）
 speed2[pwm]: fan2 在该点的 pwm（0-255）
 acceleration: 加速时间（数值越大越慢）
@@ -450,14 +472,16 @@ sensors
 # 获取 root 权限
 sudo su
 # 以 root 身份输入：
+# hwmon 目录名随内核版本变化（7.0 之前为 PNP0C09:00，7.0+ 为 legion），通过 hwmon 名称定位：
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
 # 第2点，第1风扇（大约 1500 rpm 的 pwm 值）
-echo 38 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point2_pwm
+echo 38 > $H/pwm1_auto_point2_pwm
 # 第2点，第2风扇（大约 1600 rpm 的 pwm 值）
-echo 40 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point2_pwm
+echo 40 > $H/pwm2_auto_point2_pwm
 # 第3点，第1风扇（大约 1700 rpm 的 pwm 值）
-echo 43 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm1_auto_point3_pwm
+echo 43 > $H/pwm1_auto_point3_pwm
 # 第3点，第2风扇（大约 1800 rpm 的 pwm 值）
-echo 45 > /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon/hwmon*/pwm2_auto_point3_pwm
+echo 45 > $H/pwm2_auto_point3_pwm
 
 # 读取当前风扇曲线并检查更改是否生效
 cat /sys/kernel/debug/legion/fancurve
@@ -467,6 +491,7 @@ cat /sys/kernel/debug/legion/fancurve
 
 - 如果你按下 Ctrl+Q（或某些设备的 FN+Q）更改电源模式，或等待时间过长，控制器可能会加载默认值；此时请重试
 - 风扇曲线中的对应条目值应被设置为你输入的数值，其它值不相关（用 XXXX 表示）
+- 在 Legion Zone v3 固件上（例如 Legion Pro 5 16IRX8，BIOS KWCN），风扇表保存的是 0-10 的风扇等级（`u` = 5）：写入的 pwm 会四舍五入到最近的等级（写入 0、26、51 … 255），读回时为 `level * 255 / 10`（0、25、51、76、102、127、153、178、204、229、255）；第 9、10 点至少需要 pwm 64 和 115，低于某点最小值的写入会返回 `Operation not supported`。在这些机型上，Python 工具（`legion_cli`、`legion_gui` 以及 `legiond` 预设）会把 RPM 值转换为最接近的固件等级（例如 4400 rpm → 9 级），并把 0 rpm 的点提升到该点的最低等级，因此现有预设仍可使用。转换所用的每级 RPM 阶梯在运行时从驱动提供的 `fan1_level_rpm_table`/`fan2_level_rpm_table` 平台属性读取（由固件的 `LENOVO_FAN_TABLE_DATA` WMI 数据块填充），并非硬编码。这些机型（KWCN、Q7CN、RLCN）不会暴露 `fan_maxspeed`（Fan Method 3/4 号方法）：固件未实现这两个方法，该属性无法工作（在 KWCN 上读取只得到无意义的 0）；`fan_control.sh` 在该属性不存在时会跳过它
 
 ```
 u(speed_of_unit)|speed1[u]|speed2[u]|speed1[pwm]|speed2[pwm]|acceleration|deceleration|cpu_min_temp|cpu_max_temp|gpu_min_temp|gpu_max_temp|ic_min_temp|ic_max_temp
@@ -521,6 +546,9 @@ psensor
 
 ### 使用 Python GUI 更改和设置自定义风扇曲线
 
+对于支持传感器但不支持自定义风扇曲线的机型，GUI 启动时会跳过风扇曲线读取，
+并禁用风扇曲线的读取和应用按钮。仍可在“Other Options”中使用机型支持的设置。
+
 以 root 身份启动 GUI
 
 ```bash
@@ -533,6 +561,7 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 </p>
 
 - 点击 `Read from HW` 可以读取并显示保存在硬件中的当前风扇曲线。
+- 如果内核模块已加载，启动时会自动读取当前风扇曲线；否则曲线初始为空，`Read from HW` 按钮不可用。
 - 你可以编辑风扇曲线的各项数值。只有点击 `Apply to HW` 后，修改才会写入硬件并生效。
 - 点击 `Apply to HW` 可将当前显示的风扇曲线写入硬件并激活。
 - 你可以将风扇曲线保存为预设或从预设加载。通过下拉菜单选择预设，然后点击 `Load from Preset` 或 `Save to preset`。
@@ -596,7 +625,6 @@ sudo cat /sys/kernel/debug/legion/fancurve
 注意事项：
 
 - **如果你想重置风扇曲线，只需按下 Ctrl+Q 或 Fn+Q 切换电源模式，或重启系统即可恢复默认。**
-- 目前没有可用的 GUI。
 - 目前，硬件可能会随机重置风扇曲线，或者在你更换电源模式、挂起、重启时重置。此时只需重新运行脚本即可。
 - 你可以为不同的使用场景创建不同的脚本。只需复制脚本并调整相关数值即可。
 
@@ -687,19 +715,21 @@ echo balanced-performance > /sys/firmware/acpi/platform_profile
 
 ### Lenovo Legion Linux 守护进程（legiond）
 
-LLL 守护进程支持 Systemd 和 OpenRC（实验性）。  
-如果你是手动安装 LLL（不是通过包管理器），可能需要在 extra 文件夹里运行 [systemd_install.sh](extra/systemd_install.sh)。
+LLL 守护进程（`legiond`）是一个小型 C 程序（见 [extra/service/legiond](extra/service/legiond/)），支持 Systemd 和 OpenRC（实验性）。  
+如果你是手动安装 LLL（不是通过包管理器），需要自行编译 `legiond`（在 [extra/service/legiond](extra/service/legiond/) 目录下运行 `make`，依赖 `libinih`），并手动安装二进制文件、service 文件和示例配置 —— 具体步骤见 [README.org](extra/service/legiond/README.org)。
 
 该守护进程可以根据电源模式和是否插电，自动切换 GUI 中设定的风扇曲线配置文件。  
 可用的配置文件如下：
 
 - quiet-battery - 电池供电下安静模式风扇配置
-- balance-battery - 电池供电下平衡模式风扇配置
+- balanced-battery - 电池供电下平衡模式风扇配置
 - balanced-performance-battery - 电池供电下自定义模式风扇配置
+- performance-battery - 电池供电下高性能模式风扇配置
 - quiet-ac - 充电器供电下安静模式风扇配置
-- balance-ac - 充电器供电下平衡模式风扇配置
+- balanced-ac - 充电器供电下平衡模式风扇配置
 - balanced-performance-ac - 充电器供电下自定义模式风扇配置
 - performance-ac - 充电器供电下高性能模式风扇配置
+- extreme-ac - 充电器供电下极致模式风扇配置
 
 示例配置文件在 [这里](extra/service/profiles)，也可以通过 GUI 便捷设置：
 
@@ -729,12 +759,28 @@ LLL 守护进程支持 Systemd 和 OpenRC（实验性）。
     - tdp_bat_b - 电池平衡模式下 GPU TDP
     - tdp_ac_b - 充电器平衡模式下 GPU TDP
     - tdp_ac_p - 充电器高性能模式下 GPU TDP
-  - 注意：.env 文件中的默认值来自 RTX 3070
+  - 注意：`legiond.ini` 文件中的默认值来自 RTX 3070
 
-注意：`legiond.service` 依赖于 `acpid.service`，启用 `legiond.service` 时会自动启动 `acpid.service`。  
+注意：`legiond` 现在通过 inotify 直接监听电源状态/电源配置的变化，不再依赖 `acpid.service`。  
 如果你的 CPU 调优经常被重置为默认值，请启用 `legiond-cpuset.timer` 来覆盖它。
 
 详细见 [README.org](extra/service/legiond/README.org)
+
+---
+
+### 解除固件风扇转速上限（fan unlock）
+
+在受支持的机型上，固件会将风扇最大转速限制在硬件实际能力之下。`fan_unlock` sysfs 属性可以解除该限制。它仅在经过验证的机型/BIOS 组合上暴露（见 `kernel_module/legion-laptop.c` 中的 `has_fan_unlock` 白名单）；在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。
+
+```bash
+# 查看状态 / 启用 / 禁用
+sudo legion_cli fan-unlock-status
+sudo legion_cli fan-unlock-enable
+sudo legion_cli fan-unlock-disable
+
+# 或直接通过 sysfs
+cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
+```
 
 ---
 
@@ -788,6 +834,11 @@ LLL 守护进程支持 Systemd 和 OpenRC（实验性）。
 由于硬件固件的限制，部分问题无法修复：
 
 - 风扇曲线的点数无法更改（性能模式下为 10 点，其它模式为 9 点），但你可以通过将温度限制设置为 127 来实际禁用某些点，在写入 `auto_points_size` 时已经采用了这种方式。
+- 在使用 WMI3 风扇表的机型上（LPCN 系列，如拯救者 Pro 5 16ARX8 / 拯救者 7 Pro 16ARX8H，以及 EC 0x5508 代际：Legion 7 16IAX10 83KY/RXCN、Legion 5 16IAX10 83NX/Q6CN、Legion 5 15IAX10 83F0/S2CN、Legion Pro 5 16AFR10 83F2/RECN、Legion 5 15AHP10 83M0/RGCN、Legion Pro 5 16IAX10 83F3/Q6CN，以及上述 Q7CN/RLCN/83LU 机型），WMI 方法只传输每个曲线点的风扇**速度**：温度阈值、第二个风扇的速度以及加/减速值无法通过 WMI 读取或写入（回读始终为 0）。在这些使用 WMI3 的 0x5508 机型上，速度值是 **1-10 风扇等级**而非百分比——把百分比值写入等级字节与该代际的热关机报告相符，因此内核模块在这些机型上只暴露速度属性并将其按等级处理；EC 继续使用自己的固件温度阈值。已在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上确认，并经 0x5508 各机箱的 DSDT 分析证实（issue #491）；LPCN 系列其余机型（如 LPCN47WW）暂按推测适用，待相关用户确认。[#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
+- 对于基于等级的 WMI 曲线，GUI/CLI 中的 RPM 请求会取整到固件等级，并受驱动每个曲线点的最低等级约束，零 RPM 请求也不例外。原生 RPM 曲线（包括 R3CN 的 EC3 曲线）仍支持零 RPM，且不会被量化为 WMI 等级。只读属性 `fancurve_speed_unit` 标明当前曲线单位（`rpm`、`percent` 或 `level`）；固件 RPM 等级表仅向等级曲线提供，不再取决于是否支持恢复默认曲线。用户空间每次读取或应用曲线都会重新读取校准表；百分比后端也能正确回读对应的百分比档位，不再因二次取整而降低转速。校准数据缺失或无效时拒绝 RPM 写入，不会猜测线性换算；GUI 保留监控功能，可通过 Read from HW 重试。请同时更新内核模块和用户空间程序，以便明确识别单位。
+- Legion 5 15AHP11（83Q7，T2CN）的 WMI 曲线使用共享**等级**，不是百分比。SFAN 写入和 RPM 校准使用实时热模式，而不是保存的电源配置请求；极限模式下或无法读取模式时，会拒绝曲线写入/恢复默认值。固件 RPM 表中的零转速和重复值保留原有索引，删除首项零值会造成转速映射错位。详见 [T2CN 固件证据和验证方法](doc/FEATURES_AND_TESTING.md#legion-5-15ahp11-83q7-t2cn)。
+- 风扇曲线字段按实际访问方法的实现能力暴露，而不是按 EC 芯片 ID 推断。EC2 保留 CPU/GPU 温度和 8 个曲线点，EC3 保留全部温度字段，EC4 保留 CPU/GPU 温度上限；三者均不支持设置加/减速。所有 WMI3 曲线仅提供共享速度表。GUI 逐项禁用不支持的字段，不会一并禁用可用的温度设置。固定长度曲线的 `auto_points_size` 为只读；不会访问未映射的 minifancurve/控制器锁定寄存器。详见[能力验证](doc/FEATURES_AND_TESTING.md#fan-curve-capability-and-unit-checks)。
+- 在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上，固件的 `max-power` 模式并非提升功耗限制，而是会**立即断电**（硬关机，无正常关机流程），还可能将 EC 的电池充电模式从养护模式重置为快充。因此内核模块在该机型上不将 `max-power` 作为平台配置文件选项暴露；安全的配置文件为 quiet/balanced/performance/custom。
 
 ## :clap: 鸣谢
 
@@ -810,6 +861,7 @@ LLL 守护进程支持 Systemd 和 OpenRC（实验性）。
 * [normaneye](https://github.com/normaneye)，修复了 GUI 中的 GPU 温度显示问题
 * [Petingoso](https://github.com/Petingoso)，修复了脚本无需 sudo 即可运行的问题
 * [XenHat](https://github.com/XenHat)，修正了 README 文档
+* [Hishammm0](https://github.com/Hishammm0)，Legion Pro 5 16IRX8（KWCN）风扇等级、内核 7.x ACPI 探测修复、clang 构建支持
 
 如果你的笔记本支持或者不支持本项目，请也告知我们。
 
@@ -817,6 +869,9 @@ LLL 守护进程支持 Systemd 和 OpenRC（实验性）。
 
 #### Plasma Vantage
 PlasmaVantage 是 KDE 的一个 Plasma 小部件，是 Lenovo Legion Linux 内核模块的替代 GUI。可在 [KDE 商店](https://store.kde.org/p/2150610/)获取，源码见 [这里](https://gitlab.com/Scias/plasmavantage)。
+
+#### CinnamonVantage
+CinnamonVantage 是 Cinnamon 桌面的一个小程序（Applet），是 LenovoLegionLinux 内核模块的替代 GUI。可在 [Mint 商店](https://cinnamon-spices.linuxmint.com/applets/view/395)获取，源码见 [这里](https://github.com/linuxmint/cinnamon-spices-applets/tree/master/cinnamonvantage@garlayntoji)。
 
 ## :interrobang: 常见问题解答
 
@@ -948,6 +1003,17 @@ GNOME 的图形小程序会用 `power-profiles-daemon` 以软件方式切换电�
 
 对于 KDE，有图形工具 `powerdevil`，其内部同样利用 `power-profiles-daemon`。
 
+如果 KDE 在 `/sys/firmware/acpi/platform_profile_choices` 中只显示 `balanced` 和 `performance`，但 Legion 设备（例如 `/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/platform-profile/platform-profile-1/choices`）包含 `quiet`，请检查是否同时加载了 `lenovo_wmi_gamezone`。如果两个驱动同时处于活动状态，全局可选模式会取两者的交集，quiet 模式可能会消失。此时可卸载或拉黑（blacklist）`lenovo_wmi_gamezone`，让 `legion_laptop` 成为唯一的电源模式提供者。
+
+另一种做法是同时保留两个驱动、各司其职：以 `enable_platformprofile=0` 加载 `legion_laptop`，它便不再注册电源模式提供者，把电源模式（`platform_profile`）和功耗限制（`/sys/class/firmware-attributes/lenovo-wmi-other-*`）交给主线驱动。它自身的 `powermode` 与功耗限制属性仍在平台设备下可用；主线驱动完全不提供、也正是保留 `legion_laptop` 的原因，是风扇曲线、风扇转速和风扇全速。将
+
+```text
+options legion_laptop enable_platformprofile=0
+softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other lenovo_wmi_events lenovo_wmi_capdata
+```
+
+写入 `/etc/modprobe.d/legion_laptop.conf`；`softdep` 行会先加载主线驱动，让它们先绑定两个驱动都声明的 WMI 设备。主线的 `custom` 配置与 `powermode` 255 是同一个固件模式；请通过名为 `lenovo-wmi-gamezone` 的设备的 `/sys/class/platform-profile/platform-profile-N/profile` 选择它，因为旧的 `/sys/firmware/acpi/platform_profile` 文件按设计拒绝 `custom`。已在 Legion Pro 5 16IRX8、内核 7.2 上验证。
+
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
 首先，尝试[重置嵌入式控制器](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem)或进行 BIOS 升级/降级来重置所有设置。
@@ -1020,7 +1086,7 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 
 ## :information_desk_person: 开发者概览
 
-本软件包含两部分：
+本软件包含以下几个部分：
 
 - `kernel_module` 文件夹下的内核模块：
   - 通过写入内存访问嵌入式控制器（EC）
@@ -1030,6 +1096,12 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
   - `legion.py`：用于从 Python 修改风扇曲线及其他设置的模块；封装了对上述内核模块及 `ideapad_laptop` 等模块提供的“文件”的读写；所有来自 `legion_gui.py` 和 `legion_cli.py` 的设置更改都通过本模块完成。
   - `legion_gui.py`：一个基于 `legion.py` 的图形界面（GUI）程序，用于更改设置。
   - `legion_cli.py`：一个基于 `legion.py` 的命令行（CLI）程序，用于更改设置。
+
+- `extra/service/legiond` 文件夹下的 `legiond` 守护进程：
+  - 一个小型 C 守护进程（附带 `legiond-ctl` 辅助工具），监听电源状态/电源配置变化并应用对应的风扇曲线预设，还可通过 `legiond.ini` 配置可选的 CPU/GPU 功耗调整。
+
+- `extra/smartfan` 文件夹下的 SmartFan：
+  - 一个独立的 shell 风扇守护进程，面向 Legion 7 Gen 10+ 机型，仅需 `acpi_call`，无需完整内核模块。
 
 ## 法律声明
 

@@ -1,19 +1,18 @@
 #include "output.h"
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
-void pretty(char *msg)
+void pretty(const char *msg)
 {
-	int len = strlen(msg);
-	len = len > 30 ? len : 30;
+	size_t len = strlen(msg);
+	size_t width = len > 30 ? len : 30;
+
 	printf("\033[1m");
-	for (int i = 0; i < len / 2; i++) {
+	for (size_t i = 0; i < width / 2; i++)
 		putchar('-');
-	}
 	printf("%s", msg);
-	for (int i = 0; i < len / 2; i++) {
+	for (size_t i = 0; i < width / 2; i++)
 		putchar('-');
-	}
 	printf("\033[m");
 
 	putchar('\n');

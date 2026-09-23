@@ -3,7 +3,7 @@
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
-Version: 0.0.20
+Version: 0.0.31
 Release: 0
 Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 License: GPL-2.0
@@ -27,6 +27,7 @@ Requires:     PyQt6
 Requires:     python-yaml
 Requires:     python-argcomplete
 Requires:     python-darkdetect
+Requires:     python3-pillow
 
 %description
 See documenation of LenovoLegionLinux
@@ -49,8 +50,8 @@ make
 mkdir -p %{buildroot}%{_unitdir}
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond.service
 install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-onresume.service %{buildroot}%{_unitdir}/legiond-onresume.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.service
-install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond.service %{buildroot}%{_unitdir}/legiond-cpuset.timer
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-cpuset.service %{buildroot}%{_unitdir}/legiond-cpuset.service
+install -D -m 0644 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond-cpuset.timer %{buildroot}%{_unitdir}/legiond-cpuset.timer
 
 mkdir -p %{buildroot}%{_bindir}
 install -D -m 0755 %{_builddir}/%{srcname}-%{version}/python/legion_linux/legion_linux/extra/service/legiond/legiond-ctl %{buildroot}%{_bindir}/legiond-ctl
@@ -72,6 +73,7 @@ rm -rf %{buildroot}/usr/lib/debug
 %{_datadir}/legion_linux/balanced-battery.yaml
 %{_datadir}/legion_linux/balanced-performance-ac.yaml
 %{_datadir}/legion_linux/balanced-performance-battery.yaml
+%{_datadir}/legion_linux/extreme-ac.yaml
 %{_datadir}/legion_linux/performance-ac.yaml
 %{_datadir}/legion_linux/performance-battery.yaml
 %{_datadir}/legion_linux/quiet-ac.yaml
@@ -98,5 +100,28 @@ echo "Command: sudo cp -r /usr/share/legion_linux /etc/legion_linux"
 echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
 
 %changelog
+* Mon Sep 21 2026 github-actions <actions@github.com> - 0.0.31
+- 0.0.31 release of LenovoLegionLinux.
+* Thu Sep 17 2026 github-actions <actions@github.com> - 0.0.30
+- 0.0.30 release of LenovoLegionLinux.
+* Wed Sep 16 2026 github-actions <actions@github.com> - 0.0.29
+- 0.0.29 release of LenovoLegionLinux.
+* Mon Sep 14 2026 github-actions <actions@github.com> - 0.0.28
+- 0.0.28 release of LenovoLegionLinux.
+* Mon Sep 14 2026 github-actions <actions@github.com> - 0.0.27
+- 0.0.27 release of LenovoLegionLinux.
+* Fri Sep 11 2026 github-actions <actions@github.com> - 0.0.26
+- 0.0.26 release of LenovoLegionLinux.
+* Mon Sep 07 2026 github-actions <actions@github.com> - 0.0.25
+- 0.0.25 release of LenovoLegionLinux.
+* Thu Sep 03 2026 github-actions <actions@github.com> - 0.0.24
+- 0.0.24 release of LenovoLegionLinux.
+* Tue Sep 01 2026 github-actions <actions@github.com> - 0.0.23
+- 0.0.23 release of LenovoLegionLinux.
+* Sat Aug 15 2026 github-actions <actions@github.com> - 0.0.22
+- 0.0.22 release of LenovoLegionLinux.
+* Fri Aug 07 2026 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.21
+- 0.0.21 release; add python3-pillow dependency.
+
 * Mon Apr 8 2024 Gonçalo Negrier Duarte <gonegrier.duarte@gmail.com> - 0.0.15
 - Various fix to the gui and migrate to legiond daemon

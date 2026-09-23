@@ -1,4 +1,4 @@
-name: unknown
+name: balanced-performance-ac
 entries:
 - fan1_speed: 0
   fan2_speed: 0

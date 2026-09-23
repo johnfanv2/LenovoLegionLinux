@@ -2,5 +2,5 @@
 set -ex
 DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-${DIR}/../deploy/dependencies/install_dir/checkpatch.pl --ignore LINUX_VERSION_CODE --ignore CONSTANT_COMPARISON -f --no-tree ${DIR}/../kernel_module/legion-laptop.c
+"${DIR}/../deploy/dependencies/install_dir/checkpatch.pl" --ignore LINUX_VERSION_CODE --ignore CONSTANT_COMPARISON -f --no-tree "${DIR}/../kernel_module/legion-laptop.c"
 

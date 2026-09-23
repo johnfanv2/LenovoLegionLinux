@@ -1,6 +1,6 @@
 #ifndef OUTPUT_H_
 #define OUTPUT_H_
 
-void pretty(char *msg);
+void pretty(const char *msg);
 
 #endif // OUTPUT_H_
