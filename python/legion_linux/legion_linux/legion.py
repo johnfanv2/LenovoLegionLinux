@@ -832,6 +832,8 @@ FANCURVE_SPEED_UNIT_FILE = "fancurve_speed_unit"
 # (the kernel module rejects anything below with EOPNOTSUPP).
 LEVEL_POINT_MIN = [1, 1, 1, 1, 1, 1, 1, 1, 3, 5]
 MAX_FAN_LEVEL = 10
+# Temperature bounds enforced by the kernel's fancurve_is_valid_{min,max}_temp.
+FANCURVE_MAX_TEMP_C = 127
 
 
 def read_fan_level_rpm_tables():
