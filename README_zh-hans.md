@@ -52,7 +52,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 ## :rocket: 功能特性  
 
 <p align="center">
-    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="风扇曲线界面">
+    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="使用示例数据的风扇曲线界面">
     <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="传感器监控">
     <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="性能模式">
 </p>
@@ -557,12 +557,16 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 ```
 
 <p align="center">
-    <img height="450" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="650" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="风扇曲线表格及交互式预览（示例数据）">
 </p>
+
+截图使用的是示例数据，并非硬件回读。
 
 - 点击 `Read from HW` 可以读取并显示保存在硬件中的当前风扇曲线。
 - 如果内核模块已加载，启动时会自动读取当前风扇曲线；否则曲线初始为空，`Read from HW` 按钮不可用。
 - 你可以编辑风扇曲线的各项数值。只有点击 `Apply to HW` 后，修改才会写入硬件并生效。
+- 表格上方的预览会随输入实时更新。蓝/橙色线分别表示风扇 1/2 转速；支持设置温度的机型会用半透明区间显示 CPU/GPU 温度下限和上限（回差区间），温度轴每隔 5°C 显示刻度。只能设置转速的机型以曲线点编号为横轴，不虚构温度；WMI 等级曲线以固件等级为纵轴，不使用猜测的线性 RPM 换算。
+- 纵向拖动实心点修改转速，横向拖动时 CPU/GPU 温度上下限一起移动（保持回差宽度）；拖动半透明区间左端的小方块可单独修改温度下限。仅支持温度上限的机型，横向拖动只修改上限。悬停可查看具体转速和温度，拖动时按 Esc 可恢复原值。共享等级机型只绘制两台风扇共用的一条曲线；悬停提示显示各自的 RPM。等级曲线会依固件 RPM 表吸附并遵守每个点的最低等级；不可写字段和标有叉号的空心尾部填充点不能拖动。遵守硬件支持的点数（最多 10 个）。应用前请检查表格数值。
 - 点击 `Apply to HW` 可将当前显示的风扇曲线写入硬件并激活。
 - 你可以将风扇曲线保存为预设或从预设加载。通过下拉菜单选择预设，然后点击 `Load from Preset` 或 `Save to preset`。
 - 加载预设只会显示内容，必须点击 `Apply to HW` 才会激活到硬件。
