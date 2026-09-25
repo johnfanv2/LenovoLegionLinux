@@ -616,7 +616,13 @@ static const struct model_config model_j2cn = {
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE00D400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC"
+	}
 };
 
 static const struct model_config model_9vcn = {
@@ -2321,15 +2327,6 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_BIOS_VERSION, "H1CN"),
-		},
-		.driver_data = (void *)&model_v0
-	},
-	{
-		// Release year: 2022
-		.ident = "J2CN",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-			DMI_MATCH(DMI_BIOS_VERSION, "J2CN"),
 		},
 		.driver_data = (void *)&model_v0
 	},
