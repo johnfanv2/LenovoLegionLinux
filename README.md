@@ -48,7 +48,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 ## :rocket: Features
 
 <p align="center">
-    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="300" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fan curve GUI preview with example data">
     <img height="300" style="float: center;" src="doc/assets/psensor.png" alt="psensor">
     <img height="300" style="float: center;" src="doc/assets/powermode.png" alt="powermode">
 </p>
@@ -547,12 +547,16 @@ sudo python/legion_linux/legion_linux/legion_gui.py
 ```
 
 <p align="center">
-    <img height="450" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fancurve">
+    <img height="650" style="float: center;" src="doc/assets/fancurve_gui.jpg" alt="fan curve table and interactive preview (example data)">
 </p>
+
+The screenshot uses example data, not a hardware readback.
 
 - with `Read from HW` you can read the current fan curve that is saved in the hardware and display it.
 - the current fan curve is loaded automatically at start-up when the kernel module is present; otherwise the fan curve starts empty and `Read from HW` is greyed out
 - you can edit the values of the fancurve. They will not applied to hardware until your press `Apply to HW`
+- the preview above the table updates while you type. Blue/orange lines show fan 1/2 speeds; on models with writable temperatures, shaded spans show CPU/GPU lower–upper hysteresis bands. Temperature-axis ticks are spaced at 5°C. On speed-only models, the horizontal axis shows point IDs instead of invented temperatures. For WMI level curves, the vertical axis shows firmware levels (not a guessed linear RPM scale).
+- drag a filled point vertically to change its speed or horizontally to move its writable CPU/GPU temperature bounds together (preserving the hysteresis gap); drag the square at the left edge of a shaded band to change only its lower bound. On models with only an upper temperature field, horizontal dragging changes only that upper bound. Hover to see exact speeds and temperatures; press Esc during a drag to restore the original values. Shared-level models show one line for both fans, with both RPM values in the hover tooltip. Level drags snap to the firmware RPM ladder and obey each point's minimum level; disabled fields and crossed hollow trailing padding points cannot be dragged. The hardware point count (up to 10) is respected. Always review the table before applying.
 - press `Apply to HW` to write the currently displayed fancurve to hardware and activate it
 - you can load and save a fancurve to a preset. Select the preset with the drop-down menu and press `Load from Preset` or `Save to preset`.
 - loading a preset will just display it. You still have to press `Apply to HW` to activate it

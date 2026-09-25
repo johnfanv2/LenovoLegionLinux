@@ -41,6 +41,7 @@ from PyQt6.QtWidgets import (
 # pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 import legion_linux.legion
+from legion_linux.fan_curve_plot import FanCurvePlot
 from legion_linux.legion import (
     LegionModelFacade,
     FanCurve,
@@ -891,9 +892,13 @@ class LegionController:
     def update_fancurve_gui(self):
         exists = self.model.fancurve_io.exists()
         point_count = 0
+        level_tables = None
         if exists and not self.fancurve_error:
             try:
                 point_count = self.model.fancurve_io.get_point_count()
+                level_tables = self.model.fancurve_io.level_tables
+                if level_tables and level_tables[1] is None:
+                    raise ValueError("Cannot edit RPM: the firmware fan 2 RPM ladder is unavailable")
             except (OSError, ValueError) as error:
                 self.fancurve_error = str(error)
         self.view_fancurve.note_label2.setText(self.view_fancurve.default_note_text)
@@ -917,6 +922,7 @@ class LegionController:
             temperature_fields=self.model.fancurve_io.temperature_fields(),
             has_acceleration_curve=self.model.fancurve_io.has_acceleration_curve(),
             point_count=point_count,
+            level_tables=level_tables,
         )
         self.view_fancurve.load_button.setEnabled(exists)
 
@@ -1032,6 +1038,18 @@ class FanCurveEntryView:
         self.ic_upper_temp_edit = QLineEdit()
         self.accel_edit = QLineEdit()
         self.decel_edit = QLineEdit()
+        self.edits = (
+            self.fan_speed1_edit,
+            self.fan_speed2_edit,
+            self.cpu_lower_temp_edit,
+            self.cpu_upper_temp_edit,
+            self.gpu_lower_temp_edit,
+            self.gpu_upper_temp_edit,
+            self.ic_lower_temp_edit,
+            self.ic_upper_temp_edit,
+            self.accel_edit,
+            self.decel_edit,
+        )
 
         layout.addWidget(self.point_id_label, 0, point_id)
         layout.addWidget(self.fan_speed1_edit, 1, point_id)
@@ -1109,6 +1127,7 @@ class FanCurveTab(QWidget):
         super().__init__()
         self.controller = controller
         self.entry_edits = []
+        self._updating_preview = False
         self.init_ui()
 
         self.controller.view_fancurve = self
@@ -1123,7 +1142,9 @@ class FanCurveTab(QWidget):
         temperature_fields,
         has_acceleration_curve: bool,
         point_count: int,
+        level_tables,
     ):
+        self._updating_preview = True
         self.minfancurve_check.setDisabled(not has_minifancurve or not enabled)
         empty_entry = FanCurveEntry(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         for index, entry_view in enumerate(self.entry_edits):
@@ -1139,6 +1160,14 @@ class FanCurveTab(QWidget):
         self.write_button.setDisabled(not enabled or point_count <= 0)
 
         self.minfancurve_check.setChecked(fancurve.enable_minifancurve)
+        self._updating_preview = False
+        self.curve_plot.set_capabilities(
+            point_count, temperature_fields, has_fan_2_speed, level_tables, enabled and point_count > 0
+        )
+
+    def on_entry_changed(self):
+        if not self._updating_preview:
+            self.curve_plot.update()
 
     def get_fancurve(self) -> FanCurve:
         entries = []
@@ -1211,6 +1240,21 @@ class FanCurveTab(QWidget):
         for i in range(1, 11):
             self.create_fancurve_entry_view(self.layout, i)
         self.fancurve_group.setLayout(self.layout)
+        self.curve_plot = FanCurvePlot(self.entry_edits, self)
+        for entry_view in self.entry_edits:
+            for field in entry_view.edits:
+                field.textChanged.connect(self.on_entry_changed)
+        self.plot_group = QGroupBox("Fan Curve Preview")
+        plot_layout = QVBoxLayout()
+        plot_layout.addWidget(self.curve_plot)
+        plot_hint = QLabel(
+            "Drag a dot vertically for speed or horizontally to shift both temperature bounds. "
+            "Drag a square to edit only the lower bound; hover for exact values, Esc cancels. "
+            "Shared-level curves use one line for both fans. Only Apply to HW writes hardware."
+        )
+        plot_hint.setWordWrap(True)
+        plot_layout.addWidget(plot_hint)
+        self.plot_group.setLayout(plot_layout)
 
         self.button1_group = QGroupBox("Fancurve Hardware")
         self.button1_layout = QGridLayout()
@@ -1238,7 +1282,8 @@ class FanCurveTab(QWidget):
         self.button2_layout.addWidget(self.load_from_preset_button, 1, 1)
 
         self.main_layout = QVBoxLayout()
-        self.main_layout.addWidget(self.fancurve_group, 0)
+        self.main_layout.addWidget(self.plot_group, 0)
+        self.main_layout.addWidget(self.fancurve_group, 1)
         self.main_layout.addWidget(self.button1_group, 1)
         self.main_layout.addWidget(self.button2_group, 2)
 

@@ -500,6 +500,28 @@ Update the module and Python package together; older modules lack explicit unit
 metadata. Review the readback after applying and do not switch power mode during
 an apply operation.
 
+The GUI Fan Curve tab also shows a live, table-backed plot. With a native EC
+curve, edit a CPU/GPU speed or upper/lower temperature in the table: the plotted
+points and shaded hysteresis spans must change without writing sysfs. Check
+that the temperature axis has labeled ticks every 5°C (staggered if narrow). Drag a
+filled fan point vertically (RPM) or horizontally (move both writable CPU/GPU
+temperature bounds with their hysteresis width preserved); drag the square at
+the left end of a shaded span to edit only its lower temperature. Confirm
+independent CPU/GPU fields and the other fan's speed remain unchanged. Drag
+past the 0°C/127°C limits and confirm both temperatures clamp while keeping
+their gap; on EC4, whose lower fields are disabled, only the upper temperature
+moves. Hover
+over a point to check its exact °C/RPM (or firmware level); while dragging,
+press Esc and confirm the table is restored without a hardware write. On
+speed-only WMI curves the x-axis must be point ID and temperature fields must
+remain disabled. On level curves the y-axis must be the firmware level; drag
+points 9/10 down and check they stop at `LEVEL_POINT_MIN` (3/5), with RPM from
+the current firmware ladder rather than a linear guess. Trailing all-zero
+padding is crossed and not draggable; points beyond `auto_points_size` cannot
+be edited. Invalid/incomplete text must not create draggable points. The plot
+never writes to hardware: Apply to HW still uses the existing validation and
+readback path. The README screenshot uses example data, not a hardware test.
+
 Offline validation: `./tests/test_python_unit.sh` runs the library, offscreen GUI
 and kernel capability tests. The latter compile the actual C configuration and
 visibility/guard functions against fake device/EC objects: 606 point-attribute

@@ -9,11 +9,12 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python/legion_linux"))
 
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtGui import QColor, QIcon, QKeyEvent, QMouseEvent, QPalette
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from legion_linux import legion
-from legion_linux.legion import FanCurveIO, FileFeature
-from legion_linux.legion_gui import LegionController, MainWindow, PresetTrayController
+from legion_linux.legion import FanCurve, FanCurveEntry, FanCurveIO, FileFeature
+from legion_linux.legion_gui import FanCurveTab, LegionController, MainWindow, PresetTrayController
 
 
 class GuiStartupTest(unittest.TestCase):
@@ -45,6 +46,228 @@ class GuiStartupTest(unittest.TestCase):
             finally:
                 window.deleteLater()
                 self.app.processEvents()
+
+    def make_plot(self, entries, *, point_count=10, temperatures=(), fan2=True, tables=None):
+        controller = Mock()
+        controller.model.fancurve_io.has_acceleration_curve.return_value = False
+        tab = FanCurveTab(controller)
+        tab.curve_plot.resize(680, 245)
+        tab.set_fancurve(
+            FanCurve("test", entries),
+            False,
+            True,
+            has_fan_2_speed=fan2,
+            temperature_fields=set(temperatures),
+            has_acceleration_curve=False,
+            point_count=point_count,
+            level_tables=tables,
+        )
+        return controller, tab, tab.curve_plot
+
+    @staticmethod
+    def curve_entry(fan1=2000, fan2=2500, cpu_lower=45, cpu_upper=70, gpu_lower=50, gpu_upper=75):
+        return FanCurveEntry(fan1, fan2, cpu_lower, cpu_upper, gpu_lower, gpu_upper, 0, 0, 0, 0)
+
+    def drag_point(self, plot, index, fan, x, y, *, lower=False):
+        rows = plot._rows()
+        old = plot._position(rows[index], index, fan, plot._maximum(rows))
+        if lower:
+            prefix = ("cpu", "gpu")[fan]
+            temperature = getattr(rows[index], f"{prefix}_lower_temp")
+            old = (plot._x(temperature, plot._bounds(), plot._temperature_range(rows)), old[1] + 12)
+        for kind, position, buttons in (
+            (QEvent.Type.MouseButtonPress, QPointF(*old), Qt.MouseButton.LeftButton),
+            (QEvent.Type.MouseMove, QPointF(x, y), Qt.MouseButton.LeftButton),
+            (QEvent.Type.MouseButtonRelease, QPointF(x, y), Qt.MouseButton.NoButton),
+        ):
+            event = QMouseEvent(kind, position, Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier)
+            self.app.sendEvent(plot, event)
+
+    def test_plot_updates_from_table_and_trims_only_trailing_empty_rows(self):
+        controller, tab, plot = self.make_plot([self.curve_entry()] * 8, fan2=False)
+        try:
+            self.assertEqual(plot._writable_size(plot._rows()), 8)
+            self.assertTrue(tab.entry_edits[8].fan_speed1_edit.isEnabled())
+            with patch.object(plot, "update") as update:
+                tab.entry_edits[1].fan_speed1_edit.setText("3600")
+                update.assert_called()
+            self.assertEqual(plot._speed(plot._rows()[1], 1, 0), 3600)
+            tab.entry_edits[1].fan_speed1_edit.setText("invalid")
+            self.assertIsNone(plot._rows()[1])
+            plot.grab()  # Partial numeric edits must not crash a repaint.
+            self.assertEqual(plot._writable_size(plot._rows()), 8)
+            self.assertIsNone(plot._drag)
+            controller.on_write_fan_curve_to_hw.assert_not_called()
+        finally:
+            tab.deleteLater()
+
+    def test_temperature_and_native_rpm_drag_only_edit_table(self):
+        controller, tab, plot = self.make_plot(
+            [self.curve_entry()],
+            point_count=1,
+            temperatures=FanCurveIO.temperature_files,
+        )
+        try:
+            view = tab.entry_edits[0]
+            self.assertTrue(plot.temperature_axis)
+            area = plot._bounds()
+            x = plot._x(90, area, plot._temperature_range(plot._rows()))
+            self.drag_point(plot, 0, 0, x, area.bottom())
+            self.assertEqual(view.fan_speed1_edit.text(), "0")  # Native RPM permits fan stop.
+            self.assertEqual(view.cpu_upper_temp_edit.text(), "90")
+            self.assertEqual(view.cpu_lower_temp_edit.text(), "65")
+            self.assertEqual(view.gpu_upper_temp_edit.text(), "75")
+            self.drag_point(plot, 0, 0, area.left() - area.width(), area.bottom())
+            self.assertEqual(view.cpu_upper_temp_edit.text(), "25")  # Both bounds clamp while preserving their gap.
+            self.assertEqual(view.cpu_lower_temp_edit.text(), "0")
+            self.assertEqual(tab.get_fancurve().entries[0].fan1_speed, 0)
+            controller.on_write_fan_curve_to_hw.assert_not_called()
+        finally:
+            tab.deleteLater()
+
+    def test_lower_temperature_handle_moves_only_lower_bound(self):
+        controller, tab, plot = self.make_plot(
+            [self.curve_entry()], point_count=1, temperatures=FanCurveIO.temperature_files
+        )
+        try:
+            view = tab.entry_edits[0]
+            area = plot._bounds()
+            x = plot._x(60, area, plot._temperature_range(plot._rows()))
+            self.drag_point(plot, 0, 0, x, area.bottom(), lower=True)
+            self.assertEqual(view.cpu_lower_temp_edit.text(), "60")
+            self.assertEqual(view.cpu_upper_temp_edit.text(), "70")
+            self.assertEqual(view.fan_speed1_edit.text(), "2000")
+            self.assertEqual(view.gpu_lower_temp_edit.text(), "50")
+            self.drag_point(plot, 0, 0, area.right(), area.bottom(), lower=True)
+            self.assertEqual(view.cpu_lower_temp_edit.text(), "70")
+            self.assertEqual(view.cpu_upper_temp_edit.text(), "70")
+            controller.on_write_fan_curve_to_hw.assert_not_called()
+        finally:
+            tab.deleteLater()
+
+    def test_upper_only_model_does_not_create_a_lower_temperature(self):
+        _, tab, plot = self.make_plot(
+            [self.curve_entry()], point_count=1, temperatures={"cpu_upper_temp", "gpu_upper_temp"}
+        )
+        try:
+            view = tab.entry_edits[0]
+            self.assertFalse(view.cpu_lower_temp_edit.isEnabled())
+            x = plot._x(90, plot._bounds(), plot._temperature_range(plot._rows()))
+            self.drag_point(plot, 0, 0, x, plot._bounds().bottom())
+            self.assertEqual(view.cpu_upper_temp_edit.text(), "90")
+            self.assertEqual(view.cpu_lower_temp_edit.text(), "45")
+        finally:
+            tab.deleteLater()
+
+    def test_level_drag_uses_firmware_ladder_and_point_minima(self):
+        table1 = [0, 900, 1800, 2400, 3000, 3500, 4000, 4500, 5000, 5500]
+        table2 = [0, 1000, 1900, 2500, 3100, 3600, 4100, 4600, 5100, 5600]
+        controller, tab, plot = self.make_plot(
+            [
+                self.curve_entry(fan1=3000, fan2=3100, cpu_lower=0, cpu_upper=0, gpu_lower=0, gpu_upper=0)
+                for _ in range(10)
+            ],
+            fan2=False,
+            tables=(table1, table2),
+        )
+        try:
+            self.assertFalse(plot.temperature_axis)
+            self.assertFalse(tab.entry_edits[8].fan_speed2_edit.isEnabled())
+            self.assertIsNone(plot._speed(plot._rows()[0], 0, 1))  # One line for shared levels.
+            self.assertIn("Fan 2: 3100 RPM", plot._point_tooltip(plot._rows()[0], 0, 0))
+            for index, minimum in ((8, 3), (9, 5)):
+                area = plot._bounds()
+                point = plot._position(plot._rows()[index], index, 0, plot._maximum(plot._rows()))
+                self.drag_point(plot, index, 0, point[0], area.bottom())
+                self.assertEqual(tab.entry_edits[index].fan_speed1_edit.text(), str(table1[minimum - 1]))
+                self.assertEqual(tab.entry_edits[index].fan_speed2_edit.text(), str(table2[minimum - 1]))
+            self.assertEqual(plot._speed(plot._rows()[9], 9, 0), 5)
+            controller.on_write_fan_curve_to_hw.assert_not_called()
+        finally:
+            tab.deleteLater()
+
+    def test_plot_hover_drag_feedback_and_escape_restore_table(self):
+        controller, tab, plot = self.make_plot(
+            [self.curve_entry()],
+            point_count=1,
+            temperatures=FanCurveIO.temperature_files,
+        )
+        try:
+            view = tab.entry_edits[0]
+            rows = plot._rows()
+            start = QPointF(*plot._position(rows[0], 0, 0, plot._maximum(rows)))
+            self.app.sendEvent(
+                plot,
+                QMouseEvent(
+                    QEvent.Type.MouseMove,
+                    start,
+                    Qt.MouseButton.NoButton,
+                    Qt.MouseButton.NoButton,
+                    Qt.KeyboardModifier.NoModifier,
+                ),
+            )
+            self.assertIn("45–70°C", plot.toolTip())
+            self.assertIn("2000 RPM", plot.toolTip())
+            self.app.sendEvent(
+                plot,
+                QMouseEvent(
+                    QEvent.Type.MouseButtonPress,
+                    start,
+                    Qt.MouseButton.LeftButton,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                ),
+            )
+            end = QPointF(plot._bounds().right(), plot._bounds().top())
+            self.app.sendEvent(
+                plot,
+                QMouseEvent(
+                    QEvent.Type.MouseMove,
+                    end,
+                    Qt.MouseButton.LeftButton,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                ),
+            )
+            self.assertNotEqual(view.fan_speed1_edit.text(), "2000")
+            self.assertNotEqual(view.cpu_lower_temp_edit.text(), "45")
+            plot.grab()  # Selected point badge and current values can render during drag.
+            self.app.sendEvent(plot, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+            self.assertIsNone(plot._drag)
+            self.assertEqual(view.fan_speed1_edit.text(), "2000")
+            self.assertEqual(view.cpu_upper_temp_edit.text(), "70")
+            self.assertEqual(view.cpu_lower_temp_edit.text(), "45")
+            controller.on_write_fan_curve_to_hw.assert_not_called()
+        finally:
+            tab.deleteLater()
+
+    def test_plot_has_temperature_ticks_and_renders_in_dark_mode(self):
+        _, tab, plot = self.make_plot([self.curve_entry()], point_count=1, temperatures=FanCurveIO.temperature_files)
+        try:
+            self.assertEqual(plot._temperature_range(plot._rows()), (30, 90))
+            self.assertEqual(list(plot._x_ticks((30, 90))), list(range(30, 91, 5)))
+            palette = plot.palette()
+            palette.setColor(QPalette.ColorRole.Window, QColor("#22252a"))
+            palette.setColor(QPalette.ColorRole.Base, QColor("#282c33"))
+            palette.setColor(QPalette.ColorRole.Text, QColor("#eeeeee"))
+            plot.setPalette(palette)
+            self.assertFalse(plot.grab().isNull())
+        finally:
+            tab.deleteLater()
+
+    def test_speed_only_and_hardware_limit_block_temp_and_padding_drag(self):
+        controller, tab, plot = self.make_plot([self.curve_entry()], point_count=1, fan2=False)
+        try:
+            self.assertFalse(plot.temperature_axis)
+            self.assertFalse(tab.entry_edits[0].cpu_upper_temp_edit.isEnabled())
+            self.assertFalse(tab.entry_edits[1].fan_speed1_edit.isEnabled())
+            area = plot._bounds()
+            self.drag_point(plot, 0, 0, area.right(), area.top())
+            self.assertEqual(tab.entry_edits[0].cpu_upper_temp_edit.text(), "70")
+            self.assertEqual(tab.entry_edits[1].fan_speed1_edit.text(), "0")
+            controller.on_write_fan_curve_to_hw.assert_not_called()
+        finally:
+            tab.deleteLater()
 
     def test_sensor_only_hwmon(self):
         with tempfile.TemporaryDirectory() as directory:
