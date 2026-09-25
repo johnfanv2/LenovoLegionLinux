@@ -618,6 +618,8 @@ static const struct model_config model_j2cn = {
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600,
 	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG"，
 		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
 		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC"
 	}
