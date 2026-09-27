@@ -27,8 +27,13 @@ all:
 moduleInContainer:
 	docker run -it --rm -v "$(shell pwd)":/kernel_module -w /kernel_module  -v /usr/src/:/usr/src/  -v /lib/modules/:/lib/modules gcc:12.2.0 bash
 
+# Use kbuild's own warning levels, not a raw gcc flag. KCFLAGS=-W is a
+# literal gcc -Wextra, which is not what "W" means to kbuild: it added
+# ~1460 warnings from kernel headers that no out-of-tree module can fix,
+# burying the handful that were actionable. W1 is the kernel's standard
+# "reasonable warnings" set. For a stricter pass use `make allWarn W=2`.
 allWarn:
-	$(MAKE) $(KMAKEFLAGS) KCFLAGS=-W modules
+	$(MAKE) $(KMAKEFLAGS) W=$(or $(W),1) modules
 
 clean:
 	$(MAKE) $(KMAKEFLAGS) clean
