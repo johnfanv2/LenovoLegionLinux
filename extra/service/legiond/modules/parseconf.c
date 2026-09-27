@@ -84,17 +84,26 @@ static int handler(void *user, const char *section, const char *name,
 
 int parseconf(LEGIOND_CONFIG *config)
 {
-	*config = (LEGIOND_CONFIG){ 0 };
+	LEGIOND_CONFIG parsed = { 0 };
 
 	/* default GPU tool paths, overridable via config */
-	snprintf(config->nvidia_smi_path, sizeof(config->nvidia_smi_path),
+	snprintf(parsed.nvidia_smi_path, sizeof(parsed.nvidia_smi_path),
 		 "%s", "/opt/bin/nvidia-smi");
-	snprintf(config->rocm_smi_path, sizeof(config->rocm_smi_path),
+	snprintf(parsed.rocm_smi_path, sizeof(parsed.rocm_smi_path),
 		 "%s", "/opt/bin/rocm-smi");
 
-	if (ini_parse(config_path, handler, config)) {
-		printf("Unable to parse config\n");
+	/*
+	 * Parse into a scratch copy and publish it only on success.
+	 * libinih keeps going after the first bad line, and the caller
+	 * re-parses on every timer tick, so writing straight into *config
+	 * would let a half-written legiond.ini zero fan_control and
+	 * cpu_control and silently switch fan curve control off.
+	 */
+	if (ini_parse(config_path, handler, &parsed)) {
+		fprintf(stderr, "Unable to parse config\n");
 		return 1;
 	}
+
+	*config = parsed;
 	return 0;
 }
