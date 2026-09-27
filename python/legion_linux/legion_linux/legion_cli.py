@@ -354,7 +354,16 @@ def fancurve_write_hw_to_file(legion: LegionModelFacade, filename: str, **_) -> 
 
 def fancurve_write_preset_for_current_profile(legion: LegionModelFacade, **_) -> int:
     # pylint: disable=unused-argument
-    legion.fancurve_write_preset_for_current_profile(write_minifancurve=True)
+    written = legion.fancurve_write_preset_for_current_profile(write_minifancurve=True)
+    if not written:
+        print(
+            "No fan curve preset exists for the current power mode, so nothing was"
+            " written to the hardware. Presets ship for the balanced and"
+            " performance modes; use fancurve-write-file-to-hw with an explicit"
+            " file for any other mode.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

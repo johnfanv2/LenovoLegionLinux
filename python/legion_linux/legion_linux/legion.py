@@ -1980,7 +1980,14 @@ class LegionModelFacade:
         self.read_fancurve_from_hw()
         self.fan_curve.save_to_file(filename)
 
-    def fancurve_write_preset_for_current_profile(self, write_minifancurve=False):
+    def fancurve_write_preset_for_current_profile(self, write_minifancurve=False) -> bool:
+        """Write the shipped fan curve preset matching the current power mode.
+
+        Returns True if a curve was written, False if the current power mode
+        has no preset. Callers need the difference: three of the five
+        platform profiles (low-power, custom, max-power) have no preset, and
+        reporting success there would mean silently doing nothing.
+        """
         is_on_powersupply = self.on_power_supply.get()
         profile = self.platform_profile.get()
         preset_name = self.fancurve_repo.get_preset_name(profile, is_on_powersupply)
@@ -1990,16 +1997,26 @@ class LegionModelFacade:
             profile,
             is_on_powersupply,
         )
-        if preset_name in self.fancurve_repo.fancurve_presets:
-            if not self.fancurve_repo.does_exists_by_name(preset_name):
-                # no battery preset shipped (e.g. extreme-battery): fall back
-                # to the AC twin, mirroring the legiond behavior
-                fallback = preset_name.replace("-battery", "-ac")
-                log.info("Preset %s not found, falling back to %s", preset_name, fallback)
-                preset_name = fallback
-            fancurve = self.fancurve_repo.load_by_name(preset_name)
-            self.fancurve_io.write_fan_curve(fancurve, write_minifancurve)
-            log.info("Fancurve: %s", fancurve)
+        if preset_name not in self.fancurve_repo.fancurve_presets:
+            log.warning(
+                "No fan curve preset for power mode '%s' on %s (looked for '%s');"
+                " nothing was written. Presets exist for: %s",
+                profile,
+                "AC" if is_on_powersupply else "battery",
+                preset_name,
+                ", ".join(sorted(self.fancurve_repo.get_names())),
+            )
+            return False
+        if not self.fancurve_repo.does_exists_by_name(preset_name):
+            # no battery preset shipped (e.g. extreme-battery): fall back
+            # to the AC twin, mirroring the legiond behavior
+            fallback = preset_name.replace("-battery", "-ac")
+            log.info("Preset %s not found, falling back to %s", preset_name, fallback)
+            preset_name = fallback
+        fancurve = self.fancurve_repo.load_by_name(preset_name)
+        self.fancurve_io.write_fan_curve(fancurve, write_minifancurve)
+        log.info("Fancurve: %s", fancurve)
+        return True
 
     def conservation_apply_mode_for_current_battery_capacity(self, lower_limit=None, upper_limit=None):
         if lower_limit is not None:
