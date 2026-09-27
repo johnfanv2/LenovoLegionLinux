@@ -156,6 +156,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
         names = (
             "fancurve_init",
             "fancurve_attr_supported",
+            "fancurve_set_size",
             "ec_read_fancurve_legion",
             "ec_read_fancurve_ideapad",
             "ec_read_fancurve_loq",
@@ -383,6 +384,37 @@ int main(void) {
     assert(fantable_ensure(&priv) == -EIO); /* Do not trust a cache after a failed mode read. */
     power_error = 0;
 
+    /* A resize must publish the new size, or the store is a silent no-op: the
+     * sentinel/replication blocks reshape points[] against the *old* size, and
+     * ec_write_fancurve_legion() then zero-fills and writes EXT_FAN_POINTS_SIZE
+     * from that same stale field. */
+    struct fancurve resized;
+    memset(&resized, 0, sizeof(resized));
+    for (size_t p = 0; p < MAXFANCURVESIZE; p++) {
+        resized.points[p].speed1 = (u8)(p + 1);
+        resized.points[p].cpu_max_temp_celsius = 40;
+        resized.points[p].ic_max_temp_celsius = 40;
+        resized.points[p].gpu_max_temp_celsius = 40;
+    }
+    resized.size = MAXFANCURVESIZE;
+    assert(!fancurve_set_size(&resized, 0, true));
+    assert(!fancurve_set_size(&resized, MAXFANCURVESIZE + 1, true));
+    assert(resized.size == MAXFANCURVESIZE); /* A rejected resize must not shrink. */
+    /* Shrink: the new last point keeps 127 so the EC can always reach full speed. */
+    assert(fancurve_set_size(&resized, MAXFANCURVESIZE - 4, true));
+    assert(resized.size == MAXFANCURVESIZE - 4);
+    assert(resized.points[MAXFANCURVESIZE - 5].cpu_max_temp_celsius == 127);
+    assert(resized.points[MAXFANCURVESIZE - 5].ic_max_temp_celsius == 127);
+    assert(resized.points[MAXFANCURVESIZE - 5].gpu_max_temp_celsius == 127);
+    assert(resized.points[MAXFANCURVESIZE - 4].speed1 == MAXFANCURVESIZE - 3);
+    /* Grow: new entries must replicate the previous last point, not keep stale ones. */
+    assert(fancurve_set_size(&resized, MAXFANCURVESIZE, true));
+    assert(resized.size == MAXFANCURVESIZE);
+    for (size_t p = MAXFANCURVESIZE - 4; p < MAXFANCURVESIZE; p++) {
+        assert(resized.points[p].speed1 == resized.points[MAXFANCURVESIZE - 5].speed1);
+        assert(resized.points[p].cpu_max_temp_celsius == 127);
+    }
+
     /* A stale model flag must never cause reads/writes to a placeholder offset. */
     const struct ec_register_offsets *unmapped[] = {
         &ec_register_offsets_ideapad_v0, &ec_register_offsets_ideapad_v1,
@@ -427,6 +459,10 @@ int main(void) {
                     "-Werror",
                     "-Wno-unused-parameter",
                     "-Wno-unused-const-variable",
+                    # kbuild does not enable -Wsign-compare, so extracting these
+                    # functions into userspace gcc surfaces int/size_t comparisons
+                    # that are safe because the operands are validated first.
+                    "-Wno-sign-compare",
                     str(path),
                     "-o",
                     str(binary),
