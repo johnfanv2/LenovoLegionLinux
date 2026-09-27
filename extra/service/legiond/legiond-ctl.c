@@ -71,8 +71,21 @@ int main(int argc, char *argv[])
 	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
 		return 2;
 
-	if (send(fd, &request, sizeof(request), 0) != -1)
-		printf("successfully sent cmd\n");
+	/*
+	 * Report a failed or partial send: callers such as
+	 * legiond-cpuset.service (Type=oneshot) and the OpenRC
+	 * legiond.initd script only look at the exit status, and
+	 * swallowing this made a command that never reached the
+	 * daemon look like it had succeeded.
+	 */
+	ssize_t sent = send(fd, &request, sizeof(request), 0);
+
+	if (sent != (ssize_t)sizeof(request)) {
+		fprintf(stderr, "legiond-ctl: failed to send cmd\n");
+		return 1;
+	}
+
+	printf("successfully sent cmd\n");
 
 	return 0;
 }
