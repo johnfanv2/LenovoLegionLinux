@@ -1702,6 +1702,9 @@ class MainWindow(QMainWindow):
             event.accept()
 
     def close_after(self, milliseconds: int):
+        # single shot: if the close is ignored (close to tray) retrying
+        # every interval would only log forever and never exit
+        self.close_timer.setSingleShot(True)
         self.close_timer.timeout.connect(self.close)
         self.close_timer.start(milliseconds)
 
@@ -1843,6 +1846,21 @@ def get_icon_path(controller):
     return icon_path
 
 
+def apply_commandline_settings(app_model, argv):
+    """Apply the GUI command line flags on top of the loaded settings."""
+    if "--automaticclose" in argv:
+        app_model.automatic_close.set(True)
+        # the whole point of this flag is to terminate on its own, so a
+        # saved "close to tray" setting must not be able to defeat it:
+        # closeEvent() would otherwise ignore the close and the process
+        # would never exit, hanging the smoke test
+        app_model.close_to_tray.set(False)
+    if "--close_to_tray" in argv:
+        app_model.close_to_tray.set(True)
+    if "--open_closed_to_tray" in argv:
+        app_model.open_closed_to_tray.set(True)
+
+
 def main():
     # Set the desktop file name
     # This make the window icon appear on wayland
@@ -1858,12 +1876,7 @@ def main():
     controller.model.load_settings()
 
     # Overwrite settings from commandline args
-    if "--automaticclose" in sys.argv:
-        controller.model.app_model.automatic_close.set(True)
-    if "--close_to_tray" in sys.argv:
-        controller.model.app_model.close_to_tray.set(True)
-    if "--open_closed_to_tray" in sys.argv:
-        controller.model.app_model.open_closed_to_tray.set(True)
+    apply_commandline_settings(controller.model.app_model, sys.argv)
 
     # Overwrite settings by rules
     if controller.model.is_root_user():

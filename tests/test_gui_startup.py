@@ -14,7 +14,13 @@ from PyQt6.QtGui import QColor, QIcon, QKeyEvent, QMouseEvent, QPalette
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from legion_linux import legion
 from legion_linux.legion import FanCurve, FanCurveEntry, FanCurveIO, FileFeature
-from legion_linux.legion_gui import FanCurveTab, LegionController, MainWindow, PresetTrayController
+from legion_linux.legion_gui import (
+    FanCurveTab,
+    LegionController,
+    MainWindow,
+    PresetTrayController,
+    apply_commandline_settings,
+)
 
 
 class GuiStartupTest(unittest.TestCase):
@@ -286,6 +292,35 @@ class GuiStartupTest(unittest.TestCase):
 
     def test_no_hwmon(self):
         self.check_startup(None, False, False)
+
+    def test_close_after_does_not_retry_forever(self):
+        # A repeating timer plus an ignored close event (close to tray)
+        # made --automaticclose spin every interval and never exit.
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
+        window = MainWindow(controller, QIcon())
+        try:
+            window.close_after(1)
+            self.assertTrue(window.close_timer.isSingleShot())
+        finally:
+            window.deleteLater()
+            self.app.processEvents()
+
+    def test_automatic_close_ignores_saved_close_to_tray(self):
+        # --automaticclose exists so the CI smoke test terminates, so the
+        # saved close_to_tray setting must not be able to defeat it.
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
+        app_model = controller.model.app_model
+        try:
+            app_model.close_to_tray.set(True)
+            apply_commandline_settings(app_model, ["legion_gui.py", "--automaticclose"])
+            self.assertTrue(app_model.automatic_close.get())
+            self.assertFalse(app_model.close_to_tray.get())
+
+            app_model.close_to_tray.set(False)
+            apply_commandline_settings(app_model, ["legion_gui.py", "--close_to_tray"])
+            self.assertTrue(app_model.close_to_tray.get())
+        finally:
+            self.app.processEvents()
 
     def test_load_from_preset_with_uninitialized_view(self):
         controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
