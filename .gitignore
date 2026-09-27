@@ -70,3 +70,10 @@ dist/
 extra/service/legiond/legiond
 extra/service/legiond/legiond-ctl
 extra/service/legiond/.cache/clangd
+
+# Output of extra/gen_spec_issue.sh
+extra/specs.md
+extra/wmi.log
+extra/wmi-entries.tar.gz
+extra/acpi-tables.tar.gz
+extra/acpi_re/
