@@ -6,6 +6,8 @@ RUNDIR="/run/smartfan"
 MODEFILE="$RUNDIR/mode"
 PIDFILE="$RUNDIR/pid"
 ACPI_CALL="/proc/acpi/call"
+# Overridable so the sensor detection can be exercised against a fake tree.
+HWMON_ROOT="${HWMON_ROOT:-/sys/class/hwmon}"
 STOPFILE="$RUNDIR/stop"
 PAUSEFILE="$RUNDIR/pause"
 LOG="$RUNDIR/log"
@@ -51,7 +53,7 @@ fi
 
 # Find correct hwmon path
 find_hwmon() {
-    for hwmon in /sys/class/hwmon/hwmon*; do
+    for hwmon in "$HWMON_ROOT"/hwmon*; do
         if [ -f "$hwmon/name" ]; then
             name=$(cat "$hwmon/name")
             if [[ "$name" == *"coretemp"* ]] || [[ "$name" == *"k10temp"* ]] || [[ "$name" == *"zenpower"* ]]; then
@@ -65,9 +67,11 @@ find_hwmon() {
         fi
     done
     
-    # Fallback to hwmon9 if not found
-    [ -z "$CPU_HWMON" ] && CPU_HWMON="/sys/class/hwmon/hwmon9"
-    [ -z "$GPU_HWMON" ] && GPU_HWMON="/sys/class/hwmon/hwmon9"
+    # No hardcoded fallback: hwmon9 is a guess that is wrong on most machines,
+    # and reading an unrelated sensor is indistinguishable from a working one.
+    # Leave the paths unset so get_max_temp reports the failure instead.
+    [ -z "$CPU_HWMON" ] && log "Warning: no CPU hwmon sensor found (looked for coretemp/k10temp/zenpower)"
+    [ -z "$GPU_HWMON" ] && log "Warning: no GPU hwmon sensor found (looked for amdgpu/nouveau)"
 }
 
 get_profile() {
@@ -153,32 +157,73 @@ restore_ec_control() {
 }
 
 get_max_temp() {
-    local cpu_temp=0
-    local gpu_temp=0
+    local cpu_temp=""
+    local gpu_temp=""
     local cpu_file="$CPU_HWMON/temp1_input"
     local gpu_file="$GPU_HWMON/temp1_input"
-    
+    local got=0
+
     # Try different temp files
-    [ -f "$cpu_file" ] && cpu_temp=$(cat "$cpu_file" 2>/dev/null)
-    [ -z "$cpu_temp" ] && [ -f "$GPU_HWMON/temp2_input" ] && cpu_temp=$(cat "$GPU_HWMON/temp2_input" 2>/dev/null)
-    
-    [ -f "$gpu_file" ] && gpu_temp=$(cat "$gpu_file" 2>/dev/null)
-    [ -z "$gpu_temp" ] && [ -f "$CPU_HWMON/temp2_input" ] && gpu_temp=$(cat "$CPU_HWMON/temp2_input" 2>/dev/null)
-    
+    if [ -f "$cpu_file" ]; then
+        cpu_temp=$(cat "$cpu_file" 2>/dev/null)
+        [ -n "$cpu_temp" ] && got=1
+    fi
+    if [ -z "$cpu_temp" ] && [ -f "$GPU_HWMON/temp2_input" ]; then
+        cpu_temp=$(cat "$GPU_HWMON/temp2_input" 2>/dev/null)
+        [ -n "$cpu_temp" ] && got=1
+    fi
+
+    if [ -f "$gpu_file" ]; then
+        gpu_temp=$(cat "$gpu_file" 2>/dev/null)
+        [ -n "$gpu_temp" ] && got=1
+    fi
+    if [ -z "$gpu_temp" ] && [ -f "$CPU_HWMON/temp2_input" ]; then
+        gpu_temp=$(cat "$CPU_HWMON/temp2_input" 2>/dev/null)
+        [ -n "$gpu_temp" ] && got=1
+    fi
+
+    # Nothing readable at all. Report the failure rather than a plausible 0,
+    # which would otherwise resolve to the coldest point of the curve.
+    [ "$got" -eq 0 ] && return 0
+
     # Convert to Celsius
     cpu_temp=$((cpu_temp / 1000))
     gpu_temp=$((gpu_temp / 1000))
-    
+
     # Clamp to reasonable range
     [ "$cpu_temp" -gt 100 ] && cpu_temp=100
     [ "$gpu_temp" -gt 100 ] && gpu_temp=100
     [ "$cpu_temp" -lt 0 ] && cpu_temp=0
     [ "$gpu_temp" -lt 0 ] && gpu_temp=0
-    
+
     local raw=$cpu_temp
     [ "$gpu_temp" -gt "$raw" ] && raw=$gpu_temp
-    
+
     echo "$raw"
+}
+
+# Hottest point of the active profile. Stand-in for a missing reading: a fan
+# daemon that loses its input must bias towards running the fans.
+profile_max_temp() {
+    echo "$TEMP_POINTS" | awk '{print $NF}'
+}
+
+# Decide which temperature to act on. last_temp is 0 until a usable reading
+# has been seen, which is the case that used to fall through to 0 degrees and
+# park the fans at the bottom of the curve.
+resolve_temp() {
+    local reading=$1
+    local last_temp=$2
+
+    if [ -n "$reading" ] && [ "$reading" -gt 0 ]; then
+        echo "$reading"
+    elif [ "$last_temp" -gt 0 ]; then
+        log "Warning: Could not read temperature, using last known: $last_temp"
+        echo "$last_temp"
+    else
+        log "Warning: No usable temperature reading, using profile maximum: $(profile_max_temp)"
+        profile_max_temp
+    fi
 }
 
 get_target_pct() {
@@ -287,11 +332,7 @@ run_daemon() {
         
         # Get temperature
         local temp
-        temp=$(get_max_temp)
-        if [ -z "$temp" ] || [ "$temp" -eq 0 ]; then
-            temp=$last_temp
-            log "Warning: Could not read temperature, using last known: $temp"
-        fi
+        temp=$(resolve_temp "$(get_max_temp)" "$last_temp")
         last_temp=$temp
         
         # Apply smoothing
