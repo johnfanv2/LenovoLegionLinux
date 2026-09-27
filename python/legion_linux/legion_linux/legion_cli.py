@@ -22,6 +22,19 @@ loglevels = ["NOTSET", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]
 # will be set in main to user defined level after parsing
 log.setLevel("ERROR")
 
+# Exit codes. These have to stay within 0-255: a process exit status is a
+# single unsigned byte, so a negative value is truncated by the kernel and
+# reaches the shell as some unrelated number (-10 became 246, -1 became
+# 255, -2 became 254). Anything checking "rc != 0" is unaffected; only
+# callers that inspect the specific value would notice a change.
+EXIT_OK = 0
+# the base class does not implement the action
+EXIT_NOT_IMPLEMENTED = 1
+# the feature is missing, most often because the kernel module is not loaded
+EXIT_FEATURE_UNAVAILABLE = 2
+# a named feature does not exist
+EXIT_FEATURE_NOT_FOUND = 3
+
 
 class CLIFeatureCommand:
     def __init__(self, name: str, parser_subcommands, cmd_group: list, writeable: bool = True):
@@ -52,29 +65,29 @@ class CLIFeatureCommand:
     def command_status_cli(self, **_) -> int:
         if self.check_if_exist():
             return self.command_status()
-        return -10
+        return EXIT_FEATURE_UNAVAILABLE
 
     def command_enable_cli(self, **_) -> int:
         if self.check_if_exist():
             return self.command_enable()
-        return -10
+        return EXIT_FEATURE_UNAVAILABLE
 
     def command_disable_cli(self, **_) -> int:
         if self.check_if_exist():
             return self.command_disable()
-        return -10
+        return EXIT_FEATURE_UNAVAILABLE
 
     def exists(self) -> bool:
         return False
 
     def command_status(self, **_) -> int:
-        return 0
+        return EXIT_OK
 
     def command_enable(self, **_) -> int:
-        return -1
+        return EXIT_NOT_IMPLEMENTED
 
     def command_disable(self, **_) -> int:
-        return -1
+        return EXIT_NOT_IMPLEMENTED
 
 
 class MiniFancurveFeatureCommand(CLIFeatureCommand):
@@ -383,11 +396,11 @@ def monitor(legion: LegionModelFacade, period=None, **_) -> int:
 def set_feature(legion: LegionModelFacade, name, values, **_) -> int:
     log.setLevel("INFO")
     if legion.set_feature_to_str_value(name, values):
-        return 0
+        return EXIT_OK
     print("Feature not found.")
     for feat in legion.get_all_features():
         print(feat)
-    return -2
+    return EXIT_FEATURE_NOT_FOUND
 
 
 def create_argparser() -> argparse.ArgumentParser:
