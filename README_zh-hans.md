@@ -837,7 +837,7 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 
 由于硬件固件的限制，部分问题无法修复：
 
-- 风扇曲线的点数无法更改（性能模式下为 10 点，其它模式为 9 点），但你可以通过将温度限制设置为 127 来实际禁用某些点，在写入 `auto_points_size` 时已经采用了这种方式。
+- 风扇曲线的点数即 `auto_points_size` 所报告的值：EC 实际使用的点数，最多 10 点，且随机型和电源模式变化。在使用 EC 风扇曲线访问的机型上，可以写入该属性来调整曲线点数，超出新点数的部分会由驱动清零。在固定长度曲线的机型上（WMI3、EC2、EC3、EC4），该属性仍为只读，详见下文。与点数无关，你仍然可以通过将温度限制设置为 127 来禁用某个点。
 - 在使用 WMI3 风扇表的机型上（LPCN 系列，如拯救者 Pro 5 16ARX8 / 拯救者 7 Pro 16ARX8H，以及 EC 0x5508 代际：Legion 7 16IAX10 83KY/RXCN、Legion 5 16IAX10 83NX/Q6CN、Legion 5 15IAX10 83F0/S2CN、Legion Pro 5 16AFR10 83F2/RECN、Legion 5 15AHP10 83M0/RGCN、Legion Pro 5 16IAX10 83F3/Q6CN，以及上述 Q7CN/RLCN/83LU 机型），WMI 方法只传输每个曲线点的风扇**速度**：温度阈值、第二个风扇的速度以及加/减速值无法通过 WMI 读取或写入（回读始终为 0）。在这些使用 WMI3 的 0x5508 机型上，速度值是 **1-10 风扇等级**而非百分比——把百分比值写入等级字节与该代际的热关机报告相符，因此内核模块在这些机型上只暴露速度属性并将其按等级处理；EC 继续使用自己的固件温度阈值。已在拯救者 Pro 5 16ARX8（BIOS LPCN65WW）上确认，并经 0x5508 各机箱的 DSDT 分析证实（issue #491）；LPCN 系列其余机型（如 LPCN47WW）暂按推测适用，待相关用户确认。[#140](https://github.com/johnfanv2/LenovoLegionLinux/issues/140)
 - 对于基于等级的 WMI 曲线，GUI/CLI 中的 RPM 请求会取整到固件等级，并受驱动每个曲线点的最低等级约束，零 RPM 请求也不例外。原生 RPM 曲线（包括 R3CN 的 EC3 曲线）仍支持零 RPM，且不会被量化为 WMI 等级。只读属性 `fancurve_speed_unit` 标明当前曲线单位（`rpm`、`percent` 或 `level`）；固件 RPM 等级表仅向等级曲线提供，不再取决于是否支持恢复默认曲线。用户空间每次读取或应用曲线都会重新读取校准表；百分比后端也能正确回读对应的百分比档位，不再因二次取整而降低转速。校准数据缺失或无效时拒绝 RPM 写入，不会猜测线性换算；GUI 保留监控功能，可通过 Read from HW 重试。请同时更新内核模块和用户空间程序，以便明确识别单位。
 - Legion 5 15AHP11（83Q7，T2CN）的 WMI 曲线使用共享**等级**，不是百分比。SFAN 写入和 RPM 校准使用实时热模式，而不是保存的电源配置请求；极限模式下或无法读取模式时，会拒绝曲线写入/恢复默认值。固件 RPM 表中的零转速和重复值保留原有索引，删除首项零值会造成转速映射错位。详见 [T2CN 固件证据和验证方法](doc/FEATURES_AND_TESTING.md#legion-5-15ahp11-83q7-t2cn)。
