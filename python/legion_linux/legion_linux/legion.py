@@ -915,6 +915,14 @@ class FanCurveIO(Feature):
     pwm3_temp = "pwm3_auto_point{}_temp"
     pwm1_accel = "pwm1_auto_point{}_accel"
     pwm1_decel = "pwm1_auto_point{}_decel"
+
+    # Ranges the driver enforces in fancurve_is_valid_min_temp /
+    # fancurve_is_valid_max_temp / fancurve_set_accel / fancurve_set_decel
+    # (kernel_module/legion-laptop.c). A store outside them is rejected there,
+    # so rejecting them here keeps a bad curve from being half applied.
+    KERNEL_TEMP_RANGE = (0, 127)
+    KERNEL_ACCEL_RANGE = (2, 5)
+    KERNEL_DECEL_RANGE = (2, 5)
     minifancurve = "minifancurve"
     fan1_max = "fan1_max"
     fan2_max = "fan2_max"
@@ -1269,17 +1277,78 @@ class FanCurveIO(Feature):
         # pylint: disable=broad-except
         except Exception as error:
             log.error(str(error))
+        self._write_fancurve_plan(
+            self._fancurve_write_plan(entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve)
+        )
+
+    def _check_fancurve_range(self, label, value, limits):
+        """Return value if the driver would accept it, else raise."""
+        low, high = limits
+        if not low <= value <= high:
+            raise ValueError(f"{label}={value} is outside the range the driver accepts ({low}-{high})")
+        return value
+
+    def _fancurve_write_plan(self, entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve):
+        """Resolve every fan curve sysfs write before any of them reaches the hardware.
+
+        Returns an ordered list of (file_path, value) pairs for the whole curve.
+        Point ids are bounds-checked and every value the driver range-checks is
+        validated here, so a curve the driver would reject is refused before
+        point 1 is written rather than part way through.
+        """
+        plan = []
         for index, entry in enumerate(entries):
-            point_id = index + 1
-            self.set_fan_1_speed_pwm(point_id, speeds[index][0])
+            point_id = self._validate_point_id(index + 1)
+            plan.append((self.hwmon_path + self.pwm1_fan_speed.format(point_id), speeds[index][0]))
             if has_fan_2_speed:
-                self.set_fan_2_speed_pwm(point_id, speeds[index][1])
+                plan.append((self.hwmon_path + self.pwm2_fan_speed.format(point_id), speeds[index][1]))
             for name, pattern in self.temperature_files.items():
                 if name in temperature_fields:
-                    self._write_file(self.hwmon_path + pattern.format(point_id), getattr(entry, name))
+                    value = self._check_fancurve_range(name, getattr(entry, name), self.KERNEL_TEMP_RANGE)
+                    plan.append((self.hwmon_path + pattern.format(point_id), value))
             if has_acceleration_curve:
-                self.set_acceleration(point_id, entry.acceleration)
-                self.set_deceleration(point_id, entry.deceleration)
+                plan.append(
+                    (
+                        self.hwmon_path + self.pwm1_accel.format(point_id),
+                        self._check_fancurve_range("acceleration", entry.acceleration, self.KERNEL_ACCEL_RANGE),
+                    )
+                )
+                plan.append(
+                    (
+                        self.hwmon_path + self.pwm1_decel.format(point_id),
+                        self._check_fancurve_range("deceleration", entry.deceleration, self.KERNEL_DECEL_RANGE),
+                    )
+                )
+        return plan
+
+    def _write_fancurve_plan(self, plan):
+        """Apply a whole fan curve, putting the previous values back if a write fails.
+
+        Each point is an independent sysfs attribute, so a failure part way
+        through used to leave the EC running a mixture of the old and the new
+        curve. Snapshot every file first, then restore the ones already written.
+        """
+        previous = {}
+        for file_path, _ in plan:
+            if file_path not in previous:
+                previous[file_path] = self._read_file_or(file_path, None)
+        written = []
+        try:
+            for file_path, value in plan:
+                self._write_file(file_path, value)
+                written.append(file_path)
+        # pylint: disable=broad-except
+        except Exception as error:
+            log.error("Fan curve write failed (%s), restoring %d previous values", error, len(written))
+            for file_path in reversed(written):
+                if previous[file_path] is None:
+                    continue
+                try:
+                    self._write_file(file_path, previous[file_path])
+                # pylint: disable=broad-except
+                except Exception as restore_error:
+                    log.error("Could not restore %s: %s", file_path, restore_error)
+            raise
 
     def read_fan_curve(self) -> FanCurve:
         """Reads a fan curve object from the file system"""
