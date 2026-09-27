@@ -196,6 +196,12 @@ static void handle_command(const LEGIOND_REQUEST *request)
 		pretty("config reload start");
 		reload_config();
 		set_all(get_powerstate(), &config);
+		/* set_all has just run, so the config is current again. Without
+		 * this a later CMD_CPUSET would keep printing "do nothing" until
+		 * a pending fanset timer fired, even though this reload applied
+		 * everything the cpuset would have applied.
+		 */
+		triggered = true;
 		pretty("config reload end");
 		break;
 	default:
