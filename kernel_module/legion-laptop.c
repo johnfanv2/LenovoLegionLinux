@@ -4231,6 +4231,11 @@ static bool fancurve_set_size(struct fancurve *fancurve, int size,
 		for (i = fancurve->size; i < size; ++i)
 			fancurve->points[i] = fancurve->points[last];
 	}
+	// The blocks above compare against the *old* size, so only publish the new
+	// one once they are done. Without this the store is accepted, points[] is
+	// reshaped, but fancurve->size - and therefore EXT_FAN_POINTS_SIZE - keeps
+	// the value the EC reported, making a resize a silent no-op.
+	fancurve->size = size;
 	return true;
 }
 
