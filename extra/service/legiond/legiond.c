@@ -45,7 +45,8 @@ static void reload_config(void)
 {
 	if (parseconf(&config) != 0)
 		fprintf(stderr,
-			"legiond: failed to parse config, using defaults\n");
+			"legiond: failed to parse %s, keeping previous config\n",
+			config_path);
 }
 
 static void clear_socket(void)
