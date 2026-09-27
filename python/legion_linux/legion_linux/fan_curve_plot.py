@@ -213,7 +213,7 @@ class FanCurvePlot(QWidget):
             return None
         return self._x(lower, self._bounds(), domain), point[1] + 12
 
-    def _paint_band(self, painter, area, row, index, fan, color, y, x, domain):
+    def _paint_band(self, painter, area, row, index, fan, *, color, y, x, domain):
         lower_field = ("cpu_lower_temp", "gpu_lower_temp")[fan]
         if not self.temperature_axis or lower_field not in self.temperature_fields:
             return
@@ -232,7 +232,7 @@ class FanCurvePlot(QWidget):
             painter.setBrush(self.palette().color(QPalette.ColorRole.Base))
             painter.drawRect(QRectF(start - 4.5, y + 8, 9, 9))
 
-    def _paint_series(self, painter, area, rows, size, maximum, domain, colors):
+    def _paint_series(self, painter, area, rows, *, size, maximum, domain, colors):
         for fan, color in enumerate(colors):
             if fan == 1 and not self.has_fan_2_speed:
                 continue
@@ -249,7 +249,7 @@ class FanCurvePlot(QWidget):
                     previous = None
                     continue
                 x, y = point
-                self._paint_band(painter, area, row, index, fan, color, y, x, domain)
+                self._paint_band(painter, area, row, index, fan, color=color, y=y, x=x, domain=domain)
                 if previous is not None:
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.setPen(QPen(color, 3))
@@ -300,11 +300,11 @@ class FanCurvePlot(QWidget):
             painter.setPen(muted)
             painter.drawText(area.toRect(), Qt.AlignmentFlag.AlignCenter, "No writable fan curve points")
             return
-        self._paint_series(painter, area, rows, size, maximum, domain, colors)
+        self._paint_series(painter, area, rows, size=size, maximum=maximum, domain=domain, colors=colors)
         self._paint_padding(painter, area, rows, size, muted)
-        self._paint_selection(painter, area, rows, maximum, domain, colors)
+        self._paint_selection(painter, area, rows, maximum=maximum, domain=domain, colors=colors)
 
-    def _paint_selection(self, painter, area, rows, maximum, domain, colors):
+    def _paint_selection(self, painter, area, rows, *, maximum, domain, colors):
         if self._drag is None:
             return
         index, fan, _, _, handle = self._drag
