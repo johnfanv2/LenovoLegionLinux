@@ -241,6 +241,13 @@ struct model_config {
 	bool has_minifancurve;
 	bool has_custom_powermode;
 	bool has_extreme_powermode;
+
+	// Which EXT_*_TEMP_INPUT offsets have actually been validated for this
+	// model, as a TEMP_REGISTER_* bitmask. Zero everywhere by default, which
+	// keeps reading the hardcoded addresses below, exactly as before. Most
+	// model configs carry unvalidated placeholders for these registers, so a
+	// model may only opt in for the registers confirmed on real hardware.
+	u8 validated_temp_registers;
 	enum access_method access_method_powermode;
 
 	enum access_method access_method_keyboard;
@@ -4485,6 +4492,28 @@ static int set_simple_wmi_attribute(struct legion_private *priv,
 /* Sensor value reading/writing */
 /* ============================= */
 
+// Temperature registers the driver has always read, independent of model.
+#define EC_TEMP_INPUT_CPU 0xC5E6
+#define EC_TEMP_INPUT_GPU 0xC5E7
+#define EC_TEMP_INPUT_IC 0xC5E8
+
+// Selects which per-model EXT_*_TEMP_INPUT offsets are trusted, see
+// model_config.validated_temp_registers.
+#define TEMP_REGISTER_CPU (1 << 0)
+#define TEMP_REGISTER_GPU (1 << 1)
+#define TEMP_REGISTER_IC (1 << 2)
+
+// Pick the register to read a temperature from: the model's own offset once
+// that register is validated for the model, otherwise the address the driver
+// has always used.
+static u16 temp_input_register(const struct model_config *model, u8 bit,
+			       u16 model_register, u16 fallback)
+{
+	if (model->validated_temp_registers & bit)
+		return model_register;
+	return fallback;
+}
+
 static int ec_read_sensor_values(struct ecram *ecram,
 				 const struct model_config *model,
 				 struct sensor_values *values)
@@ -4509,16 +4538,18 @@ static int ec_read_sensor_values(struct ecram *ecram,
 		(((int)ecram_read(ecram, model->registers->EXT_FAN2_RPM_MSB))
 		 << 8);
 
-	values->cpu_temp_celsius =
-		ecram_read(ecram, model->registers->EXT_CPU_TEMP_INPUT);
-	values->gpu_temp_celsius =
-		ecram_read(ecram, model->registers->EXT_GPU_TEMP_INPUT);
-	values->ic_temp_celsius =
-		ecram_read(ecram, model->registers->EXT_IC_TEMP_INPUT);
-
-	values->cpu_temp_celsius = ecram_read(ecram, 0xC5E6);
-	values->gpu_temp_celsius = ecram_read(ecram, 0xC5E7);
-	values->ic_temp_celsius = ecram_read(ecram, 0xC5E8);
+	values->cpu_temp_celsius = ecram_read(
+		ecram, temp_input_register(model, TEMP_REGISTER_CPU,
+					   model->registers->EXT_CPU_TEMP_INPUT,
+					   EC_TEMP_INPUT_CPU));
+	values->gpu_temp_celsius = ecram_read(
+		ecram, temp_input_register(model, TEMP_REGISTER_GPU,
+					   model->registers->EXT_GPU_TEMP_INPUT,
+					   EC_TEMP_INPUT_GPU));
+	values->ic_temp_celsius = ecram_read(
+		ecram, temp_input_register(model, TEMP_REGISTER_IC,
+					   model->registers->EXT_IC_TEMP_INPUT,
+					   EC_TEMP_INPUT_IC));
 
 	return 0;
 }
@@ -4530,9 +4561,17 @@ static ssize_t ec_read_temperature(struct ecram *ecram,
 	unsigned long res;
 
 	if (sensor_id == 0) {
-		res = ecram_read(ecram, 0xC5E6);
+		res = ecram_read(ecram,
+				 temp_input_register(
+					 model, TEMP_REGISTER_CPU,
+					 model->registers->EXT_CPU_TEMP_INPUT,
+					 EC_TEMP_INPUT_CPU));
 	} else if (sensor_id == 1) {
-		res = ecram_read(ecram, 0xC5E7);
+		res = ecram_read(ecram,
+				 temp_input_register(
+					 model, TEMP_REGISTER_GPU,
+					 model->registers->EXT_GPU_TEMP_INPUT,
+					 EC_TEMP_INPUT_GPU));
 	} else {
 		// TODO: use all correct error codes
 		return -EEXIST;
