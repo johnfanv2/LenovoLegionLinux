@@ -600,6 +600,13 @@ static const struct model_config model_efcn = {
 				"\\_SB.PCI0.LPCB.EC0.VPC0.SBMC" }
 };
 
+// Legion 5 Pro 16IAH7H (82RF, 2022), BIOS J2CN, EC chip 0x8227 (issue
+// #600). Same register map as model_v0, but this Alder Lake DSDT puts
+// the EC under \_SB.PC00.LPCB.EC0 instead of \_SB.PCI0.LPC0.EC0, so the
+// v0 ACPI paths never resolve and rapidcharge stayed hidden. A duplicate
+// J2CN allowlist entry using model_v0 shadowed this config until #601.
+// Rapidcharge verified on BIOS J2CN35WW: charge power 79 W off vs
+// 168 W avg / 188 W peak on, no fancurve/sensors/powermode regression.
 static const struct model_config model_j2cn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -617,12 +624,11 @@ static const struct model_config model_j2cn = {
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600,
-	.acpi_paths = {
-		[ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
-		[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
-		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
-		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PC00.LPCB.EC0.VPC0.SBMC"
-	}
+	/* rapidcharge EC at \_SB.PC00.LPCB.EC0, not v0 \_SB.PCI0.LPC0.EC0 */
+	.acpi_paths = { [ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" }
 };
 
 static const struct model_config model_9vcn = {
