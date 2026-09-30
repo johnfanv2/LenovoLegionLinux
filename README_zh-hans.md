@@ -1022,6 +1022,10 @@ softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other l
 
 在拯救者 Pro 7 16IAX10H（83F5，Q7CN）上，功耗限制无需上述任何配置：无论加载顺序如何，`legion_laptop` 都会把 GameZone WMI 设备留给 `lenovo_wmi_gamezone`，因此使用默认选项时 `/sys/class/firmware-attributes/lenovo-wmi-other-0`（PL1/PL2、cTGP 等）也能与它共存。此时两个驱动都会注册电源模式提供者，且选项相同（五种），全局列表不会丢失任何模式。
 
+### 我的 Intel 拯救者除自定义模式外，CPU 功耗都被限制在约 30 W，为什么？
+
+查看 `cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw`。在部分固件上（例如拯救者 Pro 7 16IAX10H，Q7CN），CPU 实际执行的是这个 MMIO RAPL 限制，BIOS 启动时将其设为 30 W；固件只在进入自定义模式时才写入它，安静/均衡/性能/狂暴模式交给 Windows 上的联想软件和 Intel DTT 处理。thermald 的 adaptive 模式也无济于事：固件通过只有 Windows 软件才会设置的条件来选择各模式的目标，因此 thermald 只会对所有模式套用同一个固定限制。`legion_laptop` 在 `cpu_longterm_powerlimit_defaults` / `cpu_shortterm_powerlimit_defaults` 中导出固件的各模式默认值（例如 `performance:145` / `performance:190`），在 `/etc/legion_linux/legiond.ini` 中设置 `cpu_powerlimit_sync=true` 后，`legiond` 会在每次切换电源模式时应用这些值（见 `extra/service/legiond/README.org`）。不使用 legiond 时，进入一次自定义模式即可应用自定义的 PL1/PL2，并在重启前一直保持。
+
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
 首先，尝试[重置嵌入式控制器](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem)或进行 BIOS 升级/降级来重置所有设置。

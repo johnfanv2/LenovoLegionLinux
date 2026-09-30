@@ -1,4 +1,5 @@
 #include "setapply.h"
+#include "powerlimit.h"
 #include "powerstate.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -250,6 +251,7 @@ int set_all(POWER_STATE power_state, LEGIOND_CONFIG *config)
 
 	result |= set_fancurve(power_state, config);
 	result |= set_cpu(power_state, config);
+	result |= set_cpu_powerlimit(power_state, config);
 	result |= set_gpu(power_state, config);
 
 	return result;

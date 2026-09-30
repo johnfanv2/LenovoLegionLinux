@@ -996,6 +996,10 @@ into `/etc/modprobe.d/legion_laptop.conf`; the `softdep` line loads the mainline
 
 On the Legion Pro 7 16IAX10H (83F5, Q7CN) none of this is needed for the power limits: `legion_laptop` leaves the GameZone WMI device to `lenovo_wmi_gamezone` whatever the load order, so `/sys/class/firmware-attributes/lenovo-wmi-other-0` (PL1/PL2, cTGP, ...) works next to it with the default options. Both drivers then register a platform-profile provider with the same five choices, so no profile is lost from the global list.
 
+### My Intel Legion is limited to about 30 W CPU power in every mode except custom. Why?
+
+Check `cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw`. On some firmware (for example the Legion Pro 7 16IAX10H, Q7CN) the CPU enforces this MMIO RAPL limit, which the BIOS sets to 30 W at boot. The firmware then writes it only when custom mode is entered, and leaves quiet/balanced/performance/extreme to Lenovo's software and Intel DTT on Windows. thermald's adaptive mode does not help: the firmware selects its per-mode targets through conditions that only Windows software sets, so thermald applies one fixed limit to all modes. `legion_laptop` exports the firmware's per-mode defaults in `cpu_longterm_powerlimit_defaults` / `cpu_shortterm_powerlimit_defaults` (e.g. `performance:145` / `performance:190`), and `legiond` applies them on every profile change when `cpu_powerlimit_sync=true` is set in `/etc/legion_linux/legiond.ini` (see `extra/service/legiond/README.org`). Without legiond, entering custom mode once applies the custom PL1/PL2, which then stay in place until reboot.
+
 ### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
 
 First, try to [reset the embedded controller](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem) OR do a BIOS update/downgrade to reset everything.

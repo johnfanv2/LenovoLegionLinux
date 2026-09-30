@@ -87,6 +87,21 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   choices; on AC, `custom` via the `lenovo-wmi-gamezone` profile device,
   `ppt_pl1_spl` 80 written and read back, then restored to 90 (the
   power-button LED shows purple/pink while in custom mode).
+- CPU package power in the non-custom modes: the enforced limit is MMIO RAPL
+  (`intel-rapl-mmio:0`), which the BIOS sets to 30/30 W at boot. The WMAE
+  power-limit setters store their value but update the EC's live limits
+  (`CLTP`/`CSTP`) only when `ODV1 == 3` (custom), and `ROOS()` signals the
+  other modes to Intel DTT (`Notify(IETM, 0x88)`, mode in `ODV1` = `odvp1`),
+  whose data-vault targets are selected through software-OEM conditions that
+  thermald cannot evaluate. So quiet/balanced/performance/extreme ran at 30 W
+  (24-thread load: ~1.2 GHz, 54 °C) until custom mode was entered once. The
+  driver exports the capdata01 per-mode defaults in
+  `cpu_longterm_powerlimit_defaults` (`low-power:55 balanced:90
+  performance:145 max-power:160 custom:90`) and
+  `cpu_shortterm_powerlimit_defaults` (`65 125 190 205 125`), and legiond's
+  `cpu_powerlimit_sync` writes them to MMIO RAPL on each profile change
+  (verified: 55/65 W → ~2.7 GHz, 63 °C; 90/125 W → ~3.6 GHz, 87 °C on the
+  same load).
 - The fan table is the level-index kind described in "Fan curve on Legion
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware

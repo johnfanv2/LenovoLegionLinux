@@ -21,6 +21,14 @@ static int handler(void *user, const char *section, const char *name,
 		ptr_cmd = &pconfig->rocm_smi_path;
 	} else if (MATCH("main", "fan_control")) {
 		pconfig->fan_control = strcmp(value, "true") == 0;
+	} else if (MATCH("main", "cpu_powerlimit_sync")) {
+		pconfig->cpu_powerlimit_sync = strcmp(value, "true") == 0;
+	} else if (MATCH("cpu_powerlimit", "bat_pl1")) {
+		if (sscanf(value, "%u", &pconfig->powerlimit_bat_pl1) != 1)
+			pconfig->powerlimit_bat_pl1 = 0;
+	} else if (MATCH("cpu_powerlimit", "bat_pl2")) {
+		if (sscanf(value, "%u", &pconfig->powerlimit_bat_pl2) != 1)
+			pconfig->powerlimit_bat_pl2 = 0;
 	} else if (MATCH("gpu_control", "tdp_ac_q")) {
 		ptr_cmd = &pconfig->gpu_tdp_ac_q;
 	} else if (MATCH("gpu_control", "tdp_bat_q")) {

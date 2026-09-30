@@ -10,6 +10,11 @@ typedef char command[MAX_CMD_LEN];
 typedef struct _LEGIOND_CONFIG {
 	bool fan_control;
 	bool cpu_control;
+	/* write the firmware's per-mode CPU power limits to MMIO RAPL */
+	bool cpu_powerlimit_sync;
+	/* battery PL1/PL2 in watts for cpu_powerlimit_sync; 0 = leave alone */
+	unsigned int powerlimit_bat_pl1;
+	unsigned int powerlimit_bat_pl2;
 	command gpu_control;
 	command nvidia_smi_path;
 	command rocm_smi_path;

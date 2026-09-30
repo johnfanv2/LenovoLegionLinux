@@ -1,0 +1,148 @@
+#include "powerlimit.h"
+#include "../public.h"
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+
+/*
+ * Some firmware (Legion Pro 7 16IAX10H, Q7CN) applies the CPU power limits
+ * itself only in custom mode and leaves the other modes to OEM software on
+ * Windows (the DPTF adaptive policy selects per-mode targets through
+ * software-set conditions). On Linux the package limit then stays at the
+ * BIOS boot value (30 W on Q7CN) in every other mode. When
+ * cpu_powerlimit_sync is enabled, write the firmware's own per-mode
+ * defaults, exported by legion-laptop, into the MMIO RAPL limit that the
+ * CPU enforces.
+ */
+
+/* profile name as used in the defaults files; NULL = leave the limits alone */
+static const char *ac_profile(POWER_STATE power_state)
+{
+	switch (power_state) {
+	case P_AC_Q:
+		return "low-power";
+	case P_AC_B:
+		return "balanced";
+	case P_AC_P:
+		return "performance";
+	case P_AC_E:
+		return "max-power";
+	default:
+		/* custom: the firmware applies the user's own limits */
+		return NULL;
+	}
+}
+
+/* look up "profile:watts" in a defaults file; 0 when absent */
+static unsigned int read_default_watts(const char *path, const char *profile)
+{
+	char line[256];
+
+	{
+		auto_stream fp = fopen(path, "r");
+		if (fp == NULL || fgets(line, sizeof(line), fp) == NULL)
+			return 0;
+	}
+
+	size_t len = strlen(profile);
+	for (char *tok = strtok(line, " \n"); tok; tok = strtok(NULL, " \n")) {
+		unsigned int watts;
+
+		if (strncmp(tok, profile, len) == 0 && tok[len] == ':' &&
+		    sscanf(tok + len + 1, "%u", &watts) == 1)
+			return watts;
+	}
+	return 0;
+}
+
+/* check that an MMIO RAPL constraint is the one we expect it to be */
+static bool constraint_is(int index, const char *expected_name)
+{
+	char path[PATH_MAX];
+	char name[32] = "";
+
+	snprintf(path, sizeof(path), "%s/constraint_%d_name", rapl_mmio_path,
+		 index);
+	auto_stream fp = fopen(path, "r");
+	if (fp == NULL || fscanf(fp, "%31s", name) != 1) {
+		printf("cpu_powerlimit: %s not readable\n", path);
+		return false;
+	}
+	if (strcmp(name, expected_name) != 0) {
+		printf("cpu_powerlimit: constraint %d is %s, expected %s\n",
+		       index, name, expected_name);
+		return false;
+	}
+	return true;
+}
+
+static int write_constraint(int index, unsigned int watts)
+{
+	char path[PATH_MAX];
+	char value[32];
+
+	snprintf(path, sizeof(path), "%s/constraint_%d_power_limit_uw",
+		 rapl_mmio_path, index);
+	/* unbuffered, so a rejected value is reported here, not lost in fclose */
+	int len = snprintf(value, sizeof(value), "%u000000\n", watts);
+	auto_fd fd = open(path, O_WRONLY);
+	if (fd < 0 || write(fd, value, len) != len) {
+		printf("cpu_powerlimit: failed to write %s\n", path);
+		return 1;
+	}
+	return 0;
+}
+
+int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
+{
+	if (!config->cpu_powerlimit_sync) {
+		printf("cpu_powerlimit_sync is set to false\n");
+		printf("skip cpu_powerlimit\n");
+		return 0;
+	}
+
+	if ((int)power_state < 0) {
+		printf("skip cpu_powerlimit (power state unknown)\n");
+		return 0;
+	}
+
+	unsigned int pl1, pl2;
+
+	if (power_state % 2) {
+		/* battery: capdata has no DC defaults, use the configured ones */
+		pl1 = config->powerlimit_bat_pl1;
+		pl2 = config->powerlimit_bat_pl2;
+	} else {
+		const char *profile = ac_profile(power_state);
+
+		if (profile == NULL) {
+			printf("skip cpu_powerlimit (custom mode or unknown state)\n");
+			return 0;
+		}
+		pl1 = read_default_watts(pl1_defaults_path, profile);
+		pl2 = read_default_watts(pl2_defaults_path, profile);
+	}
+
+	if (pl1 == 0 || pl2 == 0) {
+		printf("no cpu power limits for this state\n");
+		printf("skip cpu_powerlimit\n");
+		return 0;
+	}
+
+	if (access(rapl_mmio_path, F_OK) != 0) {
+		printf("no MMIO RAPL zone (%s)\n", rapl_mmio_path);
+		printf("skip cpu_powerlimit\n");
+		return 0;
+	}
+
+	/* validate both before writing either, so a surprise never half-applies */
+	if (!constraint_is(0, "long_term") || !constraint_is(1, "short_term"))
+		return 1;
+
+	int result = write_constraint(0, pl1);
+	result |= write_constraint(1, pl2);
+	if (result == 0)
+		printf("cpu_powerlimit set to PL1 %u W, PL2 %u W\n", pl1, pl2);
+
+	return result;
+}

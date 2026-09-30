@@ -15,6 +15,27 @@ This avoids non-essential ~fancurve-set~ being run.
 ** Power state change on resume prevent ~fancurve-set~ from setting correct fancurve
 Now we use a ~3s~ delay to make sure it works fine.
 Every power-state/power-profile change will reset the timer.
+** CPU power limits that the firmware leaves to Windows software
+Some firmware applies the CPU power limits (PL1/PL2) itself only in custom
+mode and leaves the other power modes to OEM software through Intel DTT on
+Windows. On Linux the package limit then stays at the BIOS boot value in every
+other mode: the Legion Pro 7 16IAX10H runs quiet, balanced, performance and
+extreme at 30 W until custom mode has been entered once.
+
+With ~cpu_powerlimit_sync=true~ (section ~main~), legiond writes the
+firmware's own per-mode defaults, which ~legion-laptop~ exports in
+~cpu_longterm_powerlimit_defaults~ / ~cpu_shortterm_powerlimit_defaults~ (for
+example ~performance:145~ / ~performance:190~), to
+~/sys/class/powercap/intel-rapl-mmio:0~ (constraints ~long_term~ and
+~short_term~, both checked before writing) on every power-profile change,
+on resume and with the ~legiond-cpuset.timer~ refresh. Custom mode is left to
+the firmware, which applies the user's custom values itself. On battery the
+limits are only written when ~bat_pl1~ / ~bat_pl2~ (section
+~cpu_powerlimit~, watts) are set. The option is off by default.
+
+Check the result with
+~cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw~
+after a Fn+Q.
 * How it works
 ~legiond~ is divided into two parts, ~legiond~ and ~legiond-ctl~.
 ~legiond~ is running as a ~systemd.service~, ~legiond-ctl~ is a bridge between ~legiond-cpuset.service~ and ~legiond-resume.service~ with ~legiond.service~.
@@ -44,4 +65,5 @@ systemctl enable --now legiond.service legiond-onresume.service legiond-cpuset.t
 * ~TODO~
 - [X] fancurve control
 - [X] cpu control
+- [X] cpu power limit sync (firmware per-mode defaults to MMIO RAPL)
 - [ ] freshrate control
