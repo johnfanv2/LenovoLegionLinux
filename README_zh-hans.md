@@ -1026,6 +1026,10 @@ softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other l
 
 查看 `cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw`。在部分固件上（例如拯救者 Pro 7 16IAX10H，Q7CN），CPU 实际执行的是这个 MMIO RAPL 限制，BIOS 启动时将其设为 30 W；固件只在进入自定义模式时才写入它，安静/均衡/性能/狂暴模式交给 Windows 上的联想软件和 Intel DTT 处理。thermald 的 adaptive 模式也无济于事：固件通过只有 Windows 软件才会设置的条件来选择各模式的目标，因此 thermald 只会对所有模式套用同一个固定限制。`legion_laptop` 在 `cpu_longterm_powerlimit_defaults` / `cpu_shortterm_powerlimit_defaults` 中导出固件的各模式默认值（例如 `performance:145` / `performance:190`），在 `/etc/legion_linux/legiond.ini` 中设置 `cpu_powerlimit_sync=true` 后，`legiond` 会在每次切换电源模式时应用这些值（见 `extra/service/legiond/README.org`）；配置可选的 `double_*` 项后，它还会在机身传感器升温后像 Windows 一样切换到固件中较低的 CPU+GPU 同时负载限制（例如性能模式 145 W → 75 W），为 GPU 留出余量。不使用 legiond 时，进入一次自定义模式即可应用自定义的 PL1/PL2，并在重启前一直保持。GPU 有自己的功耗限制：在这些机型上请启用 NVIDIA 的 Dynamic Boost 守护进程（`sudo systemctl enable --now nvidia-powerd`，随 NVIDIA 驱动提供）。未启用时，拯救者 Pro 7 16IAX10H 的 RTX 5090 在所有模式下都被限制在 95 W；启用后，性能/狂暴模式为 150 W，负载下最高 175 W（可用 `nvidia-smi -q -d POWER` 查看）。
 
+### 混合显卡（Intel + NVIDIA）拯救者上屏幕亮度键或 `brightnessctl` 无效
+
+在混合模式下，内屏由 Intel GPU 驱动（`intel_backlight`），但 NVIDIA 驱动还会为独显的屏幕输出注册 `nvidia_0`，而该输出在此模式下处于断开状态。`brightnessctl`、`swayosd` 等工具默认使用第一个设备 `nvidia_0`，因此即使亮度键本身正常（它们以 `KEY_BRIGHTNESSUP/DOWN` 的形式来自 ACPI "Video Bus"），调整也看不到任何效果。用 `brightnessctl -l` 查看，并在快捷键绑定和空闲守护进程中明确指定设备，例如 `brightnessctl -d intel_backlight set 50%` 或 `swayosd-client --device intel_backlight --brightness +5`。已在拯救者 Pro 7 16IAX10H（OLED 屏）上确认。在纯独显模式下内屏改由 NVIDIA GPU 驱动，此时 `nvidia_0` 才是正确的设备。
+
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
 首先，尝试[重置嵌入式控制器](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem)或进行 BIOS 升级/降级来重置所有设置。
