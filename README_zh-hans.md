@@ -814,6 +814,8 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 
 在 GUI 中，勾选 `Battery conservation` 即可开启（更改会立即生效）。
 
+电池保护模式与快速充电互斥：开启电池保护模式（`battery_conservation`）时会先关闭快速充电；开启快速充电时固件会关闭电池保护模式。关闭电池保护模式后快速充电保持关闭。
+
 ---
 
 ### 切换 Fn 锁，使 F1-F12 键可直接调用特殊功能

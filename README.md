@@ -790,6 +790,8 @@ You can enable battery conservation mode. When conservation mode is enabled, the
 
 With the GUI, the battery conservation is enabled by checking the box `Battery conservation` (changes should apply immediately).
 
+Conservation mode and rapid charging are mutually exclusive: enabling conservation mode (`battery_conservation`) switches rapid charging off first, and enabling rapid charging switches conservation mode off (done by the firmware). Disabling conservation mode leaves rapid charging off.
+
 ### Toggle Fn lock to use special functions on F1-F12 keys without pressing Fn key
 
 You can lock the Fn keys. You can do it by pressing Fn+Esc. This should also toggle the light in the Esc key (if available in your model).

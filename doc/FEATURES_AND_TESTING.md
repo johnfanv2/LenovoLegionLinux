@@ -147,9 +147,14 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
 - Keyboard and lid lighting are USB-HID ITE devices (048d:c197); the WMI light
   methods do not drive them, so there is no keyboard, Y-logo or IO-port light
   control.
-- Rapid charge / battery conservation go through `VPC0.GBMD`/`VPC0.SBMC`
-  (present in the DSDT, not exercised); enabling rapid charge clears
-  conservation mode in firmware.
+- Rapid charge / battery conservation go through `VPC0.GBMD`/`VPC0.SBMC`;
+  enabling rapid charge clears conservation mode in firmware, but enabling
+  conservation left rapid charge on, and ideapad-laptop's `charge_types` then
+  failed with -EINVAL ("both [Fast] and [Long_Life] are enabled"). The driver
+  now switches rapid charge off before enabling conservation, like
+  ideapad-laptop. Verified: conservation on → rapid 0, `charge_types`
+  `[Long_Life]`, battery "Not charging"; off → `[Standard]`; rapid on →
+  conservation cleared, `[Fast]`; no charge_types errors.
 - Instant Boot: `instant_boot_ac` / `instant_boot_usb_pd` (`has_instant_boot`)
   use WMAE feature ids 0x03010001 / 0x03010002. Get returns EC `EACS` /
   `ETCS`; set calls `WSMI(7)`/`WSMI(8)` (AC on/off) or `WSMI(9)`/`WSMI(0xA)`

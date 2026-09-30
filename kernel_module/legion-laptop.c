@@ -7061,7 +7061,24 @@ static ssize_t battery_conservation_store(struct device *dev,
 		return err;
 
 	mutex_lock(&priv->fancurve_mutex);
+	/*
+	 * Conservation and rapid charge are mutually exclusive. The firmware
+	 * clears conservation when rapid charge is enabled, but not the other
+	 * way round; leaving both set makes ideapad-laptop's charge_types read
+	 * fail with -EINVAL. Turn rapid charge off first, as ideapad-laptop
+	 * does, and leave it alone when disabling conservation.
+	 */
+	if (state) {
+		bool rapid;
+
+		err = acpi_read_rapidcharge(priv->adev, &rapid);
+		if (!err && rapid)
+			err = acpi_write_rapidcharge(priv->adev, false);
+		if (err)
+			goto unlock;
+	}
 	err = acpi_write_conservation(priv->adev, state);
+unlock:
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return err;
