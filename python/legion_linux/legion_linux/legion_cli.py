@@ -286,6 +286,48 @@ class AlwaysOnUsbCharging(CLIFeatureCommand):
         return 0
 
 
+class InstantBootAC(CLIFeatureCommand):
+    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+        super().__init__("instant-boot-ac", parser_subcommands, cmd_group)
+        self.model = model
+
+    def exists(self) -> bool:
+        return self.model.instant_boot_ac.exists()
+
+    def command_status(self, **_) -> int:
+        print(self.model.instant_boot_ac.get())
+        return 0
+
+    def command_enable(self, **_) -> int:
+        self.model.instant_boot_ac.set(True)
+        return 0
+
+    def command_disable(self, **_) -> int:
+        self.model.instant_boot_ac.set(False)
+        return 0
+
+
+class InstantBootUSBPD(CLIFeatureCommand):
+    def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
+        super().__init__("instant-boot-usb-pd", parser_subcommands, cmd_group)
+        self.model = model
+
+    def exists(self) -> bool:
+        return self.model.instant_boot_usb_pd.exists()
+
+    def command_status(self, **_) -> int:
+        print(self.model.instant_boot_usb_pd.get())
+        return 0
+
+    def command_enable(self, **_) -> int:
+        self.model.instant_boot_usb_pd.set(True)
+        return 0
+
+    def command_disable(self, **_) -> int:
+        self.model.instant_boot_usb_pd.set(False)
+        return 0
+
+
 class RapidCharging(CLIFeatureCommand):
     def __init__(self, parser_subcommands, model: LegionModelFacade, cmd_group: list):
         super().__init__("rapid-charging", parser_subcommands, cmd_group)
@@ -522,6 +564,8 @@ def main():
     CameraPowerFeatureCommand(subcommands, None, cmd_group)
     OnPowerSupplyFeatureCommand(subcommands, None, cmd_group)
     AlwaysOnUsbCharging(subcommands, None, cmd_group)
+    InstantBootAC(subcommands, None, cmd_group)
+    InstantBootUSBPD(subcommands, None, cmd_group)
     RapidCharging(subcommands, None, cmd_group)
     HybridMode(subcommands, None, cmd_group)
 

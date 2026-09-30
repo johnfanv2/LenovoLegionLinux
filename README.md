@@ -69,6 +69,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
   - Save and load presets for different modes
 - [X] Lock and unlock the fan controller and fan speed
 - [X] Lift the firmware-imposed fan ceiling on supported models (`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`). On the Legion Pro 7 16IRX8H (BIOS KWCN54WW) this raises the cap from ~4400 RPM to ~7100 RPM. Discovered via `WMAA(0, 0x0D, 0x01)` — see issue #429. The sysfs node is gated behind a `has_fan_unlock` model/BIOS allowlist and only exposed on validated firmwares (currently KWCN54WW).
+- [X] Instant Boot: power the laptop on when an AC adapter (`instant_boot_ac`) or a USB-PD charger (`instant_boot_usb_pd`) is connected (`legion_cli instant-boot-{ac,usb-pd}-{enable,disable,status}`, GUI "Other Options"). Exposed only where the DSDT implements the WMI feature ids 0x03010001/0x03010002 (`has_instant_boot`, currently the Legion Pro 7 16IAX10H / Q7CN).
 - [X] Switch power mode (quiet, balanced, performance) using software
   - Now you can do it using software in your system settings
   - Changing with `Fn+Q` is also possible

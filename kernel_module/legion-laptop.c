@@ -313,6 +313,10 @@ struct model_config {
 	bool has_fan_unlock;
 	bool has_fn_lock;
 	bool has_flip_to_start;
+	/* instant_boot_ac/instant_boot_usb_pd through WMI3 feature ids
+	 * 0x03010001/0x03010002; set only where the DSDT implements both.
+	 */
+	bool has_instant_boot;
 };
 
 /* =================================== */
@@ -2126,6 +2130,10 @@ static const struct model_config model_q7cn = {
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
+	/* WMAE get L62801/L62813 (EC EACS/ETCS), set L63638/L63654
+	 * (WSMI 7/8, 9/0xA); capdata00 (WQA9) flags both 0x07.
+	 */
+	.has_instant_boot = true,
 };
 
 // Legion Pro 5 16ADR10 (83LT) - 2025, AMD + RTX 50
@@ -3571,6 +3579,12 @@ enum OtherMethodFeature {
 	/* firmware fan 4, the third fan on Q7CN (WMAE -> EC FASF * 100) */
 	OtherMethodFeature_FAN_SPEED_4 = 0x04030004,
 	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
+
+	/* power on when AC / a USB-PD charger is connected (Q7CN: EC
+	 * EACS/ETCS, set through WSMI)
+	 */
+	OtherMethodFeature_INSTANT_BOOT_AC = 0x03010001,
+	OtherMethodFeature_INSTANT_BOOT_USB_PD = 0x03010002,
 
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
@@ -7455,6 +7469,62 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 	return count;
 }
 
+static ssize_t instant_boot_store(struct device *dev, const char *buf,
+				  size_t count,
+				  enum OtherMethodFeature feature_id)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool enable;
+	int err, output;
+
+	if (kstrtobool(buf, &enable))
+		return -EINVAL;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_set_value(feature_id, enable, &output);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t instant_boot_ac_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return wmi_common_method_other_show(dev_get_drvdata(dev), buf,
+					    OtherMethodFeature_INSTANT_BOOT_AC);
+}
+
+static ssize_t instant_boot_ac_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	return instant_boot_store(dev, buf, count,
+				  OtherMethodFeature_INSTANT_BOOT_AC);
+}
+
+static DEVICE_ATTR_RW(instant_boot_ac);
+
+static ssize_t instant_boot_usb_pd_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return wmi_common_method_other_show(
+		dev_get_drvdata(dev), buf,
+		OtherMethodFeature_INSTANT_BOOT_USB_PD);
+}
+
+static ssize_t instant_boot_usb_pd_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
+{
+	return instant_boot_store(dev, buf, count,
+				  OtherMethodFeature_INSTANT_BOOT_USB_PD);
+}
+
+static DEVICE_ATTR_RW(instant_boot_usb_pd);
+
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
@@ -8222,6 +8292,8 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_battery_conservation.attr,
 	&dev_attr_fn_lock.attr,
 	&dev_attr_flip_to_start.attr,
+	&dev_attr_instant_boot_ac.attr,
+	&dev_attr_instant_boot_usb_pd.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
@@ -8311,6 +8383,9 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return priv->conf->has_fn_lock ? attr->mode : 0;
 	if (attr == &dev_attr_flip_to_start.attr)
 		return priv->conf->has_flip_to_start ? attr->mode : 0;
+	if (attr == &dev_attr_instant_boot_ac.attr ||
+	    attr == &dev_attr_instant_boot_usb_pd.attr)
+		return priv->conf->has_instant_boot ? attr->mode : 0;
 	if (legion_attribute_uses_cpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_CPU_METHOD))
 		return 0;

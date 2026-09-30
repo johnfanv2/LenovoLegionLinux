@@ -115,6 +115,13 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
 - Rapid charge / battery conservation go through `VPC0.GBMD`/`VPC0.SBMC`
   (present in the DSDT, not exercised); enabling rapid charge clears
   conservation mode in firmware.
+- Instant Boot: `instant_boot_ac` / `instant_boot_usb_pd` (`has_instant_boot`)
+  use WMAE feature ids 0x03010001 / 0x03010002. Get returns EC `EACS` /
+  `ETCS`; set calls `WSMI(7)`/`WSMI(8)` (AC on/off) or `WSMI(9)`/`WSMI(0xA)`
+  (USB-PD on/off) and updates the EC flag. The capability table (`WQA9`,
+  capdata00) flags both ids 0x07. Reads verified (both 0 by default); to
+  verify a write, enable it, shut down, unplug and replug the charger: the
+  laptop should power on by itself.
 
 Validated on Linux 7.2.4 next to the in-tree `lenovo_wmi_*` drivers with
 `enable_platformprofile=0` (see the README's KDE/coexistence section):

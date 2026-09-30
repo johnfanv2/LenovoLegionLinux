@@ -555,6 +555,20 @@ class AlwaysOnUSBChargingFeature(BoolFileFeature):
         super().__init__(os.path.join(IDEAPAD_SYS_BASEPATH, "usb_charging"))
 
 
+class InstantBootACFeature(BoolFileFeature):
+    """Power on when an AC adapter is connected"""
+
+    def __init__(self):
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "instant_boot_ac"))
+
+
+class InstantBootUSBPDFeature(BoolFileFeature):
+    """Power on when a USB-PD charger is connected"""
+
+    def __init__(self):
+        super().__init__(os.path.join(LEGION_SYS_BASEPATH, "instant_boot_usb_pd"))
+
+
 class MaximumFanSpeedFeature(BoolFileFeature):
     def __init__(self):
         super().__init__(os.path.join(LEGION_SYS_BASEPATH, "fan_fullspeed"))
@@ -1849,6 +1863,8 @@ class LegionModelFacade:
         self.platform_profile = PlatformProfileFeature()
         self.on_power_supply = IsOnPowerSupplyFeature()
         self.always_on_usb_charging = AlwaysOnUSBChargingFeature()
+        self.instant_boot_ac = InstantBootACFeature()
+        self.instant_boot_usb_pd = InstantBootUSBPDFeature()
         self.battery_capacity_perc = BatteryCurrentCapacityPercentage()
         self.battery_custom_conservation_controller = CustomConservationController(
             self.battery_conservation, self.battery_capacity_perc

@@ -630,6 +630,8 @@ class LegionController:
     hybrid_gsync_controller: HybridGsyncController
     batteryconservation_controller: BoolFeatureController
     always_on_usb_controller: BoolFeatureController
+    instant_boot_ac_controller: BoolFeatureController
+    instant_boot_usb_pd_controller: BoolFeatureController
     rapid_charging_controller: BoolFeatureController
     power_mode_controller: EnumFeatureController
     # OC/Power
@@ -708,6 +710,12 @@ class LegionController:
         self.rapid_charging_controller.dependent_controllers.append(self.batteryconservation_controller)
         self.always_on_usb_controller = BoolFeatureController(
             self.view_otheroptions.always_on_usb_check, self.model.always_on_usb_charging
+        )
+        self.instant_boot_ac_controller = BoolFeatureController(
+            self.view_otheroptions.instant_boot_ac_check, self.model.instant_boot_ac
+        )
+        self.instant_boot_usb_pd_controller = BoolFeatureController(
+            self.view_otheroptions.instant_boot_usb_pd_check, self.model.instant_boot_usb_pd
         )
         self.power_mode_controller = EnumFeatureController(
             self.view_otheroptions.power_mode_combo, self.model.platform_profile
@@ -862,6 +870,8 @@ class LegionController:
         self.batteryconservation_controller.update_view_from_feature()
         self.rapid_charging_controller.update_view_from_feature()
         self.always_on_usb_controller.update_view_from_feature()
+        self.instant_boot_ac_controller.update_view_from_feature()
+        self.instant_boot_usb_pd_controller.update_view_from_feature()
         self.cpu_overclock.update_view_from_feature()
         self.gpu_overclock.update_view_from_feature()
         self.overdrive_controller.update_view_from_feature()
@@ -1310,6 +1320,7 @@ class OtherOptionsTab(QWidget):
         self.controller.view_otheroptions = self
 
     def init_ui(self):
+        # pylint: disable=too-many-statements
         self.options_group = QGroupBox("Options")
         self.options_layout = QVBoxLayout()
         self.options_group.setLayout(self.options_layout)
@@ -1338,6 +1349,12 @@ class OtherOptionsTab(QWidget):
 
         self.always_on_usb_check = QCheckBox("Charge Output from USB always on")
         self.options_layout.addWidget(self.always_on_usb_check, 4)
+
+        self.instant_boot_ac_check = QCheckBox("Instant Boot: power on when the AC adapter is connected")
+        self.options_layout.addWidget(self.instant_boot_ac_check, 4)
+
+        self.instant_boot_usb_pd_check = QCheckBox("Instant Boot: power on when a USB-PD charger is connected")
+        self.options_layout.addWidget(self.instant_boot_usb_pd_check, 4)
 
         self.overdrive_check = QCheckBox("Display Overdrive Enabled")
         self.options_layout.addWidget(self.overdrive_check, 5)

@@ -73,6 +73,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
   - 支持不同模式下的预设保存与加载
 - [x] 锁定和解锁风扇控制器与风扇转速
 - [x] 在受支持的机型上解除固件风扇转速上限（`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`）。在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。该功能通过 `WMAA(0, 0x0D, 0x01)` 发现 —— 见 issue #429。此 sysfs 节点由 `has_fan_unlock` 机型/BIOS 白名单控制，仅在经过验证的固件上暴露（目前为 KWCN54WW）。
+- [x] 即时开机（Instant Boot）：接入电源适配器（`instant_boot_ac`）或 USB-PD 充电器（`instant_boot_usb_pd`）时自动开机（`legion_cli instant-boot-{ac,usb-pd}-{enable,disable,status}`，GUI“其他选项”）。仅在 DSDT 实现了 WMI 功能 ID 0x03010001/0x03010002 的机型上暴露（`has_instant_boot`，目前为拯救者 Pro 7 16IAX10H / Q7CN）。
 - [x] 通过软件切换电源模式（静音、平衡、高性能）
   - 现在可在系统设置中通过软件切换
   - 也可通过 `Fn+Q` 切换
