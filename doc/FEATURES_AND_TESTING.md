@@ -66,7 +66,10 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
 `kernel_module/legion-laptop.c` (the header comment cites the DSDT lines).
 
 - Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
-  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`
+  (the third fan is firmware fan 4, feature id 0x04030004 = EC `FASF` * 100,
+  exposed as hwmon `fan3`; at idle it settles at 2300 RPM, the bottom of its
+  own ladder, while fans 1/2 sit at 1600/1700),
   fan table via Fan Method `WMAB` 5/6. The CPU Method GUID is an empty
   stub, so the limit attributes that stay visible (`cpu_temperature_limit`,
   `cpu_l1_tau`, `gpu_power_target_offset`) use `ACCESS_METHOD_WMI3_CLAMPED`;

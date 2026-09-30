@@ -135,7 +135,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 - 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
 - 联想拯救者 Pro 5 16IRX8（82WK，BIOS KWCN54WW）：传感器、风扇曲线（0-10 等级索引，自定义电源模式）、电源配置、通过 Other Method WMI 路径的功耗限制与风扇全速；风扇曲线已在 Linux 自定义电源模式下验证（9 级 → 4400/4600 RPM，10 级 → 5400/5400 RPM）
-- 联想拯救者 Pro 7 16IAX10H（83F5，BIOS Q7CN78WW），第十代：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、无键盘/灯光控制；已在 Linux 上验证（进入自定义模式、写入风扇表点并从 EC RAM 读回）；详见 [Q7CN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
+- 联想拯救者 Pro 7 16IAX10H（83F5，BIOS Q7CN78WW），第十代：传感器（含第三个风扇的转速，hwmon `fan3`）、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、无键盘/灯光控制；已在 Linux 上验证（进入自定义模式、写入风扇表点并从 EC RAM 读回）；详见 [Q7CN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
 - 联想拯救者 Pro 5 16ADR10（83LT，BIOS RLCN31WW），第十代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光与 Y 型 Logo 灯、风扇全速（仅限自定义模式）；基于 issue #445 的 DSDT 分析启用，真机验证进行中；详见 [RLCN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-5-16adr10-83lt-rlcn)
 - 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
 - 联想拯救者 5 16IAX10（83NX，BIOS Q6CN32WW），第十代（Intel）：通过 WMI3 提供的功耗限制属性（`cpu_temperature_limit`、`cpu_l1_tau`、`gpu_power_target_offset`、长/短期功耗限制）；风扇曲线读取正常，但自定义电源模式目前无法激活（已知问题）；已在 Linux 上历经五次重载、一次 main 合并及一次 BIOS 更新验证；详见 [Q6CN 说明](doc/FEATURES_AND_TESTING.md#legion-5-16iax10-83nx-q6cn)

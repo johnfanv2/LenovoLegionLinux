@@ -277,6 +277,10 @@ struct model_config {
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
 	bool has_four_fans;
+	/* hwmon fan3 is the firmware's fan 4, read through the WMI3 Other
+	 * Method feature OtherMethodFeature_FAN_SPEED_4 (Q7CN).
+	 */
+	bool has_third_fan;
 	bool has_single_fan;
 	u16 fan_max_rpm;
 	bool fanfullspeed_requires_custom_powermode;
@@ -2100,11 +2104,14 @@ static const struct model_config model_q7cn = {
 	 * LENOVO_FAN_TABLE_DATA (WQA3, switched on GSKU) carries one RPM
 	 * ladder per fan, identical in every power mode: fan 1 / sensor
 	 * 0x01 (CPU fan), fan 2 / sensor 0x05 (GPU fan) and fan 4 / sensor
-	 * 0x04 (the small third fan, not surfaced yet). There is no (fan 1, sensor 0x04) row, so
+	 * 0x04 (the small third fan, hwmon fan3; its ladder is not
+	 * exposed). There is no (fan 1, sensor 0x04) row, so
 	 * fan1_level_rpm_table comes from the sensor 0x01 row.
 	 */
 	.has_fancurve_defaults = true,
 	.wmi_fancurve_speed_only = true,
+	/* WMAE Get 0x04030004 returns EC FASF * 100 (fan 4 RPM) */
+	.has_third_fan = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -3550,6 +3557,8 @@ enum OtherMethodFeature {
 
 	OtherMethodFeature_FAN_SPEED_1 = 0x04030001,
 	OtherMethodFeature_FAN_SPEED_2 = 0x04030002,
+	/* firmware fan 4, the third fan on Q7CN (WMAE -> EC FASF * 100) */
+	OtherMethodFeature_FAN_SPEED_4 = 0x04030004,
 	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
 
 	OtherMethodFeature_C_U1 = 0x05010000,
@@ -4861,7 +4870,7 @@ static ssize_t wmi_read_temperature_gz(int sensor_id, int *temperature)
 	return err;
 }
 
-// fan_id: 0 or 1
+// fan_id: 0, 1 or 2 (the third fan, firmware fan 4)
 static ssize_t wmi_read_fanspeed_other(int fan_id, int *fanspeed_rpm)
 {
 	int err;
@@ -4872,6 +4881,8 @@ static ssize_t wmi_read_fanspeed_other(int fan_id, int *fanspeed_rpm)
 		featured_id = OtherMethodFeature_FAN_SPEED_1;
 	else if (fan_id == 1)
 		featured_id = OtherMethodFeature_FAN_SPEED_2;
+	else if (fan_id == 2)
+		featured_id = OtherMethodFeature_FAN_SPEED_4;
 	else {
 		// TODO: use all correct error codes
 		return -EEXIST;
@@ -9545,8 +9556,11 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 		supported = supported && !priv->conf->skip_ic_temp;
 
 	if (attr == &sensor_dev_attr_fan3_input.dev_attr.attr ||
-	    attr == &sensor_dev_attr_fan3_label.dev_attr.attr ||
-	    attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan3_label.dev_attr.attr)
+		supported = supported && (priv->conf->has_four_fans ||
+					  priv->conf->has_third_fan);
+
+	if (attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_fan4_label.dev_attr.attr)
 		supported = supported && priv->conf->has_four_fans;
 
