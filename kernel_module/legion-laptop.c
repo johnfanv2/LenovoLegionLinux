@@ -2097,10 +2097,11 @@ static const struct model_config model_q7cn = {
 			[ACPI_PATH_WRITE_RAPIDCHARGE] =
 				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
 	/*
-	 * LENOVO_FAN_TABLE_DATA carries one RPM ladder per fan (fan 1 /
-	 * sensor 0x04, fan 2 / sensor 0x05 and fan 4 / sensor 0x05; fan 4
-	 * is not surfaced yet), identical in every power mode; exposes
-	 * fan1_level_rpm_table/fan2_level_rpm_table.
+	 * LENOVO_FAN_TABLE_DATA (WQA3, switched on GSKU) carries one RPM
+	 * ladder per fan, identical in every power mode: fan 1 / sensor
+	 * 0x01 (CPU fan), fan 2 / sensor 0x05 (GPU fan) and fan 4 / sensor
+	 * 0x04 (the small third fan, not surfaced yet). There is no (fan 1, sensor 0x04) row, so
+	 * fan1_level_rpm_table comes from the sensor 0x01 row.
 	 */
 	.has_fancurve_defaults = true,
 	.wmi_fancurve_speed_only = true,
@@ -5150,6 +5151,8 @@ static bool fantable_row_matches_mode(const struct wmi_fantable_row *row,
 static void fantable_refresh(struct legion_private *priv, int powermode)
 {
 	struct wmi_fantable_row row;
+	struct fantable_ladder fan1_ic;
+	bool fan1_ic_valid = false;
 	int rows, index;
 
 	priv->fantable_fan1_valid = false;
@@ -5182,6 +5185,19 @@ static void fantable_refresh(struct legion_private *priv, int powermode)
 		if (want_fan2 && !priv->fantable_fan2_valid)
 			priv->fantable_fan2_valid = fantable_row_to_ladder(
 				&row, &priv->fantable_fan2);
+		/* Lenovo Legion Toolkit maps (fan 1, sensor 1) to the CPU fan
+		 * as well; it is fan 1's only row on the Legion Pro 7 16IAX10H
+		 * (Q7CN WQA3), where sensor 4 belongs to fan 4.
+		 */
+		if (row.fan_id == 1 && row.sensor_id == FANTABLE_SENSOR_IC &&
+		    !fan1_ic_valid)
+			fan1_ic_valid = fantable_row_to_ladder(&row, &fan1_ic);
+	}
+
+	/* Prefer the (fan 1, CPU sensor) row whenever the firmware has one. */
+	if (!priv->fantable_fan1_valid && fan1_ic_valid) {
+		priv->fantable_fan1 = fan1_ic;
+		priv->fantable_fan1_valid = true;
 	}
 
 	if (priv->fantable_fan1_valid) {

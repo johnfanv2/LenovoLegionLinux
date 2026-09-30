@@ -75,10 +75,16 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
 - The fan table is the level-index kind described in "Fan curve on Legion
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware
-  maps level 1..10 to 1600..5200 RPM (fan 1), 1700..5400 (fan 2) and
-  2300..6500 (fan 4); the first two are what the driver's
+  (`WQA3`, switched on the `GSKU` EC field) maps level 1..10 to
+  1600..5200 RPM (fan 1 / sensor 0x01, CPU fan), 1700..5400 (fan 2 /
+  sensor 0x05, GPU fan) and 2300..6500 (fan 4 / sensor 0x04, the small
+  third fan) on SKUs 0x02/0x0B; SKUs 0x03/0x0C and the default case use
+  1600..5100 / 1600..5100 / 1600..6500. The firmware has no (fan 1,
+  sensor 0x04) row, so the driver takes fan 1's ladder from the sensor
+  0x01 row, as Lenovo Legion Toolkit does. Fans 1 and 2 are what the driver's
   `fan1_level_rpm_table`/`fan2_level_rpm_table` attributes expose for the
-  Python tools, so RPM presets round to the right level. The EC applies the table
+  Python tools, so RPM presets round to the right level; they also give hwmon
+  `fan1_max` its real value (5200) instead of the generic fallback. The EC applies the table
   only in custom mode (`powermode` 0xFF) on AC; on battery the firmware parks
   the custom-mode request while `powermode` still reads back 0xFF.
   `Fan_Get_Table` returns a static 1..10 placeholder in extreme mode, so read
@@ -105,7 +111,10 @@ set EC byte 0x189 to 09 and restoring level 8 set it back.
 
 Verify: `sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
 `sensors` shows `legion_hwmon` temps and fan RPM, and
-`sudo cat /sys/kernel/debug/legion/fancurve` prints `u` = 5 with speed1 in 1..10.
+`sudo cat /sys/kernel/debug/legion/fancurve` prints `u` = 5 with speed1 in 1..10,
+and `dmesg` logs "fan table data: fan 1 has 10 levels, 1600..5200 RPM" (and
+1700..5400 for fan 2) with `fan1_level_rpm_table` readable (verified on
+Q7CN78WW, Linux 7.2.7).
 
 ## Legion Pro 5 16ADR10 (83LT, RLCN)
 
