@@ -15,6 +15,14 @@ This avoids non-essential ~fancurve-set~ being run.
 ** Power state change on resume prevent ~fancurve-set~ from setting correct fancurve
 Now we use a ~3s~ delay to make sure it works fine.
 Every power-state/power-profile change will reset the timer.
+
+Other power-state/power-profile changes are applied after a ~2s~ delay
+(~default_delay~ in ~public.h~). It must not be shorter: on the Legion Pro 7
+16IAX10H the EC merges the fan table with the mode default (per point, the
+higher value wins) about 0.6-1.6 s after custom mode is entered, as a fallback
+for when no software manages the custom curve. A preset written earlier can
+lose its quieter points. Windows tools re-apply the custom curve on every
+custom-mode entry for the same reason.
 ** CPU power limits that the firmware leaves to Windows software
 Some firmware applies the CPU power limits (PL1/PL2) itself only in custom
 mode and leaves the other power modes to OEM software through Intel DTT on
