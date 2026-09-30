@@ -101,7 +101,13 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   Python tools, so RPM presets round to the right level; they also give hwmon
   `fan1_max` its real value (5200) instead of the generic fallback. The EC applies the table
   only in custom mode (`powermode` 0xFF) on AC; on battery the firmware parks
-  the custom-mode request while `powermode` still reads back 0xFF.
+  the custom-mode request while `powermode` still reads back 0xFF. The one
+  table drives all three fans: with every point at pwm 127 (level 5) they
+  settled at 2400/2400/3200 RPM (the level-5 entries of the fan 1/2/4
+  ladders), and at pwm 204 they ramped toward 3700/3800/5000. The EC's idle
+  fan-stop still applies in every mode, custom included. At idle the fans switch off below
+  about CPU 46 °C and restart at about 51 °C, so `fan*_input` reading 0 at
+  idle is normal.
   `Fan_Get_Table` returns a static 1..10 placeholder in extreme mode, so read
   the table in another mode. Writing the table as percent (older driver
   builds: 100 into a 1..10 byte) matches the thermal shutdowns reported for
