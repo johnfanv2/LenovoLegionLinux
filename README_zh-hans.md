@@ -1019,6 +1019,8 @@ softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other l
 
 写入 `/etc/modprobe.d/legion_laptop.conf`；`softdep` 行会先加载主线驱动，让它们先绑定两个驱动都声明的 WMI 设备。主线的 `custom` 配置与 `powermode` 255 是同一个固件模式；请通过名为 `lenovo-wmi-gamezone` 的设备的 `/sys/class/platform-profile/platform-profile-N/profile` 选择它，因为旧的 `/sys/firmware/acpi/platform_profile` 文件按设计拒绝 `custom`。已在 Legion Pro 5 16IRX8、内核 7.2 上验证。
 
+在拯救者 Pro 7 16IAX10H（83F5，Q7CN）上，功耗限制无需上述任何配置：无论加载顺序如何，`legion_laptop` 都会把 GameZone WMI 设备留给 `lenovo_wmi_gamezone`，因此使用默认选项时 `/sys/class/firmware-attributes/lenovo-wmi-other-0`（PL1/PL2、cTGP 等）也能与它共存。此时两个驱动都会注册电源模式提供者，且选项相同（五种），全局列表不会丢失任何模式。
+
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
 首先，尝试[重置嵌入式控制器](#how-to-do-a-bios-upgrade-or-reset-the-embedded-controller-to-fix-a-problem)或进行 BIOS 升级/降级来重置所有设置。

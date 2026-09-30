@@ -75,6 +75,18 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   `cpu_l1_tau`, `gpu_power_target_offset`) use `ACCESS_METHOD_WMI3_CLAMPED`;
   the CPU/GPU power-limit and OC attributes are hidden (`skip_oc_controls`),
   use the in-tree `lenovo_wmi_other` firmware-attributes for PL1/PL2/tau/cTGP.
+  Those read the power mode through `lenovo_wmi_gamezone`, and return
+  `EINVAL` for every `current_value` while that driver has no device, so
+  `model_q7cn` sets `leave_gamezone_wmi_unbound`: `legion_wmi` declines the
+  GameZone method block (887B54E3, an `object_id` block with no notify id,
+  so binding it never delivered events; the methods are still called by
+  GUID) and the mainline driver binds it in any load order. Verified with
+  `legion_laptop` loaded first: dmesg "Leaving GameZone WMI to
+  lenovo-wmi-gamezone", `ppt_pl1_spl` 90, `ppt_pl2_sppt` 125, `gpu_nv_ctgp`
+  95 readable, both platform-profile providers offering the same five
+  choices; on AC, `custom` via the `lenovo-wmi-gamezone` profile device,
+  `ppt_pl1_spl` 80 written and read back, then restored to 90 (the
+  power-button LED shows purple/pink while in custom mode).
 - The fan table is the level-index kind described in "Fan curve on Legion
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware

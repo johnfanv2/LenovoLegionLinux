@@ -281,6 +281,12 @@ struct model_config {
 	 * Method feature OtherMethodFeature_FAN_SPEED_4 (Q7CN).
 	 */
 	bool has_third_fan;
+	/* Do not bind the GameZone WMI method block, so the mainline
+	 * lenovo-wmi-gamezone driver can: lenovo-wmi-other needs it to read
+	 * the power mode, else its firmware-attributes (PL1/PL2, cTGP, ...)
+	 * return -EINVAL. Methods are still called by GUID.
+	 */
+	bool leave_gamezone_wmi_unbound;
 	bool has_single_fan;
 	u16 fan_max_rpm;
 	bool fanfullspeed_requires_custom_powermode;
@@ -2112,6 +2118,11 @@ static const struct model_config model_q7cn = {
 	.wmi_fancurve_speed_only = true,
 	/* WMAE Get 0x04030004 returns EC FASF * 100 (fan 4 RPM) */
 	.has_third_fan = true,
+	/* PL/OC attributes are hidden (skip_oc_controls) in favour of the
+	 * lenovo-wmi-other firmware-attributes, which need GameZone bound
+	 * by lenovo-wmi-gamezone.
+	 */
+	.leave_gamezone_wmi_unbound = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -8394,6 +8405,10 @@ enum LEGION_WMI_EVENT {
 
 struct legion_wmi_private {
 	enum LEGION_WMI_EVENT event;
+	/* GameZone method block: it has no notify id, so binding it never
+	 * delivers events; this driver calls its methods by GUID either way.
+	 */
+	bool gamezone_method_block;
 };
 
 //static void legion_wmi_notify2(u32 value, void *context)
@@ -8443,7 +8458,21 @@ unlock:
 
 static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
 {
+	const struct legion_wmi_private *ctx = context;
 	struct legion_wmi_private *wpriv;
+	bool leave_unbound = false;
+
+	if (ctx->gamezone_method_block) {
+		mutex_lock(&legion_shared_mutex);
+		leave_unbound = legion_shared &&
+				legion_shared->conf->leave_gamezone_wmi_unbound;
+		mutex_unlock(&legion_shared_mutex);
+	}
+	if (leave_unbound) {
+		dev_info(&wdev->dev,
+			 "Leaving GameZone WMI to lenovo-wmi-gamezone\n");
+		return -ENODEV;
+	}
 
 	wpriv = devm_kzalloc(&wdev->dev, sizeof(*wpriv), GFP_KERNEL);
 	if (!wpriv)
@@ -8458,6 +8487,10 @@ static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
 
 static const struct legion_wmi_private legion_wmi_context_gamezone = {
 	.event = LEGION_WMI_EVENT_GAMEZONE
+};
+static const struct legion_wmi_private legion_wmi_context_gamezone_methods = {
+	.event = LEGION_WMI_EVENT_GAMEZONE,
+	.gamezone_method_block = true
 };
 static const struct legion_wmi_private legion_wmi_context_a = {
 	.event = LEGION_EVENT_A
@@ -8490,7 +8523,7 @@ static const struct legion_wmi_private legion_wmi_context_f = {
 //#define LEGION_WMI_GUID_GAMEZONE_DATA_EVENT  "887b54e3-dddc-4b2c-8b88-68a26a8835d0"
 
 static const struct wmi_device_id legion_wmi_ids[] = {
-	{ LEGION_WMI_GAMEZONE_GUID, &legion_wmi_context_gamezone },
+	{ LEGION_WMI_GAMEZONE_GUID, &legion_wmi_context_gamezone_methods },
 	{ LEGION_WMI_GUID_FAN_EVENT, &legion_wmi_context_a },
 	{ LEGION_WMI_GUID_FAN2_EVENT, &legion_wmi_context_b },
 	{ LEGION_WMI_GUID_GAMEZONE_KEY_EVENT, &legion_wmi_context_c },
