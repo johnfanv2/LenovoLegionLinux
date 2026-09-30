@@ -169,8 +169,22 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   All points at level 5 came back as `5 5 5 5 5 6 7 8 8 8` (EC `F9F0..`,
   `ecmemoryram` 0x180) against the default `1 2 3 4 5 6 7 8 8 8`, while all
   points at level 8 survived unchanged. A curve quieter than the default is
-  therefore lost after suspend until it is written again; legiond's
-  `legiond-onresume.service` (`fanset` → `set_all`) re-applies the preset.
+  therefore lost after suspend until it is written again. The driver now
+  re-applies the last table written through hwmon 3 s after resume
+  (`restore_fancurve_on_resume`, Q7CN only), if the power mode is still the
+  one it was written in; legiond's `legiond-onresume.service` also
+  re-applies its preset. Verified: an all-level-5 custom table survived S3
+  ("Re-applied the fan curve written before suspend: 0", EC `05` × 10).
+- The floor is applied whenever the EC processes an entry into custom mode,
+  not only on resume: an all-level-5 table settled in custom mode stayed
+  `05` × 10 after a switch to balanced and became `05 05 05 05 05 06 07 08
+  08 08` ~1 s after switching back to custom. The processing runs ~1 s after
+  the switch, so table writes made right after entering custom mode can be
+  floored as well (reproduced once in three attempts with writes finishing
+  0.6 s after the switch). Write a custom table at least ~2 s after entering
+  custom mode. There is no per-point range check: with custom mode settled,
+  every point accepted every level down to the driver's own
+  `fancurve_level_min` (1 1 1 1 1 1 1 1 3 5).
 - Instant Boot: `instant_boot_ac` / `instant_boot_usb_pd` (`has_instant_boot`)
   use WMAE feature ids 0x03010001 / 0x03010002. Get returns EC `EACS` /
   `ETCS`; set calls `WSMI(7)`/`WSMI(8)` (AC on/off) or `WSMI(9)`/`WSMI(0xA)`

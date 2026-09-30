@@ -63,6 +63,7 @@
 #include <asm/io.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
+#include <linux/workqueue.h>
 #include <linux/dmi.h>
 #include <linux/efi.h>
 #include <linux/leds.h>
@@ -287,6 +288,11 @@ struct model_config {
 	 * return -EINVAL. Methods are still called by GUID.
 	 */
 	bool leave_gamezone_wmi_unbound;
+	/* Re-apply the last fan table written through hwmon after resume: the
+	 * EC raises every point to at least the mode default on resume (Q7CN),
+	 * which silently loses quieter custom curves.
+	 */
+	bool restore_fancurve_on_resume;
 	bool has_single_fan;
 	u16 fan_max_rpm;
 	bool fanfullspeed_requires_custom_powermode;
@@ -2127,6 +2133,8 @@ static const struct model_config model_q7cn = {
 	 * by lenovo-wmi-gamezone.
 	 */
 	.leave_gamezone_wmi_unbound = true,
+	/* the EC floors the fan table at the mode default on resume */
+	.restore_fancurve_on_resume = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -4499,6 +4507,12 @@ struct legion_private {
 	int capdata_count;
 	int current_powermode;
 
+	/* last fan table written through hwmon, for restore_fancurve_on_resume */
+	struct fancurve resume_fancurve;
+	int resume_fancurve_mode;
+	bool resume_fancurve_valid;
+	struct delayed_work resume_fancurve_work;
+
 	// Fan ceiling unlock state (cached: firmware exposes no clean read-back)
 	u8 fan_unlock_state;
 
@@ -5959,9 +5973,62 @@ static int write_fancurve(struct legion_private *priv,
 	if (!err) {
 		priv->fancurve = *fancurve;
 		priv->fancurve_valid = true;
+		/* remember it with its power mode for the resume re-apply */
+		if (priv->conf->restore_fancurve_on_resume &&
+		    !sync_powermode_locked(priv)) {
+			priv->resume_fancurve = *fancurve;
+			priv->resume_fancurve_mode = priv->current_powermode;
+			priv->resume_fancurve_valid = true;
+		}
 	}
 
 	return err;
+}
+
+/*
+ * Delayed after resume, like legiond's resume hook: the EC applies its
+ * per-point floor during wake-up and would overwrite an earlier write.
+ * Only re-applied in the power mode the table was written in, since
+ * another mode's table must not be replaced by it.
+ */
+static void legion_resume_fancurve_fn(struct work_struct *work)
+{
+	struct legion_private *priv = container_of(to_delayed_work(work),
+						   struct legion_private,
+						   resume_fancurve_work);
+	struct device *dev = &priv->platform_device->dev;
+	int err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	if (!priv->resume_fancurve_valid) {
+		mutex_unlock(&priv->fancurve_mutex);
+		return;
+	}
+	err = sync_powermode_locked(priv);
+	if (err || priv->current_powermode != priv->resume_fancurve_mode) {
+		dev_info(dev,
+			 "Fan curve not re-applied: mode %d, set in %d (%d)\n",
+			 priv->current_powermode, priv->resume_fancurve_mode,
+			 err);
+		mutex_unlock(&priv->fancurve_mutex);
+		return;
+	}
+	{
+		struct fancurve fancurve = priv->resume_fancurve;
+
+		err = write_fancurve(priv, &fancurve, false);
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+	dev_info(dev, "Re-applied the fan curve written before suspend: %d\n",
+		 err);
+}
+
+static void legion_resume_fancurve(struct legion_private *priv)
+{
+	if (priv && priv->conf && priv->conf->restore_fancurve_on_resume &&
+	    priv->resume_fancurve_valid)
+		schedule_delayed_work(&priv->resume_fancurve_work,
+				      msecs_to_jiffies(3000));
 }
 
 static bool minifancurve_supported(const struct model_config *model)
@@ -10260,6 +10327,8 @@ static int legion_add(struct platform_device *pdev)
 		dev_info(&pdev->dev, "legion_laptop is forced to load.\n");
 		goto err_legion_shared_init;
 	}
+	INIT_DELAYED_WORK(&priv->resume_fancurve_work,
+			  legion_resume_fancurve_fn);
 	dev_set_drvdata(&pdev->dev, priv);
 
 	// TODO: remove
@@ -10585,6 +10654,7 @@ static void legion_remove(struct platform_device *pdev)
 	priv->loaded = false;
 	mutex_unlock(&legion_shared_mutex);
 
+	cancel_delayed_work_sync(&priv->resume_fancurve_work);
 	legion_light_exit(priv, &priv->iport_light);
 	legion_light_exit(priv, &priv->ylogo_light);
 	legion_kbd_bl_exit(priv);
@@ -10610,8 +10680,8 @@ static void legion_remove(struct platform_device *pdev)
 
 static int legion_resume(struct platform_device *pdev)
 {
-	//struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 	dev_info(&pdev->dev, "Resumed in legion-laptop\n");
+	legion_resume_fancurve(dev_get_drvdata(&pdev->dev));
 
 	return 0;
 }
@@ -10619,8 +10689,8 @@ static int legion_resume(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int legion_pm_resume(struct device *dev)
 {
-	//struct legion_private *priv = dev_get_drvdata(dev);
 	dev_info(dev, "Resumed PM in legion-laptop\n");
+	legion_resume_fancurve(dev_get_drvdata(dev));
 
 	return 0;
 }
