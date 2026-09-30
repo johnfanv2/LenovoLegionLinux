@@ -84,6 +84,7 @@ typedef unsigned short umode_t;
             "enum legion_wmi_powermode {",
             "struct fantable_ladder {",
             "struct wmi_fantable_row {",
+            "enum OtherMethodFeature {",
         ):
             code.append(declaration(source, start))
         code.append(re.search(r"static const u8 fancurve_level_min\[.*?;", source, re.S)[0])
@@ -136,6 +137,7 @@ static ssize_t read_powermode(struct legion_private *priv, int *mode) {
     *mode = power_mode;
     return power_error;
 }
+static bool powerlimit_defaults_available(const struct legion_private *priv, enum OtherMethodFeature feature) { return false; }
 static int wmi_exec_noarg_int(const char *guid, int instance, int method, unsigned long *mode) {
     assert(method == WMI_METHOD_ID_GETTHERMALMODE);
     thermal_reads++;

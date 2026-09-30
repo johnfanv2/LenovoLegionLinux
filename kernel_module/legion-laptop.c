@@ -8263,6 +8263,97 @@ static ssize_t fan2_level_rpm_table_show(struct device *dev,
 static DEVICE_ATTR_RO(fan1_level_rpm_table);
 static DEVICE_ATTR_RO(fan2_level_rpm_table);
 
+/*
+ * Firmware defaults of a CPU power limit per power mode, from
+ * LENOVO_CAPABILITY_DATA_01 (feature id in bits 31..16, mode in bits
+ * 15..8). Some firmware applies power limits itself only in custom mode
+ * (Q7CN: the WMAE setters update the live EC limits only when ODV1 == 3)
+ * and leaves the other modes to OEM software, so userspace (legiond) needs
+ * these values to apply the right limits on a mode change.
+ */
+static const struct {
+	u8 mode;
+	const char *profile;
+} powerlimit_default_modes[] = {
+	{ LEGION_WMI_POWERMODE_LOW_POWER, "low-power" },
+	{ LEGION_WMI_POWERMODE_BALANCED, "balanced" },
+	{ LEGION_WMI_POWERMODE_PERFORMANCE, "performance" },
+	{ LEGION_WMI_POWERMODE_MAX_POWER, "max-power" },
+	{ LEGION_WMI_POWERMODE_CUSTOM, "custom" },
+};
+
+static const struct capdata01 *capdata_find(const struct legion_private *priv,
+					    u32 id)
+{
+	int i;
+
+	for (i = 0; i < priv->capdata_count; i++)
+		if (priv->capdata[i].id == id &&
+		    (priv->capdata[i].supported & BIT(0)))
+			return &priv->capdata[i];
+	return NULL;
+}
+
+static bool powerlimit_defaults_available(const struct legion_private *priv,
+					  enum OtherMethodFeature feature)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(powerlimit_default_modes); i++) {
+		u32 id = (u32)feature | powerlimit_default_modes[i].mode << 8;
+
+		if (capdata_find(priv, id))
+			return true;
+	}
+	return false;
+}
+
+/* "profile:watts" for every mode the firmware publishes a default for */
+static ssize_t powerlimit_defaults_show(const struct legion_private *priv,
+					char *buf,
+					enum OtherMethodFeature feature)
+{
+	ssize_t count = 0;
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(powerlimit_default_modes); i++) {
+		u32 id = (u32)feature | powerlimit_default_modes[i].mode << 8;
+		const struct capdata01 *cd = capdata_find(priv, id);
+
+		if (!cd)
+			continue;
+		count += sysfs_emit_at(buf, count, "%s%s:%u", count ? " " : "",
+				       powerlimit_default_modes[i].profile,
+				       cd->default_value);
+	}
+	if (!count)
+		return -ENODATA;
+	count += sysfs_emit_at(buf, count, "\n");
+
+	return count;
+}
+
+static ssize_t
+cpu_longterm_powerlimit_defaults_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	return powerlimit_defaults_show(
+		dev_get_drvdata(dev), buf,
+		OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+}
+
+static ssize_t
+cpu_shortterm_powerlimit_defaults_show(struct device *dev,
+				       struct device_attribute *attr, char *buf)
+{
+	return powerlimit_defaults_show(
+		dev_get_drvdata(dev), buf,
+		OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+}
+
+static DEVICE_ATTR_RO(cpu_longterm_powerlimit_defaults);
+static DEVICE_ATTR_RO(cpu_shortterm_powerlimit_defaults);
+
 static ssize_t fancurve_speed_unit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -8285,6 +8376,8 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_fancurve_speed_unit.attr,
 	&dev_attr_fan1_level_rpm_table.attr,
 	&dev_attr_fan2_level_rpm_table.attr,
+	&dev_attr_cpu_longterm_powerlimit_defaults.attr,
+	&dev_attr_cpu_shortterm_powerlimit_defaults.attr,
 	&dev_attr_powermode.attr,
 	&dev_attr_lockfancontroller.attr,
 	&dev_attr_fan_unlock.attr,
@@ -8400,6 +8493,19 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	if (attr == &dev_attr_fancurve_speed_unit.attr &&
 	    priv->conf->access_method_fancurve == ACCESS_METHOD_NO_ACCESS)
 		return 0;
+
+	if (attr == &dev_attr_cpu_longterm_powerlimit_defaults.attr)
+		return powerlimit_defaults_available(
+			       priv,
+			       OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT) ?
+			       attr->mode :
+			       0;
+	if (attr == &dev_attr_cpu_shortterm_powerlimit_defaults.attr)
+		return powerlimit_defaults_available(
+			       priv,
+			       OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT) ?
+			       attr->mode :
+			       0;
 
 	if ((attr == &dev_attr_fan1_level_rpm_table.attr ||
 	     attr == &dev_attr_fan2_level_rpm_table.attr) &&
