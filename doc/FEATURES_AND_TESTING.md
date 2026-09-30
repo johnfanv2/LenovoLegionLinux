@@ -102,6 +102,17 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   `cpu_powerlimit_sync` writes them to MMIO RAPL on each profile change
   (verified: 55/65 W → ~2.7 GHz, 63 °C; 90/125 W → ~3.6 GHz, 87 °C on the
   same load).
+- GPU (RTX 5090 Laptop, NVIDIA 615.71): without `nvidia-powerd` the enforced
+  GPU power limit is 95 W in every mode (max 175 W). With
+  `systemctl enable --now nvidia-powerd` it follows the mode: 95 W in quiet
+  and balanced, 150 W in performance and extreme at idle, and 175 W under GPU
+  load with Dynamic Boost (a CUDA FMA burn drew 174.5 W at ~2.73 GHz, limited
+  by "SW Power Cap"). For the first ~20 s of a new load the driver holds
+  1507 MHz / ~51 W with the clock reason "Reliability", then releases it.
+  The firmware also has CPU "Double" targets for combined load (DPTF vault:
+  performance PL1 145 → 75 W once sensors SEN3/SEN4, thermal zones 3/4, pass
+  ~54/74 °C); legiond's `cpu_powerlimit_sync` applies only the single-load
+  defaults.
 - The fan table is the level-index kind described in "Fan curve on Legion
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware
