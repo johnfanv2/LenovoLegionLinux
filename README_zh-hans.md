@@ -59,7 +59,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 - [x] 占用内存和 CPU 极小，无遥测
 - [x] 可完全通过脚本或命令行控制
-- [x] 替代 Lenovo Vantage 的简单 GUI：风扇曲线、Fn 锁、Win 键、触控板电源、摄像头电源、电池养护、快速充电、始终开启 USB 充电输出、显示器超频、Y-Logo 灯光、IO 端口灯光、混合模式 (GSync)、CPU/GPU 超频：
+- [x] 替代 Lenovo Vantage 的简单 GUI：风扇曲线、Fn 锁、Win 键、触控板电源、摄像头电源、电池养护、快速充电、始终开启 USB 充电输出、显示器超频（仅在固件报告屏幕支持时显示；OLED 屏幕如拯救者 Pro 7 16IAX10H 不支持）、Y-Logo 灯光、IO 端口灯光、混合模式 (GSync)、CPU/GPU 超频：
   - 切换电池养护模式；接入电源时保持电池在 60%，延长电池寿命（https://bugs.kde.org/show_bug.cgi?id=441057）
   - 切换 Fn 锁；无需按 Fn 键即可使用 F1-F12 的特殊功能
   - 启用或禁用触控板

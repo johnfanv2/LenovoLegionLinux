@@ -68,6 +68,7 @@ typedef unsigned short umode_t;
                     "MAX_FAN_LEVEL",
                     "WMI_METHOD_ID_FAN_SET_TABLE",
                     "WMI_METHOD_ID_GETTHERMALMODE",
+                    "WMI_METHOD_ID_ISSUPPORTOD",
                     "LEGION_WMI_GAMEZONE_GUID",
                 )
             ):
@@ -139,6 +140,7 @@ static ssize_t read_powermode(struct legion_private *priv, int *mode) {
 }
 static bool powerlimit_defaults_available(const struct legion_private *priv, enum OtherMethodFeature feature) { return false; }
 static int wmi_exec_noarg_int(const char *guid, int instance, int method, unsigned long *mode) {
+    if (method == WMI_METHOD_ID_ISSUPPORTOD) return -EIO;
     assert(method == WMI_METHOD_ID_GETTHERMALMODE);
     thermal_reads++;
     *mode = thermal_mode;

@@ -8489,6 +8489,21 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
 	if (attr == &dev_attr_battery_conservation.attr)
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
+	if (attr == &dev_attr_overdrive.attr) {
+		unsigned long supported;
+
+		/*
+		 * Hide it only when the firmware answers that the panel has no
+		 * overdrive (Q7CN OLED: IsSupportOD checks PANT & 0x02 and the
+		 * get/set methods then do nothing); keep it when the query
+		 * fails, as before.
+		 */
+		if (!wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_ISSUPPORTOD,
+					&supported) &&
+		    supported == 0)
+			return 0;
+	}
 	if (attr == &dev_attr_fn_lock.attr)
 		return priv->conf->has_fn_lock ? attr->mode : 0;
 	if (attr == &dev_attr_flip_to_start.attr)

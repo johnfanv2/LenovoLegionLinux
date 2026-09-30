@@ -155,6 +155,13 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   ideapad-laptop. Verified: conservation on → rapid 0, `charge_types`
   `[Long_Life]`, battery "Not charging"; off → `[Standard]`; rapid on →
   conservation cleared, `[Fast]`; no charge_types errors.
+- Display overdrive: every GameZone overdrive method (WMAA 0x31 IsSupportOD,
+  0x32 get, 0x33 set) is gated on `PANT & 0x02` (panel supports overdrive);
+  on this unit's Samsung ATNA60HU01-0 OLED the bit is clear, IsSupportOD
+  returns 0 and a written 1 reads back 0. The driver now hides `overdrive`
+  when IsSupportOD succeeds and returns 0 (kept visible if the query fails),
+  so it disappears here but stays on 83F5 units with an overdrive-capable
+  panel.
 - Instant Boot: `instant_boot_ac` / `instant_boot_usb_pd` (`has_instant_boot`)
   use WMAE feature ids 0x03010001 / 0x03010002. Get returns EC `EACS` /
   `ETCS`; set calls `WSMI(7)`/`WSMI(8)` (AC on/off) or `WSMI(9)`/`WSMI(0xA)`
