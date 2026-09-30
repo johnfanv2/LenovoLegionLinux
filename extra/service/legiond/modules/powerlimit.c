@@ -33,6 +33,102 @@ static const char *ac_profile(POWER_STATE power_state)
 	}
 }
 
+/* index into the powerlimit_double_* tables, -1 for non-AC-mode states */
+static int double_index(POWER_STATE power_state)
+{
+	switch (power_state) {
+	case P_AC_Q:
+		return POWERLIMIT_Q;
+	case P_AC_B:
+		return POWERLIMIT_B;
+	case P_AC_P:
+		return POWERLIMIT_P;
+	case P_AC_E:
+		return POWERLIMIT_E;
+	default:
+		return -1;
+	}
+}
+
+/* temperature in degrees C of the thermal zone of this type, or -1000 */
+static int zone_temp(const char *type)
+{
+	char path[PATH_MAX];
+
+	for (int i = 0; i < 256; i++) {
+		char name[32] = "";
+		int millideg;
+
+		snprintf(path, sizeof(path), "%s/thermal_zone%d/type",
+			 thermal_path, i);
+		{
+			auto_stream fp = fopen(path, "r");
+			if (fp == NULL) {
+				if (i > 64)
+					break; /* zones are numbered densely */
+				continue;
+			}
+			if (fscanf(fp, "%31s", name) != 1 ||
+			    strcmp(name, type) != 0)
+				continue;
+		}
+		snprintf(path, sizeof(path), "%s/thermal_zone%d/temp",
+			 thermal_path, i);
+		auto_stream fp = fopen(path, "r");
+		if (fp == NULL || fscanf(fp, "%d", &millideg) != 1)
+			return -1000;
+		return millideg / 1000;
+	}
+	return -1000;
+}
+
+/*
+ * Firmware DPTF "double" targets: while both sensors are at or above the
+ * mode's temperatures, a lower CPU limit leaves power and thermal headroom
+ * for the GPU under combined load. Enter when both reach their thresholds
+ * (the firmware's AND), leave once either is double_hysteresis below it.
+ * The state resets on every power state change.
+ */
+static bool use_double(POWER_STATE power_state, const LEGIOND_CONFIG *config)
+{
+	static bool active;
+	static POWER_STATE last_state = (POWER_STATE)P_ERROR_PROFILE;
+	int idx = double_index(power_state);
+
+	if (power_state != last_state) {
+		active = false;
+		last_state = power_state;
+	}
+	if (idx < 0 || config->powerlimit_double_sensor[0][0] == '\0' ||
+	    config->powerlimit_double_pl[idx][0] == 0 ||
+	    config->powerlimit_double_pl[idx][1] == 0 ||
+	    config->powerlimit_double_temp[idx][0] == 0 ||
+	    config->powerlimit_double_temp[idx][1] == 0)
+		return active = false;
+
+	int t0 = zone_temp(config->powerlimit_double_sensor[0]);
+	int t1 = zone_temp(config->powerlimit_double_sensor[1]);
+	int lim0 = config->powerlimit_double_temp[idx][0];
+	int lim1 = config->powerlimit_double_temp[idx][1];
+	int hyst = config->powerlimit_double_hysteresis;
+
+	if (t0 == -1000 || t1 == -1000) {
+		printf("cpu_powerlimit: double sensors %s/%s not found\n",
+		       config->powerlimit_double_sensor[0],
+		       config->powerlimit_double_sensor[1]);
+		return active = false;
+	}
+	if (!active && t0 >= lim0 && t1 >= lim1)
+		active = true;
+	else if (active && (t0 < lim0 - hyst || t1 < lim1 - hyst))
+		active = false;
+	printf("cpu_powerlimit: %s %d C (>= %d), %s %d C (>= %d): %s target\n",
+	       config->powerlimit_double_sensor[0], t0, lim0,
+	       config->powerlimit_double_sensor[1], t1, lim1,
+	       active ? "double" : "single");
+	return active;
+}
+
 /* look up "profile:watts" in a defaults file; 0 when absent */
 static unsigned int read_default_watts(const char *path, const char *profile)
 {
@@ -121,6 +217,12 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 		}
 		pl1 = read_default_watts(pl1_defaults_path, profile);
 		pl2 = read_default_watts(pl2_defaults_path, profile);
+		if (pl1 && pl2 && use_double(power_state, config)) {
+			int idx = double_index(power_state);
+
+			pl1 = config->powerlimit_double_pl[idx][0];
+			pl2 = config->powerlimit_double_pl[idx][1];
+		}
 	}
 
 	if (pl1 == 0 || pl2 == 0) {

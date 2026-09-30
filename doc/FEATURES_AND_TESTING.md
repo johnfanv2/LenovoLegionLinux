@@ -111,8 +111,11 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   1507 MHz / ~51 W with the clock reason "Reliability", then releases it.
   The firmware also has CPU "Double" targets for combined load (DPTF vault:
   performance PL1 145 → 75 W once sensors SEN3/SEN4, thermal zones 3/4, pass
-  ~54/74 °C); legiond's `cpu_powerlimit_sync` applies only the single-load
-  defaults.
+  ~54/74 °C). legiond applies them with the `double_*` keys of
+  `[cpu_powerlimit]` (example values in `legiond.ini`). Under a 60 s CPU+GPU
+  load in performance, SEN3/SEN4 went from 43/43 °C to 54/76 °C at ~40 s
+  while the CPU package was at 100–103 °C at the 90 W balanced limit and the
+  GPU drew ~150 W (Dynamic Boost's extra 25 W needs a lightly loaded CPU).
 - The fan table is the level-index kind described in "Fan curve on Legion
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware

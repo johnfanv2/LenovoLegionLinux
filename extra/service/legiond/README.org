@@ -33,6 +33,20 @@ the firmware, which applies the user's custom values itself. On battery the
 limits are only written when ~bat_pl1~ / ~bat_pl2~ (section
 ~cpu_powerlimit~, watts) are set. The option is off by default.
 
+Under sustained CPU+GPU load the firmware's policy on Windows switches to
+lower "double" CPU limits once two chassis sensors pass per-mode thresholds,
+leaving power and cooling for the GPU (16IAX10H performance: PL1 145 W → 75 W
+once ~SEN3~ / ~SEN4~ reach 54 / 74 °C). The same can be enabled with the
+~double_*~ keys of the ~cpu_powerlimit~ section (commented example values for
+the 16IAX10H in ~legiond.ini~): legiond uses the double limits while both
+~double_sensors~ (thermal zone types) are at or above the mode's
+~double_ac_<mode>_temp~ and returns to the single-load defaults once either is
+~double_hysteresis~ degrees below; the check runs on every profile change and
+with each ~legiond-cpuset.timer~ refresh (30 s). On the 16IAX10H the sensors
+stay near 43 °C at idle and pass the performance thresholds after about 40 s
+of combined load, while the CPU sits at its 100–103 °C limit with the GPU at
+150 W.
+
 Check the result with
 ~cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw~
 after a Fn+Q.
