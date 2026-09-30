@@ -162,6 +162,15 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   when IsSupportOD succeeds and returns 0 (kept visible if the query fails),
   so it disappears here but stays on 83F5 units with an overdrive-capable
   panel.
+- Suspend/resume (S3, 2026-09-30): custom mode, the MMIO RAPL limit
+  (90/125 W), the GPU limit, the GameZone binding and the battery/Instant
+  Boot settings survive. The **fan table does not fully**: on resume the EC
+  raises every point to at least the mode's default level (per-point floor).
+  All points at level 5 came back as `5 5 5 5 5 6 7 8 8 8` (EC `F9F0..`,
+  `ecmemoryram` 0x180) against the default `1 2 3 4 5 6 7 8 8 8`, while all
+  points at level 8 survived unchanged. A curve quieter than the default is
+  therefore lost after suspend until it is written again; legiond's
+  `legiond-onresume.service` (`fanset` → `set_all`) re-applies the preset.
 - Instant Boot: `instant_boot_ac` / `instant_boot_usb_pd` (`has_instant_boot`)
   use WMAE feature ids 0x03010001 / 0x03010002. Get returns EC `EACS` /
   `ETCS`; set calls `WSMI(7)`/`WSMI(8)` (AC on/off) or `WSMI(9)`/`WSMI(0xA)`
