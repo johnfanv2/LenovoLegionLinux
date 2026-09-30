@@ -423,6 +423,55 @@ sysfs fixture and the offscreen GUI, without writing to hardware. It also
 runs the WMI level tests: zero-RPM requests there must clamp to the driver's
 per-point minimum rather than produce a rejected level-0 write.
 
+## Legion Y7000P IRX10 (83NN, S9CN)
+
+BIOS S9CN19WW, EC 0x5508 (fw 2b0), Intel Arrow Lake-HX + RTX 50
+(issue #506). DMI entry `S9CN` is qualified on product name `83NN`;
+config `model_s9cn` in `kernel_module/legion-laptop.c` (the header
+comment cites the DSDT lines from the dsdt.dsl attached in issue #506).
+
+Same WMI-only firmware layout as the Q7CN (83F5) above, on the Y7000P
+chassis:
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (ODV1 == 4; read the table in another mode).
+  `LENOVO_FAN_TABLE_DATA` (WQA3) maps level 1..10 to 1700..5100 RPM on
+  fan 1, so `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+- The keyboard backlight and the Y-logo light are driven by the
+  KBBACKLIGHT WMI methods (`WMAF` get(1)/set(2), light ids 0x00/0x03);
+  the IO-port light id 0x05 is unimplemented on this firmware and the
+  attribute is skipped automatically.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode; on this generation a
+  full-speed write through the wrong WMI method (old fallback config)
+  wedged the fans at maximum speed until reboot on the 83LT, so validate
+  with care and be ready to reboot.
+- Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
+  `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
+  are visible, as on Q7CN. Rapid charge uses `VPC0.GBMD`/`SBMC` at
+  `\_SB.PC00.LPCB.EC0`.
+- `minifancurve` and `lockfancontroller` are hidden (undeclared EC bytes
+  on the 0x5508 generation); the EC RAM window (`ERAX @0xFE0B0400`, len
+  0xFF; `F9FT`/`ECB2` at +0x100/+0x200) is only used for the read-only
+  `ecmemoryram` debugfs dump. Raw EC reads are misaligned on this unit
+  (issue #491): with the old fallback config the EC column reported
+  ~18045/~16740 RPM at ~2400 RPM real speed, while the WMI3 values are
+  correct (idle ~48 C/fans off, load ~85-88 C/~2000-2500 RPM, matching
+  `lenovo_wmi_other`).
+
+Validation status: config derived from the DSDT analysis and the runtime
+reports in issue #506 (huverse: WMI powermode, WMI3 CPU temp and fan RPM
+verified under load; AXFOX: DSDT, `lenovo_wmi_other` fan RPM tracking
+load correctly); full runtime validation of the final config is in
+progress - check the issue for the results, and verify locally with
+`sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
+`sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
+speed1 in 1..10).
+
 ## Legion 5 15AHP11 (83Q7, T2CN)
 
 The firmware attached in [#504](https://github.com/johnfanv2/LenovoLegionLinux/issues/504#issuecomment-5377414566)

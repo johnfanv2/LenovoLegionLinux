@@ -2274,6 +2274,93 @@ static const struct model_config model_rgcn = {
 	.has_flip_to_start = true,
 };
 
+// Legion Y7000P IRX10 (83NN) - 2025, Intel Arrow Lake-HX + RTX 50
+// BIOS: S9CN19WW (issue #506), EC 0x5508 (fw 2b0, read on the unit).
+// Facts below are from the S9CN19WW DSDT (L = dsdt.dsl line,
+// attachment in issue #506); the WMA* methods live in \_SB.GZFD:
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L41247): get returns the 0x58-byte LFGT buffer with the live EC
+//   fields F9F0..F9F9 (static 1..10 placeholder when ODV1 == 4, i.e.
+//   extreme mode); set copies the ten speeds (bytes 0x06..0x18 at even
+//   offsets) to F9F0..F9F9 and commits via LECR(0xD0,1,1,2), no range
+//   check, mode/FSID bytes ignored. The bytes are fan LEVELS 1..10
+//   (LENOVO_FAN_TABLE_DATA, WQA3 L35223, maps level 1..10 to
+//   1700..5100 RPM on fan 1), one table for all fans, temperature axis
+//   fixed by the EC, hence FAN_SPEED_UNIT_LEVEL and only the speed
+//   attributes are exposed (wmi_fancurve_speed_only).
+// - Other Method WMAE Get(0x11)/Set(0x12) (L41328) implements the
+//   standard feature ids: fan RPM 0x04030001/2 (FANS/FA2S*0x64),
+//   CPU/GPU temp 0x05040000/0x05050000 (CPUT/GPUT), full speed
+//   0x04020000 -> EC FNST (both directions), PL/OC 0x0101..0x0107/
+//   0x0201..0x0204 stored raw in the EC. 0x05010000 is the CPU socket
+//   temp (CPUS), not a labeled IC sensor -> skip_ic_temp. PL/OC
+//   attributes stay hidden (skip_oc_controls) until validated; only
+//   cpu_temperature_limit, cpu_l1_tau and gpu_power_target_offset are
+//   visible, as on Q7CN.
+// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
+//   (L40638/L40509): quiet/balanced/performance, 0xFF custom, 0xE0
+//   extreme.
+// - CPU Method WMAC is an empty stub (L41324), so power limits go
+//   through WMAE (WMI3), as on model_q7cn/model_rlcn.
+// - Lights: KBBACKLIGHT WMAF get(1)/set(2) (L42947) drives the
+//   keyboard (id 0x00, LECR 0xDA levels 1..3) and the Y-logo (id 0x03,
+//   LCST on/off via LECR 0xDA); light id 0x05 (IO-port) is
+//   unimplemented and reads 0, so it is skipped at runtime (-ENODEV).
+// - EC0 at \_SB.PC00.LPCB.EC0 (L28222); EC RAM window ERAX @0xFE0B0400
+//   (L28492, len 0xFF; F9FT/ECB2 at +0x100/+0x200, ramio_size 0x300)
+//   is used only by the read-only debugfs ecmemoryram dump; EC
+//   register offsets are not trusted on the 0x5508 generation (issue
+//   #491) - everything else goes through WMI. VPC0 _STA/_CFG
+//   (L30714/L30719), GBMD/SBMC (L30881/L31098) present.
+// Runtime validation on the reporters' units (issue #506, huverse and
+// AXFOX, with the WMI-only config from this family): WMI powermode and
+// platform profile work; WMI3 CPU temp and fan RPM are correct (idle
+// ~48 C/fans off, load ~85-88 C/~2000-2500 RPM) while raw EC reads are
+// garbage (~18045/~16740 RPM), matching the EC-misalignment quirk of
+// this generation; keyboard backlight and Y-logo LED drivers init
+// (the platform::kbd_backlight name collision with ideapad_laptop is
+// cosmetic and handled by the rename).
+// fan_fullspeed is gated behind custom power mode like model_q7cn/
+// model_rlcn: on this generation a full-speed write through the wrong
+// path can wedge the fans at maximum speed until reboot (model_rlcn).
+static const struct model_config model_s9cn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_flip_to_start = true,
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -2870,6 +2957,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "RECN"),
 		},
 		.driver_data = (void *)&model_recn
+	},
+	{
+		// Legion Y7000P IRX10 (83NN), BIOS S9CN (issue #506);
+		// DSDT-validated WMI-only sibling of the 83F5 Legion Pro 7
+		// 16IAX10H (model_q7cn), EC 0x5508. Product-qualified in
+		// case the S9CN BIOS line is shared by other chassis.
+		.ident = "S9CN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83NN"),
+			DMI_MATCH(DMI_BIOS_VERSION, "S9CN"),
+		},
+		.driver_data = (void *)&model_s9cn
 	},
 	{
 		// e.g. Legion 5 16IRX9 (83DG)
