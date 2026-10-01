@@ -1,6 +1,7 @@
 #include "powerlimit.h"
 #include "../public.h"
 #include <fcntl.h>
+#include <glob.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -129,6 +130,25 @@ static bool use_double(POWER_STATE power_state, const LEGIOND_CONFIG *config)
 	return active;
 }
 
+/*
+ * Find a legion-laptop attribute file. The driver binds a platform device
+ * named "legion" on kernel >= 7.0 and the ACPI device (e.g. "PNP0C09:00")
+ * before, so the device directory's name differs; take the first match.
+ */
+static bool find_legion_attr(const char *name, char *path, size_t size)
+{
+	char pattern[PATH_MAX];
+	glob_t matches;
+	bool found = false;
+
+	snprintf(pattern, sizeof(pattern), "%s/*/%s", legion_driver_path, name);
+	if (glob(pattern, 0, NULL, &matches) == 0 && matches.gl_pathc > 0)
+		found = snprintf(path, size, "%s", matches.gl_pathv[0]) <
+			(int)size;
+	globfree(&matches);
+	return found;
+}
+
 /* look up "profile:watts" in a defaults file; 0 when absent */
 static unsigned int read_default_watts(const char *path, const char *profile)
 {
@@ -215,8 +235,23 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 			printf("skip cpu_powerlimit (custom mode or unknown state)\n");
 			return 0;
 		}
-		pl1 = read_default_watts(pl1_defaults_path, profile);
-		pl2 = read_default_watts(pl2_defaults_path, profile);
+		char pl1_path[PATH_MAX], pl2_path[PATH_MAX];
+		static bool missing_reported;
+
+		if (!find_legion_attr(pl1_defaults_name, pl1_path,
+				      sizeof(pl1_path)) ||
+		    !find_legion_attr(pl2_defaults_name, pl2_path,
+				      sizeof(pl2_path))) {
+			if (!missing_reported)
+				printf("cpu_powerlimit: no %s/*/%s, "
+				       "power limit defaults unavailable\n",
+				       legion_driver_path, pl1_defaults_name);
+			missing_reported = true;
+			return 0;
+		}
+		missing_reported = false;
+		pl1 = read_default_watts(pl1_path, profile);
+		pl2 = read_default_watts(pl2_path, profile);
 		if (pl1 && pl2 && use_double(power_state, config)) {
 			int idx = double_index(power_state);
 

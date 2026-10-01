@@ -4,17 +4,16 @@
 #include "powerstate.h"
 
 /*
- * Firmware per-mode defaults exported by legion-laptop, "profile:watts ...".
+ * legion-laptop's driver directory. The firmware's per-mode defaults
+ * ("profile:watts ...") are in the bound device's directory below it,
+ * whose name depends on the kernel version, so it is searched at runtime.
  * The paths can be overridden at build time (e.g. for testing).
  */
-#ifndef pl1_defaults_path
-#define pl1_defaults_path \
-	"/sys/bus/platform/drivers/legion/legion/cpu_longterm_powerlimit_defaults"
+#ifndef legion_driver_path
+#define legion_driver_path "/sys/bus/platform/drivers/legion"
 #endif
-#ifndef pl2_defaults_path
-#define pl2_defaults_path \
-	"/sys/bus/platform/drivers/legion/legion/cpu_shortterm_powerlimit_defaults"
-#endif
+#define pl1_defaults_name "cpu_longterm_powerlimit_defaults"
+#define pl2_defaults_name "cpu_shortterm_powerlimit_defaults"
 /* thermal zones, searched by type for the double-target sensors */
 #ifndef thermal_path
 #define thermal_path "/sys/class/thermal"
