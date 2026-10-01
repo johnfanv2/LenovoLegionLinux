@@ -1316,11 +1316,20 @@ class OtherOptionsTab(QWidget):
         super().__init__()
         self.controller = controller
         self.init_power_ui()
+        self.init_option_checks()
+        self.init_hybrid_ui()
         self.init_ui()
+        self.init_bootlogo_ui()
         self.controller.view_otheroptions = self
 
     def init_ui(self):
-        # pylint: disable=too-many-statements
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.options_group, 0)
+        self.main_layout.addWidget(self.power_group, 1)
+        self.main_layout.addStretch()
+        self.setLayout(self.main_layout)
+
+    def init_option_checks(self):
         self.options_group = QGroupBox("Options")
         self.options_layout = QVBoxLayout()
         self.options_group.setLayout(self.options_layout)
@@ -1365,6 +1374,7 @@ class OtherOptionsTab(QWidget):
         self.ioport_light_check = QCheckBox("IO-Port/Rear LEDs light")
         self.options_layout.addWidget(self.ioport_light_check, 5)
 
+    def init_hybrid_ui(self):
         self.hybrid_label = QLabel("Hybrid Mode (sometimes also GSync):")
         self.hybrid_state_label = QLabel("")
         self.hybrid_activate_button = QPushButton("Activate")
@@ -1377,12 +1387,7 @@ class OtherOptionsTab(QWidget):
 
         self.options_layout.addLayout(self.hybrid_layout, 6)
 
-        self.main_layout = QVBoxLayout()
-        self.main_layout.addWidget(self.options_group, 0)
-        self.main_layout.addWidget(self.power_group, 1)
-        self.main_layout.addStretch()
-        self.setLayout(self.main_layout)
-
+    def init_bootlogo_ui(self):
         self.bootlogo_group = QGroupBox("Boot Logo")
         self.bootlogo_layout = QVBoxLayout()
         self.bootlogo_group.setLayout(self.bootlogo_layout)
