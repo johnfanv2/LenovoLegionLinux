@@ -177,10 +177,13 @@ static bool find_legion_attr(const char *name, char *path, size_t size)
 	bool found = false;
 
 	snprintf(pattern, sizeof(pattern), "%s/*/%s", legion_driver_path, name);
-	if (glob(pattern, 0, NULL, &matches) == 0 && matches.gl_pathc > 0)
-		found = snprintf(path, size, "%s", matches.gl_pathv[0]) <
-			(int)size;
-	globfree(&matches);
+	/* globfree() only after a successful glob(), as POSIX requires */
+	if (glob(pattern, 0, NULL, &matches) == 0) {
+		if (matches.gl_pathc > 0)
+			found = snprintf(path, size, "%s",
+					 matches.gl_pathv[0]) < (int)size;
+		globfree(&matches);
+	}
 	return found;
 }
 
@@ -202,6 +205,12 @@ static bool find_legion_attr(const char *name, char *path, size_t size)
 static unsigned int read_default_watts(const char *path, const char *profile,
 				       char *bad, size_t bad_size)
 {
+	/*
+	 * The kernel prints about 70 bytes ("low-power:55 balanced:90 ...").
+	 * A file that fills the buffer is cut at its last whitespace below, so a
+	 * token split at the buffer end (e.g. "performance:14" of "...:145") is
+	 * dropped rather than misread.
+	 */
 	char text[1024];
 	size_t len;
 
@@ -213,6 +222,11 @@ static unsigned int read_default_watts(const char *path, const char *profile,
 		len = fread(text, 1, sizeof(text) - 1, fp);
 	}
 	text[len] = '\0';
+	if (len == sizeof(text) - 1) {
+		while (len > 0 && !strchr(" \t\n", text[len - 1]))
+			len--;
+		text[len] = '\0';
+	}
 
 	size_t plen = strlen(profile);
 	char *save;
