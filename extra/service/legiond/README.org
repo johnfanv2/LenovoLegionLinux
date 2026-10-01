@@ -36,9 +36,12 @@ example ~performance:145~ / ~performance:190~), to
 ~/sys/class/powercap/intel-rapl-mmio:0~ (constraints ~long_term~ and
 ~short_term~, both checked before writing) on every power-profile change,
 on resume and with the ~legiond-cpuset.timer~ refresh. Custom mode is left to
-the firmware, which applies the user's custom values itself. On battery the
-limits are only written when ~bat_pl1~ / ~bat_pl2~ (section
-~cpu_powerlimit~, watts) are set. The option is off by default.
+the firmware, which applies the user's custom values itself, on AC. On
+battery the limits are only written when ~bat_pl1~ / ~bat_pl2~ (section
+~cpu_powerlimit~, watts) are set, and then in every power mode, custom
+included: the configured battery limits take precedence there, as the
+firmware has no battery defaults to fall back to. Leave them unset to keep
+custom mode's own values on battery. The option is off by default.
 
 Under sustained CPU+GPU load the firmware's policy on Windows switches to
 lower "double" CPU limits once two chassis sensors pass per-mode thresholds,
