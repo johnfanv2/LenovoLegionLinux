@@ -7133,16 +7133,18 @@ static ssize_t battery_conservation_store(struct device *dev,
 	 * clears conservation when rapid charge is enabled, but not the other
 	 * way round; leaving both set makes ideapad-laptop's charge_types read
 	 * fail with -EINVAL. Turn rapid charge off first, as ideapad-laptop
-	 * does, and leave it alone when disabling conservation.
+	 * does, and leave it alone when disabling conservation. If its state
+	 * can't be read, leave it alone too and still set conservation; only
+	 * a failed rapid charge write aborts.
 	 */
 	if (state) {
 		bool rapid;
 
-		err = acpi_read_rapidcharge(priv->adev, &rapid);
-		if (!err && rapid)
+		if (!acpi_read_rapidcharge(priv->adev, &rapid) && rapid) {
 			err = acpi_write_rapidcharge(priv->adev, false);
-		if (err)
-			goto unlock;
+			if (err)
+				goto unlock;
+		}
 	}
 	err = acpi_write_conservation(priv->adev, state);
 unlock:
