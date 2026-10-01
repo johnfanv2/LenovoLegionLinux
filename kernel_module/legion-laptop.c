@@ -9455,6 +9455,11 @@ fancurve_defaults_powermode_store(struct device *dev,
 		goto error_unlock;
 	}
 	fancurve_defaults_powermode = value;
+	/*
+	 * The firmware defaults replace the table, so the remembered user
+	 * curve must not be re-applied over them after resume.
+	 */
+	priv->resume_fancurve_valid = false;
 	mutex_unlock(&priv->fancurve_mutex);
 	return count;
 
