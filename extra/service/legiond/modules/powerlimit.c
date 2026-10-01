@@ -149,24 +149,49 @@ static bool find_legion_attr(const char *name, char *path, size_t size)
 	return found;
 }
 
-/* look up "profile:watts" in a defaults file; 0 when absent */
+/*
+ * Upper bound for a default the driver reports. The defaults come from the
+ * firmware's capability data, so this only catches a garbled read; it is
+ * not a hardware limit. MMIO constraint_0_max_power_uw cannot be used for
+ * this: it reports the CPU's base power (55 W on the 16IAX10H), well below
+ * the firmware's own performance defaults (145 W).
+ */
+#define POWERLIMIT_MAX_WATTS 500
+
+/*
+ * Look up "profile:watts" in a defaults file. Every whitespace-separated
+ * token in the file is checked, not just the first line. Returns 0 when
+ * the profile is absent or its value is implausible.
+ */
 static unsigned int read_default_watts(const char *path, const char *profile)
 {
-	char line[256];
+	char text[1024];
+	size_t len;
 
 	{
 		auto_stream fp = fopen(path, "r");
-		if (fp == NULL || fgets(line, sizeof(line), fp) == NULL)
+		if (fp == NULL)
 			return 0;
+		len = fread(text, 1, sizeof(text) - 1, fp);
 	}
+	text[len] = '\0';
 
-	size_t len = strlen(profile);
-	for (char *tok = strtok(line, " \n"); tok; tok = strtok(NULL, " \n")) {
+	size_t plen = strlen(profile);
+	char *save;
+	for (char *tok = strtok_r(text, " \t\n", &save); tok;
+	     tok = strtok_r(NULL, " \t\n", &save)) {
 		unsigned int watts;
+		char extra;
 
-		if (strncmp(tok, profile, len) == 0 && tok[len] == ':' &&
-		    sscanf(tok + len + 1, "%u", &watts) == 1)
-			return watts;
+		if (strncmp(tok, profile, plen) != 0 || tok[plen] != ':')
+			continue;
+		if (sscanf(tok + plen + 1, "%u%c", &watts, &extra) != 1 ||
+		    watts == 0 || watts > POWERLIMIT_MAX_WATTS) {
+			printf("cpu_powerlimit: ignoring %s in %s\n", tok,
+			       path);
+			return 0;
+		}
+		return watts;
 	}
 	return 0;
 }
