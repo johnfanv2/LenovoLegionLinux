@@ -388,6 +388,40 @@ int main(void) {
     assert(fantable_ensure(&priv) == -EIO); /* Do not trust a cache after a failed mode read. */
     power_error = 0;
 
+    /* Fan 1 takes the (fan 1, CPU sensor) row whenever one exists; the
+     * (fan 1, sensor 0x01) row only fills in when it does not (Q7CN, where
+     * sensor 0x04 belongs to fan 4), so models with a CPU row are unchanged
+     * whatever the row order. */
+    struct wmi_fantable_row cpu_row = valid_row, ic_row = valid_row, gpu_row = valid_row;
+    cpu_row.mode = ic_row.mode = gpu_row.mode = LEGION_WMI_POWERMODE_BALANCED;
+    cpu_row.fan_id = 1; cpu_row.sensor_id = FANTABLE_SENSOR_CPU;
+    ic_row.fan_id = 1; ic_row.sensor_id = FANTABLE_SENSOR_IC;
+    for (size_t i = 0; i < FANTABLE_MAX_LEVELS; i++) ic_row.fan_speed[i] += 200;
+    gpu_row.fan_id = 2; gpu_row.sensor_id = FANTABLE_SENSOR_GPU;
+    const struct wmi_fantable_row *orders[][4] = {
+        { &ic_row, &cpu_row, &gpu_row, &gpu_row },  /* IC row first: CPU row still wins */
+        { &cpu_row, &ic_row, &gpu_row, &gpu_row },  /* CPU row first */
+    };
+    for (size_t o = 0; o < 2; o++) {
+        for (size_t i = 0; i < 4; i++) firmware_rows[i] = *orders[o][i];
+        fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
+        assert(priv.fantable_fan1_valid && priv.fantable_fan2_valid);
+        assert(priv.fantable_fan1.rpms[1] == valid_row.fan_speed[1]);
+    }
+    /* Q7CN layout: fan 1 / sensor 0x01, fan 2 / GPU, fan 4 / CPU. */
+    firmware_rows[0] = ic_row;
+    firmware_rows[1] = gpu_row;
+    firmware_rows[2] = cpu_row;
+    firmware_rows[2].fan_id = 4;
+    firmware_rows[3] = gpu_row;
+    fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
+    assert(priv.fantable_fan1_valid && priv.fantable_fan1.rpms[1] == ic_row.fan_speed[1]);
+    /* Neither row for fan 1: still no data, as before. */
+    firmware_rows[0] = gpu_row;
+    firmware_rows[2].fan_id = 4;
+    fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
+    assert(!priv.fantable_fan1_valid && priv.fantable_fan2_valid);
+
     /* A resize must publish the new size, or the store is a silent no-op: the
      * sentinel/replication blocks reshape points[] against the *old* size, and
      * ec_write_fancurve_legion() then zero-fills and writes EXT_FAN_POINTS_SIZE
