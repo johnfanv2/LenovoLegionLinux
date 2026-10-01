@@ -301,13 +301,18 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 		}
 		char pl1_path[PATH_MAX], pl2_path[PATH_MAX];
 
+		const char *missing = NULL;
+
 		if (!find_legion_attr(pl1_defaults_name, pl1_path,
-				      sizeof(pl1_path)) ||
-		    !find_legion_attr(pl2_defaults_name, pl2_path,
-				      sizeof(pl2_path))) {
+				      sizeof(pl1_path)))
+			missing = pl1_defaults_name;
+		else if (!find_legion_attr(pl2_defaults_name, pl2_path,
+					   sizeof(pl2_path)))
+			missing = pl2_defaults_name;
+		if (missing) {
 			report("cpu_powerlimit: no %s/*/%s, "
 			       "power limit defaults unavailable",
-			       legion_driver_path, pl1_defaults_name);
+			       legion_driver_path, missing);
 			return 0;
 		}
 		pl1 = read_default_watts(pl1_path, profile, bad, sizeof(bad));
