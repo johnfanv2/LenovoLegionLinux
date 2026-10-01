@@ -7485,6 +7485,28 @@ static ssize_t wmi_common_method_other_show(struct legion_private *priv,
 	return sysfs_emit(buf, "%d\n", out);
 }
 
+/*
+ * The capdata01 row for a feature (id bits 31..16) in a power mode (bits
+ * 15..8) with sub-id 0 (bits 7..0), if the firmware marks it supported.
+ * Shared by the write clamping and the exported per-mode defaults, so both
+ * always agree on which row applies.
+ */
+static const struct capdata01 *
+capdata01_lookup(const struct legion_private *priv, u32 fkey, int powermode)
+{
+	int i;
+
+	for (i = 0; i < priv->capdata_count; i++) {
+		const struct capdata01 *p = &priv->capdata[i];
+
+		if ((p->id >> 16) == fkey &&
+		    ((p->id >> 8) & 0xFF) == (u32)powermode &&
+		    (p->id & 0xFF) == 0 && (p->supported & BIT(0)))
+			return p;
+	}
+	return NULL;
+}
+
 static int clamped_value(struct legion_private *priv,
 			 enum OtherMethodFeature feature, const char *buf,
 			 int *value)
@@ -7505,16 +7527,7 @@ static int clamped_value(struct legion_private *priv,
 	powermode = priv->current_powermode;
 	mutex_unlock(&priv->fancurve_mutex);
 
-	for (i = 0; i < priv->capdata_count; i++) {
-		const struct capdata01 *p = &priv->capdata[i];
-
-		if ((p->id >> 16) == fkey &&
-		    ((p->id >> 8) & 0xFF) == (u32)powermode &&
-		    (p->id & 0xFF) == 0 && (p->supported & BIT(0))) {
-			cd = p;
-			break;
-		}
-	}
+	cd = capdata01_lookup(priv, fkey, powermode);
 
 	for (i = 0; i < priv->discrete_feature_count; i++) {
 		if ((priv->discrete_features[i].feature_id >> 16) == fkey) {
@@ -8366,27 +8379,14 @@ static const struct {
 	{ LEGION_WMI_POWERMODE_CUSTOM, "custom" },
 };
 
-static const struct capdata01 *capdata_find(const struct legion_private *priv,
-					    u32 id)
-{
-	int i;
-
-	for (i = 0; i < priv->capdata_count; i++)
-		if (priv->capdata[i].id == id &&
-		    (priv->capdata[i].supported & BIT(0)))
-			return &priv->capdata[i];
-	return NULL;
-}
-
 static bool powerlimit_defaults_available(const struct legion_private *priv,
 					  enum OtherMethodFeature feature)
 {
 	size_t i;
 
 	for (i = 0; i < ARRAY_SIZE(powerlimit_default_modes); i++) {
-		u32 id = (u32)feature | powerlimit_default_modes[i].mode << 8;
-
-		if (capdata_find(priv, id))
+		if (capdata01_lookup(priv, (u32)feature >> 16,
+				     powerlimit_default_modes[i].mode))
 			return true;
 	}
 	return false;
@@ -8401,8 +8401,9 @@ static ssize_t powerlimit_defaults_show(const struct legion_private *priv,
 	size_t i;
 
 	for (i = 0; i < ARRAY_SIZE(powerlimit_default_modes); i++) {
-		u32 id = (u32)feature | powerlimit_default_modes[i].mode << 8;
-		const struct capdata01 *cd = capdata_find(priv, id);
+		const struct capdata01 *cd =
+			capdata01_lookup(priv, (u32)feature >> 16,
+					 powerlimit_default_modes[i].mode);
 
 		if (!cd)
 			continue;
