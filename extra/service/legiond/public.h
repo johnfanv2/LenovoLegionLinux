@@ -57,12 +57,11 @@ static inline void free_buffer(void *buffer)
 
 #define socket_path "/run/legiond.socket"
 /*
- * Seconds between a power-state/power-profile change and applying the
- * settings. At least 2 s: on the Legion Pro 7 16IAX10H the EC merges the
- * fan table with the mode default ~0.6-1.6 s after entering custom mode,
- * so an earlier fan curve write can be overridden.
+ * Seconds before applying the settings at startup and after a
+ * "legiond-ctl fanset" without a delay. Power-state/power-profile changes
+ * use a fixed 3 s instead (see the inotify handler in legiond.c).
  */
-#define default_delay 2.0
+#define default_delay 1.5
 
 /*
  * Wire protocol between legiond-ctl and legiond: exactly one fixed-size
