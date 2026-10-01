@@ -113,20 +113,31 @@ static bool use_double(POWER_STATE power_state, const LEGIOND_CONFIG *config)
 	int lim1 = config->powerlimit_double_temp[idx][1];
 	int hyst = config->powerlimit_double_hysteresis;
 
+	/* runs on every legiond-cpuset.timer tick: log transitions only */
+	static bool sensors_missing;
+
 	if (t0 == -1000 || t1 == -1000) {
-		printf("cpu_powerlimit: double sensors %s/%s not found\n",
-		       config->powerlimit_double_sensor[0],
-		       config->powerlimit_double_sensor[1]);
+		if (!sensors_missing)
+			printf("cpu_powerlimit: double sensors %s/%s not found\n",
+			       config->powerlimit_double_sensor[0],
+			       config->powerlimit_double_sensor[1]);
+		sensors_missing = true;
 		return active = false;
 	}
+	sensors_missing = false;
+
+	bool was_active = active;
+
 	if (!active && t0 >= lim0 && t1 >= lim1)
 		active = true;
 	else if (active && (t0 < lim0 - hyst || t1 < lim1 - hyst))
 		active = false;
-	printf("cpu_powerlimit: %s %d C (>= %d), %s %d C (>= %d): %s target\n",
-	       config->powerlimit_double_sensor[0], t0, lim0,
-	       config->powerlimit_double_sensor[1], t1, lim1,
-	       active ? "double" : "single");
+	if (active != was_active)
+		printf("cpu_powerlimit: %s %d C (>= %d), %s %d C (>= %d): "
+		       "%s the double target\n",
+		       config->powerlimit_double_sensor[0], t0, lim0,
+		       config->powerlimit_double_sensor[1], t1, lim1,
+		       active ? "entering" : "leaving");
 	return active;
 }
 
@@ -234,6 +245,13 @@ static int write_constraint(int index, unsigned int watts)
 	return 0;
 }
 
+/*
+ * The limits last written, so the timer's periodic re-writes (the firmware
+ * can change MMIO behind our back, e.g. on a custom-mode entry) only log
+ * when the values change. 0 = unknown, the next write is logged.
+ */
+static unsigned int logged_pl1, logged_pl2;
+
 int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (!config->cpu_powerlimit_sync) {
@@ -258,6 +276,8 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 
 		if (profile == NULL) {
 			printf("skip cpu_powerlimit (custom mode or unknown state)\n");
+			/* the firmware sets the limit in custom mode */
+			logged_pl1 = logged_pl2 = 0;
 			return 0;
 		}
 		char pl1_path[PATH_MAX], pl2_path[PATH_MAX];
@@ -303,8 +323,13 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 
 	int result = write_constraint(0, pl1);
 	result |= write_constraint(1, pl2);
-	if (result == 0)
+	if (result != 0) {
+		logged_pl1 = logged_pl2 = 0;
+	} else if (pl1 != logged_pl1 || pl2 != logged_pl2) {
 		printf("cpu_powerlimit set to PL1 %u W, PL2 %u W\n", pl1, pl2);
+		logged_pl1 = pl1;
+		logged_pl2 = pl2;
+	}
 
 	return result;
 }
