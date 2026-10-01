@@ -6019,14 +6019,17 @@ static void legion_resume_fancurve_fn(struct work_struct *work)
 		err = write_fancurve(priv, &fancurve, false);
 	}
 	mutex_unlock(&priv->fancurve_mutex);
-	dev_info(dev, "Re-applied the fan curve written before suspend: %d\n",
-		 err);
+	if (err)
+		dev_warn(dev, "Fan curve re-apply after resume failed: %d\n",
+			 err);
+	else
+		dev_info(dev, "Re-applied the fan curve set before suspend\n");
 }
 
+/* the work checks resume_fancurve_valid under fancurve_mutex */
 static void legion_resume_fancurve(struct legion_private *priv)
 {
-	if (priv && priv->conf && priv->conf->restore_fancurve_on_resume &&
-	    priv->resume_fancurve_valid)
+	if (priv && priv->conf && priv->conf->restore_fancurve_on_resume)
 		schedule_delayed_work(&priv->resume_fancurve_work,
 				      msecs_to_jiffies(3000));
 }
@@ -7568,6 +7571,11 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 	return count;
 }
 
+/*
+ * Like wmi_common_method_other_store(), but for a boolean: parsed with
+ * kstrtobool, so no capability-data clamping is needed. Keep the two in
+ * step if the common store changes.
+ */
 static ssize_t instant_boot_store(struct device *dev, const char *buf,
 				  size_t count,
 				  enum OtherMethodFeature feature_id)
