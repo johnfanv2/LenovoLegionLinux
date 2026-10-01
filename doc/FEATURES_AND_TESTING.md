@@ -102,6 +102,11 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   `cpu_powerlimit_sync` writes them to MMIO RAPL on each profile change
   (verified: 55/65 W → ~2.7 GHz, 63 °C; 90/125 W → ~3.6 GHz, 87 °C on the
   same load).
+  thermald's power-limit control must not run alongside it: `thermald
+  --adaptive` writes its PPCC maximum (PL1 150 W) to the same MMIO limit in
+  every mode. `lenovo-wmi-other`'s `ppt_pl1_spl` / `ppt_pl2_sppt` hold the
+  custom-mode values (the WMAE setters only apply them when ODV1 == 3), so
+  outside custom mode they can differ from the enforced MMIO limit.
 - GPU (RTX 5090 Laptop, NVIDIA 615.71): without `nvidia-powerd` the enforced
   GPU power limit is 95 W in every mode (max 175 W). With
   `systemctl enable --now nvidia-powerd` it follows the mode: 95 W in quiet

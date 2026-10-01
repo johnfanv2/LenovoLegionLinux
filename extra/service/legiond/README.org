@@ -55,9 +55,19 @@ stay near 43 °C at idle and pass the performance thresholds after about 40 s
 of combined load, while the CPU sits at its 100–103 °C limit with the GPU at
 150 W.
 
+Don't run thermald's power-limit control (for example ~thermald --adaptive~,
+which writes its own PL1 to the same MMIO limit) together with
+~cpu_powerlimit_sync~: the two would keep overriding each other, at the latest
+on every ~legiond-cpuset.timer~ refresh.
+
 Check the result with
 ~cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw~
-after a Fn+Q.
+after a Fn+Q. The WMI power-limit attributes (~legion-laptop~'s
+~cpu_longterm_powerlimit~ / ~cpu_shortterm_powerlimit~ on models that show
+them, ~lenovo-wmi-other~'s ~ppt_pl1_spl~ / ~ppt_pl2_sppt~ on the 16IAX10H) hold
+the values the firmware applies in custom mode, since its setters only take
+effect there; outside custom mode they can differ from the enforced MMIO
+limit.
 * How it works
 ~legiond~ is divided into two parts, ~legiond~ and ~legiond-ctl~.
 ~legiond~ is running as a ~systemd.service~, ~legiond-ctl~ is a bridge between ~legiond-cpuset.service~ and ~legiond-resume.service~ with ~legiond.service~.
