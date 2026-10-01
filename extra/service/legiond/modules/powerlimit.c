@@ -2,6 +2,7 @@
 #include "../public.h"
 #include <fcntl.h>
 #include <glob.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -15,6 +16,29 @@
  * defaults, exported by legion-laptop, into the MMIO RAPL limit that the
  * CPU enforces.
  */
+
+/*
+ * set_cpu_powerlimit() runs on every legiond-cpuset.timer tick (30 s), and
+ * with cpu_powerlimit_sync off too. Every outcome, written or skipped, goes
+ * through report(), which logs it only when it differs from the previous
+ * call's outcome. A steady state is logged once, and any change (e.g. back to
+ * a written limit after a skip) is logged again.
+ */
+static char last_report[384];
+
+[[gnu::format(printf, 1, 2)]] static void report(const char *fmt, ...)
+{
+	char msg[sizeof(last_report)];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
+	va_end(ap);
+	if (strcmp(msg, last_report) == 0)
+		return;
+	snprintf(last_report, sizeof(last_report), "%s", msg);
+	printf("%s\n", msg);
+}
 
 /* profile name as used in the defaults files; NULL = leave the limits alone */
 static const char *ac_profile(POWER_STATE power_state)
@@ -172,13 +196,16 @@ static bool find_legion_attr(const char *name, char *path, size_t size)
 /*
  * Look up "profile:watts" in a defaults file. Every whitespace-separated
  * token in the file is checked, not just the first line. Returns 0 when
- * the profile is absent or its value is implausible.
+ * the profile is absent or its value is implausible; in the latter case the
+ * offending token is copied to bad (for the caller's log line).
  */
-static unsigned int read_default_watts(const char *path, const char *profile)
+static unsigned int read_default_watts(const char *path, const char *profile,
+				       char *bad, size_t bad_size)
 {
 	char text[1024];
 	size_t len;
 
+	bad[0] = '\0';
 	{
 		auto_stream fp = fopen(path, "r");
 		if (fp == NULL)
@@ -198,8 +225,7 @@ static unsigned int read_default_watts(const char *path, const char *profile)
 			continue;
 		if (sscanf(tok + plen + 1, "%u%c", &watts, &extra) != 1 ||
 		    watts == 0 || watts > POWERLIMIT_MAX_WATTS) {
-			printf("cpu_powerlimit: ignoring %s in %s\n", tok,
-			       path);
+			snprintf(bad, bad_size, "%s", tok);
 			return 0;
 		}
 		return watts;
@@ -217,11 +243,11 @@ static bool constraint_is(int index, const char *expected_name)
 		 index);
 	auto_stream fp = fopen(path, "r");
 	if (fp == NULL || fscanf(fp, "%31s", name) != 1) {
-		printf("cpu_powerlimit: %s not readable\n", path);
+		report("cpu_powerlimit: %s not readable, skip", path);
 		return false;
 	}
 	if (strcmp(name, expected_name) != 0) {
-		printf("cpu_powerlimit: constraint %d is %s, expected %s\n",
+		report("cpu_powerlimit: constraint %d is %s, expected %s, skip",
 		       index, name, expected_name);
 		return false;
 	}
@@ -239,33 +265,27 @@ static int write_constraint(int index, unsigned int watts)
 	int len = snprintf(value, sizeof(value), "%u000000\n", watts);
 	auto_fd fd = open(path, O_WRONLY);
 	if (fd < 0 || write(fd, value, len) != len) {
-		printf("cpu_powerlimit: failed to write %s\n", path);
+		report("cpu_powerlimit: failed to write %u W to %s", watts,
+		       path);
 		return 1;
 	}
 	return 0;
 }
 
-/*
- * The limits last written, so the timer's periodic re-writes (the firmware
- * can change MMIO behind our back, e.g. on a custom-mode entry) only log
- * when the values change. 0 = unknown, the next write is logged.
- */
-static unsigned int logged_pl1, logged_pl2;
-
 int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 {
 	if (!config->cpu_powerlimit_sync) {
-		printf("cpu_powerlimit_sync is set to false\n");
-		printf("skip cpu_powerlimit\n");
+		report("cpu_powerlimit_sync is set to false, skip cpu_powerlimit");
 		return 0;
 	}
 
 	if ((int)power_state < 0) {
-		printf("skip cpu_powerlimit (power state unknown)\n");
+		report("skip cpu_powerlimit (power state unknown)");
 		return 0;
 	}
 
 	unsigned int pl1, pl2;
+	char bad[64] = "";
 
 	if (power_state % 2) {
 		/* battery: capdata has no DC defaults, use the configured ones */
@@ -275,28 +295,33 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 		const char *profile = ac_profile(power_state);
 
 		if (profile == NULL) {
-			printf("skip cpu_powerlimit (custom mode or unknown state)\n");
 			/* the firmware sets the limit in custom mode */
-			logged_pl1 = logged_pl2 = 0;
+			report("skip cpu_powerlimit (custom mode or unknown state)");
 			return 0;
 		}
 		char pl1_path[PATH_MAX], pl2_path[PATH_MAX];
-		static bool missing_reported;
 
 		if (!find_legion_attr(pl1_defaults_name, pl1_path,
 				      sizeof(pl1_path)) ||
 		    !find_legion_attr(pl2_defaults_name, pl2_path,
 				      sizeof(pl2_path))) {
-			if (!missing_reported)
-				printf("cpu_powerlimit: no %s/*/%s, "
-				       "power limit defaults unavailable\n",
-				       legion_driver_path, pl1_defaults_name);
-			missing_reported = true;
+			report("cpu_powerlimit: no %s/*/%s, "
+			       "power limit defaults unavailable",
+			       legion_driver_path, pl1_defaults_name);
 			return 0;
 		}
-		missing_reported = false;
-		pl1 = read_default_watts(pl1_path, profile);
-		pl2 = read_default_watts(pl2_path, profile);
+		pl1 = read_default_watts(pl1_path, profile, bad, sizeof(bad));
+		if (pl1)
+			pl2 = read_default_watts(pl2_path, profile, bad,
+						 sizeof(bad));
+		else
+			pl2 = 0;
+		if (bad[0] != '\0') {
+			report("cpu_powerlimit: ignoring implausible %s in the "
+			       "defaults, skip cpu_powerlimit",
+			       bad);
+			return 0;
+		}
 		if (pl1 && pl2 && use_double(power_state, config)) {
 			int idx = double_index(power_state);
 
@@ -306,14 +331,13 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	}
 
 	if (pl1 == 0 || pl2 == 0) {
-		printf("no cpu power limits for this state\n");
-		printf("skip cpu_powerlimit\n");
+		report("no cpu power limits for this state, skip cpu_powerlimit");
 		return 0;
 	}
 
 	if (access(rapl_mmio_path, F_OK) != 0) {
-		printf("no MMIO RAPL zone (%s)\n", rapl_mmio_path);
-		printf("skip cpu_powerlimit\n");
+		report("no MMIO RAPL zone (%s), skip cpu_powerlimit",
+		       rapl_mmio_path);
 		return 0;
 	}
 
@@ -321,15 +345,12 @@ int set_cpu_powerlimit(POWER_STATE power_state, LEGIOND_CONFIG *config)
 	if (!constraint_is(0, "long_term") || !constraint_is(1, "short_term"))
 		return 1;
 
+	/* stop at the first failure: one log line, and no PL2 without PL1 */
 	int result = write_constraint(0, pl1);
-	result |= write_constraint(1, pl2);
-	if (result != 0) {
-		logged_pl1 = logged_pl2 = 0;
-	} else if (pl1 != logged_pl1 || pl2 != logged_pl2) {
-		printf("cpu_powerlimit set to PL1 %u W, PL2 %u W\n", pl1, pl2);
-		logged_pl1 = pl1;
-		logged_pl2 = pl2;
-	}
+	if (result == 0)
+		result = write_constraint(1, pl2);
+	if (result == 0)
+		report("cpu_powerlimit set to PL1 %u W, PL2 %u W", pl1, pl2);
 
 	return result;
 }
