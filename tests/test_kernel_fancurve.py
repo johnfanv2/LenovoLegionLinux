@@ -165,6 +165,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "wmi_fancurve_speed_unit",
             "fantable_row_to_ladder",
             "fancurve_level_table_sanitize",
+            "wmi_sfan_uses_thermal_mode",
             "read_fan_control_mode",
             "wmi_fancurve_mode",
             "fanfullspeed_write_allowed",
@@ -275,6 +276,12 @@ int main(void) {
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    priv.conf = &model_nscn_83fd; /* Same GFAN/SFAN level table as T2CN (#617). */
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(wmi_sfan_uses_thermal_mode(priv.conf) && !wmi_sfan_uses_thermal_mode(&model_nscn));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
     priv.conf = &model_m3cn_8227; /* Level calibration does not require default-reset support. */
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
@@ -321,6 +328,17 @@ int main(void) {
     priv.conf = &model_m3cn_8227;
     assert(wmi_write_fancurve_custom(&priv, &requested) == -EIO);
     power_error = 0;
+    /* 83FD: payload follows live GZ44, writes refused in extreme mode. */
+    priv.conf = &model_nscn_83fd;
+    power_mode = LEGION_WMI_POWERMODE_CUSTOM;
+    thermal_mode = LEGION_WMI_POWERMODE_MAX_POWER;
+    assert(wmi_write_fancurve_custom(&priv, &requested) == -EOPNOTSUPP);
+    assert(wmi_calls == 1);
+    thermal_mode = LEGION_WMI_POWERMODE_PERFORMANCE;
+    assert(wmi_write_fancurve_custom(&priv, &requested) == 0);
+    assert(wmi_calls == 2 && last_payload[0] == LEGION_WMI_POWERMODE_PERFORMANCE);
+    wmi_calls = 1;
+    priv.conf = &model_m3cn_8227;
     power_mode = LEGION_WMI_POWERMODE_BALANCED;
     assert(wmi_write_fancurve_custom(&priv, &requested) == 0);
     assert(wmi_calls == 2 && last_payload[0] == LEGION_WMI_POWERMODE_BALANCED);
