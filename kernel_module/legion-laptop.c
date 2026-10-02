@@ -1031,6 +1031,54 @@ static const struct model_config model_nscn = {
 	.ramio_size = 0x600
 };
 
+// Legion 7 16IRX9 (83FD) - 2024, Intel Core i9-14900HX + RTX 4070
+// BIOS: NSCN37WW, EC 0x5507 (issue #617). Facts below are from the
+// NSCN37WW SSDT4 ("CB-01") attached in issue #617; the WMA* methods
+// live in \_SB.GZFD:
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (GFAN/SFAN), so the WMAB 1/2 full-speed path of model_nscn and the
+//   max-speed methods 3/4 cannot work. GFAN returns the ten EC bytes
+//   F101..F10A (EFAN @0xFE0B0F00 + 0xE0), a static 1..10 placeholder in
+//   extreme mode (GZ44 == 7), and reinitialises the table via INIF when
+//   F10A is 0. SFAN reads the mode byte F000 (1/2/3/0xFF/0xE0) to pick
+//   an FNT0 row and writes CRP/GRP/ERP = FNT[level + 2] / 100 for all
+//   fans; mode 0 leaves that row unset. WMAB 6 drops writes while
+//   GZ44 == 7. The bytes are fan LEVELS 1..10 (FNT0 level 1 is 0 RPM),
+//   one table for all fans: the same GFAN/SFAN semantics as model_t2cn,
+//   so the payload mode and the RPM calibration use the live thermal
+//   mode (GameZone 0x37 reads GZ44; 0x2D reads a saved request).
+// - LENOVO_FAN_TABLE_DATA is WQA7 -> SFTW (15 FNT0 rows, fan 1/sensor 4
+//   and fan 2/sensor 5), so the per-level RPM ladders are available.
+// - Other Method WMAE: fan RPM DEV 4 FEA 3 (FA1S/FA2S * 100), full speed
+//   DEV 4 FEA 2 -> EC FFON (get and set), CPU/GPU temps DEV 5 FEA 4/5;
+//   DEV 5 FEA 1 (IC temp) is a constant 0 -> skip_ic_temp.
+// fan_fullspeed is gated behind custom power mode like model_m3cn_8227/
+// model_q7cn. Product-qualified so other NSCN units keep model_nscn.
+static const struct model_config model_nscn_83fd = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	// RGB keyboard is controlled over USB, as on model_nscn
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_fan_maxspeed = true,
+	.skip_lockfancontroller = true,
+	.wmi_fancurve_speed_only = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600
+};
+
 static const struct model_config model_qncn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -2573,6 +2621,18 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "K1CN"),
 		},
 		.driver_data = (void *)&model_k1cn
+	},
+	{
+		// Legion 7 16IRX9 (83FD), BIOS NSCN (issue #617): WMAB 5/6
+		// level fan table like model_t2cn. Must precede the generic
+		// NSCN entry below.
+		.ident = "NSCN 83FD",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83FD"),
+			DMI_MATCH(DMI_BIOS_VERSION, "NSCN"),
+		},
+		.driver_data = (void *)&model_nscn_83fd
 	},
 	{
 		// e.g. Lenovo 7 16IAX9
@@ -4984,6 +5044,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_rgcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_r3cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
 }
@@ -5208,6 +5269,16 @@ static int sync_powermode_locked(struct legion_private *priv);
 static int wmi_fancurve_mode(struct legion_private *priv);
 
 /*
+ * SFAN firmware that selects the RPM ladder from the payload mode byte and
+ * drops writes in extreme mode (GZ44 == 7): the mode byte and the RPM
+ * calibration must both follow the live thermal mode.
+ */
+static bool wmi_sfan_uses_thermal_mode(const struct model_config *conf)
+{
+	return conf == &model_t2cn || conf == &model_nscn_83fd;
+}
+
+/*
  * Return the ladders for the current power mode, refreshing the cache
  * when the power mode changed since the last scan. -ENODATA when the
  * block is unavailable or holds no usable row (transient failures keep
@@ -5218,7 +5289,7 @@ static int fantable_ensure(struct legion_private *priv)
 {
 	int powermode, err;
 
-	if (priv->conf == &model_t2cn) {
+	if (wmi_sfan_uses_thermal_mode(priv->conf)) {
 		/* Calibration and SFAN must select the same live-mode ladder. */
 		powermode = wmi_fancurve_mode(priv);
 		if (powermode < 0)
@@ -5282,7 +5353,8 @@ static int read_fan_control_mode(struct legion_private *priv, int *powermode)
 	unsigned long value;
 	int err;
 
-	if (priv->conf != &model_t2cn && priv->conf != &model_r3cn)
+	if (!wmi_sfan_uses_thermal_mode(priv->conf) &&
+	    priv->conf != &model_r3cn)
 		return read_powermode(priv, powermode);
 
 	/* SmartFanMode is a saved request; ThermalMode reads live GZ44. */
@@ -5302,7 +5374,8 @@ static int wmi_fancurve_mode(struct legion_private *priv)
 	int powermode, err;
 
 	/* R3CN uses this only for WMI default restoration, not its EC3 curve. */
-	if (priv->conf != &model_m3cn_8227 && priv->conf != &model_t2cn &&
+	if (priv->conf != &model_m3cn_8227 &&
+	    !wmi_sfan_uses_thermal_mode(priv->conf) &&
 	    priv->conf != &model_r3cn)
 		return 0;
 

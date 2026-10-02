@@ -472,6 +472,39 @@ progress - check the issue for the results, and verify locally with
 `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
 speed1 in 1..10).
 
+## Legion 7 16IRX9 (83FD, NSCN)
+
+BIOS NSCN37WW, EC 0x5507, Intel Core i9-14900HX + RTX 4070 (issue #617).
+DMI entry `NSCN 83FD` is qualified on product name `83FD` and precedes the
+generic `NSCN` entry; config `model_nscn_83fd` in
+`kernel_module/legion-laptop.c`. The fan methods live in SSDT4 ("CB-01")
+of the dump attached in issue #617 (DSDT SHA-256
+`eb58e64104373288b6f80f736e5377c2b557bcbd2cb88af4fd63450f6e9aa19f`).
+
+- Fan Method `WMAB` implements only 5/6 (`GFAN`/`SFAN`): ten shared fan
+  **levels** in EC `F101..F10A`, the same transport as the T2CN below.
+  `SFAN` selects the FNT0 RPM row from the payload mode byte, so the
+  driver sends the live thermal mode (`GetThermalMode`, GZ44) and uses
+  the same mode for the RPM calibration; writes are rejected in extreme
+  mode, where `WMAB` 6 discards them. `GFAN` returns a static 1..10
+  placeholder in extreme mode.
+- `LENOVO_FAN_TABLE_DATA` (`WQA7` -> `SFTW`) exports the per-level RPM
+  ladders; level 1 is 0 RPM and keeps its index.
+- `WMAB` 1..4 are missing, so `fan_maxspeed` is hidden and
+  `fan_fullspeed` uses Other Method `WMAE` (DEV 4 FEA 2 -> EC `FFON`),
+  gated behind custom power mode. Fan RPM and CPU/GPU temperature also
+  come from `WMAE`; the IC temperature is a constant 0 and is hidden.
+- `minifancurve` and `lockfancontroller` are hidden (no backing EC
+  register on this firmware). The RGB keyboard stays on USB, as before.
+
+Validation status: config derived from the firmware dump; sensors and
+power profiles were already working with the generic NSCN config.
+Verify with `sudo dmesg | grep -i legion` (config `NSCN 83FD`) and
+`sudo cat /sys/kernel/debug/legion/fancurve`. To test writes: on AC,
+select custom mode, back up the curve, apply one small change, compare
+the level/RPM readback and `sensors`, then restore the backup. Do not
+write in extreme mode.
+
 ## Legion 5 15AHP11 (83Q7, T2CN)
 
 The firmware attached in [#504](https://github.com/johnfanv2/LenovoLegionLinux/issues/504#issuecomment-5377414566)
