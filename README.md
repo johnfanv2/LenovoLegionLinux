@@ -55,7 +55,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 - [X] Light on RAM and CPU and without telemetry
 - [X] Fully controllable using scripts or from the command-line
-- [X] Simple GUI replacement for Lenovo Vantage: Fan curve, FN Lock, Win Key, Touchpad Power, Camera Power, Battery Conservation, Rapid Charging, Charge output from always on USB, Display Overdrive, Y-Logo LED Light, IO-Port LED Light, Hybrid Mode (GSync), CPU and GPU Overclock:
+- [X] Simple GUI replacement for Lenovo Vantage: Fan curve, FN Lock, Win Key, Touchpad Power, Camera Power, Battery Conservation, Rapid Charging, Charge output from always on USB, Display Overdrive (only shown when the firmware reports that the panel supports it; not on OLED panels such as the Legion Pro 7 16IAX10H's), Y-Logo LED Light, IO-Port LED Light, Hybrid Mode (GSync), CPU and GPU Overclock:
     - Switch battery conservation mode; keep battery at 60% when on AC to prolong battery life (https://bugs.kde.org/show_bug.cgi?id=441057)
     - Toggle Fn lock; Use special function on F1-F12 keys without pressing the Fn key
     - Enable or disable touchpad
@@ -69,6 +69,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
   - Save and load presets for different modes
 - [X] Lock and unlock the fan controller and fan speed
 - [X] Lift the firmware-imposed fan ceiling on supported models (`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`). On the Legion Pro 7 16IRX8H (BIOS KWCN54WW) this raises the cap from ~4400 RPM to ~7100 RPM. Discovered via `WMAA(0, 0x0D, 0x01)` — see issue #429. The sysfs node is gated behind a `has_fan_unlock` model/BIOS allowlist and only exposed on validated firmwares (currently KWCN54WW).
+- [X] Instant Boot: power the laptop on when an AC adapter (`instant_boot_ac`) or a USB-PD charger (`instant_boot_usb_pd`) is connected (`legion_cli instant-boot-{ac,usb-pd}-{enable,disable,status}`, GUI "Other Options"). Exposed only where the DSDT implements the WMI feature ids 0x03010001/0x03010002 (`has_instant_boot`, currently the Legion Pro 7 16IAX10H / Q7CN).
 - [X] Switch power mode (quiet, balanced, performance) using software
   - Now you can do it using software in your system settings
   - Changing with `Fn+Q` is also possible
@@ -125,7 +126,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
 - Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
 - Lenovo Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW): sensors, fan curve (level indices 0-10, custom power mode), power profile, power limits and fan full speed through the Other Method WMI path; fan curve verified on Linux in custom power mode (level 9 → 4400/4600 RPM, level 10 → 5400/5400 RPM)
-- Lenovo Legion Pro 7 16IAX10H (83F5, BIOS Q7CN78WW), Gen 10: sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), no keyboard/light control; verified on Linux (custom mode entered, table point written and read back from EC RAM); see [Q7CN notes](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
+- Lenovo Legion Pro 7 16IAX10H (83F5, BIOS Q7CN78WW), Gen 10: sensors (including the third fan's RPM as hwmon `fan3`), power profile, custom fan curves re-applied after suspend, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), no keyboard/light control; verified on Linux (custom mode entered, table point written and read back from EC RAM); see [Q7CN notes](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
 - Lenovo Legion Pro 5 16ADR10 (83LT, BIOS RLCN31WW), Gen 10 (AMD): sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), keyboard backlight and Y-logo light, fan full speed (custom power mode only); enablement derived from the DSDT analysis in issue #445 with runtime validation in progress; see [RLCN notes](doc/FEATURES_AND_TESTING.md#legion-pro-5-16adr10-83lt-rlcn)
 - Lenovo Legion 7 16IRX9, Gen 9: sensors, fan curve, power profile; also supported by [SmartFan](extra/smartfan/) without the kernel module
 - Lenovo Legion 5 16IAX10 (83NX, BIOS Q6CN32WW), Gen 10 (Intel): sensors, power-limit attributes (`cpu_temperature_limit`, `cpu_l1_tau`, `gpu_power_target_offset`, long/short-term power limits) via WMI3; fan curve reads populate correctly but custom power mode does not currently activate (known gap); verified on Linux across five reloads, a `main` merge, and a BIOS update; see [Q6CN notes](doc/FEATURES_AND_TESTING.md#legion-5-16iax10-83nx-q6cn)
@@ -135,6 +136,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo LOQ 15IRX10 (83JE, BIOS R3CN), Gen 10 (Intel): sensors, power profile, fan curve (independent RPM and temperature/hysteresis via the EC3 LOQ interface in custom mode, `powermode=255`), keyboard backlight, fan full speed (custom power mode only). EC3 curve writes were verified under load on R3CN44WW in [#535](https://github.com/johnfanv2/LenovoLegionLinux/issues/535); unsupported accel/decel, minifancurve and controller-lock controls are hidden. This model is not restricted to WMI fan levels; see [R3CN notes](doc/FEATURES_AND_TESTING.md#loq-15irx10-83je-r3cn).
 - Lenovo Legion Y7000P IRX10 (83NN, BIOS S9CN19WW), Gen 10 (Intel): sensors, power profile, fan curve (level indices 1-10 via WMI, applied by the EC in custom power mode on AC), keyboard backlight and Y-logo light, fan full speed (custom power mode only); DSDT-validated WMI-only sibling of the 83F5 Q7CN above (issue #506) with runtime validation in progress; see [S9CN notes](doc/FEATURES_AND_TESTING.md#legion-y7000p-irx10-83nn-s9cn)
 - Lenovo Legion 7 16IRX9 (83FD, BIOS NSCN37WW), Gen 9 (Intel): sensors, power profile, fan curve (level indices 1-10 via WMI, one table for both fans; written for the live thermal mode and rejected in extreme mode), fan full speed (custom power mode only); DSDT-validated (issue #617) with runtime validation of curve writes in progress; see [83FD notes](doc/FEATURES_AND_TESTING.md#legion-7-16irx9-83fd-nscn)
+- Lenovo LOQ 15IAX9 (83GS, BIOS NECN50WW), 2024 (Intel): sensors, power profile, fan curve (independent RPM and temperature/hysteresis via the EC3 LOQ interface in custom mode, `powermode=255`), power limits (WMI3: PL1, PL2, cTGP, PPAB), rapid charge, fan full speed; controller lock and minifancurve unsupported by EC and hidden
 
 Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
 
@@ -790,6 +792,8 @@ You can enable battery conservation mode. When conservation mode is enabled, the
 
 With the GUI, the battery conservation is enabled by checking the box `Battery conservation` (changes should apply immediately).
 
+Conservation mode and rapid charging are mutually exclusive: enabling conservation mode (`battery_conservation`) switches rapid charging off first, and enabling rapid charging switches conservation mode off (done by the firmware). Disabling conservation mode leaves rapid charging off.
+
 ### Toggle Fn lock to use special functions on F1-F12 keys without pressing Fn key
 
 You can lock the Fn keys. You can do it by pressing Fn+Esc. This should also toggle the light in the Esc key (if available in your model).
@@ -993,6 +997,16 @@ softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other l
 ```
 
 into `/etc/modprobe.d/legion_laptop.conf`; the `softdep` line loads the mainline drivers first so they bind the WMI devices both drivers list. The mainline `custom` profile is the same firmware mode as `powermode` 255; select it through `/sys/class/platform-profile/platform-profile-N/profile` of the device named `lenovo-wmi-gamezone`, because the legacy `/sys/firmware/acpi/platform_profile` file refuses `custom` by design. Verified on a Legion Pro 5 16IRX8 with kernel 7.2.
+
+On the Legion Pro 7 16IAX10H (83F5, Q7CN) none of this is needed for the power limits: `legion_laptop` leaves the GameZone WMI device to `lenovo_wmi_gamezone` whatever the load order, so `/sys/class/firmware-attributes/lenovo-wmi-other-0` (PL1/PL2, cTGP, ...) works next to it with the default options. Both drivers then register a platform-profile provider with the same five choices, so no profile is lost from the global list.
+
+### My Intel Legion is limited to about 30 W CPU power in every mode except custom. Why?
+
+Check `cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw`. On some firmware (for example the Legion Pro 7 16IAX10H, Q7CN) the CPU enforces this MMIO RAPL limit, which the BIOS sets to 30 W at boot. The firmware then writes it only when custom mode is entered, and leaves quiet/balanced/performance/extreme to Lenovo's software and Intel DTT on Windows. thermald's adaptive mode does not help: the firmware selects its per-mode targets through conditions that only Windows software sets, so thermald applies one fixed limit to all modes. `legion_laptop` exports the firmware's per-mode defaults in `cpu_longterm_powerlimit_defaults` / `cpu_shortterm_powerlimit_defaults` (e.g. `performance:145` / `performance:190`), and `legiond` applies them on every profile change when `cpu_powerlimit_sync=true` is set in `/etc/legion_linux/legiond.ini` (see `extra/service/legiond/README.org`); with the optional `double_*` keys it also switches to the firmware's lower combined-load CPU limits once the chassis sensors get hot, as Windows does (e.g. 145 W → 75 W in performance), leaving headroom for the GPU. Don't run thermald's power-limit control (e.g. `thermald --adaptive`) at the same time: both write the same MMIO limit and would override each other, at the latest on every 30 s `legiond-cpuset.timer` refresh. Also note that the WMI power-limit attributes (`legion_laptop`'s `cpu_longterm_powerlimit` / `cpu_shortterm_powerlimit` on models that show them, `lenovo-wmi-other`'s `ppt_pl1_spl` / `ppt_pl2_sppt` on the 16IAX10H) hold the values the firmware applies in custom mode; in the other modes they can differ from the enforced limit, so check the MMIO values above. Without legiond, entering custom mode once applies the custom PL1/PL2, which then stay in place until reboot. The GPU has its own limit: on these models enable NVIDIA's Dynamic Boost daemon (`sudo systemctl enable --now nvidia-powerd`, part of the NVIDIA driver). Without it the Legion Pro 7 16IAX10H's RTX 5090 is held at 95 W in every mode; with it, the limit is 150 W in performance/extreme and up to 175 W under load (check with `nvidia-smi -q -d POWER`).
+
+### Screen brightness keys or `brightnessctl` do nothing on a hybrid-graphics (Intel + NVIDIA) Legion
+
+In hybrid mode the internal panel is driven by the Intel GPU (`intel_backlight`), but the NVIDIA driver also registers `nvidia_0` for the dGPU's panel output, which is disconnected in that mode. `brightnessctl`, `swayosd` and similar tools default to the first device, `nvidia_0`, so their changes have no visible effect even though the brightness keys work (they arrive as `KEY_BRIGHTNESSUP/DOWN` from the ACPI "Video Bus"). Check with `brightnessctl -l` and name the device explicitly, e.g. `brightnessctl -d intel_backlight set 50%` or `swayosd-client --device intel_backlight --brightness +5`, in your key bindings and idle daemon. Seen on the Legion Pro 7 16IAX10H (OLED panel). In dGPU-only mode the panel moves to the NVIDIA GPU and `nvidia_0` is the right device.
 
 ### It almost works, but (some) temperature sensor/changing point in fan control or (some) fan speed is not working. What should I do?
 

@@ -59,7 +59,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 - [x] 占用内存和 CPU 极小，无遥测
 - [x] 可完全通过脚本或命令行控制
-- [x] 替代 Lenovo Vantage 的简单 GUI：风扇曲线、Fn 锁、Win 键、触控板电源、摄像头电源、电池养护、快速充电、始终开启 USB 充电输出、显示器超频、Y-Logo 灯光、IO 端口灯光、混合模式 (GSync)、CPU/GPU 超频：
+- [x] 替代 Lenovo Vantage 的简单 GUI：风扇曲线、Fn 锁、Win 键、触控板电源、摄像头电源、电池养护、快速充电、始终开启 USB 充电输出、显示器超频（仅在固件报告屏幕支持时显示；OLED 屏幕如拯救者 Pro 7 16IAX10H 不支持）、Y-Logo 灯光、IO 端口灯光、混合模式 (GSync)、CPU/GPU 超频：
   - 切换电池养护模式；接入电源时保持电池在 60%，延长电池寿命（https://bugs.kde.org/show_bug.cgi?id=441057）
   - 切换 Fn 锁；无需按 Fn 键即可使用 F1-F12 的特殊功能
   - 启用或禁用触控板
@@ -73,6 +73,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
   - 支持不同模式下的预设保存与加载
 - [x] 锁定和解锁风扇控制器与风扇转速
 - [x] 在受支持的机型上解除固件风扇转速上限（`fan_unlock` sysfs / `legion_cli fan-unlock-{enable,disable,status}`）。在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。该功能通过 `WMAA(0, 0x0D, 0x01)` 发现 —— 见 issue #429。此 sysfs 节点由 `has_fan_unlock` 机型/BIOS 白名单控制，仅在经过验证的固件上暴露（目前为 KWCN54WW）。
+- [x] 即时开机（Instant Boot）：接入电源适配器（`instant_boot_ac`）或 USB-PD 充电器（`instant_boot_usb_pd`）时自动开机（`legion_cli instant-boot-{ac,usb-pd}-{enable,disable,status}`，GUI“其他选项”）。仅在 DSDT 实现了 WMI 功能 ID 0x03010001/0x03010002 的机型上暴露（`has_instant_boot`，目前为拯救者 Pro 7 16IAX10H / Q7CN）。
 - [x] 通过软件切换电源模式（静音、平衡、高性能）
   - 现在可在系统设置中通过软件切换
   - 也可通过 `Fn+Q` 切换
@@ -135,7 +136,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7 16IAX7 (82TD)（BIOS K1CN48WW）：传感器、风扇曲线（写入正常；WMI 回读返回空缓冲区）、电源配置
 - 联想拯救者 Pro 7 16IRX8H（BIOS KWCN54WW）：传感器、风扇曲线、电源配置、风扇解锁（可将风扇上限从约 4400 RPM 提升至约 7100 RPM）
 - 联想拯救者 Pro 5 16IRX8（82WK，BIOS KWCN54WW）：传感器、风扇曲线（0-10 等级索引，自定义电源模式）、电源配置、通过 Other Method WMI 路径的功耗限制与风扇全速；风扇曲线已在 Linux 自定义电源模式下验证（9 级 → 4400/4600 RPM，10 级 → 5400/5400 RPM）
-- 联想拯救者 Pro 7 16IAX10H（83F5，BIOS Q7CN78WW），第十代：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、无键盘/灯光控制；已在 Linux 上验证（进入自定义模式、写入风扇表点并从 EC RAM 读回）；详见 [Q7CN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
+- 联想拯救者 Pro 7 16IAX10H（83F5，BIOS Q7CN78WW），第十代：传感器（含第三个风扇的转速，hwmon `fan3`）、挂起恢复后自动重新应用自定义风扇曲线、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、无键盘/灯光控制；已在 Linux 上验证（进入自定义模式、写入风扇表点并从 EC RAM 读回）；详见 [Q7CN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-7-16iax10h-83f5-q7cn)
 - 联想拯救者 Pro 5 16ADR10（83LT，BIOS RLCN31WW），第十代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光与 Y 型 Logo 灯、风扇全速（仅限自定义模式）；基于 issue #445 的 DSDT 分析启用，真机验证进行中；详见 [RLCN 说明](doc/FEATURES_AND_TESTING.md#legion-pro-5-16adr10-83lt-rlcn)
 - 联想拯救者 7 16IRX9，第九代：传感器、风扇曲线、电源配置；也可通过 [SmartFan](extra/smartfan/) 在不加载内核模块的情况下使用
 - 联想拯救者 5 16IAX10（83NX，BIOS Q6CN32WW），第十代（Intel）：通过 WMI3 提供的功耗限制属性（`cpu_temperature_limit`、`cpu_l1_tau`、`gpu_power_target_offset`、长/短期功耗限制）；风扇曲线读取正常，但自定义电源模式目前无法激活（已知问题）；已在 Linux 上历经五次重载、一次 main 合并及一次 BIOS 更新验证；详见 [Q6CN 说明](doc/FEATURES_AND_TESTING.md#legion-5-16iax10-83nx-q6cn)
@@ -145,6 +146,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想 LOQ 15IRX10（83JE，BIOS R3CN），第十代（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、键盘背光、风扇全速（仅限自定义模式）。R3CN44WW 的 EC3 曲线写入已在 [#535](https://github.com/johnfanv2/LenovoLegionLinux/issues/535) 中经过负载验证；不支持的加/减速、minifancurve 和风扇控制器锁定选项已隐藏。该机型不受 WMI 风扇等级限制；详见 [R3CN 说明](doc/FEATURES_AND_TESTING.md#loq-15irx10-83je-r3cn)。
 - 联想拯救者 Y7000P IRX10（83NN，BIOS S9CN19WW），第十代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光与 Y 型 Logo 灯、风扇全速（仅限自定义模式）；经 DSDT 验证为上方 83F5 Q7CN 的纯 WMI 同胞机型（issue #506），真机验证进行中；详见 [S9CN 说明](doc/FEATURES_AND_TESTING.md#legion-y7000p-irx10-83nn-s9cn)
 - 联想拯救者 7 16IRX9（83FD，BIOS NSCN37WW），第九代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，两个风扇共用一张表；按实时热模式写入，极限模式下拒绝写入）、风扇全速（仅限自定义模式）；已经 DSDT 验证（issue #617），曲线写入的真机验证进行中；详见 [83FD 说明](doc/FEATURES_AND_TESTING.md#legion-7-16irx9-83fd-nscn)
+- 联想 LOQ 15IAX9（83GS，BIOS NECN50WW），2024 款（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、功耗限制（WMI3：PL1、PL2、cTGP、PPAB）、快速充电、风扇全速；EC 不支持风扇控制器锁定与 minifancurve 并已隐藏
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
 
@@ -814,6 +816,8 @@ cat /sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_unlock
 
 在 GUI 中，勾选 `Battery conservation` 即可开启（更改会立即生效）。
 
+电池保护模式与快速充电互斥：开启电池保护模式（`battery_conservation`）时会先关闭快速充电；开启快速充电时固件会关闭电池保护模式。关闭电池保护模式后快速充电保持关闭。
+
 ---
 
 ### 切换 Fn 锁，使 F1-F12 键可直接调用特殊功能
@@ -1019,6 +1023,16 @@ softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other l
 ```
 
 写入 `/etc/modprobe.d/legion_laptop.conf`；`softdep` 行会先加载主线驱动，让它们先绑定两个驱动都声明的 WMI 设备。主线的 `custom` 配置与 `powermode` 255 是同一个固件模式；请通过名为 `lenovo-wmi-gamezone` 的设备的 `/sys/class/platform-profile/platform-profile-N/profile` 选择它，因为旧的 `/sys/firmware/acpi/platform_profile` 文件按设计拒绝 `custom`。已在 Legion Pro 5 16IRX8、内核 7.2 上验证。
+
+在拯救者 Pro 7 16IAX10H（83F5，Q7CN）上，功耗限制无需上述任何配置：无论加载顺序如何，`legion_laptop` 都会把 GameZone WMI 设备留给 `lenovo_wmi_gamezone`，因此使用默认选项时 `/sys/class/firmware-attributes/lenovo-wmi-other-0`（PL1/PL2、cTGP 等）也能与它共存。此时两个驱动都会注册电源模式提供者，且选项相同（五种），全局列表不会丢失任何模式。
+
+### 我的 Intel 拯救者除自定义模式外，CPU 功耗都被限制在约 30 W，为什么？
+
+查看 `cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw`。在部分固件上（例如拯救者 Pro 7 16IAX10H，Q7CN），CPU 实际执行的是这个 MMIO RAPL 限制，BIOS 启动时将其设为 30 W；固件只在进入自定义模式时才写入它，安静/均衡/性能/狂暴模式交给 Windows 上的联想软件和 Intel DTT 处理。thermald 的 adaptive 模式也无济于事：固件通过只有 Windows 软件才会设置的条件来选择各模式的目标，因此 thermald 只会对所有模式套用同一个固定限制。`legion_laptop` 在 `cpu_longterm_powerlimit_defaults` / `cpu_shortterm_powerlimit_defaults` 中导出固件的各模式默认值（例如 `performance:145` / `performance:190`），在 `/etc/legion_linux/legiond.ini` 中设置 `cpu_powerlimit_sync=true` 后，`legiond` 会在每次切换电源模式时应用这些值（见 `extra/service/legiond/README.org`）；配置可选的 `double_*` 项后，它还会在机身传感器升温后像 Windows 一样切换到固件中较低的 CPU+GPU 同时负载限制（例如性能模式 145 W → 75 W），为 GPU 留出余量。不要同时运行 thermald 的功耗限制控制（例如 `thermald --adaptive`）：两者写入同一个 MMIO 限制，会互相覆盖，最迟在 `legiond-cpuset.timer` 每 30 秒刷新时发生。另外请注意，WMI 功耗限制属性（显示这些属性的机型上为 `legion_laptop` 的 `cpu_longterm_powerlimit` / `cpu_shortterm_powerlimit`，16IAX10H 上为 `lenovo-wmi-other` 的 `ppt_pl1_spl` / `ppt_pl2_sppt`）保存的是固件在自定义模式下应用的值；在其他模式下它们可能与实际执行的限制不同，请以上面的 MMIO 值为准。不使用 legiond 时，进入一次自定义模式即可应用自定义的 PL1/PL2，并在重启前一直保持。GPU 有自己的功耗限制：在这些机型上请启用 NVIDIA 的 Dynamic Boost 守护进程（`sudo systemctl enable --now nvidia-powerd`，随 NVIDIA 驱动提供）。未启用时，拯救者 Pro 7 16IAX10H 的 RTX 5090 在所有模式下都被限制在 95 W；启用后，性能/狂暴模式为 150 W，负载下最高 175 W（可用 `nvidia-smi -q -d POWER` 查看）。
+
+### 混合显卡（Intel + NVIDIA）拯救者上屏幕亮度键或 `brightnessctl` 无效
+
+在混合模式下，内屏由 Intel GPU 驱动（`intel_backlight`），但 NVIDIA 驱动还会为独显的屏幕输出注册 `nvidia_0`，而该输出在此模式下处于断开状态。`brightnessctl`、`swayosd` 等工具默认使用第一个设备 `nvidia_0`，因此即使亮度键本身正常（它们以 `KEY_BRIGHTNESSUP/DOWN` 的形式来自 ACPI "Video Bus"），调整也看不到任何效果。用 `brightnessctl -l` 查看，并在快捷键绑定和空闲守护进程中明确指定设备，例如 `brightnessctl -d intel_backlight set 50%` 或 `swayosd-client --device intel_backlight --brightness +5`。已在拯救者 Pro 7 16IAX10H（OLED 屏）上确认。在纯独显模式下内屏改由 NVIDIA GPU 驱动，此时 `nvidia_0` 才是正确的设备。
 
 ### 几乎都能用，但某些温度传感器/风扇控制节点或风扇转速无效，怎么办？
 
