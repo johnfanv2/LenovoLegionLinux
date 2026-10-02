@@ -630,6 +630,8 @@ class LegionController:
     hybrid_gsync_controller: HybridGsyncController
     batteryconservation_controller: BoolFeatureController
     always_on_usb_controller: BoolFeatureController
+    instant_boot_ac_controller: BoolFeatureController
+    instant_boot_usb_pd_controller: BoolFeatureController
     rapid_charging_controller: BoolFeatureController
     power_mode_controller: EnumFeatureController
     # OC/Power
@@ -708,6 +710,12 @@ class LegionController:
         self.rapid_charging_controller.dependent_controllers.append(self.batteryconservation_controller)
         self.always_on_usb_controller = BoolFeatureController(
             self.view_otheroptions.always_on_usb_check, self.model.always_on_usb_charging
+        )
+        self.instant_boot_ac_controller = BoolFeatureController(
+            self.view_otheroptions.instant_boot_ac_check, self.model.instant_boot_ac
+        )
+        self.instant_boot_usb_pd_controller = BoolFeatureController(
+            self.view_otheroptions.instant_boot_usb_pd_check, self.model.instant_boot_usb_pd
         )
         self.power_mode_controller = EnumFeatureController(
             self.view_otheroptions.power_mode_combo, self.model.platform_profile
@@ -862,6 +870,8 @@ class LegionController:
         self.batteryconservation_controller.update_view_from_feature()
         self.rapid_charging_controller.update_view_from_feature()
         self.always_on_usb_controller.update_view_from_feature()
+        self.instant_boot_ac_controller.update_view_from_feature()
+        self.instant_boot_usb_pd_controller.update_view_from_feature()
         self.cpu_overclock.update_view_from_feature()
         self.gpu_overclock.update_view_from_feature()
         self.overdrive_controller.update_view_from_feature()
@@ -1306,10 +1316,20 @@ class OtherOptionsTab(QWidget):
         super().__init__()
         self.controller = controller
         self.init_power_ui()
+        self.init_option_checks()
+        self.init_hybrid_ui()
         self.init_ui()
+        self.init_bootlogo_ui()
         self.controller.view_otheroptions = self
 
     def init_ui(self):
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.options_group, 0)
+        self.main_layout.addWidget(self.power_group, 1)
+        self.main_layout.addStretch()
+        self.setLayout(self.main_layout)
+
+    def init_option_checks(self):
         self.options_group = QGroupBox("Options")
         self.options_layout = QVBoxLayout()
         self.options_group.setLayout(self.options_layout)
@@ -1339,6 +1359,12 @@ class OtherOptionsTab(QWidget):
         self.always_on_usb_check = QCheckBox("Charge Output from USB always on")
         self.options_layout.addWidget(self.always_on_usb_check, 4)
 
+        self.instant_boot_ac_check = QCheckBox("Instant Boot: power on when the AC adapter is connected")
+        self.options_layout.addWidget(self.instant_boot_ac_check, 4)
+
+        self.instant_boot_usb_pd_check = QCheckBox("Instant Boot: power on when a USB-PD charger is connected")
+        self.options_layout.addWidget(self.instant_boot_usb_pd_check, 4)
+
         self.overdrive_check = QCheckBox("Display Overdrive Enabled")
         self.options_layout.addWidget(self.overdrive_check, 5)
 
@@ -1348,6 +1374,7 @@ class OtherOptionsTab(QWidget):
         self.ioport_light_check = QCheckBox("IO-Port/Rear LEDs light")
         self.options_layout.addWidget(self.ioport_light_check, 5)
 
+    def init_hybrid_ui(self):
         self.hybrid_label = QLabel("Hybrid Mode (sometimes also GSync):")
         self.hybrid_state_label = QLabel("")
         self.hybrid_activate_button = QPushButton("Activate")
@@ -1360,12 +1387,7 @@ class OtherOptionsTab(QWidget):
 
         self.options_layout.addLayout(self.hybrid_layout, 6)
 
-        self.main_layout = QVBoxLayout()
-        self.main_layout.addWidget(self.options_group, 0)
-        self.main_layout.addWidget(self.power_group, 1)
-        self.main_layout.addStretch()
-        self.setLayout(self.main_layout)
-
+    def init_bootlogo_ui(self):
         self.bootlogo_group = QGroupBox("Boot Logo")
         self.bootlogo_layout = QVBoxLayout()
         self.bootlogo_group.setLayout(self.bootlogo_layout)

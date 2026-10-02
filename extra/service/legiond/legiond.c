@@ -4,6 +4,7 @@
 #include "modules/output.h"
 #include "modules/parseconf.h"
 #include "modules/powerstate.h"
+#include "modules/powerlimit.h"
 #include "modules/setapply.h"
 
 #include <errno.h>
@@ -185,9 +186,15 @@ static void handle_command(const LEGIOND_REQUEST *request)
 	case CMD_CPUSET:
 		if (triggered == true) {
 			pretty("set_cpu start");
-			int result = set_cpu(get_powerstate(), &config);
+			POWER_STATE state = get_powerstate();
+			int result = set_cpu(state, &config);
 			if (result != 0)
 				printf("set_cpu failed: %d\n", result);
+			/* reapply with the cpu tweaks, which get lost the same way */
+			result = set_cpu_powerlimit(state, &config);
+			if (result != 0)
+				printf("set_cpu_powerlimit failed: %d\n",
+				       result);
 			pretty("set_cpu end");
 		} else {
 			printf("do nothing\n");

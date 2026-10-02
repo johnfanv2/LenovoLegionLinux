@@ -36,6 +36,7 @@ int set_all(POWER_STATE s, LEGIOND_CONFIG *c) { (void)s; (void)c; set_all_calls+
 int set_cpu(POWER_STATE s, LEGIOND_CONFIG *c) { (void)s; (void)c; set_cpu_calls++; return 0; }
 int set_fancurve(POWER_STATE s, LEGIOND_CONFIG *c) { (void)s; (void)c; return 0; }
 int set_gpu(POWER_STATE s, LEGIOND_CONFIG *c) { (void)s; (void)c; return 0; }
+int set_cpu_powerlimit(POWER_STATE s, LEGIOND_CONFIG *c) { (void)s; (void)c; return 0; }
 POWER_STATE get_powerstate(void) { return P_AC_B; }
 void pretty(const char *msg) { (void)msg; }
 static void reload_config(void) { }

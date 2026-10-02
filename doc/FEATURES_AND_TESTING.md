@@ -66,21 +66,82 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
 `kernel_module/legion-laptop.c` (the header comment cites the DSDT lines).
 
 - Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
-  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`
+  (the third fan is firmware fan 4, feature id 0x04030004 = EC `FASF` * 100,
+  exposed as hwmon `fan3`; at idle it settles at 2300 RPM, the bottom of its
+  own ladder, while fans 1/2 sit at 1600/1700),
   fan table via Fan Method `WMAB` 5/6. The CPU Method GUID is an empty
   stub, so the limit attributes that stay visible (`cpu_temperature_limit`,
   `cpu_l1_tau`, `gpu_power_target_offset`) use `ACCESS_METHOD_WMI3_CLAMPED`;
   the CPU/GPU power-limit and OC attributes are hidden (`skip_oc_controls`),
   use the in-tree `lenovo_wmi_other` firmware-attributes for PL1/PL2/tau/cTGP.
+  Those read the power mode through `lenovo_wmi_gamezone`, and return
+  `EINVAL` for every `current_value` while that driver has no device, so
+  `model_q7cn` sets `leave_gamezone_wmi_unbound`: `legion_wmi` declines the
+  GameZone method block (887B54E3, an `object_id` block with no notify id,
+  so binding it never delivered events; the methods are still called by
+  GUID) and the mainline driver binds it in any load order. Verified with
+  `legion_laptop` loaded first: dmesg "Leaving GameZone WMI to
+  lenovo-wmi-gamezone", `ppt_pl1_spl` 90, `ppt_pl2_sppt` 125, `gpu_nv_ctgp`
+  95 readable, both platform-profile providers offering the same five
+  choices; on AC, `custom` via the `lenovo-wmi-gamezone` profile device,
+  `ppt_pl1_spl` 80 written and read back, then restored to 90 (the
+  power-button LED shows purple/pink while in custom mode).
+- CPU package power in the non-custom modes: the enforced limit is MMIO RAPL
+  (`intel-rapl-mmio:0`), which the BIOS sets to 30/30 W at boot. The WMAE
+  power-limit setters store their value but update the EC's live limits
+  (`CLTP`/`CSTP`) only when `ODV1 == 3` (custom), and `ROOS()` signals the
+  other modes to Intel DTT (`Notify(IETM, 0x88)`, mode in `ODV1` = `odvp1`),
+  whose data-vault targets are selected through software-OEM conditions that
+  thermald cannot evaluate. So quiet/balanced/performance/extreme ran at 30 W
+  (24-thread load: ~1.2 GHz, 54 °C) until custom mode was entered once. The
+  driver exports the capdata01 per-mode defaults in
+  `cpu_longterm_powerlimit_defaults` (`low-power:55 balanced:90
+  performance:145 max-power:160 custom:90`) and
+  `cpu_shortterm_powerlimit_defaults` (`65 125 190 205 125`), and legiond's
+  `cpu_powerlimit_sync` writes them to MMIO RAPL on each profile change
+  (verified: 55/65 W → ~2.7 GHz, 63 °C; 90/125 W → ~3.6 GHz, 87 °C on the
+  same load).
+  thermald's power-limit control must not run alongside it: `thermald
+  --adaptive` writes its PPCC maximum (PL1 150 W) to the same MMIO limit in
+  every mode. `lenovo-wmi-other`'s `ppt_pl1_spl` / `ppt_pl2_sppt` hold the
+  custom-mode values (the WMAE setters only apply them when ODV1 == 3), so
+  outside custom mode they can differ from the enforced MMIO limit.
+- GPU (RTX 5090 Laptop, NVIDIA 615.71): without `nvidia-powerd` the enforced
+  GPU power limit is 95 W in every mode (max 175 W). With
+  `systemctl enable --now nvidia-powerd` it follows the mode: 95 W in quiet
+  and balanced, 150 W in performance and extreme at idle, and 175 W under GPU
+  load with Dynamic Boost (a CUDA FMA burn drew 174.5 W at ~2.73 GHz, limited
+  by "SW Power Cap"). For the first ~20 s of a new load the driver holds
+  1507 MHz / ~51 W with the clock reason "Reliability", then releases it.
+  The firmware also has CPU "Double" targets for combined load (DPTF vault:
+  performance PL1 145 → 75 W once sensors SEN3/SEN4, thermal zones 3/4, pass
+  ~54/74 °C). legiond applies them with the `double_*` keys of
+  `[cpu_powerlimit]` (example values in `legiond.ini`). Under a 60 s CPU+GPU
+  load in performance, SEN3/SEN4 went from 43/43 °C to 54/76 °C at ~40 s
+  while the CPU package was at 100–103 °C at the 90 W balanced limit and the
+  GPU drew ~150 W (Dynamic Boost's extra 25 W needs a lightly loaded CPU).
 - The fan table is the level-index kind described in "Fan curve on Legion
   Zone v3 firmware" above (`FAN_SPEED_UNIT_LEVEL`, one table for all fans,
   temperature axis fixed by the EC). `LENOVO_FAN_TABLE_DATA` on this firmware
-  maps level 1..10 to 1600..5200 RPM (fan 1), 1700..5400 (fan 2) and
-  2300..6500 (fan 4); the first two are what the driver's
+  (`WQA3`, switched on the `GSKU` EC field) maps level 1..10 to
+  1600..5200 RPM (fan 1 / sensor 0x01, CPU fan), 1700..5400 (fan 2 /
+  sensor 0x05, GPU fan) and 2300..6500 (fan 4 / sensor 0x04, the small
+  third fan) on SKUs 0x02/0x0B; SKUs 0x03/0x0C and the default case use
+  1600..5100 / 1600..5100 / 1600..6500. The firmware has no (fan 1,
+  sensor 0x04) row, so the driver takes fan 1's ladder from the sensor
+  0x01 row, as Lenovo Legion Toolkit does. Fans 1 and 2 are what the driver's
   `fan1_level_rpm_table`/`fan2_level_rpm_table` attributes expose for the
-  Python tools, so RPM presets round to the right level. The EC applies the table
+  Python tools, so RPM presets round to the right level; they also give hwmon
+  `fan1_max` its real value (5200) instead of the generic fallback. The EC applies the table
   only in custom mode (`powermode` 0xFF) on AC; on battery the firmware parks
-  the custom-mode request while `powermode` still reads back 0xFF.
+  the custom-mode request while `powermode` still reads back 0xFF. The one
+  table drives all three fans: with every point at pwm 127 (level 5) they
+  settled at 2400/2400/3200 RPM (the level-5 entries of the fan 1/2/4
+  ladders), and at pwm 204 they ramped toward 3700/3800/5000. The EC's idle
+  fan-stop still applies in every mode, custom included. At idle the fans switch off below
+  about CPU 46 °C and restart at about 51 °C, so `fan*_input` reading 0 at
+  idle is normal.
   `Fan_Get_Table` returns a static 1..10 placeholder in extreme mode, so read
   the table in another mode. Writing the table as percent (older driver
   builds: 100 into a 1..10 byte) matches the thermal shutdowns reported for
@@ -91,9 +152,51 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
 - Keyboard and lid lighting are USB-HID ITE devices (048d:c197); the WMI light
   methods do not drive them, so there is no keyboard, Y-logo or IO-port light
   control.
-- Rapid charge / battery conservation go through `VPC0.GBMD`/`VPC0.SBMC`
-  (present in the DSDT, not exercised); enabling rapid charge clears
-  conservation mode in firmware.
+- Rapid charge / battery conservation go through `VPC0.GBMD`/`VPC0.SBMC`;
+  enabling rapid charge clears conservation mode in firmware, but enabling
+  conservation left rapid charge on, and ideapad-laptop's `charge_types` then
+  failed with -EINVAL ("both [Fast] and [Long_Life] are enabled"). The driver
+  now switches rapid charge off before enabling conservation, like
+  ideapad-laptop. Verified: conservation on → rapid 0, `charge_types`
+  `[Long_Life]`, battery "Not charging"; off → `[Standard]`; rapid on →
+  conservation cleared, `[Fast]`; no charge_types errors.
+- Display overdrive: every GameZone overdrive method (WMAA 0x31 IsSupportOD,
+  0x32 get, 0x33 set) is gated on `PANT & 0x02` (panel supports overdrive);
+  on this unit's Samsung ATNA60HU01-0 OLED the bit is clear, IsSupportOD
+  returns 0 and a written 1 reads back 0. The driver now hides `overdrive`
+  when IsSupportOD succeeds and returns 0 (kept visible if the query fails),
+  so it disappears here but stays on 83F5 units with an overdrive-capable
+  panel.
+- Suspend/resume (S3, 2026-09-30): custom mode, the MMIO RAPL limit
+  (90/125 W), the GPU limit, the GameZone binding and the battery/Instant
+  Boot settings survive. The **fan table does not fully**: on resume the EC
+  raises every point to at least the mode's default level (per-point floor).
+  All points at level 5 came back as `5 5 5 5 5 6 7 8 8 8` (EC `F9F0..`,
+  `ecmemoryram` 0x180) against the default `1 2 3 4 5 6 7 8 8 8`, while all
+  points at level 8 survived unchanged. A curve quieter than the default is
+  therefore lost after suspend until it is written again. The driver now
+  re-applies the last table written through hwmon 3 s after resume
+  (`restore_fancurve_on_resume`, Q7CN only), if the power mode is still the
+  one it was written in; legiond's `legiond-onresume.service` also
+  re-applies its preset. Verified: an all-level-5 custom table survived S3
+  ("Re-applied the fan curve written before suspend: 0", EC `05` × 10).
+- The floor is applied whenever the EC processes an entry into custom mode,
+  not only on resume: an all-level-5 table settled in custom mode stayed
+  `05` × 10 after a switch to balanced and became `05 05 05 05 05 06 07 08
+  08 08` ~1 s after switching back to custom. The processing runs ~1 s after
+  the switch, so table writes made right after entering custom mode can be
+  floored as well (reproduced once in three attempts with writes finishing
+  0.6 s after the switch). Write a custom table at least ~2 s after entering
+  custom mode. There is no per-point range check: with custom mode settled,
+  every point accepted every level down to the driver's own
+  `fancurve_level_min` (1 1 1 1 1 1 1 1 3 5).
+- Instant Boot: `instant_boot_ac` / `instant_boot_usb_pd` (`has_instant_boot`)
+  use WMAE feature ids 0x03010001 / 0x03010002. Get returns EC `EACS` /
+  `ETCS`; set calls `WSMI(7)`/`WSMI(8)` (AC on/off) or `WSMI(9)`/`WSMI(0xA)`
+  (USB-PD on/off) and updates the EC flag. The capability table (`WQA9`,
+  capdata00) flags both ids 0x07. Reads verified (both 0 by default); to
+  verify a write, enable it, shut down, unplug and replug the charger: the
+  laptop should power on by itself.
 
 Validated on Linux 7.2.4 next to the in-tree `lenovo_wmi_*` drivers with
 `enable_platformprofile=0` (see the README's KDE/coexistence section):
@@ -105,7 +208,10 @@ set EC byte 0x189 to 09 and restoring level 8 set it back.
 
 Verify: `sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
 `sensors` shows `legion_hwmon` temps and fan RPM, and
-`sudo cat /sys/kernel/debug/legion/fancurve` prints `u` = 5 with speed1 in 1..10.
+`sudo cat /sys/kernel/debug/legion/fancurve` prints `u` = 5 with speed1 in 1..10,
+and `dmesg` logs "fan table data: fan 1 has 10 levels, 1600..5200 RPM" (and
+1700..5400 for fan 2) with `fan1_level_rpm_table` readable (verified on
+Q7CN78WW, Linux 7.2.7).
 
 ## Legion Pro 5 16ADR10 (83LT, RLCN)
 

@@ -56,6 +56,11 @@ static inline void free_buffer(void *buffer)
 #define auto_free legiond_cleanup(free_buffer)
 
 #define socket_path "/run/legiond.socket"
+/*
+ * Seconds before applying the settings at startup and after a
+ * "legiond-ctl fanset" without a delay. Power-state/power-profile changes
+ * use a fixed 3 s instead (see the inotify handler in legiond.c).
+ */
 #define default_delay 1.5
 
 /*

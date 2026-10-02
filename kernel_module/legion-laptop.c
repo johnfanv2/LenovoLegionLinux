@@ -63,6 +63,7 @@
 #include <asm/io.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
+#include <linux/workqueue.h>
 #include <linux/dmi.h>
 #include <linux/efi.h>
 #include <linux/leds.h>
@@ -277,6 +278,21 @@ struct model_config {
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
 	bool has_four_fans;
+	/* hwmon fan3 is the firmware's fan 4, read through the WMI3 Other
+	 * Method feature OtherMethodFeature_FAN_SPEED_4 (Q7CN).
+	 */
+	bool has_third_fan;
+	/* Do not bind the GameZone WMI method block, so the mainline
+	 * lenovo-wmi-gamezone driver can: lenovo-wmi-other needs it to read
+	 * the power mode, else its firmware-attributes (PL1/PL2, cTGP, ...)
+	 * return -EINVAL. Methods are still called by GUID.
+	 */
+	bool leave_gamezone_wmi_unbound;
+	/* Re-apply the last fan table written through hwmon after resume: the
+	 * EC raises every point to at least the mode default on resume (Q7CN),
+	 * which silently loses quieter custom curves.
+	 */
+	bool restore_fancurve_on_resume;
 	bool has_single_fan;
 	u16 fan_max_rpm;
 	bool fanfullspeed_requires_custom_powermode;
@@ -303,6 +319,10 @@ struct model_config {
 	bool has_fan_unlock;
 	bool has_fn_lock;
 	bool has_flip_to_start;
+	/* instant_boot_ac/instant_boot_usb_pd through WMI3 feature ids
+	 * 0x03010001/0x03010002; set only where the DSDT implements both.
+	 */
+	bool has_instant_boot;
 };
 
 /* =================================== */
@@ -2154,16 +2174,31 @@ static const struct model_config model_q7cn = {
 			[ACPI_PATH_WRITE_RAPIDCHARGE] =
 				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
 	/*
-	 * LENOVO_FAN_TABLE_DATA carries one RPM ladder per fan (fan 1 /
-	 * sensor 0x04, fan 2 / sensor 0x05 and fan 4 / sensor 0x05; fan 4
-	 * is not surfaced yet), identical in every power mode; exposes
-	 * fan1_level_rpm_table/fan2_level_rpm_table.
+	 * LENOVO_FAN_TABLE_DATA (WQA3, switched on GSKU) carries one RPM
+	 * ladder per fan, identical in every power mode: fan 1 / sensor
+	 * 0x01 (CPU fan), fan 2 / sensor 0x05 (GPU fan) and fan 4 / sensor
+	 * 0x04 (the small third fan, hwmon fan3; its ladder is not
+	 * exposed). There is no (fan 1, sensor 0x04) row, so
+	 * fan1_level_rpm_table comes from the sensor 0x01 row.
 	 */
 	.has_fancurve_defaults = true,
 	.wmi_fancurve_speed_only = true,
+	/* WMAE Get 0x04030004 returns EC FASF * 100 (fan 4 RPM) */
+	.has_third_fan = true,
+	/* PL/OC attributes are hidden (skip_oc_controls) in favour of the
+	 * lenovo-wmi-other firmware-attributes, which need GameZone bound
+	 * by lenovo-wmi-gamezone.
+	 */
+	.leave_gamezone_wmi_unbound = true,
+	/* the EC floors the fan table at the mode default on resume */
+	.restore_fancurve_on_resume = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
+	/* WMAE get L62801/L62813 (EC EACS/ETCS), set L63638/L63654
+	 * (WSMI 7/8, 9/0xA); capdata00 (WQA9) flags both 0x07.
+	 */
+	.has_instant_boot = true,
 };
 
 // Legion Pro 5 16ADR10 (83LT) - 2025, AMD + RTX 50
@@ -3618,7 +3653,15 @@ enum OtherMethodFeature {
 
 	OtherMethodFeature_FAN_SPEED_1 = 0x04030001,
 	OtherMethodFeature_FAN_SPEED_2 = 0x04030002,
+	/* firmware fan 4, the third fan on Q7CN (WMAE -> EC FASF * 100) */
+	OtherMethodFeature_FAN_SPEED_4 = 0x04030004,
 	OtherMethodFeature_FAN_FULLSPEED = 0x04020000,
+
+	/* power on when AC / a USB-PD charger is connected (Q7CN: EC
+	 * EACS/ETCS, set through WSMI)
+	 */
+	OtherMethodFeature_INSTANT_BOOT_AC = 0x03010001,
+	OtherMethodFeature_INSTANT_BOOT_USB_PD = 0x03010002,
 
 	OtherMethodFeature_C_U1 = 0x05010000,
 	OtherMethodFeature_TEMP_CPU = 0x05040000,
@@ -4533,6 +4576,12 @@ struct legion_private {
 	int capdata_count;
 	int current_powermode;
 
+	/* last fan table written through hwmon, for restore_fancurve_on_resume */
+	struct fancurve resume_fancurve;
+	int resume_fancurve_mode;
+	bool resume_fancurve_valid;
+	struct delayed_work resume_fancurve_work;
+
 	// Fan ceiling unlock state (cached: firmware exposes no clean read-back)
 	u8 fan_unlock_state;
 
@@ -4929,7 +4978,7 @@ static ssize_t wmi_read_temperature_gz(int sensor_id, int *temperature)
 	return err;
 }
 
-// fan_id: 0 or 1
+// fan_id: 0, 1 or 2 (the third fan, firmware fan 4)
 static ssize_t wmi_read_fanspeed_other(int fan_id, int *fanspeed_rpm)
 {
 	int err;
@@ -4940,6 +4989,8 @@ static ssize_t wmi_read_fanspeed_other(int fan_id, int *fanspeed_rpm)
 		featured_id = OtherMethodFeature_FAN_SPEED_1;
 	else if (fan_id == 1)
 		featured_id = OtherMethodFeature_FAN_SPEED_2;
+	else if (fan_id == 2)
+		featured_id = OtherMethodFeature_FAN_SPEED_4;
 	else {
 		// TODO: use all correct error codes
 		return -EEXIST;
@@ -5220,6 +5271,8 @@ static bool fantable_row_matches_mode(const struct wmi_fantable_row *row,
 static void fantable_refresh(struct legion_private *priv, int powermode)
 {
 	struct wmi_fantable_row row;
+	struct fantable_ladder fan1_ic;
+	bool fan1_ic_valid = false;
 	int rows, index;
 
 	priv->fantable_fan1_valid = false;
@@ -5252,6 +5305,19 @@ static void fantable_refresh(struct legion_private *priv, int powermode)
 		if (want_fan2 && !priv->fantable_fan2_valid)
 			priv->fantable_fan2_valid = fantable_row_to_ladder(
 				&row, &priv->fantable_fan2);
+		/* Lenovo Legion Toolkit maps (fan 1, sensor 1) to the CPU fan
+		 * as well; it is fan 1's only row on the Legion Pro 7 16IAX10H
+		 * (Q7CN WQA3), where sensor 4 belongs to fan 4.
+		 */
+		if (row.fan_id == 1 && row.sensor_id == FANTABLE_SENSOR_IC &&
+		    !fan1_ic_valid)
+			fan1_ic_valid = fantable_row_to_ladder(&row, &fan1_ic);
+	}
+
+	/* Prefer the (fan 1, CPU sensor) row whenever the firmware has one. */
+	if (!priv->fantable_fan1_valid && fan1_ic_valid) {
+		priv->fantable_fan1 = fan1_ic;
+		priv->fantable_fan1_valid = true;
 	}
 
 	if (priv->fantable_fan1_valid) {
@@ -5989,9 +6055,65 @@ static int write_fancurve(struct legion_private *priv,
 	if (!err) {
 		priv->fancurve = *fancurve;
 		priv->fancurve_valid = true;
+		/* remember it with its power mode for the resume re-apply */
+		if (priv->conf->restore_fancurve_on_resume &&
+		    !sync_powermode_locked(priv)) {
+			priv->resume_fancurve = *fancurve;
+			priv->resume_fancurve_mode = priv->current_powermode;
+			priv->resume_fancurve_valid = true;
+		}
 	}
 
 	return err;
+}
+
+/*
+ * Delayed after resume, like legiond's resume hook: the EC applies its
+ * per-point floor during wake-up and would overwrite an earlier write.
+ * Only re-applied in the power mode the table was written in, since
+ * another mode's table must not be replaced by it.
+ */
+static void legion_resume_fancurve_fn(struct work_struct *work)
+{
+	struct legion_private *priv = container_of(to_delayed_work(work),
+						   struct legion_private,
+						   resume_fancurve_work);
+	struct device *dev = &priv->platform_device->dev;
+	int err;
+
+	mutex_lock(&priv->fancurve_mutex);
+	if (!priv->resume_fancurve_valid) {
+		mutex_unlock(&priv->fancurve_mutex);
+		return;
+	}
+	err = sync_powermode_locked(priv);
+	if (err || priv->current_powermode != priv->resume_fancurve_mode) {
+		dev_info(dev,
+			 "Fan curve not re-applied: mode %d, set in %d (%d)\n",
+			 priv->current_powermode, priv->resume_fancurve_mode,
+			 err);
+		mutex_unlock(&priv->fancurve_mutex);
+		return;
+	}
+	{
+		struct fancurve fancurve = priv->resume_fancurve;
+
+		err = write_fancurve(priv, &fancurve, false);
+	}
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		dev_warn(dev, "Fan curve re-apply after resume failed: %d\n",
+			 err);
+	else
+		dev_info(dev, "Re-applied the fan curve set before suspend\n");
+}
+
+/* the work checks resume_fancurve_valid under fancurve_mutex */
+static void legion_resume_fancurve(struct legion_private *priv)
+{
+	if (priv && priv->conf && priv->conf->restore_fancurve_on_resume)
+		schedule_delayed_work(&priv->resume_fancurve_work,
+				      msecs_to_jiffies(3000));
 }
 
 static bool minifancurve_supported(const struct model_config *model)
@@ -7091,7 +7213,26 @@ static ssize_t battery_conservation_store(struct device *dev,
 		return err;
 
 	mutex_lock(&priv->fancurve_mutex);
+	/*
+	 * Conservation and rapid charge are mutually exclusive. The firmware
+	 * clears conservation when rapid charge is enabled, but not the other
+	 * way round; leaving both set makes ideapad-laptop's charge_types read
+	 * fail with -EINVAL. Turn rapid charge off first, as ideapad-laptop
+	 * does, and leave it alone when disabling conservation. If its state
+	 * can't be read, leave it alone too and still set conservation; only
+	 * a failed rapid charge write aborts.
+	 */
+	if (state) {
+		bool rapid;
+
+		if (!acpi_read_rapidcharge(priv->adev, &rapid) && rapid) {
+			err = acpi_write_rapidcharge(priv->adev, false);
+			if (err)
+				goto unlock;
+		}
+	}
 	err = acpi_write_conservation(priv->adev, state);
+unlock:
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return err;
@@ -7431,6 +7572,28 @@ static ssize_t wmi_common_method_other_show(struct legion_private *priv,
 	return sysfs_emit(buf, "%d\n", out);
 }
 
+/*
+ * The capdata01 row for a feature (id bits 31..16) in a power mode (bits
+ * 15..8) with sub-id 0 (bits 7..0), if the firmware marks it supported.
+ * Shared by the write clamping and the exported per-mode defaults, so both
+ * always agree on which row applies.
+ */
+static const struct capdata01 *
+capdata01_lookup(const struct legion_private *priv, u32 fkey, int powermode)
+{
+	int i;
+
+	for (i = 0; i < priv->capdata_count; i++) {
+		const struct capdata01 *p = &priv->capdata[i];
+
+		if ((p->id >> 16) == fkey &&
+		    ((p->id >> 8) & 0xFF) == (u32)powermode &&
+		    (p->id & 0xFF) == 0 && (p->supported & BIT(0)))
+			return p;
+	}
+	return NULL;
+}
+
 static int clamped_value(struct legion_private *priv,
 			 enum OtherMethodFeature feature, const char *buf,
 			 int *value)
@@ -7451,16 +7614,7 @@ static int clamped_value(struct legion_private *priv,
 	powermode = priv->current_powermode;
 	mutex_unlock(&priv->fancurve_mutex);
 
-	for (i = 0; i < priv->capdata_count; i++) {
-		const struct capdata01 *p = &priv->capdata[i];
-
-		if ((p->id >> 16) == fkey &&
-		    ((p->id >> 8) & 0xFF) == (u32)powermode &&
-		    (p->id & 0xFF) == 0 && (p->supported & BIT(0))) {
-			cd = p;
-			break;
-		}
-	}
+	cd = capdata01_lookup(priv, fkey, powermode);
 
 	for (i = 0; i < priv->discrete_feature_count; i++) {
 		if ((priv->discrete_features[i].feature_id >> 16) == fkey) {
@@ -7498,6 +7652,67 @@ static ssize_t wmi_common_method_other_store(struct legion_private *priv,
 
 	return count;
 }
+
+/*
+ * Like wmi_common_method_other_store(), but for a boolean: parsed with
+ * kstrtobool, so no capability-data clamping is needed. Keep the two in
+ * step if the common store changes.
+ */
+static ssize_t instant_boot_store(struct device *dev, const char *buf,
+				  size_t count,
+				  enum OtherMethodFeature feature_id)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool enable;
+	int err, output;
+
+	if (kstrtobool(buf, &enable))
+		return -EINVAL;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = wmi_other_method_set_value(feature_id, enable, &output);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t instant_boot_ac_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return wmi_common_method_other_show(dev_get_drvdata(dev), buf,
+					    OtherMethodFeature_INSTANT_BOOT_AC);
+}
+
+static ssize_t instant_boot_ac_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	return instant_boot_store(dev, buf, count,
+				  OtherMethodFeature_INSTANT_BOOT_AC);
+}
+
+static DEVICE_ATTR_RW(instant_boot_ac);
+
+static ssize_t instant_boot_usb_pd_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return wmi_common_method_other_show(
+		dev_get_drvdata(dev), buf,
+		OtherMethodFeature_INSTANT_BOOT_USB_PD);
+}
+
+static ssize_t instant_boot_usb_pd_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
+{
+	return instant_boot_store(dev, buf, count,
+				  OtherMethodFeature_INSTANT_BOOT_USB_PD);
+}
+
+static DEVICE_ATTR_RW(instant_boot_usb_pd);
 
 static ssize_t cpu_shortterm_powerlimit_show(struct device *dev,
 					     struct device_attribute *attr,
@@ -8237,6 +8452,85 @@ static ssize_t fan2_level_rpm_table_show(struct device *dev,
 static DEVICE_ATTR_RO(fan1_level_rpm_table);
 static DEVICE_ATTR_RO(fan2_level_rpm_table);
 
+/*
+ * Firmware defaults of a CPU power limit per power mode, from
+ * LENOVO_CAPABILITY_DATA_01 (feature id in bits 31..16, mode in bits
+ * 15..8). Some firmware applies power limits itself only in custom mode
+ * (Q7CN: the WMAE setters update the live EC limits only when ODV1 == 3)
+ * and leaves the other modes to OEM software, so userspace (legiond) needs
+ * these values to apply the right limits on a mode change.
+ */
+static const struct {
+	u8 mode;
+	const char *profile;
+} powerlimit_default_modes[] = {
+	{ LEGION_WMI_POWERMODE_LOW_POWER, "low-power" },
+	{ LEGION_WMI_POWERMODE_BALANCED, "balanced" },
+	{ LEGION_WMI_POWERMODE_PERFORMANCE, "performance" },
+	{ LEGION_WMI_POWERMODE_MAX_POWER, "max-power" },
+	{ LEGION_WMI_POWERMODE_CUSTOM, "custom" },
+};
+
+static bool powerlimit_defaults_available(const struct legion_private *priv,
+					  enum OtherMethodFeature feature)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(powerlimit_default_modes); i++) {
+		if (capdata01_lookup(priv, (u32)feature >> 16,
+				     powerlimit_default_modes[i].mode))
+			return true;
+	}
+	return false;
+}
+
+/* "profile:watts" for every mode the firmware publishes a default for */
+static ssize_t powerlimit_defaults_show(const struct legion_private *priv,
+					char *buf,
+					enum OtherMethodFeature feature)
+{
+	ssize_t count = 0;
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(powerlimit_default_modes); i++) {
+		const struct capdata01 *cd =
+			capdata01_lookup(priv, (u32)feature >> 16,
+					 powerlimit_default_modes[i].mode);
+
+		if (!cd)
+			continue;
+		count += sysfs_emit_at(buf, count, "%s%s:%u", count ? " " : "",
+				       powerlimit_default_modes[i].profile,
+				       cd->default_value);
+	}
+	if (!count)
+		return -ENODATA;
+	count += sysfs_emit_at(buf, count, "\n");
+
+	return count;
+}
+
+static ssize_t
+cpu_longterm_powerlimit_defaults_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	return powerlimit_defaults_show(
+		dev_get_drvdata(dev), buf,
+		OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT);
+}
+
+static ssize_t
+cpu_shortterm_powerlimit_defaults_show(struct device *dev,
+				       struct device_attribute *attr, char *buf)
+{
+	return powerlimit_defaults_show(
+		dev_get_drvdata(dev), buf,
+		OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT);
+}
+
+static DEVICE_ATTR_RO(cpu_longterm_powerlimit_defaults);
+static DEVICE_ATTR_RO(cpu_shortterm_powerlimit_defaults);
+
 static ssize_t fancurve_speed_unit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -8259,6 +8553,8 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_fancurve_speed_unit.attr,
 	&dev_attr_fan1_level_rpm_table.attr,
 	&dev_attr_fan2_level_rpm_table.attr,
+	&dev_attr_cpu_longterm_powerlimit_defaults.attr,
+	&dev_attr_cpu_shortterm_powerlimit_defaults.attr,
 	&dev_attr_powermode.attr,
 	&dev_attr_lockfancontroller.attr,
 	&dev_attr_fan_unlock.attr,
@@ -8266,6 +8562,8 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_battery_conservation.attr,
 	&dev_attr_fn_lock.attr,
 	&dev_attr_flip_to_start.attr,
+	&dev_attr_instant_boot_ac.attr,
+	&dev_attr_instant_boot_usb_pd.attr,
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
@@ -8351,10 +8649,28 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
 	if (attr == &dev_attr_battery_conservation.attr)
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
+	if (attr == &dev_attr_overdrive.attr) {
+		unsigned long supported;
+
+		/*
+		 * Hide it only when the firmware answers that the panel has no
+		 * overdrive (Q7CN OLED: IsSupportOD checks PANT & 0x02 and the
+		 * get/set methods then do nothing); keep it when the query
+		 * fails, as before.
+		 */
+		if (!wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					WMI_METHOD_ID_ISSUPPORTOD,
+					&supported) &&
+		    supported == 0)
+			return 0;
+	}
 	if (attr == &dev_attr_fn_lock.attr)
 		return priv->conf->has_fn_lock ? attr->mode : 0;
 	if (attr == &dev_attr_flip_to_start.attr)
 		return priv->conf->has_flip_to_start ? attr->mode : 0;
+	if (attr == &dev_attr_instant_boot_ac.attr ||
+	    attr == &dev_attr_instant_boot_usb_pd.attr)
+		return priv->conf->has_instant_boot ? attr->mode : 0;
 	if (legion_attribute_uses_cpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_CPU_METHOD))
 		return 0;
@@ -8369,6 +8685,19 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	if (attr == &dev_attr_fancurve_speed_unit.attr &&
 	    priv->conf->access_method_fancurve == ACCESS_METHOD_NO_ACCESS)
 		return 0;
+
+	if (attr == &dev_attr_cpu_longterm_powerlimit_defaults.attr)
+		return powerlimit_defaults_available(
+			       priv,
+			       OtherMethodFeature_CPU_LONG_TERM_POWER_LIMIT) ?
+			       attr->mode :
+			       0;
+	if (attr == &dev_attr_cpu_shortterm_powerlimit_defaults.attr)
+		return powerlimit_defaults_available(
+			       priv,
+			       OtherMethodFeature_CPU_SHORT_TERM_POWER_LIMIT) ?
+			       attr->mode :
+			       0;
 
 	if ((attr == &dev_attr_fan1_level_rpm_table.attr ||
 	     attr == &dev_attr_fan2_level_rpm_table.attr) &&
@@ -8449,6 +8778,10 @@ enum LEGION_WMI_EVENT {
 
 struct legion_wmi_private {
 	enum LEGION_WMI_EVENT event;
+	/* GameZone method block: it has no notify id, so binding it never
+	 * delivers events; this driver calls its methods by GUID either way.
+	 */
+	bool gamezone_method_block;
 };
 
 //static void legion_wmi_notify2(u32 value, void *context)
@@ -8498,7 +8831,21 @@ unlock:
 
 static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
 {
+	const struct legion_wmi_private *ctx = context;
 	struct legion_wmi_private *wpriv;
+	bool leave_unbound = false;
+
+	if (ctx->gamezone_method_block) {
+		mutex_lock(&legion_shared_mutex);
+		leave_unbound = legion_shared &&
+				legion_shared->conf->leave_gamezone_wmi_unbound;
+		mutex_unlock(&legion_shared_mutex);
+	}
+	if (leave_unbound) {
+		dev_info(&wdev->dev,
+			 "Leaving GameZone WMI to lenovo-wmi-gamezone\n");
+		return -ENODEV;
+	}
 
 	wpriv = devm_kzalloc(&wdev->dev, sizeof(*wpriv), GFP_KERNEL);
 	if (!wpriv)
@@ -8513,6 +8860,10 @@ static int legion_wmi_probe(struct wmi_device *wdev, const void *context)
 
 static const struct legion_wmi_private legion_wmi_context_gamezone = {
 	.event = LEGION_WMI_EVENT_GAMEZONE
+};
+static const struct legion_wmi_private legion_wmi_context_gamezone_methods = {
+	.event = LEGION_WMI_EVENT_GAMEZONE,
+	.gamezone_method_block = true
 };
 static const struct legion_wmi_private legion_wmi_context_a = {
 	.event = LEGION_EVENT_A
@@ -8545,7 +8896,7 @@ static const struct legion_wmi_private legion_wmi_context_f = {
 //#define LEGION_WMI_GUID_GAMEZONE_DATA_EVENT  "887b54e3-dddc-4b2c-8b88-68a26a8835d0"
 
 static const struct wmi_device_id legion_wmi_ids[] = {
-	{ LEGION_WMI_GAMEZONE_GUID, &legion_wmi_context_gamezone },
+	{ LEGION_WMI_GAMEZONE_GUID, &legion_wmi_context_gamezone_methods },
 	{ LEGION_WMI_GUID_FAN_EVENT, &legion_wmi_context_a },
 	{ LEGION_WMI_GUID_FAN2_EVENT, &legion_wmi_context_b },
 	{ LEGION_WMI_GUID_GAMEZONE_KEY_EVENT, &legion_wmi_context_c },
@@ -9194,6 +9545,13 @@ fancurve_defaults_powermode_store(struct device *dev,
 		goto error_unlock;
 	}
 	fancurve_defaults_powermode = value;
+	/*
+	 * The firmware defaults replace the table, so the remembered user
+	 * curve must not be re-applied over them after resume, nor returned
+	 * by read_fancurve() as the cached curve if a later read fails.
+	 */
+	priv->resume_fancurve_valid = false;
+	priv->fancurve_valid = false;
 	mutex_unlock(&priv->fancurve_mutex);
 	return count;
 
@@ -9611,8 +9969,11 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 		supported = supported && !priv->conf->skip_ic_temp;
 
 	if (attr == &sensor_dev_attr_fan3_input.dev_attr.attr ||
-	    attr == &sensor_dev_attr_fan3_label.dev_attr.attr ||
-	    attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan3_label.dev_attr.attr)
+		supported = supported && (priv->conf->has_four_fans ||
+					  priv->conf->has_third_fan);
+
+	if (attr == &sensor_dev_attr_fan4_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_fan4_label.dev_attr.attr)
 		supported = supported && priv->conf->has_four_fans;
 
@@ -10066,6 +10427,8 @@ static int legion_add(struct platform_device *pdev)
 		dev_info(&pdev->dev, "legion_laptop is forced to load.\n");
 		goto err_legion_shared_init;
 	}
+	INIT_DELAYED_WORK(&priv->resume_fancurve_work,
+			  legion_resume_fancurve_fn);
 	dev_set_drvdata(&pdev->dev, priv);
 
 	// TODO: remove
@@ -10391,6 +10754,7 @@ static void legion_remove(struct platform_device *pdev)
 	priv->loaded = false;
 	mutex_unlock(&legion_shared_mutex);
 
+	cancel_delayed_work_sync(&priv->resume_fancurve_work);
 	legion_light_exit(priv, &priv->iport_light);
 	legion_light_exit(priv, &priv->ylogo_light);
 	legion_kbd_bl_exit(priv);
@@ -10416,8 +10780,8 @@ static void legion_remove(struct platform_device *pdev)
 
 static int legion_resume(struct platform_device *pdev)
 {
-	//struct legion_private *priv = dev_get_drvdata(&pdev->dev);
 	dev_info(&pdev->dev, "Resumed in legion-laptop\n");
+	legion_resume_fancurve(dev_get_drvdata(&pdev->dev));
 
 	return 0;
 }
@@ -10425,8 +10789,8 @@ static int legion_resume(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int legion_pm_resume(struct device *dev)
 {
-	//struct legion_private *priv = dev_get_drvdata(dev);
 	dev_info(dev, "Resumed PM in legion-laptop\n");
+	legion_resume_fancurve(dev_get_drvdata(dev));
 
 	return 0;
 }

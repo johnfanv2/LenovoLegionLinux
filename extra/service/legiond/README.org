@@ -15,6 +15,61 @@ This avoids non-essential ~fancurve-set~ being run.
 ** Power state change on resume prevent ~fancurve-set~ from setting correct fancurve
 Now we use a ~3s~ delay to make sure it works fine.
 Every power-state/power-profile change will reset the timer.
+
+The same 3 s delay also matters on the Legion Pro 7 16IAX10H: its EC merges
+the fan table with the mode default (per point, the higher value wins) about
+0.6-1.6 s after custom mode is entered, as a fallback for when no software
+manages the custom curve. legiond's preset write after a power-profile change
+lands after that merge. Windows tools re-apply the custom curve on every
+custom-mode entry for the same reason.
+** CPU power limits that the firmware leaves to Windows software
+Some firmware applies the CPU power limits (PL1/PL2) itself only in custom
+mode and leaves the other power modes to OEM software through Intel DTT on
+Windows. On Linux the package limit then stays at the BIOS boot value in every
+other mode: the Legion Pro 7 16IAX10H runs quiet, balanced, performance and
+extreme at 30 W until custom mode has been entered once.
+
+With ~cpu_powerlimit_sync=true~ (section ~main~), legiond writes the
+firmware's own per-mode defaults, which ~legion-laptop~ exports in
+~cpu_longterm_powerlimit_defaults~ / ~cpu_shortterm_powerlimit_defaults~ (for
+example ~performance:145~ / ~performance:190~), to
+~/sys/class/powercap/intel-rapl-mmio:0~ (constraints ~long_term~ and
+~short_term~, both checked before writing) on every power-profile change,
+on resume and with the ~legiond-cpuset.timer~ refresh. Custom mode is left to
+the firmware, which applies the user's custom values itself, on AC. On
+battery the limits are only written when ~bat_pl1~ / ~bat_pl2~ (section
+~cpu_powerlimit~, watts) are set, and then in every power mode, custom
+included: the configured battery limits take precedence there, as the
+firmware has no battery defaults to fall back to. Leave them unset to keep
+custom mode's own values on battery. The option is off by default.
+
+Under sustained CPU+GPU load the firmware's policy on Windows switches to
+lower "double" CPU limits once two chassis sensors pass per-mode thresholds,
+leaving power and cooling for the GPU (16IAX10H performance: PL1 145 W → 75 W
+once ~SEN3~ / ~SEN4~ reach 54 / 74 °C). The same can be enabled with the
+~double_*~ keys of the ~cpu_powerlimit~ section (commented example values for
+the 16IAX10H in ~legiond.ini~): legiond uses the double limits while both
+~double_sensors~ (thermal zone types) are at or above the mode's
+~double_ac_<mode>_temp~ and returns to the single-load defaults once either is
+~double_hysteresis~ degrees below; the check runs on every profile change and
+with each ~legiond-cpuset.timer~ refresh (30 s). On the 16IAX10H the sensors
+stay near 43 °C at idle and pass the performance thresholds after about 40 s
+of combined load, while the CPU sits at its 100–103 °C limit with the GPU at
+150 W.
+
+Don't run thermald's power-limit control (for example ~thermald --adaptive~,
+which writes its own PL1 to the same MMIO limit) together with
+~cpu_powerlimit_sync~: the two would keep overriding each other, at the latest
+on every ~legiond-cpuset.timer~ refresh.
+
+Check the result with
+~cat /sys/class/powercap/intel-rapl-mmio:0/constraint_{0,1}_power_limit_uw~
+after a Fn+Q. The WMI power-limit attributes (~legion-laptop~'s
+~cpu_longterm_powerlimit~ / ~cpu_shortterm_powerlimit~ on models that show
+them, ~lenovo-wmi-other~'s ~ppt_pl1_spl~ / ~ppt_pl2_sppt~ on the 16IAX10H) hold
+the values the firmware applies in custom mode, since its setters only take
+effect there; outside custom mode they can differ from the enforced MMIO
+limit.
 * How it works
 ~legiond~ is divided into two parts, ~legiond~ and ~legiond-ctl~.
 ~legiond~ is running as a ~systemd.service~, ~legiond-ctl~ is a bridge between ~legiond-cpuset.service~ and ~legiond-resume.service~ with ~legiond.service~.
@@ -44,4 +99,5 @@ systemctl enable --now legiond.service legiond-onresume.service legiond-cpuset.t
 * ~TODO~
 - [X] fancurve control
 - [X] cpu control
+- [X] cpu power limit sync (firmware per-mode defaults to MMIO RAPL)
 - [ ] freshrate control

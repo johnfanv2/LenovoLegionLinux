@@ -5,6 +5,40 @@
 
 #define MATCH(s, n) (strcmp(section, s) == 0 && strcmp(name, n) == 0)
 
+/* double_ac_{q,b,p,e}_{pl,temp} = two comma-separated numbers */
+static bool parse_double_key(LEGIOND_CONFIG *pconfig, const char *name,
+			     const char *value)
+{
+	static const char modes[] = { 'q', 'b', 'p', 'e' };
+	char mode, kind[8];
+	unsigned int a, b;
+
+	if (sscanf(name, "double_ac_%c_%7s", &mode, kind) != 2)
+		return false;
+	for (size_t i = 0; i < sizeof(modes); i++) {
+		if (modes[i] != mode)
+			continue;
+		unsigned int *dst = NULL;
+
+		if (strcmp(kind, "pl") == 0)
+			dst = pconfig->powerlimit_double_pl[i];
+		else if (strcmp(kind, "temp") == 0)
+			dst = pconfig->powerlimit_double_temp[i];
+		if (dst == NULL)
+			return false;
+		if (sscanf(value, "%u,%u", &a, &b) != 2) {
+			fprintf(stderr,
+				"[cpu_powerlimit] %s needs two numbers\n",
+				name);
+			return true;
+		}
+		dst[0] = a;
+		dst[1] = b;
+		return true;
+	}
+	return false;
+}
+
 static int handler(void *user, const char *section, const char *name,
 		   const char *value)
 {
@@ -21,6 +55,30 @@ static int handler(void *user, const char *section, const char *name,
 		ptr_cmd = &pconfig->rocm_smi_path;
 	} else if (MATCH("main", "fan_control")) {
 		pconfig->fan_control = strcmp(value, "true") == 0;
+	} else if (MATCH("main", "cpu_powerlimit_sync")) {
+		pconfig->cpu_powerlimit_sync = strcmp(value, "true") == 0;
+	} else if (MATCH("cpu_powerlimit", "bat_pl1")) {
+		if (sscanf(value, "%u", &pconfig->powerlimit_bat_pl1) != 1)
+			pconfig->powerlimit_bat_pl1 = 0;
+	} else if (MATCH("cpu_powerlimit", "bat_pl2")) {
+		if (sscanf(value, "%u", &pconfig->powerlimit_bat_pl2) != 1)
+			pconfig->powerlimit_bat_pl2 = 0;
+	} else if (MATCH("cpu_powerlimit", "double_sensors")) {
+		if (sscanf(value, "%31[^,],%31s",
+			   pconfig->powerlimit_double_sensor[0],
+			   pconfig->powerlimit_double_sensor[1]) != 2) {
+			fprintf(stderr,
+				"[cpu_powerlimit] double_sensors needs two "
+				"thermal zone types, e.g. SEN3,SEN4\n");
+			pconfig->powerlimit_double_sensor[0][0] = '\0';
+		}
+	} else if (MATCH("cpu_powerlimit", "double_hysteresis")) {
+		if (sscanf(value, "%u",
+			   &pconfig->powerlimit_double_hysteresis) != 1)
+			pconfig->powerlimit_double_hysteresis = 3;
+	} else if (strcmp(section, "cpu_powerlimit") == 0 &&
+		   parse_double_key(pconfig, name, value)) {
+		/* double_ac_{q,b,p,e}_{pl,temp} */
 	} else if (MATCH("gpu_control", "tdp_ac_q")) {
 		ptr_cmd = &pconfig->gpu_tdp_ac_q;
 	} else if (MATCH("gpu_control", "tdp_bat_q")) {
@@ -85,6 +143,8 @@ static int handler(void *user, const char *section, const char *name,
 int parseconf(LEGIOND_CONFIG *config)
 {
 	LEGIOND_CONFIG parsed = { 0 };
+
+	parsed.powerlimit_double_hysteresis = 3;
 
 	/* default GPU tool paths, overridable via config */
 	snprintf(parsed.nvidia_smi_path, sizeof(parsed.nvidia_smi_path),
