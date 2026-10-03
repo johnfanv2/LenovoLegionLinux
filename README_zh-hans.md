@@ -146,6 +146,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想 LOQ 15IRX10（83JE，BIOS R3CN），第十代（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、键盘背光、风扇全速（仅限自定义模式）。R3CN44WW 的 EC3 曲线写入已在 [#535](https://github.com/johnfanv2/LenovoLegionLinux/issues/535) 中经过负载验证；不支持的加/减速、minifancurve 和风扇控制器锁定选项已隐藏。该机型不受 WMI 风扇等级限制；详见 [R3CN 说明](doc/FEATURES_AND_TESTING.md#loq-15irx10-83je-r3cn)。
 - 联想拯救者 Y7000P IRX10（83NN，BIOS S9CN19WW），第十代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，仅在接通电源的自定义模式下由 EC 应用）、键盘背光与 Y 型 Logo 灯、风扇全速（仅限自定义模式）；经 DSDT 验证为上方 83F5 Q7CN 的纯 WMI 同胞机型（issue #506），真机验证进行中；详见 [S9CN 说明](doc/FEATURES_AND_TESTING.md#legion-y7000p-irx10-83nn-s9cn)
 - 联想拯救者 7 16IRX9（83FD，BIOS NSCN37WW），第九代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，两个风扇共用一张表；按实时热模式写入，极限模式下拒绝写入）、风扇全速（仅限自定义模式）；已经 DSDT 验证（issue #617），曲线写入的真机验证进行中；详见 [83FD 说明](doc/FEATURES_AND_TESTING.md#legion-7-16irx9-83fd-nscn)
+- 联想 LOQ 15APH8（82XT，BIOS LYCN50WW），第八代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（等级索引，仅速度点）、风扇全速（仅限自定义模式）；与拯救者 R7000P APH8（82Y9，M3CN）同为 EC 0x8227 平台，支持来自 issue #602，真机验证进行中；详见 [LYCN 说明](doc/FEATURES_AND_TESTING.md#loq-15aph8-82xt-lycn)
 - 联想 LOQ 15IAX9（83GS，BIOS NECN50WW），2024 款（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、功耗限制（WMI3：PL1、PL2、cTGP、PPAB）、快速充电、风扇全速；EC 不支持风扇控制器锁定与 minifancurve 并已隐藏
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。

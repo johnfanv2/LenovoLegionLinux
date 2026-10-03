@@ -2478,6 +2478,21 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_m3cn_8227
 	},
 	{
+		// Lenovo LOQ 15APH8 (82XT), BIOS LYCN (issue #602); same AMD
+		// Phoenix + EC 0x8227 platform as the Legion R7000P APH8
+		// (82Y9, M3CN) above. The reporter's debugfs dump shows EC
+		// chip 0x8227, correct WMI3 temperatures/fan RPM and zeroed
+		// EC-direct reads, matching model_m3cn_8227. Product-qualified
+		// in case the LYCN BIOS line is shared by other chassis.
+		.ident = "LOQ 15APH8 (82XT) - EC 0x8227",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "82XT"),
+			DMI_MATCH(DMI_BIOS_VERSION, "LYCN"),
+		},
+		.driver_data = (void *)&model_m3cn_8227
+	},
+	{
 		// Release year: 2020
 		.ident = "EUCN",
 		.matches = {
