@@ -122,8 +122,7 @@ class MonitorWorker(QRunnable):
             for mon in self.model.monitors:
                 try:
                     diag_msgs = diag_msgs + mon.run()
-                # pylint: disable=broad-except
-                except Exception as err:
+                except Exception as err:  # pylint: disable=broad-exception-caught
                     log.error(str(err))
             try:
                 for msg in diag_msgs:
@@ -134,8 +133,7 @@ class MonitorWorker(QRunnable):
                         log.info("FILTERED: %s", msg.msg)
                     else:
                         log.info("FILTERED2: %s", msg.msg)
-            # pylint: disable=broad-except
-            except Exception as err:
+            except Exception as err:  # pylint: disable=broad-exception-caught
                 log.error("Error while sending notification: %s", str(err))
             time.sleep(10.0)
 
@@ -221,8 +219,7 @@ class EnumFeatureController:
                     log.info("Value for gui_value %s not found", gui_value)
             else:
                 self.widget.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error_combobox(self.widget)
             log_error(ex)
         QtCore.QTimer.singleShot(200, self._deferred_readback)
@@ -257,8 +254,7 @@ class EnumFeatureController:
                 self.widget.setDisabled(False)
             else:
                 self.widget.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error_combobox(self.widget)
             log_error(ex)
 
@@ -288,8 +284,7 @@ class BoolFeatureController:
                 self.checkbox.setDisabled(False)
             else:
                 self.checkbox.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error(self.checkbox)
             log_error(ex)
 
@@ -300,8 +295,7 @@ class BoolFeatureController:
             if self.feature.exists():
                 feature_value = self.feature.get()
                 self.checkbox.setChecked(feature_value)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error(self.checkbox)
             log_error(ex)
 
@@ -317,8 +311,7 @@ class BoolFeatureController:
                 self.checkbox.setDisabled(False)
             else:
                 self.checkbox.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error(self.checkbox)
             log_error(ex)
 
@@ -349,8 +342,7 @@ class BoolFeatureTrayController:
             else:
                 self.action.setDisabled(True)
                 self.action.setCheckable(False)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             log_error(ex)
 
         QtCore.QTimer.singleShot(100, self._deferred_readback)
@@ -360,8 +352,7 @@ class BoolFeatureTrayController:
             if self.feature.exists():
                 hw_value = self.feature.get()
                 self.action.setChecked(hw_value)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             log_error(ex)
         if self.dependent_controllers:
             for contr in self.dependent_controllers:
@@ -377,8 +368,7 @@ class BoolFeatureTrayController:
             else:
                 self.action.setDisabled(True)
                 self.action.setCheckable(False)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             log_error(ex)
 
 
@@ -407,8 +397,7 @@ class PresetTrayController:
 
             try:
                 action.triggered.disconnect()
-            # pylint: disable=broad-except
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
             action.triggered.connect(callback)
 
@@ -416,8 +405,7 @@ class PresetTrayController:
         log.info("Setting preset %s from tray action", name)
         try:
             self.model.fancurve_write_preset_to_hw(name)
-        # pylint: disable=broad-except
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-exception-caught
             log_error(error)
             report_fancurve_write_error(error)
 
@@ -465,8 +453,7 @@ class EnumFeatureTrayController:
                 for action in self.actions:
                     action.setChecked(False)
                     action.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             log_error(ex)
 
     def on_action_click(self, value):
@@ -474,8 +461,7 @@ class EnumFeatureTrayController:
         try:
             if self.feature.exists():
                 self.feature.set(value)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             log_error(ex)
         log.info("Update view after setting inEnumFeatureTrayController ")
         QtCore.QTimer.singleShot(200, self._deferred_readback)
@@ -520,8 +506,7 @@ class IntFeatureController:
                     log.info("Value for gui_value %s not ignored with limits %s and %s", gui_value, low, upper)
             else:
                 self.widget.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error_combobox(self.widget)
             log_error(ex)
         if wait:
@@ -552,8 +537,7 @@ class IntFeatureController:
                 self.widget.setDisabled(False)
             else:
                 self.widget.setDisabled(True)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             mark_error_combobox(self.widget)
             log_error(ex)
 
@@ -602,8 +586,7 @@ class HybridGsyncController:
                     current_val_str = "current: active"
                 else:
                     current_val_str = "current: inactive"
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             current_val_str = "error"
             log_error(ex)
 
