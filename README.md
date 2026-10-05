@@ -107,6 +107,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 **Lenovo Legion models from 2020 up to the latest 2025 models probably work — the driver is actively maintained and new models are added regularly. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
 
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
+- Lenovo Legion Slim 5 16AHP9 (83DH, BIOS NRCN20WW), Gen 9: sensors, power profile, full-speed fan control in Custom mode. Fan curve writes are not verified. See [NRCN notes](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn).
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion R9000 (R9000K2021H) (BIOS GKCN59WW): sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile

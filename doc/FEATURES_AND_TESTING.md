@@ -1,5 +1,34 @@
 ## Features and Testing
 
+## Legion Slim 5 16AHP9 (83DH, NRCN)
+
+Tested on BIOS NRCN20WW, EC ID 0x8227, and Debian kernel 6.12.111+deb13-amd64.
+
+On this BIOS, `WMAB` supports fan table methods 5 and 6 only.
+Full-speed control uses `WMAE` methods 17 and 18 with feature `0x04020000`.
+These methods read and write the EC `FFON` bit.
+
+Full speed requires Custom mode (`powermode=255`). In Balanced mode, the
+firmware accepts the bit change but does not increase fan speed.
+The driver rejects enable requests outside Custom mode. The driver accepts
+disable requests in all modes.
+
+To check the control:
+
+1. Save the values of `powermode` and `fan_fullspeed`.
+2. Set `powermode` to 255 for Custom mode.
+3. Set `fan_fullspeed` to 1.
+4. Use `sensors` to check both fan speeds for at least 15 seconds.
+5. Restore the saved value of `fan_fullspeed`.
+6. Restore the saved value of `powermode`.
+
+With this fix applied to v0.0.34, both fans rose from 3500 RPM to about
+5000 RPM. Full-speed readback changed from 0 to 1 and returned to 0 after
+the test. The control did not need raw EC writes.
+
+Other BIOS versions and fan curve writes were not tested.
+This change does not resolve the fan curve write failure in issue #516.
+
 ## GUI without fan curve support
 
 On a Legion 5 15IRX10 with QNCN firmware, start `legion_gui` with the module

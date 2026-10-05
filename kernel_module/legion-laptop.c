@@ -1602,7 +1602,11 @@ static const struct model_config model_nrcn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	/* Use WMAE feature 0x04020000 for full speed on NRCN20WW.
+	 * WMAB supports fan table methods 5 and 6 only.
+	 */
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
