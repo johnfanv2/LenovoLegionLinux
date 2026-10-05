@@ -1288,8 +1288,7 @@ class FanCurveIO(Feature):
         try:
             log.info("Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
-        # pylint: disable=broad-except
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-exception-caught
             log.error(str(error))
         self._write_fancurve_plan(
             self._fancurve_write_plan(entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve)
@@ -1351,16 +1350,14 @@ class FanCurveIO(Feature):
             for file_path, value in plan:
                 self._write_file(file_path, value)
                 written.append(file_path)
-        # pylint: disable=broad-except
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-exception-caught
             log.error("Fan curve write failed (%s), restoring %d previous values", error, len(written))
             for file_path in reversed(written):
                 if previous[file_path] is None:
                     continue
                 try:
                     self._write_file(file_path, previous[file_path])
-                # pylint: disable=broad-except
-                except Exception as restore_error:
+                except Exception as restore_error:  # pylint: disable=broad-exception-caught
                     log.error("Could not restore %s: %s", file_path, restore_error)
             raise
 
@@ -1399,8 +1396,7 @@ class FanCurveIO(Feature):
         fancurve = FanCurve(name="unknown", entries=entries)
         try:
             fancurve.enable_minifancurve = self.get_minifancuve()
-        # pylint: disable=broad-except
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-exception-caught
             log.error(str(error))
         return fancurve
 
@@ -1476,8 +1472,7 @@ class SettingsManager(Feature):
                 has_set = Feature.set_feature_to_value(name, value)
                 if not has_set:
                     log.error("Cannot set %s from preset to %s", name, value)
-            # pylint: disable=broad-except
-            except Exception as err:
+            except Exception as err:  # pylint: disable=broad-exception-caught
                 log.error("Failed to set %s from preset to %s: %s", name, value, err)
 
     def _name_to_filename(self, name):
@@ -2118,8 +2113,7 @@ class LegionModelFacade:
         try:
             settings = self.settings_manager.load_by_name("settings")
             log.info("Loaded settings:\n %s", settings.to_yaml())
-        # pylint: disable=broad-except
-        except Exception as err:
+        except Exception as err:  # pylint: disable=broad-exception-caught
             log.error("Failed to load settings file: %s", err)
             return
         self.settings_manager.apply_settings(settings)
@@ -2141,8 +2135,7 @@ class LegionModelFacade:
                 for mon in self.monitors:
                     try:
                         diag_msgs = diag_msgs + mon.run()
-                    # pylint: disable=broad-except
-                    except Exception as err:
+                    except Exception as err:  # pylint: disable=broad-exception-caught
                         log.error(str(err))
                 for msg in diag_msgs:
                     if msg.has_value and msg.filter_do_output:
