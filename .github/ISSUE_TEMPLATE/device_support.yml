@@ -1,0 +1,119 @@
+name: Device support request (new laptop model)
+description: Request support for a laptop model that the driver refuses to load for ("not in allowlist")
+title: "[Device Support] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping extend LenovoLegionLinux to a new model!
+
+        Adding a model requires **your** help: maintainers don't have your hardware, so the
+        diagnostic dumps below are *mandatory*. Issues without them cannot be acted on and
+        will be asked for the same information before any work can start.
+
+        All commands are safe read-only operations. Install `acpica-tools` (Debian/Ubuntu/Mint)
+        or `acpica` (Fedora/Arch/openSUSE) first for the ACPI dump.
+  - type: input
+    id: installation_type
+    attributes:
+      label: Installation type
+      description: How did you install LenovoLegionLinux?
+      placeholder: e.g. built from source (github), DKMS, package manager (which repo?)
+    validations:
+      required: true
+  - type: input
+    id: distribution
+    attributes:
+      label: Distribution
+      placeholder: e.g. Ubuntu 24.04, Fedora 41, CachyOS
+    validations:
+      required: true
+  - type: input
+    id: model_name
+    attributes:
+      label: Model name
+      description: Full marketing name, e.g. "Lenovo LOQ 15APH8" or "Legion Pro 7 16AFR10H"
+    validations:
+      required: true
+  - type: input
+    id: cpu_gpu
+    attributes:
+      label: CPU and GPU models
+      placeholder: e.g. AMD Ryzen 7 7840HS / NVIDIA RTX 4050 Laptop
+    validations:
+      required: true
+  - type: input
+    id: lights
+    attributes:
+      label: Keyboard backlight / lid-logo light / IO-port light
+      placeholder: e.g. RGB keyboard; no lid light; IO-port light yes
+    validations:
+      required: true
+  - type: textarea
+    id: dmidecode_system
+    attributes:
+      label: Output of `sudo dmidecode -t system`
+      description: Please remove Serial Number and UUID for privacy.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: dmidecode_bios
+    attributes:
+      label: Output of `sudo dmidecode -t bios`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: dmesg_forced
+    attributes:
+      label: Output of `sudo dmesg | grep -i legion` with the module force-loaded
+      description: |
+        Since your model is not yet in the allowlist, load the module with
+        `sudo make forcereloadmodule` (source install) or the `force=1` module parameter,
+        then paste the output here.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: fancurve
+    attributes:
+      label: Output of `sudo cat /sys/kernel/debug/legion/fancurve` (while force-loaded)
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: sensors
+    attributes:
+      label: Output of `sensors` (while force-loaded)
+      description: This tells us which WMI/EC sensors return correct values on your model.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: acpi_tables
+    attributes:
+      label: Full ACPI tables dump (attach as zip)
+      description: |
+        Run the following and attach the resulting zip by dragging it into this field:
+
+        ```bash
+        sudo acpidump > acpi.dat
+        acpixtract -a acpi.dat
+        iasl -d *.dat
+        zip acpi_tables.zip *.dsl
+        ```
+
+        The fan methods often live in an SSDT rather than the DSDT, so please dump **all**
+        tables, not just the DSDT. If decompilation of a table fails, include the `.dat`
+        for that table too.
+      render: bash
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        **Please do not test fan curve writes while force-loaded with a fallback config.**
+        Wrong EC offsets can wedge the fans until reboot. Wait for a per-model config from
+        the maintainers.
