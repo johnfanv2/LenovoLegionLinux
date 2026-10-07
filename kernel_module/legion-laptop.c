@@ -8799,6 +8799,20 @@ static bool legion_attribute_uses_gpu_wmi(const struct attribute *attr)
 	       attr == &dev_attr_gpu_boost_clock.attr;
 }
 
+/*
+ * These three are read and written as Other Method feature ids, so their
+ * show/store handlers only implement ACCESS_METHOD_WMI3 and return -EINVAL
+ * for every other access method. Gate them here: on configs with no
+ * access_method_powerlimits set (model_v0, model_efcn, ...) they would
+ * otherwise appear in sysfs as permanently unreadable files.
+ */
+static bool legion_attribute_uses_wmi3_powerlimits(const struct attribute *attr)
+{
+	return attr == &dev_attr_cpu_temperature_limit.attr ||
+	       attr == &dev_attr_cpu_l1_tau.attr ||
+	       attr == &dev_attr_gpu_power_target_offset.attr;
+}
+
 static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 				       struct attribute *attr, int idx)
 {
@@ -8839,6 +8853,9 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 		return 0;
 	if (legion_attribute_uses_gpu_wmi(attr) &&
 	    !wmi_has_guid(WMI_GUID_LENOVO_GPU_METHOD))
+		return 0;
+	if (legion_attribute_uses_wmi3_powerlimits(attr) &&
+	    priv->conf->access_method_powerlimits != ACCESS_METHOD_WMI3)
 		return 0;
 
 	if (attr == &dev_attr_fan_fullspeed.attr &&
