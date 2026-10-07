@@ -700,6 +700,44 @@ not yet validated on this chassis. Verify with `sudo dmesg | grep -i legion`
 custom mode, back up the curve, apply one small change, compare the
 level/RPM readback and `sensors`, then restore the backup.
 
+## Legion Y530-15ICH (81FV, 8JCN)
+
+BIOS 8JCN56WW, EC 0x8226 (fw 1a2 per issue #16), Intel 8th gen + NVIDIA.
+DMI entry `8JCN` uses `model_8jcn`. The 2018 GameZone firmware is much
+smaller than on later Legions: `\_SB.GZFD.WMAA` implements methods 0x01 to
+0x25 only, so smart fan mode (0x2C/0x2D), the FAN_METHOD GUID and the LED
+methods are absent.
+
+- No power modes. `WMAA` 0x2C/0x2D do not exist and Fn+Q does not touch
+  EC RAM 0xC41D (the Y540 power-mode byte); powermode reads 0.
+- Fn+Q toggles "extreme cooling". `WMAA` 0x0D issues `NCMD(0x59, 0x77)`
+  (on) or `NCMD(0x59, 0x76)` (off), the same call as `fan_unlock` on
+  KWCN54WW, and 0x14 returns `FCST & 1` (EC RAM 0xC439). EC dumps across
+  two Fn+Q presses: `FCST` 0 -> 1 -> 0, `FANS` (0xC406, x100 RPM)
+  0x13 -> 0x28 -> 0x00. `fan_unlock` is enabled with
+  `has_fan_unlock_readback`, so reading it returns the live `FCST` bit.
+- Fan RPM via `WMAA` 0x08/0x09 (`FANS`/`FA2S` x 100) works. `WMAA` 0x12/0x13
+  (CPU/GPU temperature) are `Return (Zero)` stubs; the EC field `CPUT`
+  (0xC4B0) carries the CPU temperature but is not wired up yet.
+- `fan_fullspeed` failed with -ENODEV (no FAN_METHOD GUID) and is hidden.
+- The fan curve table is empty (`fan curve points size: 0`); fan curves stay
+  unsupported.
+
+Validation on 81FV / 8JCN56WW, kernel 7.2:
+
+```bash
+L=/sys/bus/platform/drivers/legion/legion
+cat $L/fan_unlock                       # 0
+echo 1 | sudo tee $L/fan_unlock; sleep 10; sensors | grep Fan   # ~3800/4100 RPM
+cat $L/fan_unlock                       # 1
+echo 0 | sudo tee $L/fan_unlock; sleep 10; sensors | grep Fan   # back to auto
+# press Fn+Q, then
+cat $L/fan_unlock                       # 1 (read back from firmware)
+```
+
+The platform profile is registered but `powermode` cannot be read on this
+firmware; load the module with `enable_platformprofile=0` until it is gated.
+
 ## Fan-curve capability and unit checks
 
 The hwmon curve schema follows the fields the active backend actually writes:

@@ -139,6 +139,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7 16IRX9 (83FD, BIOS NSCN37WW), Gen 9 (Intel): sensors, power profile, fan curve (level indices 1-10 via WMI, one table for both fans; written for the live thermal mode and rejected in extreme mode), fan full speed (custom power mode only); DSDT-validated (issue #617) with runtime validation of curve writes in progress; see [83FD notes](doc/FEATURES_AND_TESTING.md#legion-7-16irx9-83fd-nscn)
 - Lenovo LOQ 15APH8 (82XT, BIOS LYCN50WW), Gen 8 (AMD): sensors, power profile, fan curve (level indices via WMI, speed points only), fan full speed (custom power mode only); same EC 0x8227 platform as the Legion R7000P APH8 (82Y9, M3CN), enablement from issue #602 with runtime validation in progress; see [LYCN notes](doc/FEATURES_AND_TESTING.md#loq-15aph8-82xt-lycn)
 - Lenovo LOQ 15IAX9 (83GS, BIOS NECN50WW), 2024 (Intel): sensors, power profile, fan curve (independent RPM and temperature/hysteresis via the EC3 LOQ interface in custom mode, `powermode=255`), power limits (WMI3: PL1, PL2, cTGP, PPAB), rapid charge, fan full speed; controller lock and minifancurve unsupported by EC and hidden
+- Lenovo Legion Y530-15ICH (81FV, BIOS 8JCN56WW), 2018 (Intel): fan RPM, `fan_unlock` as the Fn+Q "extreme cooling" toggle (both fans to ~4000 RPM) with live state read-back; the firmware has no power modes and no fan curve table, `fan_fullspeed` is hidden. See [8JCN notes](doc/FEATURES_AND_TESTING.md#legion-y530-15ich-81fv-8jcn)
 
 Many more models — including LOQ models and 2024/2025 Legions like the Legion 7 16IAX10 — are supported; see the DMI allowlist in [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) for the full list.
 
@@ -147,7 +148,7 @@ Many more models — including LOQ models and 2024/2025 Legions like the Legion 
 Currently fan control is not working for the following models. Other features, probably work:
 
 - Legion with BIOS HACN*, e.g. S7-15ACH6: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
-- Legion Y530 and Legion Y540: [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
+- Legion Y540, and fan curves on the Legion Y530 (the Y530 only supports `fan_unlock`, see above): [Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
 
 ## :handshake: Contributing
 
@@ -762,7 +763,7 @@ See [README.org](extra/service/legiond/README.org)
 
 ### Lift the Firmware Fan Ceiling (fan unlock)
 
-On supported models the firmware caps the maximum fan speed below what the hardware can do. The `fan_unlock` sysfs attribute lifts this ceiling. It is only exposed on validated model/BIOS combinations (see the `has_fan_unlock` allowlist in `kernel_module/legion-laptop.c`); on the Legion Pro 7 16IRX8H (BIOS KWCN54WW) it raises the cap from ~4400 RPM to ~7100 RPM.
+On supported models the firmware caps the maximum fan speed below what the hardware can do. The `fan_unlock` sysfs attribute lifts this ceiling. It is only exposed on validated model/BIOS combinations (see the `has_fan_unlock` allowlist in `kernel_module/legion-laptop.c`); on the Legion Pro 7 16IRX8H (BIOS KWCN54WW) it raises the cap from ~4400 RPM to ~7100 RPM. On the Legion Y530-15ICH (BIOS 8JCN56WW) the same firmware call switches the Fn+Q "extreme cooling" mode (both fans to ~4000 RPM); there `fan_unlock` reads the live firmware state, so a toggle via Fn+Q is reported as well.
 
 ```bash
 # Check status / enable / disable

@@ -149,6 +149,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想拯救者 7 16IRX9（83FD，BIOS NSCN37WW），第九代（Intel）：传感器、电源配置、通过 WMI 设置风扇曲线（1-10 等级索引，两个风扇共用一张表；按实时热模式写入，极限模式下拒绝写入）、风扇全速（仅限自定义模式）；已经 DSDT 验证（issue #617），曲线写入的真机验证进行中；详见 [83FD 说明](doc/FEATURES_AND_TESTING.md#legion-7-16irx9-83fd-nscn)
 - 联想 LOQ 15APH8（82XT，BIOS LYCN50WW），第八代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（等级索引，仅速度点）、风扇全速（仅限自定义模式）；与拯救者 R7000P APH8（82Y9，M3CN）同为 EC 0x8227 平台，支持来自 issue #602，真机验证进行中；详见 [LYCN 说明](doc/FEATURES_AND_TESTING.md#loq-15aph8-82xt-lycn)
 - 联想 LOQ 15IAX9（83GS，BIOS NECN50WW），2024 款（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、功耗限制（WMI3：PL1、PL2、cTGP、PPAB）、快速充电、风扇全速；EC 不支持风扇控制器锁定与 minifancurve 并已隐藏
+- 联想拯救者 Y530-15ICH（81FV，BIOS 8JCN56WW），2018 款（Intel）：风扇转速、`fan_unlock` 即 Fn+Q 的“极速散热”开关（双风扇约 4000 RPM），可实时读回状态；该固件没有电源模式，也没有风扇曲线表，`fan_fullspeed` 已隐藏。详见 [8JCN 说明](doc/FEATURES_AND_TESTING.md#legion-y530-15ich-81fv-8jcn)
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
 
@@ -157,7 +158,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 目前，以下型号暂不支持风扇控制，但其他功能大概率可用：
 
 - BIOS为HACN*的Legion机型，如S7-15ACH6：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/13)
-- Legion Y530和Legion Y540：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
+- Legion Y540，以及 Legion Y530 的风扇曲线（Y530 仅支持 `fan_unlock`，见上文）：[相关Issue](https://github.com/johnfanv2/LenovoLegionLinux/issues/16)
 
 ## :handshake: 参与贡献
 
@@ -780,7 +781,7 @@ LLL 守护进程（`legiond`）是一个小型 C 程序（见 [extra/service/leg
 
 ### 解除固件风扇转速上限（fan unlock）
 
-在受支持的机型上，固件会将风扇最大转速限制在硬件实际能力之下。`fan_unlock` sysfs 属性可以解除该限制。它仅在经过验证的机型/BIOS 组合上暴露（见 `kernel_module/legion-laptop.c` 中的 `has_fan_unlock` 白名单）；在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。
+在受支持的机型上，固件会将风扇最大转速限制在硬件实际能力之下。`fan_unlock` sysfs 属性可以解除该限制。它仅在经过验证的机型/BIOS 组合上暴露（见 `kernel_module/legion-laptop.c` 中的 `has_fan_unlock` 白名单）；在 Legion Pro 7 16IRX8H（BIOS KWCN54WW）上可将上限从约 4400 RPM 提升至约 7100 RPM。在 Legion Y530-15ICH（BIOS 8JCN56WW）上，同一固件调用用于切换 Fn+Q 的“极速散热”模式（双风扇约 4000 RPM）；该机型的 `fan_unlock` 读取的是固件实时状态，因此通过 Fn+Q 切换也会被反映出来。
 
 ```bash
 # 查看状态 / 启用 / 禁用
