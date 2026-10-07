@@ -118,7 +118,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 
 - 联想拯救者 5 15IMH05, 15IMH05H（BIOS EFCN54WW）：传感器、风扇曲线、电源配置
 - Lenovo Legion Slim 5 16AHP9（83DH，BIOS NRCN20WW），第 9 代：传感器、电源模式、自定义模式下的风扇全速控制。风扇曲线写入尚未验证。参见 [NRCN 说明](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn)。
-- 联想拯救者 5 15ACH6H（BIOS GKCN58WW 或 GKCN57WW），第六代：传感器、风扇曲线、电源配置
+- 联想拯救者 5 15ACH6H（BIOS GKCN58WW、GKCN57WW 或 GKCN65WW），第六代：传感器、风扇曲线、电源配置
 - 联想拯救者 R9000（R9000K2021H）（BIOS GKCN59WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 5 Pro 16ACH6H (82JQ)（BIOS GKCN58WW）x 2：传感器、风扇曲线、电源配置
 - Legion 5 Pro 16ACH6H（AMD 5800H + Nvidia RTX 3070）：传感器、风扇曲线、电源配置

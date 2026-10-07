@@ -790,6 +790,57 @@ cat $L/fan_unlock                       # 1 (read back from firmware)
 
 The platform profile is registered but `powermode` cannot be read on this
 firmware; load the module with `enable_platformprofile=0` until it is gated.
+## Legion 5 15ACH6H (82JU, GKCN65WW)
+
+DMI `LENOVO` / `82JU` / `GKCN65WW` matches the `GKCN` allowlist entry and
+therefore loads `model_v0` (EC id `0x8227`, EC RAM mapped at `0xfe00d400`);
+observed on kernel 7.2.9-1-cachyos with the module built from main.
+
+Verified: a clean probe in `sudo dmesg | grep -i legion` (`is_denied: 0;
+is_allowed: 1`, `Using configuration for system: GKCN`); `legion_hwmon`
+reports CPU/GPU/IC temperatures and both fan RPMs;
+`sudo cat /sys/kernel/debug/legion/fancurve` returns the EC curve (8
+points, RPM unit) together with the EC/ACPI/WMI method comparison;
+`powermode`, `platform_profile` (low-power/balanced/performance/custom),
+rapid charge, battery conservation, minifancurve, lockfancontroller, fan
+fullspeed and the keyboard/Y-Logo/IO-Port LEDs are all present. The three
+power mode views agree: `powermode` 1 (`LEGION_WMI_POWERMODE_LOW_POWER`),
+EC raw `2` (`LEGION_EC_POWERMODE_QUIET`) and `platform_profile`
+`low-power`.
+
+- **Instant Boot is not available here, and it is not just a missing
+  driver flag.** Decompressed ACPI evidence: `0x03010001` and `0x03010002`
+  do not occur in the decompiled DSDT or in any of the 17 SSDTs, and the
+  Other Method block (`dc2a8805-3a8c-41ba-a6f7-092e0089cd3b`, object id
+  `B5` → `Method (WMB5, 3)`) dispatches only method ids 1, 2, 3, 4, 5 and
+  8 — no `GetFeatureValue`/`SetFeatureValue` (17/18), which is what
+  `instant_boot_{ac,usb_pd}` call through `wmi_other_method_{get,set}_value()`.
+  The capability table GUID `7a8f5407-cb67-4d6e-b547-39b3be018154` and the
+  discrete data GUID are absent as well, and there is no `WSMI` method in
+  any table. `EACS` and `ETCS` *do* exist as one-bit EC fields (alongside
+  `SACS`/`STCS`, the same names Q7CN's Instant Boot reads), but no ACPI
+  method references them, so nothing can reach them. `has_instant_boot`
+  must stay unset for `GKCN`.
+- `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset` used
+  to be listed in sysfs while returning `-EINVAL` on every access: their
+  show/store handlers only implement `ACCESS_METHOD_WMI3` and `model_v0`
+  leaves `access_method_powerlimits` at `ACCESS_METHOD_NO_ACCESS`. They
+  are now hidden unless `access_method_powerlimits` is `ACCESS_METHOD_WMI3`
+  (verified: they disappear on GKCN65WW, while `cpu_shortterm_powerlimit`
+  88 W and `cpu_longterm_powerlimit` 70 W, which go through the CPU WMI
+  method, keep working).
+- `gpu_oc` remains visible and still fails: `WMB4` only returns for
+  method id 1 (`GPU_GET_OC_STATUS`) inside the `ECAV` +
+  `Acquire(LFCM)` branch, so on this machine every read logs
+  `legion_laptop: WMI evaluation error for:
+  da7547f1-824d-405f-be79-d9903e29ced7:1` and `cat` reports
+  `Invalid argument`. Unlike `overdrive`, whose query succeeds and answers
+  0, a failing query is not a "not supported" answer, so the attribute is
+  deliberately kept visible.
+
+To reproduce the ACPI evidence: dump
+`/sys/firmware/acpi/tables/{DSDT,SSDT*}` as root, decompile with `iasl -d`,
+then grep for `0x03010001`, `Arg1 == 0x11` and `EACS`.
 
 ## Fan-curve capability and unit checks
 
