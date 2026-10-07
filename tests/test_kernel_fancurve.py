@@ -186,6 +186,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "ec_read_lockfancontroller",
             "ec_write_lockfancontroller",
             "legion_hwmon_fancurve_is_visible",
+            "legion_attribute_uses_wmi3_powerlimits",
             "legion_sysfs_is_visible",
             "fancurve_speed_unit_show",
         )
@@ -497,6 +498,16 @@ int main(void) {
     assert(ec_write_minifancurve(&ram, &conf, true) == 0);
     assert(ec_write_lockfancontroller(&ram, &conf, true) == 0);
     assert(io_count == 2);
+    /* The three power-limit attributes are WMI3-only: without
+     * access_method_powerlimits they must not appear in sysfs at all,
+     * instead of existing as permanently -EINVAL files (GKCN65WW). */
+    assert(!legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0));
+    assert(!legion_sysfs_is_visible(&kobj, &dev_attr_cpu_l1_tau.attr, 0));
+    assert(!legion_sysfs_is_visible(&kobj, &dev_attr_gpu_power_target_offset.attr, 0));
+    conf.access_method_powerlimits = ACCESS_METHOD_WMI3;
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_l1_tau.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_power_target_offset.attr, 0));
     printf("PASS: %zu point-attribute cases, unit gates and guarded EC controls\n", cases);
     return 0;
 }
