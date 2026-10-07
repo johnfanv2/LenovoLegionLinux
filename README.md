@@ -108,7 +108,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
 - Lenovo Legion Slim 5 16AHP9 (83DH, BIOS NRCN20WW), Gen 9: sensors, power profile, full-speed fan control in Custom mode. Fan curve writes are not verified. See [NRCN notes](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn).
-- Lenovo Legion 5 15ACH6H (BIOS GKCN58WW or GKCN57WW), Gen 6: sensors, fan curve, power profile
+- Lenovo Legion 5 15ACH6H (BIOS GKCN58WW, GKCN57WW or GKCN65WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion R9000 (R9000K2021H) (BIOS GKCN59WW): sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
 - Legion 5 Pro 16ACH6H (AMD 5800H + Nvidia RTX 3070): sensors, fan curve, power profile
