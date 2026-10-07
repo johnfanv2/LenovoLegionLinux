@@ -317,6 +317,11 @@ struct model_config {
 	 * issuing an unverified WMI call. See issue #429 / PR #443.
 	 */
 	bool has_fan_unlock;
+	/* fan_unlock reads the live state back through WMAA(0, 0x14) instead
+	 * of the cached last write. Set only where the DSDT implements 0x14 as
+	 * FCST & 1, so a Fn+Q toggle is reported too (Legion Y530, 8JCN).
+	 */
+	bool has_fan_unlock_readback;
 	bool has_fn_lock;
 	bool has_flip_to_start;
 	/* instant_boot_ac/instant_boot_usb_pd through WMI3 feature ids
@@ -1313,10 +1318,17 @@ static const struct model_config model_8jcn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
 	.access_method_temperature = ACCESS_METHOD_WMI,
 	.access_method_fancurve = ACCESS_METHOD_EC,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	/* No FAN_METHOD WMI GUID on 8JCN: fan_fullspeed fails with -ENODEV. */
+	.access_method_fanfullspeed = ACCESS_METHOD_NO_ACCESS,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE00D400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	/* Y530 has no smart fan modes; Fn+Q toggles "extreme cooling" (both
+	 * fans to ~4000 RPM). GZFD.WMAA 0x0D issues NCMD(0x59, 0x77/0x76) as
+	 * on KWCN54WW and 0x14 returns FCST & 1. Validated on 81FV, 8JCN56WW.
+	 */
+	.has_fan_unlock = true,
+	.has_fan_unlock_readback = true
 };
 
 static const struct model_config model_jncn = {
@@ -3552,6 +3564,10 @@ static int wmi_exec_arg(const char *guid, u8 instance, u32 method_id, void *arg,
 // high-end fan curve subtable (~7000-7100 RPM observed on i9-13900HX +
 // RTX 4080 Laptop). arg=0 reverts. See johnfanv2/LenovoLegionLinux #429.
 #define WMI_METHOD_ID_FAN_EXTREME_TOGGLE 13
+// Fan ceiling state read-back. On the Legion Y530 (8JCN) WMAA(0, 0x14)
+// returns FCST & 1 (EC RAM 0xC439): 1 while the NCMD(0x59, 0x77) "extreme
+// cooling" mode is active, whether set via 0x0D or by Fn+Q.
+#define WMI_METHOD_ID_GETFANEXTREMESTATUS 20
 // power charge mode
 #define WMI_METHOD_ID_GETPOWERCHARGEMODE 47
 // overdrive of display to reduce latency
@@ -7123,12 +7139,26 @@ static DEVICE_ATTR_RW(lockfancontroller);
 // Fan ceiling unlock — see WMI_METHOD_ID_FAN_EXTREME_TOGGLE comment for context.
 // Cached state because the firmware exposes no clean read-back path; the value
 // reflects the last value successfully written through this attribute.
+// Models with has_fan_unlock_readback report the live firmware state instead.
 
 static ssize_t fan_unlock_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
+	unsigned long res;
 	u8 state;
+	int err;
+
+	if (priv->conf->has_fan_unlock_readback) {
+		mutex_lock(&priv->fancurve_mutex);
+		err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+					 WMI_METHOD_ID_GETFANEXTREMESTATUS,
+					 &res);
+		mutex_unlock(&priv->fancurve_mutex);
+		if (err)
+			return err;
+		return sysfs_emit(buf, "%lu\n", res & 1);
+	}
 
 	mutex_lock(&priv->fancurve_mutex);
 	state = priv->fan_unlock_state;
