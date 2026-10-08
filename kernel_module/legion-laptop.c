@@ -1099,6 +1099,12 @@ static const struct model_config model_nscn_83fd = {
 	.skip_fan_maxspeed = true,
 	.skip_lockfancontroller = true,
 	.wmi_fancurve_speed_only = true,
+	/* LLL and mainline lenovo-wmi-gamezone both alias the GameZone
+	 * GUID, so udev autoload races and platform_profile can disappear
+	 * (issue #625). Leave the block to lenovo-wmi-gamezone; GameZone
+	 * methods are still called by GUID.
+	 */
+	.leave_gamezone_wmi_unbound = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
