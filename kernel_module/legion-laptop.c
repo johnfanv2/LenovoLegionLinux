@@ -4809,9 +4809,6 @@ static int get_simple_wmi_attribute(struct legion_private *priv,
 	if (err)
 		return -EINVAL;
 
-	// TODO: remove later
-	pr_info("%swith raw value: %ld\n", __func__, state);
-
 	state = state * scale;
 
 	if (invert)
