@@ -296,6 +296,18 @@ int main(void) {
     assert(!legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fancurve_speed_unit.attr, 0));
 
+    /* SMCN is the AMD twin of Q7CN (#624): its Fan_Set_Table also takes
+     * levels 1..10 with no range check, so a percent-unit fallback writes
+     * out-of-range levels to the EC and wedges it (whole-laptop crash).
+     * The unit selector must resolve it to levels. */
+    have_guid = true;
+    priv.conf = &model_smcn;
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+
     /* Calibration must preserve level 1's zero RPM and all subsequent indices. */
     struct wmi_fantable_row row = {
         .fan_table_len = FANTABLE_MAX_LEVELS,

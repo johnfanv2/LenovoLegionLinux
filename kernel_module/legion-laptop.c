@@ -5258,6 +5258,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
 }
 
