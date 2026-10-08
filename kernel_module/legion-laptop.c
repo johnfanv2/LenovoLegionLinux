@@ -2469,6 +2469,107 @@ static const struct model_config model_s9cn = {
 	.has_flip_to_start = true,
 };
 
+// Legion Pro 7 16AFR10H (83RU) - 2025, AMD (Ryzen 9 9955HX) + RTX 50
+// BIOS: SMCN19WW, EC 0x5508 (both read on the unit, issue #624 dmesg).
+// Facts below are from the SMCN19WW DSDT (L = dsdt.dsl line, attachment
+// in issue #624); the WMA* methods live in \_SB.GZFD:
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L20176): get returns the 0x58-byte LFGT buffer with the live EC
+//   fields F9F0..F9F9 (static 1..10 placeholder when ODV1 == 4, i.e.
+//   extreme mode, L20194); set copies the ten speeds (bytes 0x06..0x18
+//   at even offsets) to F9F0..F9F9 and commits via LECR(0xD0,1,1,2)
+//   (L20248), no range check, mode/FSID bytes ignored. Identical
+//   semantics to Q7CN/RLCN, so FAN_SPEED_UNIT_LEVEL (see
+//   wmi_read_fancurve_custom()) and only the speed attributes are
+//   exposed (wmi_fancurve_speed_only). LENOVO_FAN_TABLE_DATA (WQA3,
+//   L14505) maps level 1..10 to 1700..5200 RPM on fan 1 (sensor 0x01),
+//   1700..5400 RPM on fan 2 (sensor 0x05) and 1500..6500 RPM on fan 4
+//   (sensor 0x04) - matching the reporter's lenovo_wmi_other
+//   fan1/fan2/fan4 min/max - so fan1_level_rpm_table/
+//   fan2_level_rpm_table appear automatically.
+// - Other Method WMAE Get(0x11)/Set(0x12) (L20292) implements the
+//   standard feature ids: fan RPM 0x04030001/2 (FANS/FA2S*0x64) and
+//   0x04030004 (FASF*0x64, the small third fan -> has_third_fan)
+//   (L20844-L20881), CPU/GPU temp 0x05040000/0x05050000 (CPUT/GPUT,
+//   L20896/L20908), full speed 0x04020000 -> EC FNST (both directions,
+//   L20832/L21630), PL/OC ids stored raw in the EC. 0x05010000 is the
+//   CPU socket temp (CPUS, L20884), not a labeled IC sensor ->
+//   skip_ic_temp. PL/OC attributes stay hidden (skip_oc_controls)
+//   until validated; only cpu_temperature_limit, cpu_l1_tau and
+//   gpu_power_target_offset are visible, as on Q7CN.
+// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
+//   (L19452): quiet/balanced/performance, 0xFF custom, 0xE0 extreme,
+//   mapped from EC ASMC and ODV1 (like model_rgcn).
+// - CPU Method WMAC only handles 0x0E (AMD 0x414D44xx thermal
+//   features via WSMI, L20253), which the driver never calls, so power
+//   limits go through WMAE (WMI3), as on model_rlcn.
+// - Lights: per PSREF the keyboard is per-key RGB and the lid logo /
+//   rear vent are RGB, all driven by the USB-HID Spectrum controller
+//   like on the 16IAX10H twin (model_q7cn); the WMAF get(1)/set(2)
+//   methods (L21899) exist but do not drive them -> keyboard
+//   NO_ACCESS, Y-logo and IO-port light skipped.
+// - EC0 at \_SB.PCI0.LPC0.EC0 (L8070, PNP0C09, GPE 7, IO 0x62/0x66);
+//   EC RAM window ERAX @0xFEEC2400 len 0xFF (L8319; F9FT/ECB2 at
+//   +0x100/+0x200, L8207/L8117, ramio_size 0x300) is used only by the
+//   read-only debugfs ecmemoryram dump; EC register offsets are not
+//   trusted on the 0x5508 generation (issue #491) - everything else
+//   goes through WMI. VPC0 (VPC2004) _STA/_CFG (L10440) and GBMD/SBMC
+//   (L10611/L10828) present; GBMD bit 0x20 is BTSM and bit 0x04 is
+//   QCHO, so rapidcharge and battery conservation are exposed, as on
+//   the other 0x5508 models.
+// - Instant boot AC/USB-PD: WMAE get/set 0x03010001/0x03010002 (EC
+//   EACS/ETCS, set via WSMI 7/8 and 9/0xA,
+//   L20783/L20795/L21594/L21610) and flip-to-start 0x00030000 (EC
+//   FLBT, L20330/L21017), identical to model_q7cn.
+// fan_fullspeed is gated behind custom power mode like model_q7cn/
+// model_rlcn: on this generation a full-speed write through the wrong
+// path can wedge the fans at maximum speed until reboot (model_rlcn).
+static const struct model_config model_smcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFEEC2400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	/* WMAE Get 0x04030004 returns EC FASF * 100 (fan 4 RPM) */
+	.has_third_fan = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_flip_to_start = true,
+	/* WMAE get L20783/L20795 (EC EACS/ETCS), set L21594/L21610
+	 * (WSMI 7/8, 9/0xA), identical to model_q7cn.
+	 */
+	.has_instant_boot = true,
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -3105,6 +3206,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "S9CN"),
 		},
 		.driver_data = (void *)&model_s9cn
+	},
+	{
+		// Legion Pro 7 16AFR10H (83RU), BIOS SMCN; product-qualified
+		// because the R9000P AFR10 shares neither chassis nor
+		// validated DSDT, so match the product name and add it only
+		// after its own validation
+		.ident = "SMCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83RU"),
+			DMI_MATCH(DMI_BIOS_VERSION, "SMCN"),
+		},
+		.driver_data = (void *)&model_smcn
 	},
 	{
 		// e.g. Legion 5 16IRX9 (83DG)

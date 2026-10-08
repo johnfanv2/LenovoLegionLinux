@@ -607,6 +607,59 @@ progress - check the issue for the results, and verify locally with
 `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
 speed1 in 1..10).
 
+## Legion Pro 7 16AFR10H (83RU, SMCN)
+
+BIOS SMCN19WW, EC 0x5508, AMD Ryzen 9 9955HX + RTX 50 (issue #624).
+DMI entry `SMCN` is qualified on product name `83RU`; config
+`model_smcn` in `kernel_module/legion-laptop.c` (the header comment
+cites the DSDT lines from the dsdt.dsl attached in issue #624).
+
+Same WMI-only firmware layout as the Q7CN (83F5) above - this is the
+AMD twin of the 16IAX10H chassis:
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU+GPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (ODV1 == 4; read the table in another mode).
+  `LENOVO_FAN_TABLE_DATA` (WQA3) maps level 1..10 to 1700..5200 RPM on
+  fan 1 (sensor 0x01), 1700..5400 RPM on fan 2 (sensor 0x05) and
+  1500..6500 RPM on fan 4 (sensor 0x04), and the third fan's RPM is
+  readable as hwmon `fan3` (`WMAE` 0x04030004 -> EC `FASF`*100); the
+  ladders match the `lenovo_wmi_other` fan1/fan2/fan4 min/max reported
+  in issue #624.
+- No keyboard/light control: the per-key RGB keyboard and the RGB lid
+  logo / rear vent lighting are driven by the USB-HID Spectrum
+  controller (PSREF), not by the WMI light methods, exactly as on the
+  16IAX10H twin.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode; on this generation a
+  full-speed write through the wrong WMI method (old fallback config)
+  wedged the fans at maximum speed until reboot on the 83LT, so validate
+  with care and be ready to reboot.
+- Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
+  `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
+  are visible, as on Q7CN. Rapid charge and battery conservation use
+  `VPC0.GBMD`/`SBMC` at `\_SB.PCI0.LPC0.EC0` (GBMD bit 0x20 = BTSM,
+  bit 0x04 = QCHO). Instant boot (`instant_boot_ac`/
+  `instant_boot_usb_pd`, WMAE 0x03010001/0x03010002) is implemented
+  like on Q7CN.
+- `minifancurve` and `lockfancontroller` are hidden (undeclared EC bytes
+  on the 0x5508 generation); the EC RAM window (`ERAX @0xFEEC2400`, len
+  0xFF; `F9FT`/`ECB2` at +0x100/+0x200) is only used for the read-only
+  `ecmemoryram` debugfs dump. Raw EC reads are misaligned on this unit:
+  with the old fallback config the EC column reported ~23000/~18000 RPM
+  while `lenovo_wmi_other` showed the correct values (issue #624).
+
+Validation status: config derived from the DSDT analysis and the
+reporter's logs in issue #624; runtime validation of the final config
+is in progress - check the issue for the results, and verify locally
+with `sudo dmesg | grep -i legion` (no "not in allowlist", EC id
+0x5508), `sensors` (legion_hwmon now matches `lenovo_wmi_other`,
+including `fan3`), and `sudo cat /sys/kernel/debug/legion/fancurve`
+(`u` = 5, speed1 in 1..10).
+
 ## Legion 7 16IRX9 (83FD, NSCN)
 
 BIOS NSCN37WW, EC 0x5507, Intel Core i9-14900HX + RTX 4070 (issue #617).
