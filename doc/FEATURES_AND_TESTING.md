@@ -684,14 +684,28 @@ of the dump attached in issue #617 (DSDT SHA-256
   come from `WMAE`; the IC temperature is a constant 0 and is hidden.
 - `minifancurve` and `lockfancontroller` are hidden (no backing EC
   register on this firmware). The RGB keyboard stays on USB, as before.
+- `platform_profile` comes from the mainline `lenovo-wmi-gamezone`
+  driver: LLL leaves the GameZone WMI block unbound
+  (`leave_gamezone_wmi_unbound`), because both drivers alias its GUID
+  and udev autoload races, which can cost `platform_profile` on boot
+  (issue #625). GameZone methods are still called by GUID, so the LLL
+  fan curve keeps working. On this firmware
+  `/sys/firmware/acpi/platform_profile` rejects `custom` (EINVAL);
+  select custom mode through the platform-profile class device.
 
-Validation status: config derived from the firmware dump; sensors and
-power profiles were already working with the generic NSCN config.
-Verify with `sudo dmesg | grep -i legion` (config `NSCN 83FD`) and
-`sudo cat /sys/kernel/debug/legion/fancurve`. To test writes: on AC,
-select custom mode, back up the curve, apply one small change, compare
-the level/RPM readback and `sensors`, then restore the backup. Do not
-write in extreme mode.
+Validation status: config derived from the firmware dump (issue #617);
+fan curve writes verified on a second unit with BIOS NSCN41WW (issue
+#625): levels 6/8 reach the expected RPMs within ~25 s and the
+restored table matches the saved copy. `Fan curve current point id`
+always reads 0 on this firmware, even while the fans run a written
+level, so test with multi-point changes. After leaving and re-entering
+custom mode the EC still reads back the written table but runs its own
+mode default until the table is written again: rewrite the table on
+custom-mode entry. Verify with `sudo dmesg | grep -i legion` (config
+`NSCN 83FD`) and `sudo cat /sys/kernel/debug/legion/fancurve`. To test
+writes: on AC, select custom mode, back up the curve, apply one small
+change, compare the level/RPM readback and `sensors`, then restore the
+backup. Do not write in extreme mode.
 
 ## Legion 5 15AHP11 (83Q7, T2CN)
 
