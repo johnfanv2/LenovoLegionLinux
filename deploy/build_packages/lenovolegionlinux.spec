@@ -1,5 +1,6 @@
 %define srcname LenovoLegionLinux
 %global libname legion_linux
+%global debug_package %{nil}
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
