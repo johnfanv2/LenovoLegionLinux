@@ -3074,6 +3074,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_nrcn
 	},
 	{
+		// Yoga Pro 7 14AHP9 (83E3), BIOS NCCN; AMD Ryzen 7 8845HS, same
+		// Hawk Point generation as the NRCN Legion Slim 5 16AHP9 above.
+		// Not DSDT-validated: the EC chip id check rejects it if the EC
+		// differs. Product-qualified in case NCCN is shared by other chassis.
+		.ident = "NCCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83E3"),
+			DMI_MATCH(DMI_BIOS_VERSION, "NCCN"),
+		},
+		.driver_data = (void *)&model_nrcn
+	},
+	{
 		// LOQ 15IRX10 (83JE, Intel + RTX 50), BIOS R3CN;
 		// EC3 RPM/temperature curve verified in custom mode (#535)
 		.ident = "R3CN",
