@@ -984,6 +984,7 @@ static const struct model_config model_m2cn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.wmi_fancurve_speed_only = true,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
@@ -5344,6 +5345,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_m2cn	 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
 }
 
@@ -5686,8 +5688,15 @@ static int wmi_fancurve_mode(struct legion_private *priv)
 {
 	int powermode, err;
 
-	/* R3CN uses this only for WMI default restoration, not its EC3 curve. */
+	/*
+	 * R3CN uses this only for WMI default restoration, not its EC3 curve.
+	 * M2CN (82YA, EC 0x8227) shares model_m3cn_8227's WMI3 Fan_Set_Table:
+	 * the firmware reads the first buffer byte as the active power mode and
+	 * aborts \_SB.GZFD.SFAN with AE_AML_OPERAND_TYPE when it is 0 (PR #584
+	 * for m3cn_8227, issue #582 for the 82Y9 twin of this EC).
+	 */
 	if (priv->conf != &model_m3cn_8227 &&
+	    priv->conf != &model_m2cn &&
 	    !wmi_sfan_uses_thermal_mode(priv->conf) &&
 	    priv->conf != &model_r3cn)
 		return 0;
