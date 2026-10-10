@@ -310,6 +310,18 @@ int main(void) {
     assert(!wmi_sfan_uses_thermal_mode(priv.conf));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
 
+    /* M2CN (82YA, EC 0x8227) is the Intel twin of M3CN_8227 (#584): the same
+     * EC and the same WMI3 Fan_Set_Table, which takes levels 1..10 with no
+     * range check. A percent-unit fallback therefore writes out-of-range
+     * values to the EC - observed as AE_AML_PACKAGE_LIMIT with the value left
+     * behind in the table - so the unit selector must resolve it to levels. */
+    priv.conf = &model_m2cn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+
     /* NCCN (Yoga Pro 7 14AHP9 83E3, EC 0x5571, #630): the firmware publishes
      * only CPU/GPU temperatures in EC RAM - no fan RPM, fan table or power
      * mode interface exists, so the matching attributes must stay hidden. */
