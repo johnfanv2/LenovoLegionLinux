@@ -20,6 +20,7 @@ from legion_linux.legion_gui import (
     MainWindow,
     PresetTrayController,
     apply_commandline_settings,
+    LEGIOND_PROFILE_APPLY_DELAY_MS,
 )
 
 
@@ -572,3 +573,102 @@ class GuiStartupTest(unittest.TestCase):
         finally:
             window.deleteLater()
             self.app.processEvents()
+
+
+class FanCurveRefreshTest(unittest.TestCase):
+    """The GUI re-reads the fan curve after legiond re-applies a preset (#622)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+        logging.disable(logging.CRITICAL)
+
+    def make_controller(self):
+        controller = LegionController(self.app, expect_hwmon=False, use_legion_cli_to_write=True)
+        window = MainWindow(controller, QIcon())
+        controller.init(read_from_hw=False)
+        controller.model.app_model.auto_refresh_fancurve.set(True)
+        return controller, window
+
+    def tear_down_controller(self, controller, window):
+        controller.fancurve_refresh_timer.stop()
+        window.deleteLater()
+        self.app.processEvents()
+
+    def test_profile_change_schedules_a_deferred_refresh(self):
+        controller, window = self.make_controller()
+        try:
+            controller.on_platform_profile_changed(controller.platform_profile_path)
+            self.assertTrue(controller.fancurve_refresh_timer.isActive())
+            self.assertEqual(controller.fancurve_refresh_timer.interval(), LEGIOND_PROFILE_APPLY_DELAY_MS)
+
+            # Opting out must stop the refresh from being scheduled at all.
+            controller.model.app_model.auto_refresh_fancurve.set(False)
+            controller.fancurve_refresh_timer.stop()
+            controller.on_platform_profile_changed(controller.platform_profile_path)
+            self.assertFalse(controller.fancurve_refresh_timer.isActive())
+        finally:
+            self.tear_down_controller(controller, window)
+
+    def test_deferred_refresh_reads_the_curve_when_the_table_is_clean(self):
+        controller, window = self.make_controller()
+        try:
+            with patch.object(controller.model.fancurve_io, "exists", return_value=True), patch.object(
+                controller.model, "read_fancurve_from_hw"
+            ) as read, patch.object(controller, "update_fancurve_gui") as update:
+                controller.refresh_fancurve_after_profile_change()
+                read.assert_called_once()
+                update.assert_called_once()
+        finally:
+            self.tear_down_controller(controller, window)
+
+    def test_deferred_refresh_does_not_clobber_unsaved_edits(self):
+        controller, window = self.make_controller()
+        try:
+            controller.view_fancurve.entry_edits[0].fan_speed1_edit.setText("3200")
+            with patch.object(controller.model.fancurve_io, "exists", return_value=True), patch.object(
+                controller.model, "read_fancurve_from_hw"
+            ) as read, patch.object(controller, "update_fancurve_gui") as update:
+                controller.refresh_fancurve_after_profile_change()
+                read.assert_not_called()
+                update.assert_not_called()
+        finally:
+            self.tear_down_controller(controller, window)
+
+    def test_deferred_refresh_skips_an_unreadable_curve(self):
+        controller, window = self.make_controller()
+        try:
+            controller.fancurve_error = "ladder is unavailable"
+            with patch.object(controller.model.fancurve_io, "exists", return_value=True), patch.object(
+                controller.model, "read_fancurve_from_hw"
+            ) as read:
+                controller.refresh_fancurve_after_profile_change()
+                read.assert_not_called()
+        finally:
+            self.tear_down_controller(controller, window)
+
+    def test_watch_registers_an_existing_profile_path(self):
+        controller, window = self.make_controller()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                profile = Path(directory, "platform_profile")
+                profile.write_text("balanced\n")
+                controller.platform_profile_path = str(profile)
+                with patch.object(controller.model.fancurve_io, "exists", return_value=True):
+                    controller.watch_platform_profile()
+                self.assertIn(str(profile), controller.platform_profile_watcher.files())
+        finally:
+            self.tear_down_controller(controller, window)
+
+    def test_watch_is_skipped_when_the_curve_is_unsupported(self):
+        controller, window = self.make_controller()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                profile = Path(directory, "platform_profile")
+                profile.write_text("balanced\n")
+                controller.platform_profile_path = str(profile)
+                with patch.object(controller.model.fancurve_io, "exists", return_value=False):
+                    controller.watch_platform_profile()
+                self.assertNotIn(str(profile), controller.platform_profile_watcher.files())
+        finally:
+            self.tear_down_controller(controller, window)

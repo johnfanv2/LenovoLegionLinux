@@ -962,6 +962,17 @@ be edited. Invalid/incomplete text must not create draggable points. The plot
 never writes to hardware: Apply to HW still uses the existing validation and
 readback path. The README screenshot uses example data, not a hardware test.
 
+When `legiond` is running, changing the power mode externally (Fn+Q) makes the
+daemon re-apply the preset for the new mode. The GUI watches
+`/sys/firmware/acpi/platform_profile` and re-reads the curve after the daemon's
+3 s debounce plus a small margin, so the table is not left showing the previous
+mode's curve. The refresh is read-only and is skipped while the table has
+unsaved edits (or when the curve is unsupported/unreadable); it can be turned off
+with `Refresh Fan Curve when the Power Mode Changes` in the Automation tab.
+Verify on hardware by pressing Fn+Q with the GUI open and a preset configured for
+each mode: the table must update to the curve the daemon applied, without
+pressing `Read from HW`, and an edited-but-unapplied table must be left alone.
+
 Offline validation: `./tests/test_python_unit.sh` runs the library, offscreen GUI
 and kernel capability tests. The latter compile the actual C configuration and
 visibility/guard functions against fake device/EC objects: 606 point-attribute

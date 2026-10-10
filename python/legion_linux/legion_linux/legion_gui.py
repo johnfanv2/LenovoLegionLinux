@@ -12,7 +12,7 @@ import time
 from math import isfinite
 from typing import List, Optional
 from PyQt6 import QtGui, QtCore
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRunnable, QThreadPool
+from PyQt6.QtCore import Qt, QTimer, QFileSystemWatcher, pyqtSlot, QRunnable, QThreadPool
 from PyQt6.QtGui import QAction, QGuiApplication
 from PyQt6.QtWidgets import (
     QApplication,
@@ -53,6 +53,16 @@ from legion_linux.legion import (
     SystemNotificationSender,
     DiagnosticMsg,
 )
+
+# ACPI platform profile: the file legiond watches to detect power-mode
+# changes (see extra/service/legiond/modules/powerstate.h). A change here
+# (e.g. Fn+Q) makes legiond re-apply its fan-curve preset.
+PLATFORM_PROFILE_PATH = "/sys/firmware/acpi/platform_profile"
+
+# legiond applies its preset a fixed 3 s after the profile changes
+# (set_timer(3, 0) in extra/service/legiond/legiond.c). Wait a little longer
+# before re-reading so the EC has actually been updated.
+LEGIOND_PROFILE_APPLY_DELAY_MS = 3500
 
 
 def get_color_mode():
@@ -639,6 +649,7 @@ class LegionController:
     close_to_tray_controller: BoolFeatureController
     open_closed_to_tray: BoolFeatureController
     enable_gui_monitoring_controller: BoolFeatureController
+    auto_refresh_fancurve_controller: BoolFeatureController
     icon_color_mode_controller: EnumFeatureController
 
     # tray
@@ -663,6 +674,13 @@ class LegionController:
         self.show_root_dialog = (not self.model.is_root_user()) and (not use_legion_cli_to_write)
         self.monitoring_threadpool = QThreadPool()
         self.monitoring_worker = MonitorWorker(None)
+        self.platform_profile_path = PLATFORM_PROFILE_PATH
+        self.platform_profile_watcher = QFileSystemWatcher()
+        self.platform_profile_watcher.fileChanged.connect(self.on_platform_profile_changed)
+        self.fancurve_refresh_timer = QTimer()
+        self.fancurve_refresh_timer.setSingleShot(True)
+        self.fancurve_refresh_timer.setInterval(LEGIOND_PROFILE_APPLY_DELAY_MS)
+        self.fancurve_refresh_timer.timeout.connect(self.refresh_fancurve_after_profile_change)
 
     def init(self, read_from_hw=True):
         # connect logger output to GUI
@@ -767,6 +785,9 @@ class LegionController:
             self.view_automation.enable_gui_monitoring_check, self.model.app_model.enable_gui_monitoring
         )
         self.model.app_model.enable_gui_monitoring.add_callback(self.on_enable_monitoring_change)
+        self.auto_refresh_fancurve_controller = BoolFeatureController(
+            self.view_automation.auto_refresh_fancurve_check, self.model.app_model.auto_refresh_fancurve
+        )
         self.icon_color_mode_controller = EnumFeatureController(
             self.view_automation.icon_color_mode_combobox, self.model.app_model.icon_color_mode
         )
@@ -777,6 +798,7 @@ class LegionController:
             # fan controller
         # fan
         self.update_fancurve_gui()
+        self.watch_platform_profile()
         self.update_fan_additional_gui()
         self.update_other_gui()
         self.update_power_gui(True)
@@ -926,6 +948,7 @@ class LegionController:
         self.open_closed_to_tray.update_view_from_feature()
         self.legion_gui_autstart_controller.update_view_from_feature()
         self.enable_gui_monitoring_controller.update_view_from_feature()
+        self.auto_refresh_fancurve_controller.update_view_from_feature()
         self.icon_color_mode_controller.update_view_from_feature()
 
     def _read_fancurve_from_hw(self):
@@ -934,6 +957,69 @@ class LegionController:
             self.fancurve_error = None
         except (OSError, RuntimeError, ValueError) as error:
             self.fancurve_error = str(error)
+
+    def watch_platform_profile(self):
+        """Watch the ACPI platform profile for external power-mode changes.
+
+        A change there (e.g. Fn+Q) makes legiond re-apply its fan-curve preset
+        after a fixed delay, so the GUI schedules a deferred re-read to pick up
+        the curve the daemon actually applied.
+        """
+        if not self.model.fancurve_io.exists():
+            return
+        if not os.path.exists(self.platform_profile_path):
+            return
+        if self.platform_profile_path not in self.platform_profile_watcher.files():
+            log.info("Watching %s for power-mode changes", self.platform_profile_path)
+            self.platform_profile_watcher.addPath(self.platform_profile_path)
+
+    def on_platform_profile_changed(self, path):
+        """Schedule a fan-curve re-read once legiond has re-applied its preset."""
+        if not self.model.app_model.auto_refresh_fancurve.get():
+            return
+        log.info("Platform profile changed (%s); scheduling a fan-curve refresh", path)
+        # Restarting the single-shot timer collapses a burst of writes into one
+        # refresh, mirroring how legiond debounces its own apply.
+        self.fancurve_refresh_timer.start()
+        # inotify drops a watch whose file was replaced; re-add defensively.
+        if os.path.exists(path) and path not in self.platform_profile_watcher.files():
+            self.platform_profile_watcher.addPath(path)
+
+    def refresh_fancurve_after_profile_change(self):
+        """Re-read the EC fan curve after a power-mode change.
+
+        Read-only: this never writes. It is skipped when the curve is
+        unsupported or unreadable, and when the table holds unsaved edits that a
+        refresh would silently discard.
+        """
+        if not self.model.fancurve_io.exists() or self.fancurve_error:
+            return
+        if self._fancurve_view_has_unsaved_edits():
+            log.info("Skipping the deferred fan-curve refresh: the table has unsaved edits")
+            return
+        log.info("Refreshing the fan curve after a power-mode change")
+        self._read_fancurve_from_hw()
+        self.update_fancurve_gui()
+
+    def _fancurve_view_has_unsaved_edits(self) -> bool:
+        """Whether the table differs from the last curve read from HW or loaded.
+
+        Trailing all-zero rows are EC padding and are ignored, since
+        get_fancurve() always returns a full table.
+        """
+        try:
+            viewed = self.view_fancurve.get_fancurve()
+        except ValueError:
+            # Unparseable entries are unsaved work; never overwrite them.
+            return True
+        return self._trim_fancurve_padding(viewed) != self._trim_fancurve_padding(self.model.fan_curve)
+
+    @staticmethod
+    def _trim_fancurve_padding(fan_curve: FanCurve):
+        entries = list(fan_curve.entries)
+        while entries and entries[-1].is_empty():
+            entries.pop()
+        return entries, fan_curve.enable_minifancurve
 
     def on_read_fan_curve_from_hw(self):
         self._read_fancurve_from_hw()
@@ -1519,6 +1605,11 @@ class AutomationTab(QWidget):
 
         self.enable_gui_monitoring_check = QCheckBox("Enable Monitoring while GUI is Running")
         self.options_layout.addWidget(self.enable_gui_monitoring_check, 3)
+
+        self.auto_refresh_fancurve_check = QCheckBox(
+            "Refresh Fan Curve when the Power Mode Changes (after legiond applies it)"
+        )
+        self.options_layout.addWidget(self.auto_refresh_fancurve_check, 3)
 
         self.note_label = QLabel(
             'These are Experimental Features.\n To apply and save the Settings Press "Save" or "Save and Quit"'
