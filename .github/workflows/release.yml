@@ -39,6 +39,23 @@ jobs:
           exit 1
         fi
 
+    - name: Generate release notes
+      # git-cliff walks the actual commit history (grouped by conventional
+      # type, with GitHub @usernames/PR links), so direct commits are
+      # included; gh's --generate-notes only lists merged PRs.
+      uses: orhun/git-cliff-action@v4
+      id: git-cliff
+      with:
+        version: v2.14.2
+        config: cliff.toml
+        args: --unreleased --tag "v${{ inputs.version }}"
+      env:
+        OUTPUT: release_notes.md
+        GITHUB_REPO: ${{ github.repository }}
+
+    - name: Show release notes
+      run: cat release_notes.md
+
     - name: Bump versions
       env:
         VERSION: ${{ inputs.version }}
@@ -78,7 +95,8 @@ jobs:
         VERSION: ${{ inputs.version }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release create "v$VERSION" --title "v$VERSION" --generate-notes --draft
+        gh release create "v$VERSION" --title "v$VERSION" \
+          --notes-file release_notes.md --draft
 
     - name: Build kernel patch
       run: ./deploy/build_kernelpatch.sh

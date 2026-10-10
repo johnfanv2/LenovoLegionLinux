@@ -1,0 +1,86 @@
+# git-cliff configuration for LenovoLegionLinux release notes.
+# https://git-cliff.org/docs/configuration
+#
+# Unlike `gh release create --generate-notes` (which only lists merged PRs),
+# this walks the actual commit history, so direct commits by maintainers are
+# included too. Commits are grouped by conventional type, and the GitHub
+# integration adds @usernames, PR links and first-time contributors.
+
+[changelog]
+# A Tera template to be rendered for each release in the changelog.
+# See https://keats.github.io/tera/#getting-started
+body = """
+{%- if version %}
+## What's Changed in {{ version }} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## What's Changed
+{% endif %}
+{%- if github %}
+> **{{ commits | length }} commits** by **{{ github.contributors | length }} contributors** — thanks everyone! 🎉
+{% endif %}
+{%- set group_order = ["🚀 Features", "🐛 Bug Fixes", "⚡ Performance", "♻️ Refactoring", "📖 Documentation", "🧪 Tests", "🔧 CI & Build", "⏪ Reverts", "📦 Other Changes"] %}
+{% for group_name in group_order -%}
+{%- set group_commits = commits | filter(attribute="group", value=group_name) -%}
+{%- if group_commits | length > 0 %}
+### {{ group_name }}
+
+{% for commit in group_commits -%}
+* {% if commit.breaking %}[**breaking**] {% endif -%}
+{{ commit.message | split(pat="\n") | first | trim }}
+{%- if commit.scope %} *({{ commit.scope }})*{%- endif -%}
+{%- if commit.remote.username %} by @{{ commit.remote.username }}{%- endif %} in [{{ commit.id | truncate(length=7, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }})
+{%- if commit.remote.pr_number %} / [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}){%- endif %}
+{% endfor -%}
+{% endif -%}
+{% endfor -%}
+{%- if github -%}
+{%- set first_timers = github.contributors | filter(attribute="is_first_time", value=true) -%}
+{%- if first_timers | length > 0 %}
+## ✨ New Contributors
+
+{% for contributor in first_timers -%}
+* @{{ contributor.username }} made their first contribution{% if contributor.pr_number %} in [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}){% endif %}
+{% endfor %}
+{% endif -%}
+## ❤️ Contributors
+
+Thanks to {% for contributor in github.contributors %}@{{ contributor.username }}{% if not loop.last %}, {% endif %}{% endfor %} for making this release possible!
+
+{% endif -%}
+{% if version and previous.version %}
+**Full Changelog**: {{ self::remote_url() }}/compare/{{ previous.version }}...{{ version }}
+{% endif %}
+{%- macro remote_url() -%}
+https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
+"""
+# Remove leading and trailing whitespaces from the changelog's body.
+trim = true
+# A Tera template to be rendered as the changelog's footer.
+footer = """
+"""
+# An array of regex based postprocessors to modify the changelog.
+postprocessors = []
+
+[git]
+# Parse commits according to the conventional commits specification.
+conventional_commits = true
+# Include commits that do not match the conventional commits specification.
+filter_unconventional = false
+# Exclude commits that are not matched by any commit parser.
+filter_commits = false
+# Order of commits in each group/release within the changelog.
+sort_commits = "newest"
+# Classify commits into changelog groups (first match wins).
+commit_parsers = [
+	{ message = "^Release [0-9]+\\.[0-9]+\\.[0-9]+: bump versions", skip = true },
+	{ message = "^feat", group = "🚀 Features" },
+	{ message = "^fix", group = "🐛 Bug Fixes" },
+	{ message = "^perf", group = "⚡ Performance" },
+	{ message = "^refactor", group = "♻️ Refactoring" },
+	{ message = "^docs", group = "📖 Documentation" },
+	{ message = "^test", group = "🧪 Tests" },
+	{ message = "^(ci|build)(\\(|:)", group = "🔧 CI & Build" },
+	{ message = "^revert", group = "⏪ Reverts" },
+	{ message = "^.*", group = "📦 Other Changes" },
+]
