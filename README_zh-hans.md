@@ -15,7 +15,7 @@
 [![更多Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 </br>
 [![Ubuntu/Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-Debian软件库-red)](https://tracker.debian.org/pkg/lenovolegionlinux)
-[![Fedora Copr](https://img.shields.io/badge/Nobara%2FFedora-LenovoLegionLinux-blue)](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+[![Fedora Copr](https://img.shields.io/badge/Nobara%2FFedora-LenovoLegionLinux-blue)](https://copr.fedorainfracloud.org/coprs/francoism/lenovolegionlinux/)
 [![AUR软件包](https://img.shields.io/aur/version/lenovolegionlinux-git?label=AUR软件包)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=AUR软件包(dkms版))](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![Gentoo GURU](https://img.shields.io/badge/Gentoo%20Overlay-GURU-blueviolet)](https://gitweb.gentoo.org/repo/proj/guru.git/)
@@ -101,7 +101,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - Debian/Ubuntu：
   - Debian 仓库（临时）：[地址](https://tracker.debian.org/pkg/lenovolegionlinux)
 - Fedora/RHEL 系列发行版：
-    - 官方 Fedora COPR：[地址](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+    - Fedora COPR（社区维护）：[地址](https://copr.fedorainfracloud.org/coprs/francoism/lenovolegionlinux/)
 - Arch 系列发行版：
     - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
     - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)

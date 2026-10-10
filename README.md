@@ -15,7 +15,7 @@
 [![More Reddit](https://img.shields.io/static/v1?label=Reddit&message=linuxhardware&color=blueviolet)](https://www.reddit.com/r/linuxhardware/)
 </br>
 [![Unbutu and Debian PPA](https://img.shields.io/badge/Ubuntu%2FDebian-Debian_Repo-red)](https://tracker.debian.org/pkg/lenovolegionlinux)
-[![Fedora Copr](https://img.shields.io/badge/Nobara%2FFedora-LenovoLegionLinux-blue)](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+[![Fedora Copr](https://img.shields.io/badge/Nobara%2FFedora-LenovoLegionLinux-blue)](https://copr.fedorainfracloud.org/coprs/francoism/lenovolegionlinux/)
 [![AUR](https://img.shields.io/aur/version/lenovolegionlinux-git?label=AUR%20Package)](https://aur.archlinux.org/packages/lenovolegionlinux-git)
 [![AUR DKMS](https://img.shields.io/aur/version/lenovolegionlinux-dkms-git?label=AUR%20Package%20%28dkms%29)](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
 [![GURU Overlay](https://img.shields.io/badge/Gentoo_Overlay-GURU-blueviolet)](https://gitweb.gentoo.org/repo/proj/guru.git/)
@@ -91,7 +91,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Debian/Ubuntu:
   - Debian repo (for now): [here](https://tracker.debian.org/pkg/lenovolegionlinux)
 - Fedora/RHEL Base Distros:
-    - Official Fedora COPR: [here](https://copr.fedorainfracloud.org/coprs/mrduarte/LenovoLegionLinux/)
+    - Fedora COPR (community-maintained): [here](https://copr.fedorainfracloud.org/coprs/francoism/lenovolegionlinux/)
 - Arch Base Distros:
     - [lenovolegionlinux-git](https://aur.archlinux.org/packages/lenovolegionlinux-git)
     - [lenovolegionlinux-dkms-git](https://aur.archlinux.org/packages/lenovolegionlinux-dkms-git)
