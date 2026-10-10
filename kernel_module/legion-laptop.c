@@ -571,6 +571,27 @@ static const struct ec_register_offsets ec_register_offsets_loq_v1 = {
 	.EXT_WHITE_KEYBOARD_BACKLIGHT = 0xC5a0 // not found yet
 };
 
+// Yoga Pro 7 14AHP9 (83E3, NCCN, EC 0x5571): this EC publishes only the two
+// temperatures below in its host RAM window (ERAM @0xFEEC2300, DSDT of issue
+// #630): TCPU @0x07 and TGPU @0x08, read through the validated-temp-register
+// path. There are no fan RPM, fan curve or power mode fields in the window;
+// the zeroed offsets are never read because every matching access method is
+// NO_ACCESS in model_nccn.
+static const struct ec_register_offsets ec_register_offsets_nccn = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_CPU_TEMP_INPUT = 0x07,
+	.EXT_GPU_TEMP_INPUT = 0x08,
+};
+
+// Selects which per-model EXT_*_TEMP_INPUT offsets are trusted, see
+// model_config.validated_temp_registers.
+#define TEMP_REGISTER_CPU (1 << 0)
+#define TEMP_REGISTER_GPU (1 << 1)
+#define TEMP_REGISTER_IC (1 << 2)
+
 static const struct model_config model_v0 = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -1628,6 +1649,64 @@ static const struct model_config model_nrcn = {
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
+};
+
+// Yoga Pro 7 14AHP9 (83E3) - 2024, AMD Ryzen 7 8845HS (Hawk Point)
+// BIOS: NCCN30WW, EC 0x5571 (both read on the unit, issue #630 dmesg).
+// Facts below are from the NCCN30WW DSDT (L = dsdt.dsl line, attachment in
+// issue #630); this is an ideapad-platform machine, not a Legion WMI one:
+// - EC0 at \_SB.PCI0.LPC0.EC0 (PNP0C09, IO 0x62/0x66, GPE 0x0B, _STA 0x0F,
+//   L5184); EC RAM window ERAM @0xFEEC2300 len 0xFF (L5230) is the host view
+//   the ecmemoryram dump maps. EC port-IO reads work: the unit returns chip
+//   id 0x5571 at 0x2000/0x2001.
+// - Temperatures are the only sensor data published to the host: TCPU @0x07
+//   and TGPU @0x08 in ERAM (L5240/L5241; TCPU is read by the firmware
+//   thermal code, SSDT22 L193, TGPU is written from the GPU code, SSDT4
+//   L906). SEN1-SEN4 exist but are unlabeled -> skip_ic_temp. No fan RPM,
+//   fan table or fan speed fields exist anywhere (ERAM carries only the
+//   PWML/DPWM duty bytes) -> fanspeed, fancurve and fanfullspeed NO_ACCESS.
+// - No Fan Method WMI block at all (no WMAB/Fan_Get_Table/Fan_Set_Table in
+//   any table) and no LENOVO_FAN_TABLE_DATA.
+// - GZFD WMAA (L13373) implements only ids 0x04/0x3F/0x40/0x41/0x42 (UMAF/
+//   REJF/WEJF/DGFL plumbing) - no SmartFanMode (0x2C/0x2D) -> powermode
+//   NO_ACCESS and no legion platform_profile handler; power modes come from
+//   ideapad-laptop via VPC0 DYTC (L11423/L11429). GZFD WMAE (L13500) handles
+//   only 0x001C0001/0x001C0002 (EC ATS4/ATS5), none of the Other Method
+//   sensor/power-limit feature ids.
+// - White keyboard backlight is driven through VPC0 (VPC2004, KBLC, L12109)
+//   / WMIU (LSK20, L12970), not the Legion light WMI methods -> keyboard
+//   NO_ACCESS; Y-logo and IO-port lights do not exist and are skipped.
+// - VPC0 GBMD/SBMC (L11846/L11858) use ideapad semantics (RDER 0x359-0x35B,
+//   ECCC commands 0x03-0x08), not the Legion BTSM/QCHO bits, so the
+//   rapidcharge/battery-conservation paths are not wired up; ideapad-laptop
+//   owns them.
+static const struct model_config model_nccn = {
+	.registers = &ec_register_offsets_nccn,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5571,
+	.memoryio_physical_ec_start = 0,
+	.memoryio_size = 0xFF,
+	.has_minifancurve = false,
+	.has_custom_powermode = false,
+	.has_extreme_powermode = false,
+	.access_method_powermode = ACCESS_METHOD_NO_ACCESS,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fanspeed = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanfullspeed = ACCESS_METHOD_NO_ACCESS,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	.skip_fan_maxspeed = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFEEC2300,
+	.ramio_size = 0xFF,
+	.validated_temp_registers = TEMP_REGISTER_CPU | TEMP_REGISTER_GPU,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG" },
 };
 
 // LOQ 15IRX10 (83JE) - 2025, Intel + RTX 50, BIOS R3CN (issues #374/#535).
@@ -3074,17 +3153,16 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_nrcn
 	},
 	{
-		// Yoga Pro 7 14AHP9 (83E3), BIOS NCCN; AMD Ryzen 7 8845HS, same
-		// Hawk Point generation as the NRCN Legion Slim 5 16AHP9 above.
-		// Not DSDT-validated: the EC chip id check rejects it if the EC
-		// differs. Product-qualified in case NCCN is shared by other chassis.
+		// Yoga Pro 7 14AHP9 (83E3), BIOS NCCN; AMD Ryzen 7 8845HS.
+		// DSDT-validated EC 0x5571 config (model_nccn, issue #630);
+		// product-qualified in case NCCN is shared by other chassis.
 		.ident = "NCCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "83E3"),
 			DMI_MATCH(DMI_BIOS_VERSION, "NCCN"),
 		},
-		.driver_data = (void *)&model_nrcn
+		.driver_data = (void *)&model_nccn
 	},
 	{
 		// LOQ 15IRX10 (83JE, Intel + RTX 50), BIOS R3CN;
@@ -4879,12 +4957,6 @@ static int set_simple_wmi_attribute(struct legion_private *priv,
 #define EC_TEMP_INPUT_CPU 0xC5E6
 #define EC_TEMP_INPUT_GPU 0xC5E7
 #define EC_TEMP_INPUT_IC 0xC5E8
-
-// Selects which per-model EXT_*_TEMP_INPUT offsets are trusted, see
-// model_config.validated_temp_registers.
-#define TEMP_REGISTER_CPU (1 << 0)
-#define TEMP_REGISTER_GPU (1 << 1)
-#define TEMP_REGISTER_IC (1 << 2)
 
 // Pick the register to read a temperature from: the model's own offset once
 // that register is validated for the model, otherwise the address the driver
@@ -8875,6 +8947,10 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 	    priv->conf->access_method_powerlimits != ACCESS_METHOD_WMI3)
 		return 0;
 
+	if (attr == &dev_attr_powermode.attr &&
+	    priv->conf->access_method_powermode == ACCESS_METHOD_NO_ACCESS)
+		return 0;
+
 	if (attr == &dev_attr_fan_fullspeed.attr &&
 	    priv->conf->access_method_fanfullspeed == ACCESS_METHOD_NO_ACCESS)
 		return 0;
@@ -9289,6 +9365,11 @@ static int legion_platform_profile_init(struct legion_private *priv)
 
 	if (!enable_platformprofile) {
 		pr_info("Skipping creating platform profile support because enable_platformprofile is false\n");
+		return 0;
+	}
+
+	if (priv->conf->access_method_powermode == ACCESS_METHOD_NO_ACCESS) {
+		pr_info("Skipping creating platform profile support because this model has no powermode access method\n");
 		return 0;
 	}
 
@@ -10160,6 +10241,15 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 	bool supported = true;
 	struct device *dev = kobj_to_dev(kobj);
 	struct legion_private *priv = dev_get_drvdata(dev);
+
+	if (priv->conf->access_method_fanspeed == ACCESS_METHOD_NO_ACCESS &&
+	    (attr == &sensor_dev_attr_fan1_input.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan1_label.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan1_target.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan2_input.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan2_label.dev_attr.attr ||
+	     attr == &sensor_dev_attr_fan2_target.dev_attr.attr))
+		supported = false;
 
 	if (attr == &sensor_dev_attr_temp3_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_temp3_label.dev_attr.attr)

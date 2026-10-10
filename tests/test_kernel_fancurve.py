@@ -66,6 +66,7 @@ typedef unsigned short umode_t;
                     "FANTABLE_MAX_LEVELS",
                     "FANTABLE_SENSOR_",
                     "MAX_FAN_LEVEL",
+                    "TEMP_REGISTER_",
                     "WMI_METHOD_ID_FAN_SET_TABLE",
                     "WMI_METHOD_ID_GETTHERMALMODE",
                     "WMI_METHOD_ID_ISSUPPORTOD",
@@ -186,6 +187,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "ec_read_lockfancontroller",
             "ec_write_lockfancontroller",
             "legion_hwmon_fancurve_is_visible",
+            "legion_hwmon_sensor_is_visible",
             "legion_attribute_uses_wmi3_powerlimits",
             "legion_sysfs_is_visible",
             "fancurve_speed_unit_show",
@@ -308,7 +310,21 @@ int main(void) {
     assert(!wmi_sfan_uses_thermal_mode(priv.conf));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
 
-    /* Calibration must preserve level 1's zero RPM and all subsequent indices. */
+    /* NCCN (Yoga Pro 7 14AHP9 83E3, EC 0x5571, #630): the firmware publishes
+     * only CPU/GPU temperatures in EC RAM - no fan RPM, fan table or power
+     * mode interface exists, so the matching attributes must stay hidden. */
+    priv.conf = &model_nccn;
+    assert(priv.conf->access_method_temperature == ACCESS_METHOD_EC);
+    assert(priv.conf->access_method_fanspeed == ACCESS_METHOD_NO_ACCESS);
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_NO_ACCESS);
+    assert(priv.conf->access_method_powermode == ACCESS_METHOD_NO_ACCESS);
+    assert(priv.conf->access_method_keyboard == ACCESS_METHOD_NO_ACCESS);
+    assert((priv.conf->validated_temp_registers & (TEMP_REGISTER_CPU | TEMP_REGISTER_GPU)) ==
+           (TEMP_REGISTER_CPU | TEMP_REGISTER_GPU));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan1_input.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan2_input.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp3_input.dev_attr.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_powermode.attr, 0) == 0);
     struct wmi_fantable_row row = {
         .fan_table_len = FANTABLE_MAX_LEVELS,
         .fan_speed = {0, 1300, 1700, 2100, 2500, 3100, 3400, 3800, 4200, 4600},

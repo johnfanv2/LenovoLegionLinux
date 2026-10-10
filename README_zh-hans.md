@@ -151,6 +151,7 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 - 联想 LOQ 15APH8（82XT，BIOS LYCN50WW），第八代（AMD）：传感器、电源配置、通过 WMI 设置风扇曲线（等级索引，仅速度点）、风扇全速（仅限自定义模式）；与拯救者 R7000P APH8（82Y9，M3CN）同为 EC 0x8227 平台，支持来自 issue #602，真机验证进行中；详见 [LYCN 说明](doc/FEATURES_AND_TESTING.md#loq-15aph8-82xt-lycn)
 - 联想 LOQ 15IAX9（83GS，BIOS NECN50WW），2024 款（Intel）：传感器、电源配置、风扇曲线（自定义模式 `powermode=255` 下通过 EC3 LOQ 接口独立设置 RPM 和温度/回差）、功耗限制（WMI3：PL1、PL2、cTGP、PPAB）、快速充电、风扇全速；EC 不支持风扇控制器锁定与 minifancurve 并已隐藏
 - 联想拯救者 Y530-15ICH（81FV，BIOS 8JCN56WW），2018 款（Intel）：风扇转速、`fan_unlock` 即 Fn+Q 的“极速散热”开关（双风扇约 4000 RPM），可实时读回状态；该固件没有电源模式，也没有风扇曲线表，`fan_fullspeed` 已隐藏。详见 [8JCN 说明](doc/FEATURES_AND_TESTING.md#legion-y530-15ich-81fv-8jcn)
+- 联想 Yoga Pro 7 14AHP9（83E3，BIOS NCCN30WW），2024 款（AMD）：通过 EC 读取 CPU/GPU 温度；无风扇转速、风扇曲线、电源模式和灯光控制——该 ideapad 平台固件（EC 0x5571）不发布任何风扇/电源接口，platform profile 与电池保护模式仍由 ideapad-laptop 提供；经 DSDT 验证（issue #630）；详见 [NCCN 说明](doc/FEATURES_AND_TESTING.md#yoga-pro-7-14ahp9-83e3-nccn)
 
 还支持更多机型 —— 包括 LOQ 系列以及 2024/2025 款拯救者（如 Legion 7 16IAX10）；完整列表见 [`kernel_module/legion-laptop.c`](kernel_module/legion-laptop.c) 中的 DMI 白名单。
 

@@ -856,6 +856,44 @@ To reproduce the ACPI evidence: dump
 `/sys/firmware/acpi/tables/{DSDT,SSDT*}` as root, decompile with `iasl -d`,
 then grep for `0x03010001`, `Arg1 == 0x11` and `EACS`.
 
+## Yoga Pro 7 14AHP9 (83E3, NCCN)
+
+BIOS NCCN30WW, EC 0x5571, AMD Ryzen 7 8845HS (Hawk Point) + RTX 3050
+(issue #630). DMI entry `NCCN` is qualified on product name `83E3`;
+config `model_nccn` in `kernel_module/legion-laptop.c` (the header
+comment cites the DSDT lines from the dump attached in issue #630).
+
+This is an ideapad-platform machine (VPC2004/DYTC), not a Legion WMI
+one; the driver deliberately exposes only what the firmware publishes:
+
+- CPU and GPU temperatures only: the EC RAM window `ERAM @0xFEEC2300`
+  (len 0xFF) carries `TCPU` @0x07 and `TGPU` @0x08 (read/written by the
+  firmware's own thermal and GPU code), read through the per-model
+  validated-temp-register path; `SEN1`-`SEN4` exist but are unlabeled,
+  so the IC channel stays hidden. EC port-IO reads work - the unit
+  returns chip id 0x5571 at 0x2000/0x2001.
+- No fan support: the EC RAM publishes no fan RPM and no fan table,
+  and there is no Fan Method WMI block (`WMAB`) and no
+  `LENOVO_FAN_TABLE_DATA` in any ACPI table, so the fan channels, the
+  fan curve and `fan_fullspeed` are hidden (`NO_ACCESS`).
+- No legion platform_profile handler: GZFD `WMAA` implements only ids
+  0x04/0x3F/0x40/0x41/0x42 (no SmartFanMode 0x2C/0x2D) and `WMAE`
+  handles only 0x001C0001/0x001C0002, so `powermode` is `NO_ACCESS`
+  and the driver skips registering its profile handler on this model;
+  power modes keep working through ideapad-laptop (`VPC0` `DYTC`).
+- No light control: the white keyboard backlight is driven through
+  `VPC0`/`WMIU` (LSK20), not the Legion light WMI methods.
+- Rapid charge / battery conservation are not wired up: `VPC0`
+  `GBMD`/`SBMC` use ideapad semantics (`RDER` 0x359-0x35B, `ECCC`
+  commands 0x03-0x08), not the Legion BTSM/QCHO bits; ideapad-laptop
+  owns them.
+
+Validation status: config derived from the DSDT analysis of the dump
+attached in issue #630; runtime validation on the reporter's unit is
+in progress - verify locally with `sudo dmesg | grep -i legion` (no
+"not in allowlist", EC id 0x5571) and `sensors` (legion_hwmon shows
+CPU/GPU temperatures and no fan channels).
+
 ## Fan-curve capability and unit checks
 
 The hwmon curve schema follows the fields the active backend actually writes:

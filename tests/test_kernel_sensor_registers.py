@@ -118,17 +118,31 @@ class TemperatureRegisterFlagTest(unittest.TestCase):
             result = subprocess.run([str(binary)], check=True, capture_output=True, text=True)
         self.assertEqual(result.stdout.strip(), "ok")
 
-    def test_no_model_config_opts_in_yet(self):
-        """The flag must stay zero everywhere, so no device changes behaviour."""
+    def test_only_evidenced_models_opt_in(self):
+        """A model may opt in only with firmware-evidenced register offsets."""
         source = SOURCE.read_text()
-        opted_in = [
-            match.group(1)
-            for match in re.finditer(r"\.validated_temp_registers\s*=\s*([^,\n]+)", source)
-        ]
+        configs = re.findall(
+            r"^static const struct model_config (\w+)\s*=\s*\{(.*?)^\s*};",
+            source,
+            re.M | re.S,
+        )
+        opted_in = {}
+        for name, body in configs:
+            match = re.search(r"\.validated_temp_registers\s*=\s*([^,\n]+)", body)
+            if match:
+                opted_in[name] = match.group(1)
         self.assertEqual(
             opted_in,
-            [],
-            "no model may opt in until its registers are validated on real hardware",
+            {
+                # Yoga Pro 7 14AHP9 (83E3, issue #630): the NCCN DSDT declares
+                # TCPU/TGPU at EC RAM 0x07/0x08 in the ERAM window and the
+                # firmware's own thermal (SSDT22) and GPU (SSDT4) code
+                # reads/writes them; hardware read-back validation is tracked
+                # in the issue.
+                "model_nccn": "TEMP_REGISTER_CPU | TEMP_REGISTER_GPU",
+            },
+            "a model may opt in only with validated register offsets; "
+            "add one here only with its evidence documented",
         )
 
     def test_legacy_addresses_are_named_constants(self):
