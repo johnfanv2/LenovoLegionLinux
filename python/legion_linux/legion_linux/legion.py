@@ -1421,6 +1421,11 @@ class ApplicationModel:
         self.enable_gui_monitoring = BoolSettingFeature("enable_gui_monitoring")
         self.enable_gui_monitoring.set(False)
 
+        # Re-read the EC fan curve after an external power-mode change
+        # (e.g. Fn+Q), once legiond has re-applied its preset.
+        self.auto_refresh_fancurve = BoolSettingFeature("auto_refresh_fancurve")
+        self.auto_refresh_fancurve.set(True)
+
         icon_color_modes = [
             NamedValue("always-color", "Always use colorful color scheme"),
             NamedValue("always-light", "Always use light color scheme"),
@@ -1903,6 +1908,7 @@ class LegionModelFacade:
         self.settings_manager.add_feature(self.app_model.close_to_tray)
         self.settings_manager.add_feature(self.app_model.open_closed_to_tray)
         self.settings_manager.add_feature(self.app_model.enable_gui_monitoring)
+        self.settings_manager.add_feature(self.app_model.auto_refresh_fancurve)
         self.settings_manager.add_feature(self.app_model.icon_color_mode)
 
     def _replace_efi_file(self, original_file, new_file):
