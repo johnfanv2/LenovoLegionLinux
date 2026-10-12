@@ -31,7 +31,9 @@ This change does not resolve the fan curve write failure in issue #516.
 
 ## GUI without fan curve support
 
-On a Legion 5 15IRX10 with QNCN firmware, start `legion_gui` with the module
+On a model whose fan curve access method is `ACCESS_METHOD_NO_ACCESS` (e.g.
+the Yoga Pro 7 14AHP9 with NCCN firmware; the Legion 5 15IRX10/QNCN before
+its fan table was enabled), start `legion_gui` with the module
 loaded. Verify that the window opens, fan curve Read/Apply buttons are disabled,
 and the notice explains that custom fan curves are unsupported. Check that
 `sensors` still reports fan RPM and temperatures. No fan curve write is needed.
@@ -80,9 +82,9 @@ cat $D/fan1_level_rpm_table   # e.g. 1700 1900 2100 2300 2500 2900 3400 3700 440
 The same table row also carries the fan's real maximum (`current_fan_max_speed`),
 which the driver reports through hwmon `fan1_max`/`fan2_max` on these models instead
 of a per-model hardcoded value. `fan_maxspeed` (Fan Method ids 3/4) is hidden on
-`model_kwcn`, `model_q7cn` and `model_rlcn` (`skip_fan_maxspeed`): their `WMAB` implements
+`model_kwcn`, `model_q7cn`, `model_rlcn` and `model_qncn` (`skip_fan_maxspeed`): their `WMAB` implements
 only ids 5/6, so the attribute cannot work (on KWCN the read returned a meaningless 0 and a
-write was a no-op; Q7CN/RLCN follow from their DSDTs); `fan_control.sh` skips the attribute
+write was a no-op; Q7CN/RLCN/QNCN follow from their DSDTs); `fan_control.sh` skips the attribute
 when it is absent.
 On the Legion Pro 7 16IRX8H with the same BIOS the EC resets the table to 1..10 when
 mode 0xE0 is entered and ignores later writes (issue #429); use mode 255 and check
@@ -659,6 +661,58 @@ with `sudo dmesg | grep -i legion` (no "not in allowlist", EC id
 0x5508), `sensors` (legion_hwmon now matches `lenovo_wmi_other`,
 including `fan3`), and `sudo cat /sys/kernel/debug/legion/fancurve`
 (`u` = 5, speed1 in 1..10).
+
+## Legion 5 15IRX10 (83LY, QNCN)
+
+BIOS QNCN38WW, EC 0x5508 (fw 2b0), Intel i7-13650HX + RTX 5070 Laptop
+(issue #491). DMI entry `QNCN`; config `model_qncn` in
+`kernel_module/legion-laptop.c` (the header comment cites the firmware
+evidence from the reporter's QNCN38WW dump: 25 decompiled ACPI tables,
+method extracts and runtime logs).
+
+Same WMI-only firmware layout as S9CN (83NN) above, on the Legion 5
+chassis:
+
+- Everything goes through WMI: power mode via GameZone `WMAA`
+  0x2C/0x2D, fan RPM / CPU+GPU temperature / fan full speed via Other
+  Method `WMAE`, fan table via Fan Method `WMAB` 5/6 with the same
+  `F9F0..F9F9` + `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`,
+  one table for all fans, temperature axis fixed by the EC, static 1..10
+  placeholder in extreme mode (ODV1 == 4; read the table in another
+  mode). Unlike R3CN/T2CN the QNCN write path ignores the payload mode
+  byte, so no mode-byte quirk is needed. `LENOVO_FAN_TABLE_DATA` (WQA3)
+  maps level 1..10 to 1800..5400 RPM (fan 1 sensors 0x01/0x04, fan 2
+  sensor 0x05, modes 1/2/3/0xE0/0xFF), so
+  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+- The keyboard backlight and the Y-logo light are driven by the
+  KBBACKLIGHT WMI methods (`WMAF` get(1)/set(2), light ids 0x00/0x03);
+  no IO-port light id exists on this firmware.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode; on this generation a
+  full-speed write through the wrong WMI method (old fallback config)
+  wedged the fans at maximum speed until reboot on the 83LT, so
+  validate with care and be ready to reboot.
+- Rapid charge and battery conservation use `VPC0.GBMD`/`SBMC` at
+  `\_SB.PC00.LPCB.EC0`; instant boot (power on AC / USB-PD) uses WMAE
+  `0x03010001`/`0x03010002` (EC `EACS`/`ETCS` via `WSMI` 7/8, 9/0xA).
+- `minifancurve`, `lockfancontroller` and `fan_maxspeed` (WMAB ids 3/4
+  are not implemented) are hidden; the EC RAM window (`ERAX
+  @0xFE0B0400`, len 0xFF; `F9FT`/`ECB2` at +0x100/+0x200) is only used
+  for the read-only `ecmemoryram` debugfs dump. The pre-QNCN38WW config
+  guessed `0xFE00D400` and misread the EC: its debugfs dump reported
+  ~18045/~16737 RPM at a real ~4000 RPM while the WMI3 values were
+  correct, matching `lenovo_wmi_other`.
+
+Validation status: config derived from the reporter's QNCN38WW DSDT
+analysis plus runtime logs in issue #491 (WMI powermode, WMI3 fan RPM
+and temperatures verified against `lenovo_wmi_other`; the WMI fan-table
+read returned live levels 1,2,3,4,5,6,7,9,10,10 in custom mode). A
+custom-mode Fan_Set_Table write round trip is still pending on
+hardware - test with one small upward level change, then read back and
+restore the original table and mode, and report the result in issue
+#491. Verify locally with `sudo dmesg | grep -i legion` (no "not in
+allowlist", EC id 0x5508), `sensors`, and `sudo cat
+/sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in 1..10).
 
 ## Legion 7 16IRX9 (83FD, NSCN)
 

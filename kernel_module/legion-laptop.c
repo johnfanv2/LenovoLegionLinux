@@ -1132,6 +1132,32 @@ static const struct model_config model_nscn_83fd = {
 	.ramio_size = 0x600
 };
 
+// Legion 5 15IRX10 (83LY), BIOS QNCN38WW, EC 0x5508 (issue #491; DSDT +
+// WMAA/WMAB/WMAE/WQA3 extracts and runtime dumps from @TanelLaas):
+// - GameZone WMAA 0x2C/0x2D/0x37 power mode, incl. custom (0xFF) and
+//   extreme (0xE0 -> SPMO 4/ODV1 4, AC only).
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6):
+//   ten fan LEVELS 1..10 in EC F9F0..F9F9, committed via
+//   LECR(0xD0,1,1,2); the read returns a static 1..10 placeholder while
+//   ODV1 == 4 (extreme). No temperature fields and no range check, and
+//   the write ignores the FSTM mode byte, so no payload mode quirk is
+//   needed. Fan_Get/Set_MaxSpeed (ids 3/4) do not exist
+//   -> skip_fan_maxspeed.
+// - Other Method WMAE standard ids: fan RPM 0x04030001/2 (FANS/FA2S
+//   * 100), full speed 0x04020000 (EC FNST, get and set), CPU/GPU temps
+//   0x05040000/0x05050000 (CPUT/GPUT); 0x05010000 is the CPU socket temp
+//   (CPUS), not a labeled IC temp -> skip_ic_temp. Instant boot
+//   0x03010001/2 (EC EACS/ETCS, set via WSMI 7/8, 9/0xA, same as
+//   model_q7cn) -> has_instant_boot.
+// - KBBACKLIGHT WMAF get(1)/set(2) drives the keyboard (light id 0x00)
+//   and the Y-logo (id 0x03); no IO-port light id exists.
+// - LENOVO_FAN_TABLE_DATA is WQA3 (15 rows: modes 1/2/3/0xE0/0xFF x
+//   fan 1 sensors 0x01/0x04 + fan 2 sensor 0x05, ladders ending at 4600
+//   or 5400 RPM), so the per-level RPM ladders are available.
+// - EC RAM window ERAX @0xFE0B0400 len 0xFF, F9FT/ECB2 at +0x100/+0x200,
+//   used only for the read-only ecmemoryram debugfs dump; the old guess
+//   0xFE00D400 misread the EC (garbage EC RPM like 18045 at ~4000 real).
+// fan_fullspeed is gated behind custom power mode like model_q7cn.
 static const struct model_config model_qncn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -1140,15 +1166,32 @@ static const struct model_config model_qncn = {
 	.memoryio_size = 0x300,
 	.has_minifancurve = false,
 	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_NO_ACCESS,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
 	.acpi_check_dev = false,
-	.ramio_physical_start = 0xFE00D400,
-	.ramio_size = 0x600
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_instant_boot = true,
 };
 
 static const struct model_config model_lpcn = {
@@ -5335,6 +5378,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_q6cn_lu	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_q6cn_f3	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_q6cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_qncn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_rxcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_s2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_recn	 ? FAN_SPEED_UNIT_LEVEL :

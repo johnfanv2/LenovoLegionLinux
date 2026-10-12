@@ -322,6 +322,19 @@ int main(void) {
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
 
+    /* QNCN (Legion 5 15IRX10 83LY, EC 0x5508, #491): the QNCN38WW DSDT has
+     * the same WMAB 5/6 level table as S2CN/S9CN (F9F0..F9F9 +
+     * LECR(0xD0,1,1,2), no temperature fields, no range check), so the
+     * unit selector must resolve it to levels or a percent-unit write
+     * would reach the EC raw; the write ignores the mode byte, so no
+     * SFAN thermal-mode quirk applies. */
+    priv.conf = &model_qncn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+
     /* NCCN (Yoga Pro 7 14AHP9 83E3, EC 0x5571, #630): the firmware publishes
      * only CPU/GPU temperatures in EC RAM - no fan RPM, fan table or power
      * mode interface exists, so the matching attributes must stay hidden. */
