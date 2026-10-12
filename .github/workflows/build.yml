@@ -171,8 +171,12 @@ jobs:
       # (pacman/apt installs) are not rebuilt on every run.
       uses: docker/bake-action@v7
       with:
-        source: .
-        files: deploy/docker-compose.yaml
+        # Run bake from deploy/ so the compose build contexts ("..")
+        # resolve to the repository root, like docker compose does locally.
+        source: ./deploy
+        files: ./docker-compose.yaml
+        # Test-only builds; no registry push, so skip provenance attestations.
+        provenance: false
         targets: legion-arch,legion-manjaro,legion-ubuntu-24-04
         set: |
           legion-arch.cache-from=type=gha,scope=lll-arch
