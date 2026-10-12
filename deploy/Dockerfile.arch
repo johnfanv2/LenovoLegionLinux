@@ -15,6 +15,13 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en  
 ENV LC_ALL=en_US.UTF-8
 ENV TZ=US/Central
+# Run Qt offscreen in containers: the xvfb/xcb GUI smoke test intermittently
+# aborts (SIGABRT) during startup under a fresh Xvfb server, while the
+# offscreen platform still exercises full GUI construction deterministically
+# (same approach as tests/test_python_unit.sh). PYTHONFAULTHANDLER dumps a
+# Python-level stack if a native crash ever recurs.
+ENV QT_QPA_PLATFORM=offscreen
+ENV PYTHONFAULTHANDLER=1
 RUN ln -snf /usr/share/zoneinfo/US/Central /etc/localtime && echo US/Central > /etc/timezone && \
     pacman -Sy --noconfirm tzdata && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
