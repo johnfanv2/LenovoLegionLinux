@@ -292,6 +292,57 @@ class FanCurveIOLevelTest(unittest.TestCase):
             self.assertEqual(io.get_fan_2_speed_rpm(1), 4600)
 
 
+class LevelTableBiosGuardTest(unittest.TestCase):
+    """LPCN firmware takes levels; an older module still reports percent."""
+
+    def make_io(self, unit, bios):
+        files = {legion.FANCURVE_SPEED_UNIT_FILE: unit + "\n", "bios_version": bios + "\n"}
+        for patcher in (
+            mock.patch.object(legion, "LEGION_SYS_BASEPATH", "/fake/sys/path"),
+            mock.patch.object(legion, "DMI_BIOS_VERSION_FILE", "/fake/dmi/bios_version"),
+            fake_sysfs(files),
+            mock.patch.object(legion.FanCurveIO, "_find_hwmon_dir", return_value="/fake/hwmon/"),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return legion.FanCurveIO(expect_hwmon=False)
+
+    def test_percent_byte_above_level_10_is_refused(self):
+        io = self.make_io("percent", "LPCN59WW")
+        self.assertTrue(io.percent_unit_on_level_table())
+        with mock.patch.object(io, "_write_file") as write:
+            io.set_fan_1_speed_pwm(1, 28)  # stored as 10
+            write.assert_called_once_with(mock.ANY, 28)
+        with mock.patch.object(io, "_write_file") as write, self.assertRaises(ValueError):
+            io.set_fan_1_speed_pwm(1, 128)  # stored as 50: the byte that powered an LPCN59WW off
+        write.assert_not_called()
+
+    def test_whole_curve_is_refused_before_any_write(self):
+        io = self.make_io("percent", "LPCN65WW")
+        curve = legion.FanCurve("quiet", [legion.FanCurveEntry(rpm, rpm, 0, 0, 0, 0, 0, 0, 0, 0) for rpm in (0, 1500)])
+        with mock.patch.object(io, "get_point_count", return_value=2), mock.patch.object(
+            io, "get_fan_1_max_rpm", return_value=10000
+        ), mock.patch.object(io, "set_minifancuve") as mini, mock.patch.object(io, "_write_file") as write:
+            with self.assertRaises(ValueError):
+                io.write_fan_curve(curve)
+            write.assert_not_called()
+            mini.assert_not_called()
+
+    def test_other_firmware_and_level_unit_are_unaffected(self):
+        for unit, bios in (("percent", "N2CN30WW"), ("level", "LPCN59WW")):
+            with self.subTest(unit=unit, bios=bios):
+                io = self.make_io(unit, bios)
+                self.assertFalse(io.percent_unit_on_level_table())
+                with mock.patch.object(io, "_write_file") as write:
+                    io.set_fan_1_speed_pwm(1, 128)
+                    write.assert_called_once_with(mock.ANY, 128)
+
+    def test_restore_skips_out_of_range_speed_bytes_only(self):
+        self.assertFalse(legion.FanCurveIO._is_level_safe_restore("/h/pwm1_auto_point2_pwm", 38))
+        self.assertTrue(legion.FanCurveIO._is_level_safe_restore("/h/pwm1_auto_point2_pwm", 25))
+        self.assertTrue(legion.FanCurveIO._is_level_safe_restore("/h/pwm1_auto_point2_temp", 127))
+
+
 class MiniFancurveCommandTest(unittest.TestCase):
     def test_curve_support_does_not_imply_minifancurve_support(self):
         model = mock.Mock()

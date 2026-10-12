@@ -156,6 +156,8 @@ class FancurveAtomicWriteTest(unittest.TestCase):
             mock.patch.object(io, "_rpm_to_pwm", side_effect=lambda _, value, __, ___: value),
             mock.patch.object(io, "set_minifancuve"),
             mock.patch.object(type(io), "level_tables", None),
+            # Do not depend on the host's module/BIOS (e.g. an LPCN test machine).
+            mock.patch.object(io, "percent_unit_on_level_table", return_value=False),
         ]
         with contextlib.ExitStack() as stack:
             for entered in patches:

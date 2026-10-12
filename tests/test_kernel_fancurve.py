@@ -52,6 +52,8 @@ typedef unsigned short umode_t;
 #define __packed __attribute__((packed))
 #define U8_MAX UINT8_MAX
 #define print_hex_dump(...) ((void)0)
+#define pr_warn_once(...) ((void)0)
+static bool allow_unvalidated_fancurve;
 """
         ]
         for name, value in re.findall(r"^#define (\w+)\s+([^\n]+)", source, re.M):
@@ -168,6 +170,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "ec_read_fancurve_legion2024",
             "read_fancurve",
             "wmi_fancurve_speed_unit",
+            "fancurve_write_allowed",
             "fantable_row_to_ladder",
             "fancurve_level_table_sanitize",
             "wmi_sfan_uses_thermal_mode",
@@ -272,12 +275,42 @@ int main(void) {
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "rpm\n") == 0);
     assert(!legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
-    conf = model_lpcn; /* Defaults support must not turn percentages into levels. */
+    conf = model_q8cn; /* Defaults support must not turn percentages into levels. */
     conf.has_fancurve_defaults = true;
     priv.conf = &conf;
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "percent\n") == 0);
     assert(!legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    /* LPCN (82WM, EC 0x5507): WMB2 id 6 copies the bytes raw into EC
+     * F9F0..F9F9 like KWCN, and a percent byte (50) hard-powered-off an
+     * LPCN59WW unit, so the speeds are levels; the unit is not validated
+     * by a hardware write yet, so every fan table write path is refused
+     * unless allow_unvalidated_fancurve is set. */
+    priv.conf = &model_lpcn;
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    assert(fancurve_write_allowed(&model_lpcn) == -EPERM);
+    assert(fancurve_write_allowed(&model_kwcn) == 0);
+    {
+        struct fancurve percent_bytes = { .fan_speed_unit = FAN_SPEED_UNIT_LEVEL };
+        int calls = wmi_calls;
+        conf = model_lpcn;
+        conf.has_fancurve_defaults = true;
+        priv.conf = &conf;
+        percent_bytes.points[0].speed1 = 50;
+        assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == -EPERM);
+        assert(wmi_calls == calls);
+        allow_unvalidated_fancurve = true;
+        assert(fancurve_write_allowed(&model_lpcn) == 0);
+        assert(wmi_write_fancurve_custom(&priv, &percent_bytes) == 0);
+        assert(wmi_calls == calls + 1);
+        /* A stale percent byte is clamped into the level range. */
+        assert(last_payload[6] == MAX_FAN_LEVEL && last_payload[0x18] == MAXFANCURVESIZE);
+        allow_unvalidated_fancurve = false;
+        wmi_calls = calls;
+        memset(last_payload, 0, sizeof(last_payload));
+    }
     priv.conf = &model_t2cn;
     assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_CFG], "\\_SB.PCI0.LPC0.EC0.VPC0._CFG") == 0);
     fancurve_speed_unit_show(&dev, NULL, unit);
