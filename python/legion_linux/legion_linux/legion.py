@@ -848,6 +848,21 @@ LEVEL_POINT_MIN = [1, 1, 1, 1, 1, 1, 1, 1, 3, 5]
 MAX_FAN_LEVEL = 10
 # Temperature bounds enforced by the kernel's fancurve_is_valid_{min,max}_temp.
 FANCURVE_MAX_TEMP_C = 127
+# BIOS prefixes whose WMI3 fan table holds level indices although kernel
+# modules before the LPCN fix report it as "percent". On a Legion Pro 5 16ARX8
+# (LPCN59WW) a percent byte above MAX_FAN_LEVEL hard-powered-off the laptop, so
+# with such a module only bytes the firmware can read as a level are written.
+LEVEL_TABLE_BIOS_PREFIXES = ("LPCN",)
+DMI_BIOS_VERSION_FILE = "/sys/class/dmi/id/bios_version"
+
+
+def read_bios_version():
+    """DMI BIOS version (e.g. LPCN59WW), or an empty string if unreadable."""
+    try:
+        with open(DMI_BIOS_VERSION_FILE, "r", encoding=DEFAULT_ENCODING) as filepointer:
+            return filepointer.read().strip()
+    except OSError:
+        return ""
 
 
 def read_fan_level_rpm_tables():
@@ -991,6 +1006,32 @@ class FanCurveIO(Feature):
         """True when the fan curve speeds are firmware level indices, not percentages."""
         return self.level_tables is not None
 
+    def percent_unit_on_level_table(self):
+        """True when an older module reports percent for a firmware table that holds levels."""
+        return self.speed_unit == "percent" and read_bios_version().startswith(LEVEL_TABLE_BIOS_PREFIXES)
+
+    @staticmethod
+    def _is_level_safe_pwm(value):
+        """The kernel's percent setter stores pwm * 100 // 255; keep that a valid level."""
+        return int(value) * 100 // 255 <= MAX_FAN_LEVEL
+
+    @classmethod
+    def _is_level_safe_restore(cls, file_path, value):
+        """Only speed attributes carry level bytes; other values restore as before."""
+        return not str(file_path).endswith("_pwm") or cls._is_level_safe_pwm(value)
+
+    def _check_level_table_pwm(self, point_id, value, level_table=None):
+        """Refuse percent bytes the firmware would read as an out-of-range level."""
+        if level_table is None:
+            level_table = self.percent_unit_on_level_table()
+        if level_table and not self._is_level_safe_pwm(value):
+            raise ValueError(
+                f"Refusing fan curve point {point_id}: pwm {value} becomes {int(value) * 100 // 255} in a fan table "
+                f"that takes levels 0-{MAX_FAN_LEVEL} on this firmware and can power the laptop off; "
+                "update the legion_laptop kernel module"
+            )
+        return value
+
     def exists(self):
         if self.hwmon_path is not None:
             file_path = self.hwmon_path + self.pwm1_fan_speed.format(1)
@@ -1078,11 +1119,13 @@ class FanCurveIO(Feature):
 
     def set_fan_1_speed_pwm(self, point_id, value):
         point_id = self._validate_point_id(point_id)
+        self._check_level_table_pwm(point_id, value)
         file_path = self.hwmon_path + self.pwm1_fan_speed.format(point_id)
         self._write_file(file_path, value)
 
     def set_fan_2_speed_pwm(self, point_id, value):
         point_id = self._validate_point_id(point_id)
+        self._check_level_table_pwm(point_id, value)
         file_path = self.hwmon_path + self.pwm2_fan_speed.format(point_id)
         self._write_file(file_path, value)
 
@@ -1285,14 +1328,27 @@ class FanCurveIO(Feature):
             )
             for index, entry in enumerate(entries, start=1)
         ]
+        level_table = self.percent_unit_on_level_table()
+        for point_id, (fan1_pwm, fan2_pwm) in enumerate(speeds, start=1):
+            self._check_level_table_pwm(point_id, fan1_pwm, level_table)
+            if fan2_pwm is not None:
+                self._check_level_table_pwm(point_id, fan2_pwm, level_table)
         try:
             log.info("Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         except Exception as error:  # pylint: disable=broad-exception-caught
             log.error(str(error))
-        self._write_fancurve_plan(
-            self._fancurve_write_plan(entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve)
-        )
+        try:
+            self._write_fancurve_plan(
+                self._fancurve_write_plan(entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve),
+                restore_filter=self._is_level_safe_restore if level_table else None,
+            )
+        except PermissionError:
+            log.error(
+                "The kernel module refused the fan curve write: fan curve writes are disabled on this model "
+                "until validated (see allow_unvalidated_fancurve in the README)"
+            )
+            raise
 
     def _check_fancurve_range(self, label, value, limits):
         """Return value if the driver would accept it, else raise."""
@@ -1334,12 +1390,14 @@ class FanCurveIO(Feature):
                 )
         return plan
 
-    def _write_fancurve_plan(self, plan):
+    def _write_fancurve_plan(self, plan, restore_filter=None):
         """Apply a whole fan curve, putting the previous values back if a write fails.
 
         Each point is an independent sysfs attribute, so a failure part way
         through used to leave the EC running a mixture of the old and the new
         curve. Snapshot every file first, then restore the ones already written.
+        A previous value rejected by restore_filter (e.g. an out-of-range level
+        left by an older module) is not written back.
         """
         previous = {}
         for file_path, _ in plan:
@@ -1354,6 +1412,9 @@ class FanCurveIO(Feature):
             log.error("Fan curve write failed (%s), restoring %d previous values", error, len(written))
             for file_path in reversed(written):
                 if previous[file_path] is None:
+                    continue
+                if restore_filter is not None and not restore_filter(file_path, previous[file_path]):
+                    log.error("Not restoring %s to unsafe value %s", file_path, previous[file_path])
                     continue
                 try:
                     self._write_file(file_path, previous[file_path])
