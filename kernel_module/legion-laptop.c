@@ -100,6 +100,12 @@ MODULE_PARM_DESC(
 	enable_platformprofile,
 	"Enable the platform profile sysfs API to read and write the power mode.");
 
+static bool allow_unvalidated_fancurve;
+module_param(allow_unvalidated_fancurve, bool, 0440);
+MODULE_PARM_DESC(
+	allow_unvalidated_fancurve,
+	"Allow fan curve writes on models whose fan table unit is not yet validated on hardware (e.g. LPCN). A wrong unit can hard power-off the laptop.");
+
 // TODO: remove this?
 #define LEGIONFEATURES \
 	"fancurve powermode platformprofile platformprofilenotify minifancurve fancurve_pmw_speed fancurve_rpm_speed"
@@ -308,6 +314,11 @@ struct model_config {
 	const char *acpi_paths[ACPI_PATH_MAX];
 	bool has_fancurve_defaults;
 	bool wmi_fancurve_speed_only;
+	/* The fan table unit is inferred (DSDT, Lenovo Legion Toolkit) but not
+	 * yet validated by a write on hardware: refuse fan curve writes unless
+	 * the allow_unvalidated_fancurve module parameter is set.
+	 */
+	bool fancurve_write_unvalidated;
 	bool require_unlocked_fan_controller;
 	bool has_pl_coupling;
 	/* Lift the firmware-imposed fan ceiling via WMAA(0, 0x0D, arg) on the
@@ -1230,7 +1241,19 @@ static const struct model_config model_lpcn = {
 	 * only the speed attributes so userspace does not write (and the
 	 * GUI/CLI does not crash on) fields the firmware drops.
 	 */
-	.wmi_fancurve_speed_only = true
+	.wmi_fancurve_speed_only = true,
+	/* Fan_Set_Table (GZFD.WMB2 id 6) copies FSS0..FSS9 raw into EC RAM
+	 * F9F0..F9F9 and commits with NCMD(0x8C), and WQA3 publishes static
+	 * 10-level RPM ladders (e.g. 1600..5400 RPM) - the level table of
+	 * model_kwcn, the Intel twin, and Lenovo Legion Toolkit rejects any
+	 * value above 10 for it. Percent bytes hard-powered-off an 82WM on
+	 * LPCN59WW about 6 s after point 1 was set to 50, so speeds are
+	 * levels (FAN_SPEED_UNIT_LEVEL); in custom mode a written 1..10
+	 * table drove both fans to the level-2 ladder RPM on that unit.
+	 * Other LPCN BIOSes are untested, so writes still need
+	 * allow_unvalidated_fancurve (fancurve_write_unvalidated).
+	 */
+	.fancurve_write_unvalidated = true
 };
 
 static const struct model_config model_kfcn = {
@@ -5475,7 +5498,19 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m2cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_lpcn	 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
+}
+
+/* See model_config.fancurve_write_unvalidated. */
+static int fancurve_write_allowed(const struct model_config *model)
+{
+	if (!model->fancurve_write_unvalidated || allow_unvalidated_fancurve)
+		return 0;
+
+	pr_warn_once(
+		"fan curve writes are disabled on this model until validated; load with allow_unvalidated_fancurve=1 to test\n");
+	return -EPERM;
 }
 
 static ssize_t wmi_read_fancurve_custom(const struct model_config *model,
@@ -5931,6 +5966,9 @@ static ssize_t wmi_write_fancurve_defaults(struct legion_private *priv,
 		pr_info("fancurve_defaults_powermode not supported for your model\n");
 		return err;
 	};
+	err = fancurve_write_allowed(priv->conf);
+	if (err)
+		return err;
 	err = wmi_fancurve_mode(priv);
 	if (err < 0)
 		return err;
@@ -6401,6 +6439,10 @@ static int write_fancurve(struct legion_private *priv,
 			  const struct fancurve *fancurve, bool write_size)
 {
 	int err;
+
+	err = fancurve_write_allowed(priv->conf);
+	if (err)
+		return err;
 
 	// TODO: use enums or function pointers?
 	switch (priv->conf->access_method_fancurve) {
@@ -9848,7 +9890,9 @@ static ssize_t autopoint_store(struct device *dev,
 	}
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = fan_control_write_allowed(priv);
+	err = fancurve_write_allowed(priv->conf);
+	if (!err)
+		err = fan_control_write_allowed(priv);
 	if (err)
 		goto error_mutex;
 	err = read_fancurve(priv, &fancurve);
