@@ -1003,6 +1003,140 @@ in progress - verify locally with `sudo dmesg | grep -i legion` (no
 "not in allowlist", EC id 0x5571) and `sensors` (legion_hwmon shows
 CPU/GPU temperatures and no fan channels).
 
+## Legion Pro 5 16ARX8 (82WM, LPCN)
+
+BIOS LPCN59WW/LPCN65WW, EC 0x5507, AMD Ryzen 7000HX + RTX 40 (R9000P ARX8 in
+China; issues #71, #140, #234). DMI entry `LPCN`, config `model_lpcn`; the
+Legion 7 Pro 16ARX8H shares the BIOS family.
+
+Fan table unit: **levels**, writes **disabled by default**
+(`fancurve_write_unvalidated`).
+
+- Earlier builds treated the WMI3 table as percent. Only the speed-only layout
+  was ever tested on hardware (PR #563 on LPCN65WW: temperature, fan 2 and
+  accel/decel fields read back 0). The README's "Confirmed on LPCN65WW"
+  referred to that layout, not to the speed unit.
+- The LPCN DSDT posted in #71 (R9000P 2023, `CB-01`) implements
+  `\_SB.GZFD.WMB2` id 6 (`Fan_Set_Table`) as a raw copy of `FSS0..FSS9` into
+  EC RAM `F9F0..F9F9` (`0xFE0B09F0`), with no range check, followed by
+  `NCMD(0x8C)`. Id 5 reads the same bytes back. `WQA3` (`LENOVO_FAN_TABLE_DATA`,
+  15 rows) returns static 10-entry RPM ladders per mode, e.g. 1600, 1800,
+  2100, 2200, 2700, 2900, 3500, 3700, 4600, 5400 RPM, with mode ids
+  1/2/3/0xFF/0xE0. This is the same level table as on `model_kwcn` (Legion
+  Pro 5 16IRX8, the Intel version of this chassis; see
+  [above](#fan-curve-on-legion-zone-v3-firmware-level-indices)).
+- Lenovo Legion Toolkit's `AbstractGodModeController.IsValidFanTableAsync`
+  rejects any table value above 10 on every God Mode generation, and its
+  default table is 1..10.
+- Measured on an 82WM with BIOS LPCN59WW (kernel 7.2.9, module from
+  `dfb9d06`): the factory table read all zeros, and the fans ran about 2100
+  RPM at 52 °C in low-power mode. legiond's quiet-ac preset as percent
+  (`0,15,19,21,23,26,28,35,40,0`) stayed up at idle. Writing pwm 128 to point
+  1 (byte 50) in low-power mode hard-powered-off the laptop about 6 s later,
+  with no shutdown sequence. Changing the platform profile does not reset the
+  table.
+
+- The LPCN59WW DSDT on that unit has the identical `WMB2` 5/6 handlers.
+  Entering `max-power` (0xE0) on AC also issues `NCMD(0x8C)`, the same EC
+  command that commits the fan table. That would explain the instant
+  power-off in max-power on LPCN65WW (see README) if percent bytes were
+  already in the table. This is a hypothesis; `max-power` stays hidden.
+- Validated on the same 82WM/LPCN59WW through this driver (2026-10-12, AC,
+  never max-power). Loaded with `allow_unvalidated_fancurve=1`, writing pwm
+  26 to point 1 sent `1,10,10,..,10` (stale bytes 15..40 clamped). Then the
+  default ladder `1..10` was written; the debugfs readback matched, and the
+  laptop stayed up. In low-power mode the fans stayed at the firmware's 2100
+  RPM. In custom mode (`powermode` 255) at 51 °C they settled at 1900 / 1800
+  RPM, which is exactly level 2 of the fan 1 / fan 2 ladders (`1700 1900 ..`,
+  `1600 1800 ..`); a percent table would have meant 2 %. A 60 s CPU load
+  only reached 53 °C in custom mode, so higher points were not exercised.
+
+- The table can only be raised above the firmware default, never lowered.
+  `WQA3` reports `SOUA`/`EOUA` (start/end of the only-upward-adjust range) as
+  0/10, and the EC enforces it in custom mode. Entering custom mode seeds
+  `1,2,..,8,8,8`. Any write that puts a point below `1..10` (single point or
+  whole curve, monotonic or not, 0.6 s apart or not) is replaced by `1..10`
+  within a millisecond. Raising point 1 to level 2 stuck and lifted the fans
+  from 1700/1600 to 1900/1800 RPM. Outside custom mode the bytes are stored,
+  but the fans follow the firmware curve (idle at 46 °C: 1700/1600 RPM in both
+  low-power and custom). So on LPCN a custom curve can only make the fans
+  louder. The quietest setting is `low-power`, which also has the lowest
+  power limits (55/65 W vs 70/85 W in custom); the fans never stop (level 1
+  is 1700/1600 RPM).
+
+The driver therefore uses `FAN_SPEED_UNIT_LEVEL` for `model_lpcn`:
+`fancurve_speed_unit` reads `level`, `fan1/fan2_level_rpm_table` come from
+`WQA3`, and pwm 0..255 maps to levels with the 1,1,1,1,1,1,1,1,3,5 per-point
+minimum. Every send pulls stale bytes into 1..10. `fan1_max` keeps the generic
+10000 (`has_fancurve_defaults` stays off). All fan table writes (hwmon points,
+resume re-apply, default reset) return `EPERM` unless the module is loaded with
+`allow_unvalidated_fancurve=1`. The gate stays on for the whole family,
+because only LPCN59WW has been validated. Owners can set
+`options legion_laptop allow_unvalidated_fancurve=1` in
+`/etc/modprobe.d/legion_laptop.conf` once the read-only checks below match.
+Userspace refuses bytes above 10 if an older module still reports `percent`
+on an `LPCN*` BIOS.
+
+### LPCN verification (owner, on real hardware)
+
+Read-only checks first. They issue only `Fan_Get_Table` and `WQA3` reads:
+
+```bash
+sudo dmesg | grep -i legion     # "Using configuration for system: LPCN", EC 0x5507,
+                                # "fan table data: fan 1 has 10 levels, ..",
+                                # "above level 10 (stale percent write?)" if bytes > 10 remain
+cat /sys/devices/platform/legion/fancurve_speed_unit     # level
+cat /sys/devices/platform/legion/fan1_level_rpm_table    # 10 RPMs for the current mode
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
+for i in $(seq 1 10); do cat $H/pwm1_auto_point${i}_pwm; done
+sudo cat /sys/kernel/debug/legion/fancurve   # WMI block: u = 5, speed1 = raw table bytes
+sensors
+```
+
+Check that your BIOS has the same handler. A 0400 file is read, nothing is
+written:
+
+```bash
+sudo cat /sys/firmware/acpi/tables/DSDT > dsdt.dat && iasl -d dsdt.dat
+grep -n -A45 'Method (WMB2' dsdt.dsl   # id 6: FSS0..FSS9 -> F9F0..F9F9, NCMD (0x8C, Zero)
+grep -n -B2 -A25 'Method (SFTW' dsdt.dsl   # level ladders (RPM, then temperatures)
+```
+
+If any point holds a byte above 10, keep the laptop idle and on AC until the
+table is fixed. If the level theory is right, the EC reads such a byte as an
+invalid level as soon as that point's temperature range is reached. Two ways
+to clear it:
+
+1. No write: keep `legiond` disabled (`fan_control=false`), shut down fully,
+   optionally hold the power button for 30 s (EC reset), boot, and repeat
+   the read-only checks. All-zero points mean the EC clears the table on a
+   cold start. Please report either result.
+2. One write (gate opened deliberately): save your work, stay on AC and at
+   idle, keep the `balanced` profile (never `max-power`), and follow
+   `journalctl -kf` in a second terminal:
+
+```bash
+sudo modprobe -r legion_laptop
+sudo modprobe legion_laptop allow_unvalidated_fancurve=1
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
+# Lenovo Legion Toolkit's default table, levels 1..10 (pwm = level * 25.5).
+# The first write already clamps every stale byte into 1..10.
+for p in "1 26" "2 51" "3 77" "4 102" "5 128" "6 153" "7 179" "8 204" "9 230" "10 255"; do
+    set -- $p; echo "$2" | sudo tee "$H/pwm1_auto_point${1}_pwm" >/dev/null
+done
+sudo cat /sys/kernel/debug/legion/fancurve   # speed1 must read 1..10
+sensors                                      # fan RPM should follow fan1_level_rpm_table
+```
+
+Then load the CPU and GPU for a few minutes in balanced mode, then in custom
+mode, and compare `fan1_input`/`fan2_input` with the ladder. Please report the
+BIOS version, `sudo dmesg | grep -i legion`, the debugfs dump before and after,
+and `sensors` at idle and under load. A level write that also powers the
+laptop off disproves the level theory; report it and leave the gate closed.
+Do not re-enable legiond's `fan_control` on LPCN until a level write is
+confirmed. Once it is, `fancurve_write_unvalidated` can be dropped from
+`model_lpcn`.
+
 ## Fan-curve capability and unit checks
 
 The hwmon curve schema follows the fields the active backend actually writes:
