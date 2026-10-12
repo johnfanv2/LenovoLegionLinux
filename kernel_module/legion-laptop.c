@@ -1670,6 +1670,76 @@ static const struct model_config model_recn = {
 	.wmi_fancurve_speed_only = true
 };
 
+// Legion R9000P AFR10 (83F6, AMD Ryzen 9 9900HX + RTX 5060), BIOS
+// RECN20WW, EC 0x5508 (issue #405; reporter's dsdt.dsl):
+// - GameZone WMAA 0x2C set / 0x2D get / 0x37 thermal mode (L35911),
+//   incl. custom (0xFF) and extreme (0xE0 -> EXTM 1/SPMO 4, AC only).
+// - Fan Method WMAB (L36635) implements only Fan_Get_Table(5)/
+//   Fan_Set_Table(6): ten fan LEVELS 1..10 in EC F9F0..F9F9, committed
+//   via LECR(0xD0,1,1,2); the read returns a static 1..10 placeholder
+//   while ODV1 == 4 (extreme). No temperature fields and no range
+//   check, and the write ignores the FSTM mode byte, so no payload
+//   mode quirk is needed. Fan_Get/Set_MaxSpeed (ids 3/4) do not exist
+//   -> skip_fan_maxspeed.
+// - Other Method WMAE Get(0x11)/Set(0x12) (L36751) standard ids: fan
+//   RPM 0x04030001/2 (FANS/FA2S * 100), third fan 0x04030004 (FASF *
+//   100 -> has_third_fan), full speed 0x04020000 (EC FNST, get and
+//   set, no power-mode gate), CPU/GPU temps 0x05040000/0x05050000
+//   (CPUT/GPUT); 0x05010000 is the CPU socket temp (CPUS), not a
+//   labeled IC temp -> skip_ic_temp. Instant boot 0x03010001/2 (EC
+//   EACS/ETCS, set via WSMI 7/8, 9/0xA, same as model_q7cn)
+//   -> has_instant_boot.
+// - KBBACKLIGHT WMAF get(1)/set(2) (L38364) drives the keyboard
+//   (light id 0x00, levels 1-3) and the Y-logo (id 0x03); no IO-port
+//   light id exists -> skip_ioport_light (the Fn+L Y-logo toggle is
+//   confirmed working on the unit in #405).
+// - LENOVO_FAN_TABLE_DATA is WQA3 (L16772; 15 rows: modes
+//   1/2/3/0xFF/0xE0 x fan 1 sensors 0x01/0x04 + fan 2 sensor 0x05,
+//   ladders 1700..5100 RPM), so the per-level RPM ladders are
+//   available.
+// - EC RAM window ERAX @0xFEEC2400 len 0xFF (L8272), F9FT/ECB2 at
+//   +0x100/+0x200 (L8160/L8068) - the same window as model_smcn - used
+//   only for the read-only ecmemoryram debugfs dump.
+// - ACPI CFG and rapidcharge (GBMD/SBMC) work via the PCI0.LPC0 paths
+//   (VPC0 at L10349, GBMD L10520, SBMC L10737).
+// EC chip id 0x5508 was read on the unit (force-load dmesg in #405).
+static const struct model_config model_recn_83f6 = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.skip_ic_temp = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFEEC2400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_third_fan = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+	.has_instant_boot = true,
+};
+
 // Legion Slim 5 16AHP9 (2024) - Model 83DH
 static const struct model_config model_nrcn = {
 	.registers = &ec_register_offsets_v0,
@@ -3327,13 +3397,27 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 	},
 	{
 		// Legion Pro 5 16AFR10 (83F2), BIOS RECN, EC 0x5508; fancurve
-		// via WMI3 (#527)
+		// via WMI3 (#527). Product-qualified: the RECN BIOS line is
+		// shared with the R9000P AFR10 (83F6), which has its own
+		// DSDT-validated config below (issue #405).
 		.ident = "RECN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83F2"),
 			DMI_MATCH(DMI_BIOS_VERSION, "RECN"),
 		},
 		.driver_data = (void *)&model_recn
+	},
+	{
+		// Legion R9000P AFR10 (83F6), BIOS RECN, EC 0x5508;
+		// DSDT-validated sibling of the 83F2 above (issue #405).
+		.ident = "RECN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83F6"),
+			DMI_MATCH(DMI_BIOS_VERSION, "RECN"),
+		},
+		.driver_data = (void *)&model_recn_83f6
 	},
 	{
 		// Legion Y7000P IRX10 (83NN), BIOS S9CN (issue #506);
@@ -5382,6 +5466,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_rxcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_s2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_recn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_recn_83f6 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_rlcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_rgcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_r3cn	 ? FAN_SPEED_UNIT_LEVEL :
