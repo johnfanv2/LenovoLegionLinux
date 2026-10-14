@@ -14,22 +14,20 @@ from legion_linux import legion
 from legion_linux import legion_cli
 from legion_linux.legion import PlatformProfileFeature
 
-# Of the power modes the driver reports, only these have a matching preset.
-PROFILES_WITH_PRESET = ["balanced", "performance"]
+# Of the power modes the platform_profile core can report, only these have a
+# matching preset.
+PROFILES_WITH_PRESET = ["balanced", "balanced-performance", "performance", "quiet"]
 PROFILES_WITHOUT_PRESET = ["low-power", "custom", "max-power"]
 
-# Shipped presets that this code path can never select. platform_profile
-# reports low-power, while the preset naming (inherited from legiond) uses
-# quiet, so only "balanced" and "performance" overlap between the two
-# vocabularies. The unreachable presets stay reachable by name from the GUI
-# and from legiond.
+# Shipped presets that this code path can never select. legion-laptop reports
+# the extreme mode as "max-power" and its quiet mode as "low-power", while
+# the preset naming (inherited from legiond) uses "extreme"/"quiet"; with the
+# fallback to other drivers, "quiet" (e.g. from ideapad-laptop) now reaches
+# the quiet presets, leaving only the extreme pair unreachable from here. The
+# extreme presets stay reachable by name from the GUI and from legiond.
 PRESETS_NOT_REACHABLE_HERE = [
-    "balanced-performance-ac",
-    "balanced-performance-battery",
     "extreme-ac",
     "extreme-battery",
-    "quiet-ac",
-    "quiet-battery",
 ]
 
 

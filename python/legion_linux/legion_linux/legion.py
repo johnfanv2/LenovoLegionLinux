@@ -575,12 +575,38 @@ class MaximumFanSpeedFeature(BoolFileFeature):
 
 
 class PlatformProfileFeature(FileFeature):
+    """Power mode (ACPI platform profile).
+
+    Prefers legion-laptop's own platform-profile class device, which is the
+    only provider that exposes the custom/max-power modes. Falls back to any
+    other registered platform-profile handler (e.g. ideapad-laptop) and
+    finally to the global /sys/firmware/acpi/platform_profile interface, so
+    the power mode can still be shown and switched when legion-laptop is not
+    loaded (this is how versions before 0.1.0 worked).
+    """
+
     def __init__(self):
-        super().__init__(LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile")
-        self.choices = StrFileFeature(LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices")
+        super().__init__(
+            [
+                LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/profile",
+                "/sys/class/platform-profile/platform-profile-[0-9]/profile",
+                "/sys/firmware/acpi/platform_profile",
+            ]
+        )
+        self.choices = StrFileFeature(
+            [
+                LEGION_SYS_BASEPATH + "/platform-profile/platform-profile-[0-9]/choices",
+                "/sys/class/platform-profile/platform-profile-[0-9]/choices",
+                "/sys/firmware/acpi/platform_profile_choices",
+            ]
+        )
+        # All names the kernel platform_profile core can report; values not
+        # listed in the firmware/driver choices file are filtered out below.
         self.all_values = [
             NamedValue("low-power", "Low Power"),
+            NamedValue("quiet", "Quiet Mode"),
             NamedValue("balanced", "Balanced Mode"),
+            NamedValue("balanced-performance", "Balanced Performance"),
             NamedValue("performance", "Performance Mode"),
             NamedValue("custom", "Custom Mode"),
             NamedValue("max-power", "Max Power"),
@@ -1787,7 +1813,9 @@ class NVIDIAGPUOnQuietMode(Monitor):
 
     def run(self) -> List[DiagnosticMsg]:
         is_gpu_running = self.gpu_is_running.get()
-        is_quiet_mode = self.platform_profile.get() == "low-power"
+        # Other drivers (fallback when legion-laptop is not loaded) may call
+        # the lowest platform profile "quiet" instead of "low-power".
+        is_quiet_mode = self.platform_profile.get() in ("low-power", "quiet")
         diag = DiagnosticMsg()
         if is_gpu_running and is_quiet_mode:
             diag.value = True

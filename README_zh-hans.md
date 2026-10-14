@@ -651,7 +651,7 @@ sudo cat /sys/kernel/debug/legion/fancurve
 
 #### 使用 GUI 修改/控制
 
-通过 GUI，可以在标有 `Power mode/platform profile` 的框中选择当前电源模式。
+通过 GUI，可以在标有 `Power mode/platform profile` 的框中选择当前电源模式。下拉框优先使用 `legion_laptop` 自己的 platform profile（只有它在受支持机型上提供 `custom`/`max-power`）；如果模块未加载，则回退到其他已注册的 platform-profile 提供方（例如 `ideapad-laptop`），仍然可以切换电源模式。
 
 #### 使用小部件修改/控制
 

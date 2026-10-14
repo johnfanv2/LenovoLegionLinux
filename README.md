@@ -639,7 +639,7 @@ For this to work, you must install the kernel module permanently (see above). Al
 
 #### Modify/Control with GUI
 
-With the GUI, the current power mode can be changed by selecting the mode in the box labeled with `Power mode/platform profile`.
+With the GUI, the current power mode can be changed by selecting the mode in the box labeled with `Power mode/platform profile`. The dropdown prefers `legion_laptop`'s own platform profile (the only provider that offers `custom`/`max-power` on supported models); if the module is not loaded, it falls back to any other registered platform-profile provider (e.g. `ideapad-laptop`), so the mode can still be switched.
 
 #### Modify/Control with Widget
 
