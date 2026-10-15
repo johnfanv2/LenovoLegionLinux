@@ -64,7 +64,6 @@ static bool allow_unvalidated_fancurve;
                     "EC_LOCKFANCONTROLLER_",
                     "MAXFANCURVESIZE",
                     "FANCURVESIZE_",
-                    "EC4_",
                     "FANTABLE_MAX_LEVELS",
                     "FANTABLE_SENSOR_",
                     "MAX_FAN_LEVEL",
@@ -93,7 +92,7 @@ static bool allow_unvalidated_fancurve;
             code.append(declaration(source, start))
         code.append(re.search(r"static const u8 fancurve_level_min\[.*?;", source, re.S)[0])
         for kind in ("ec_register_offsets", "model_config"):
-            code.extend(re.findall(r"^static const struct " + kind + r" \w+\s*=\s*\{.*?^\s*};", source, re.M | re.S))
+            code.extend(re.findall(r"^static const struct " + kind + r"\s+\w+\s*=\s*\{.*?^\s*};", source, re.M | re.S))
         code.append(
             r"""
 struct attribute { umode_t mode; };
@@ -167,7 +166,6 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "ec_read_fancurve_legion",
             "ec_read_fancurve_ideapad",
             "ec_read_fancurve_loq",
-            "ec_read_fancurve_legion2024",
             "read_fancurve",
             "wmi_fancurve_speed_unit",
             "fancurve_write_allowed",
@@ -220,7 +218,7 @@ int main(void) {
     struct kobject kobj = { &dev };
     const enum access_method methods[] = {
         ACCESS_METHOD_EC, ACCESS_METHOD_EC2, ACCESS_METHOD_EC3,
-        ACCESS_METHOD_EC4, ACCESS_METHOD_WMI3, ACCESS_METHOD_NO_ACCESS
+        ACCESS_METHOD_WMI3, ACCESS_METHOD_NO_ACCESS
     };
     size_t cases = 0;
     for (size_t m = 0; m < sizeof(methods) / sizeof(methods[0]); m++) {
@@ -237,9 +235,6 @@ int main(void) {
                 break;
             case ACCESS_METHOD_EC3:
                 expected = id != FANCURVE_ATTR_ACCEL && id != FANCURVE_ATTR_DECEL; break;
-            case ACCESS_METHOD_EC4:
-                expected = id == FANCURVE_ATTR_PWM1 || id == FANCURVE_ATTR_PWM2 ||
-                    id == FANCURVE_ATTR_CPU_TEMP || id == FANCURVE_ATTR_GPU_TEMP; break;
             case ACCESS_METHOD_WMI3: expected = id == FANCURVE_ATTR_PWM1; break;
             default: break;
             }
@@ -251,7 +246,7 @@ int main(void) {
         }
     }
     /* Poisoned stack memory must not leak into native curve PWM scaling. */
-    for (size_t m = 0; m < 4; m++) {
+    for (size_t m = 0; m < 3; m++) {
         conf.access_method_fancurve = methods[m];
         const u16 maxima[] = {0, 5100};
         for (size_t r = 0; r < sizeof(maxima) / sizeof(maxima[0]); r++) {
@@ -351,6 +346,16 @@ int main(void) {
     priv.conf = &model_m2cn;
     assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
     assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+
+    /* NMCN (Legion 5 16IRX9 83DG, EC 0x5507) uses the WMI3 level fan table
+     * like LPCN instead of the removed EC4 direct-EC layout. */
+    priv.conf = &model_nmcn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(priv.conf->access_method_fanfullspeed == ACCESS_METHOD_WMI3);
+    assert(priv.conf->wmi_fancurve_speed_only);
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
