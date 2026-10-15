@@ -499,7 +499,7 @@ EC3 curve writes were verified under gaming load on **R3CN44WW** in
   LOQ map must not be replaced merely because other 0x5508 models need
   WMI. No new EC addresses are introduced by this correction.
 - EC3 does not store acceleration/deceleration. Their sysfs attributes
-  are hidden (as on EC4); GUI/CLI detect the missing attributes and skip
+  are hidden (as on EC2 and WMI3); GUI/CLI detect the missing attributes and skip
   them, rather than failing partway through Apply to HW. Both fan speed
   columns and temperature/hysteresis fields remain editable.
 - The GZFD WMI device lives in SSDT4.dsl from R3CN.zip (#374), not the
@@ -1146,11 +1146,10 @@ The hwmon curve schema follows the fields the active backend actually writes:
 | EC | Both fans | CPU/GPU/IC bounds | Supported |
 | EC2 | Both fans, 8 points | CPU/GPU bounds | Not supported |
 | EC3 | Both fans | CPU/GPU/IC bounds | Not supported |
-| EC4 | Both fans | CPU/GPU upper thresholds only | Not supported |
 | WMI3 | One shared speed table | Not supported | Not supported |
 
 Unsupported fields are absent, not writable zero-valued placeholders. Userspace
-handles partial temperature support per field, including EC4's upper thresholds,
+handles partial temperature support per field, including EC2's missing IC fields,
 and respects the driver's point count. `auto_points_size` is read-only unless the
 backend supports changing it. This does not select new EC layouts or change any
 model's access method. Unmapped minifancurve/controller-lock registers in the
@@ -1192,8 +1191,7 @@ temperature bounds with their hysteresis width preserved); drag the square at
 the left end of a shaded span to edit only its lower temperature. Confirm
 independent CPU/GPU fields and the other fan's speed remain unchanged. Drag
 past the 0°C/127°C limits and confirm both temperatures clamp while keeping
-their gap; on EC4, whose lower fields are disabled, only the upper temperature
-moves. Hover
+their gap. Hover
 over a point to check its exact °C/RPM (or firmware level); while dragging,
 press Esc and confirm the table is restored without a hardware write. On
 speed-only WMI curves the x-axis must be point ID and temperature fields must
