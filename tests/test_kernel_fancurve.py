@@ -373,6 +373,18 @@ int main(void) {
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
 
+    /* RYCN (Legion 5 15AKP10 83F1, EC 0x5508, #416): the RYCN28WW DSDT has
+     * the same WMAB 5/6 level table (F9F0..F9F9 + LECR(0xD0,1,1,2), no
+     * range check, mode byte ignored), so the unit selector must resolve
+     * it to levels (the SMCN hang precedent). */
+    priv.conf = &model_rycn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(priv.conf->wmi_fancurve_speed_only);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+
     /* NCCN (Yoga Pro 7 14AHP9 83E3, EC 0x5571, #630): the firmware publishes
      * only CPU/GPU temperatures in EC RAM - no fan RPM, fan table or power
      * mode interface exists, so the matching attributes must stay hidden. */

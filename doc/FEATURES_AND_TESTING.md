@@ -769,6 +769,54 @@ legion` (no "not in allowlist", EC id 0x5508), `sensors`
 (`legion_hwmon` fan1/fan2/fan3 and CPU/GPU temps), and `sudo cat
 /sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in 1..10).
 
+## Legion 5 15AKP10 (83F1, RYCN)
+
+BIOS RYCN27WW/RYCN28WW, EC 0x5508, AMD (issue #416). DMI entry `RYCN`
+product-qualified to `83F1`; config `model_rycn` in
+`kernel_module/legion-laptop.c` (the header comment cites the firmware
+evidence from the RYCN28WW DSDT attached to the issue).
+
+Same WMI-only 0x5508 layout as the R9000P AFR10 (83F6, RECN), without
+the third fan:
+
+- Everything goes through WMI: power mode via GameZone `WMAA`
+  0x2C/0x2D (incl. custom 0xFF and extreme 0xE0, AC only), fan RPM /
+  CPU+GPU temperature / fan full speed via Other Method `WMAE`
+  Get(0x11)/Set(0x12), fan table via Fan Method `WMAB` 5/6 with the
+  usual `F9F0..F9F9` + `LECR(0xD0,1,1,2)` semantics;
+  `FAN_SPEED_UNIT_LEVEL`, one shared table, temperature axis fixed by
+  the EC, static 1..10 placeholder in extreme mode (ODV1 == 4). The
+  write path ignores the payload mode byte, so no mode-byte quirk is
+  needed. `LENOVO_FAN_TABLE_DATA` (WQA3) maps level 1..10 to
+  1800..5400 RPM (SKU 0x2A) or 1800..4600 RPM (other SKUs), fan 1
+  sensors 0x01/0x04, fan 2 sensor 0x05, so
+  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+- Only two fans: WQA3 has no fan 4 rows and the in-tree
+  `lenovo_wmi_other` driver shows only fan1/fan2 on the unit.
+- The keyboard backlight (light id 0x00, levels 1-3) and the Y-logo
+  light (id 0x03) are driven by the KBBACKLIGHT WMI methods (`WMAF`
+  get(1)/set(2)); no IO-port light id exists (`skip_ioport_light`).
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`) is only accepted in
+  custom power mode, as on the other 0x5508 models.
+- Rapid charge and battery conservation use `VPC0.GBMD`/`SBMC` at
+  `\_SB.PCI0.LPC0.EC0`; instant boot uses WMAE
+  `0x03010001`/`0x03010002` and flip to start `0x00030000`.
+- `minifancurve`, `lockfancontroller`, `fan_maxspeed` and the IC temp
+  attribute are hidden; the EC RAM window (`ERAX @0xFEEC2400`) is only
+  used for the read-only `ecmemoryram` debugfs dump. The wrong RPM
+  values seen with `force=1` (GKCN fallback) came from reading EC
+  registers directly, which this config no longer does.
+
+Validation status: config derived from the RYCN28WW DSDT; EC chip id
+0x5508 was read on a RYCN27WW unit during a force-load. A custom-mode
+Fan_Set_Table write round trip is still pending on hardware - test
+with one small upward level change, then read back and restore the
+original table and mode, and report the result in issue #416. Verify
+locally with `sudo dmesg | grep -i legion` (no "not in allowlist", EC
+id 0x5508), `sensors` (`legion_hwmon` fan1/fan2 and CPU/GPU temps,
+matching `lenovo_wmi_other`), and `sudo cat
+/sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in 1..10).
+
 ## Legion 7 16IRX9 (83FD, NSCN)
 
 BIOS NSCN37WW, EC 0x5507, Intel Core i9-14900HX + RTX 4070 (issue #617).
