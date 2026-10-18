@@ -995,7 +995,13 @@ static const struct model_config model_m1cn = {
 	.embedded_controller_id = 0x5507,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	/* AMD twin of model_m0cn (same chassis and EC 0x5507): the v0
+	 * minifancurve byte reads 41 on M1CN48WW (issue #599), a value
+	 * M0CN44WW reads too (issue #637), so the v0 minifancurve and
+	 * lockfancontroller bytes do not match this firmware either.
+	 */
+	.has_minifancurve = false,
+	.skip_lockfancontroller = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
@@ -1005,7 +1011,15 @@ static const struct model_config model_m1cn = {
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	/* Same EC and Fan_Set_Table as model_m0cn and model_lpcn, whose
+	 * tables take levels 1..10 (FAN_SPEED_UNIT_LEVEL) and only speed1.
+	 * No M1CN table dump exists yet, so the unit is inferred from the
+	 * twin and writes need allow_unvalidated_fancurve until a level
+	 * write is validated on M1CN hardware.
+	 */
+	.wmi_fancurve_speed_only = true,
+	.fancurve_write_unvalidated = true
 };
 
 static const struct model_config model_m2cn = {
@@ -1883,7 +1897,13 @@ static const struct model_config model_nrcn = {
 	.embedded_controller_id = 0x8227,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	/* The v0 minifancurve byte read 0xA0 and later 43, and the
+	 * lockfancontroller byte flipped from false to true, on NRCN25WW
+	 * (issue #516); maximumfanspeed reads 8. They do not match this
+	 * firmware: do not read or write them.
+	 */
+	.has_minifancurve = false,
+	.skip_lockfancontroller = true,
 	.has_custom_powermode = true,
 	.has_extreme_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
@@ -1898,7 +1918,15 @@ static const struct model_config model_nrcn = {
 	.fanfullspeed_requires_custom_powermode = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	/* The NRCN25WW default table reads 1 2 3 5 6 7 8 9 10 10 (issue
+	 * #516): level indices, not percent (FAN_SPEED_UNIT_LEVEL); the old
+	 * percent unit let out-of-range values through.
+	 * Fan_Set_Table carries only speed1. No level write has been
+	 * validated on NRCN, so writes need allow_unvalidated_fancurve.
+	 */
+	.wmi_fancurve_speed_only = true,
+	.fancurve_write_unvalidated = true
 };
 
 // Yoga Pro 7 14AHP9 (83E3) - 2024, AMD Ryzen 7 8845HS (Hawk Point)
@@ -5622,6 +5650,8 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_m2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_lpcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m0cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_m1cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_nrcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nmcn	 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
 }

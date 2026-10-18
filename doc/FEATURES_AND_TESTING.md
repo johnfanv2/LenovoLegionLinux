@@ -27,7 +27,26 @@ With this fix applied to v0.0.34, both fans rose from 3500 RPM to about
 the test. The control did not need raw EC writes.
 
 Other BIOS versions and fan curve writes were not tested.
-This change does not resolve the fan curve write failure in issue #516.
+
+On NRCN25WW (issue #516) the firmware fan table reads
+`1 2 3 5 6 7 8 9 10 10`, which are speed levels, not percent. Older module
+versions treated the table as percent, so the GUI sent values above 10. That
+is the likely cause of the `Operation not supported` write failure in that
+issue. The module now reports `fancurve_speed_unit` as
+`level` and exposes only the fan 1 speed points. The EC bytes for
+minifancurve and the fan controller lock hold other data on this firmware,
+so the module no longer reads or writes them.
+
+No level write has been checked on this model, so fan curve writes fail
+with `EPERM` unless the module is loaded with `allow_unvalidated_fancurve=1`.
+To check a write:
+
+1. Run `sudo cat /sys/kernel/debug/legion/fancurve` and save the table.
+2. Load the module with `allow_unvalidated_fancurve=1`.
+3. Write one point at or above its saved level through the `legion_hwmon`
+   device. A pwm value is rounded to the nearest level (`level * 255 / 10`),
+   so level 6 is pwm 153: `echo 153 | sudo tee /sys/class/hwmon/hwmonN/pwm1_auto_point5_pwm`.
+4. Read the table again and check `sensors` for a fan speed change.
 
 ## GUI without fan curve support
 

@@ -107,7 +107,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 **Lenovo Legion models from 2020 up to the latest 2025 models probably work — the driver is actively maintained and new models are added regularly. The following models were confirmed. If you have a model with a BIOS version with the same leading letters, e.g. EFCN (like EFCN54WW) then it will probably work. If you want to confirm that your model works or if it does not work, please raise a issue.**
 
 - Lenovo Legion 5 15IMH05, 15IMH05H (BIOS EFCN54WW): sensors, fan curve, power profile
-- Lenovo Legion Slim 5 16AHP9 (83DH, BIOS NRCN20WW), Gen 9: sensors, power profile, full-speed fan control in Custom mode. Fan curve writes are not verified. See [NRCN notes](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn).
+- Lenovo Legion Slim 5 16AHP9 (83DH, BIOS NRCN20WW), Gen 9: sensors, power profile, full-speed fan control in Custom mode. The fan curve reads as speed levels only; writes are disabled by default until verified ([#516](https://github.com/johnfanv2/LenovoLegionLinux/issues/516)). See [NRCN notes](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn).
 - Lenovo Legion 5 15ACH6H (BIOS GKCN58WW, GKCN57WW or GKCN65WW), Gen 6: sensors, fan curve, power profile
 - Lenovo Legion R9000 (R9000K2021H) (BIOS GKCN59WW): sensors, fan curve, power profile
 - Lenovo Legion 5 Pro 16ACH6H (82JQ) (BIOS GKCN58WW) x 2: sensors, fan curve, power profile
@@ -125,6 +125,7 @@ It allows you to control features like the fan curve, power mode, power limits, 
 - Lenovo Legion 7 Pro 16ARX8H (BIOS LPCN47WW): sensors, fan curve, power profile
 - Lenovo Legion Pro 5 16ARX8 (82WM) (BIOS LPCN59WW/LPCN65WW): sensors, fan curve (speed levels only, writes disabled by default, see LPCN note below), power profile
 - Lenovo Legion Slim 7 16IRH8 (82Y3) (BIOS M0CN44WW): sensors, power profile; fan curve reads as speed levels only, writes disabled by default (same EC 0x5507 as LPCN, see LPCN note below and [#637](https://github.com/johnfanv2/LenovoLegionLinux/issues/637))
+- Lenovo Legion Slim 7 16APH8 (82Y4) (BIOS M1CN48WW): sensors, power profile; fan curve reads as speed levels only, writes disabled by default (AMD twin of the 16IRH8 above, same EC 0x5507; [#599](https://github.com/johnfanv2/LenovoLegionLinux/issues/599))
 - Lenovo Legion 7 16IAX7 (82TD) (BIOS K1CN48WW): sensors, fan curve (write works; WMI readback returns empty buffer), power profile
 - Lenovo Legion Pro 7 16IRX8H (BIOS KWCN54WW): sensors, fan curve, power profile, fan unlock (lifts the fan ceiling from ~4400 to ~7100 RPM)
 - Lenovo Legion Pro 5 16IRX8 (82WK, BIOS KWCN54WW): sensors, fan curve (level indices 0-10, custom power mode), power profile, power limits and fan full speed through the Other Method WMI path; fan curve verified on Linux in custom power mode (level 9 → 4400/4600 RPM, level 10 → 5400/5400 RPM)

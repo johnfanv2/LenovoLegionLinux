@@ -387,6 +387,26 @@ int main(void) {
         memset(last_payload, 0, sizeof(last_payload));
     }
 
+    /* M1CN (82Y4, AMD twin of M0CN, EC 0x5507, #599) and NRCN (Legion Slim 5
+     * 16AHP9 83DH, EC 0x8227, #516; default table 1 2 3 5 6 7 8 9 10 10):
+     * levels, speed-only, no v0 EC minifancurve/lockfancontroller bytes, and
+     * writes refused until a level write is validated on hardware. */
+    {
+        const struct model_config *level_models[] = { &model_m1cn, &model_nrcn };
+        size_t m;
+
+        for (m = 0; m < sizeof(level_models) / sizeof(level_models[0]); m++) {
+            priv.conf = level_models[m];
+            assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+            assert(priv.conf->wmi_fancurve_speed_only);
+            assert(!priv.conf->has_minifancurve && priv.conf->skip_lockfancontroller);
+            assert(!minifancurve_supported(priv.conf) && !lockfancontroller_supported(priv.conf));
+            fancurve_speed_unit_show(&dev, NULL, unit);
+            assert(strcmp(unit, "level\n") == 0);
+            assert(fancurve_write_allowed(priv.conf) == -EPERM);
+        }
+    }
+
     /* NMCN (Legion 5 16IRX9 83DG, EC 0x5507) uses the WMI3 level fan table
      * like LPCN instead of the removed EC4 direct-EC layout. */
     priv.conf = &model_nmcn;

@@ -117,7 +117,8 @@ Lenovo Legion Linux（LLL）为联想拯救者系列笔记本提供了额外的L
 **从 2020 年到最新的 2025 款联想拯救者机型大概率都能兼容 —— 本驱动仍在积极维护中，新机型会持续加入。以下为已确认可用的具体型号。如果你的 BIOS 版本前缀相同，例如 EFCN（如 EFCN54WW），那很可能也能兼容。如果你想确认你的型号是否可用，或发现不可用，请提交 issue。**
 
 - 联想拯救者 5 15IMH05, 15IMH05H（BIOS EFCN54WW）：传感器、风扇曲线、电源配置
-- Lenovo Legion Slim 5 16AHP9（83DH，BIOS NRCN20WW），第 9 代：传感器、电源模式、自定义模式下的风扇全速控制。风扇曲线写入尚未验证。参见 [NRCN 说明](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn)。
+- Lenovo Legion Slim 5 16AHP9（83DH，BIOS NRCN20WW），第 9 代：传感器、电源模式、自定义模式下的风扇全速控制。风扇曲线仅以转速档位读取；在验证之前默认禁止写入（[#516](https://github.com/johnfanv2/LenovoLegionLinux/issues/516)）。参见 [NRCN 说明](doc/FEATURES_AND_TESTING.md#legion-slim-5-16ahp9-83dh-nrcn)。
+- Lenovo Legion Slim 7 16APH8（82Y4，BIOS M1CN48WW）：传感器、电源模式；风扇曲线仅以转速档位读取，默认禁止写入（与 Slim 7 16IRH8 同机型的 AMD 版，同为 EC 0x5507；[#599](https://github.com/johnfanv2/LenovoLegionLinux/issues/599)）
 - 联想拯救者 5 15ACH6H（BIOS GKCN58WW、GKCN57WW 或 GKCN65WW），第六代：传感器、风扇曲线、电源配置
 - 联想拯救者 R9000（R9000K2021H）（BIOS GKCN59WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 5 Pro 16ACH6H (82JQ)（BIOS GKCN58WW）x 2：传感器、风扇曲线、电源配置
