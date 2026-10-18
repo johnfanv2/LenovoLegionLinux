@@ -941,11 +941,37 @@ methods are absent.
   0x13 -> 0x28 -> 0x00. `fan_unlock` is enabled with
   `has_fan_unlock_readback`, so reading it returns the live `FCST` bit.
 - Fan RPM via `WMAA` 0x08/0x09 (`FANS`/`FA2S` x 100) works. `WMAA` 0x12/0x13
-  (CPU/GPU temperature) are `Return (Zero)` stubs; the EC field `CPUT`
-  (0xC4B0) carries the CPU temperature but is not wired up yet.
+  (CPU/GPU temperature) are `Return (Zero)` stubs, so temperatures are read
+  from the EC fields `CPUT` (0xC4B0) and `GPUT` (0xC4B4) through ACPI
+  (`access_method_temperature = ACCESS_METHOD_ACPI`). `GPUT` is 0 while the
+  dGPU is off.
 - `fan_fullspeed` failed with -ENODEV (no FAN_METHOD GUID) and is hidden.
-- The fan curve table is empty (`fan curve points size: 0`); fan curves stay
-  unsupported.
+- Fan curve: the EC keeps the IdeaPad table (`ec_register_offsets_ideapad_v1`,
+  `ACCESS_METHOD_EC2`), not the v0 Legion one, which is why the v0 read
+  returned `fan curve points size: 0` (issue #16). 8 points; per point:
+  - fan speed, 100 RPM units: fan 1 at 0xC5A0, fan 2 at 0xC5A8
+  - CPU step-up / step-down temperature at 0xC550 / 0xC590
+  - GPU step-up / step-down temperature at 0xC5C0 / 0xC5D0
+  - each temperature table repeated 8 bytes later (0xC558, 0xC598, ...)
+
+  Stock table on 8JCN56WW (point 1 is "fans off"):
+
+  | point | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+  |---|---|---|---|---|---|---|---|---|
+  | fan 1 RPM | 0 | 1900 | 2300 | 2400 | 2700 | 3100 | 3500 | 3800 |
+  | fan 2 RPM | 0 | 1600 | 2000 | 2100 | 2400 | 2800 | 3200 | 4000 |
+  | CPU up °C | 50 | 58 | 64 | 70 | 76 | 82 | 88 | 99 |
+  | CPU down °C | 0 | 46 | 54 | 61 | 67 | 73 | 79 | 85 |
+  | GPU up °C | 66 | 66 | 66 | 66 | 66 | 66 | 74 | 99 |
+  | GPU down °C | 0 | 62 | 62 | 62 | 62 | 62 | 62 | 70 |
+
+  With the stock curve the fans start at 50 °C and stop below 46 °C, which is
+  this laptop's idle temperature, so they keep switching on and off. The EC
+  restores its table after a reset, so a custom curve has to be written again
+  after boot and resume.
+- The mini fan curve register reads 0, so `has_minifancurve` is off.
+- EC RAM is mapped at 0xFF00D400 (DSDT: `OperationRegion (ERAX,
+  SystemMemory, 0xFF00D400, 0xFF)`); 0xFE00D400 reads all 0xFF here.
 
 Validation on 81FV / 8JCN56WW, kernel 7.2:
 
@@ -957,7 +983,17 @@ cat $L/fan_unlock                       # 1
 echo 0 | sudo tee $L/fan_unlock; sleep 10; sensors | grep Fan   # back to auto
 # press Fn+Q, then
 cat $L/fan_unlock                       # 1 (read back from firmware)
+
+H=$(grep -l legion_hwmon /sys/class/hwmon/hwmon*/name | xargs dirname)
+cat $H/temp1_input                      # CPU, e.g. 49000
+cat $H/auto_points_size                 # 8
+cat $H/pwm1_auto_point1_temp            # 50 (stock)
+echo 51 | sudo tee $H/pwm1_auto_point1_temp   # fans now start at 51 °C
+echo 50 | sudo tee $H/pwm1_auto_point1_temp
 ```
+
+`/sys/kernel/debug/legion/ecmemoryram` now matches the port-I/O EC dump
+(`ecmemory`) over 0xC400-0xC6FF except for live values.
 
 The platform profile is registered but `powermode` cannot be read on this
 firmware; load the module with `enable_platformprofile=0` until it is gated.
