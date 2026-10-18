@@ -350,6 +350,43 @@ int main(void) {
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
 
+    /* M0CN (Legion Slim 7 16IRH8 82Y3, EC 0x5507, #637): the firmware
+     * default table reads 1..8,8,8 (levels), and the percent fallback left
+     * 14 and 16 in the EC table after pwm 38/43 writes. Same EC as LPCN,
+     * whose percent bytes hard-powered-off a unit: levels, speed-only,
+     * no EC minifancurve/lockfancontroller, and writes refused until a
+     * level write is validated on hardware. */
+    priv.conf = &model_m0cn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(priv.conf->wmi_fancurve_speed_only);
+    assert(!priv.conf->has_minifancurve && priv.conf->skip_lockfancontroller);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    assert(fancurve_write_allowed(&model_m0cn) == -EPERM);
+    {
+        struct fancurve stale = { .fan_speed_unit = FAN_SPEED_UNIT_LEVEL };
+        int calls = wmi_calls;
+        size_t i;
+
+        for (i = 0; i < MAXFANCURVESIZE; i++)
+            stale.points[i].speed1 = i < 8 ? i + 1 : 8;
+        stale.points[1].speed1 = 14; /* left behind by the percent unit */
+        stale.points[2].speed1 = 16;
+        allow_unvalidated_fancurve = true;
+        assert(wmi_write_fancurve_custom(&priv, &stale) == 0);
+        assert(wmi_calls == calls + 1);
+        /* FSTM stays 0 like LPCN; stale percent bytes clamp into 1..10. */
+        assert(last_payload[0] == 0);
+        assert(last_payload[0x08] == MAX_FAN_LEVEL && last_payload[0x0A] == MAX_FAN_LEVEL);
+        for (i = 0; i < MAXFANCURVESIZE; i++)
+            assert(last_payload[0x06 + 2 * i] >= 1 && last_payload[0x06 + 2 * i] <= MAX_FAN_LEVEL);
+        allow_unvalidated_fancurve = false;
+        wmi_calls = calls;
+        memset(last_payload, 0, sizeof(last_payload));
+    }
+
     /* NMCN (Legion 5 16IRX9 83DG, EC 0x5507) uses the WMI3 level fan table
      * like LPCN instead of the removed EC4 direct-EC layout. */
     priv.conf = &model_nmcn;

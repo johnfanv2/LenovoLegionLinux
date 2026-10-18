@@ -954,7 +954,14 @@ static const struct model_config model_m0cn = {
 	.embedded_controller_id = 0x5507,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	/* The ec_register_offsets_v0 minifancurve, maximumfanspeed and
+	 * lockfancontroller bytes do not match this firmware: on M0CN44WW
+	 * they read 21/24/41, 8 and a constant "true" (issue #637), the
+	 * same EC 0x5507 as model_lpcn which hides them too. Do not read
+	 * or write them.
+	 */
+	.has_minifancurve = false,
+	.skip_lockfancontroller = true,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
@@ -964,7 +971,22 @@ static const struct model_config model_m0cn = {
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
-	.ramio_size = 0x600
+	.ramio_size = 0x600,
+	/* Fan_Set_Table carries one table (FSID 0) and only per-point
+	 * speed1: a pwm2_* write never reached the EC on M0CN44WW
+	 * (issue #637). Expose only the speed attributes, like model_lpcn.
+	 */
+	.wmi_fancurve_speed_only = true,
+	/* Same EC (0x5507) and Fan_Set_Table as model_lpcn: the firmware
+	 * default table reads 1 2 3 4 5 6 7 8 8 8, i.e. level indices, not
+	 * percent (FAN_SPEED_UNIT_LEVEL). The old percent unit wrote 14 and
+	 * 16 for pwm 38/43 and the firmware failed the call with the bytes
+	 * already copied into the EC, where they survive reboots until an
+	 * EC reset (issue #637). Percent bytes on the LPCN twin hard
+	 * powered off the laptop, and no level write has been validated on
+	 * M0CN yet, so writes need allow_unvalidated_fancurve.
+	 */
+	.fancurve_write_unvalidated = true
 };
 
 static const struct model_config model_m1cn = {
@@ -5599,6 +5621,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_lpcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_m0cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nmcn	 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
 }
