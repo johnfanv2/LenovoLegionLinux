@@ -1404,22 +1404,34 @@ static const struct model_config model_e9cn = {
 };
 
 static const struct model_config model_8jcn = {
-	.registers = &ec_register_offsets_v0,
+	/* The Y530 EC keeps the IdeaPad fan table, not the v0 Legion one:
+	 * fan speeds (100 RPM units) at 0xC5A0/0xC5A8, CPU step-up/step-down
+	 * temperatures at 0xC550/0xC590 and GPU ones at 0xC5C0/0xC5D0, each
+	 * repeated 8 bytes later, 8 points. Read on 81FV, 8JCN56WW.
+	 */
+	.registers = &ec_register_offsets_ideapad_v1,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x8226,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	/* No mini fan curve register: it reads 0 ("Unexpected value"). */
+	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI,
 	.access_method_fanspeed = ACCESS_METHOD_WMI,
-	.access_method_temperature = ACCESS_METHOD_WMI,
-	.access_method_fancurve = ACCESS_METHOD_EC,
+	/* WMAA 0x12/0x13 (CPU/GPU temperature) are Return (Zero) stubs; the
+	 * EC fields CPUT/GPUT carry the temperatures.
+	 */
+	.access_method_temperature = ACCESS_METHOD_ACPI,
+	.access_method_fancurve = ACCESS_METHOD_EC2,
 	/* No FAN_METHOD WMI GUID on 8JCN: fan_fullspeed fails with -ENODEV. */
 	.access_method_fanfullspeed = ACCESS_METHOD_NO_ACCESS,
 	.acpi_check_dev = false,
-	.ramio_physical_start = 0xFE00D400,
+	/* DSDT: OperationRegion (ERAX, SystemMemory, 0xFF00D400, 0xFF);
+	 * 0xFE00D400 reads all 0xFF on this machine.
+	 */
+	.ramio_physical_start = 0xFF00D400,
 	.ramio_size = 0x600,
 	/* Y530 has no smart fan modes; Fn+Q toggles "extreme cooling" (both
 	 * fans to ~4000 RPM). GZFD.WMAA 0x0D issues NCMD(0x59, 0x77/0x76) as
