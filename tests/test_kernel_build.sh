@@ -1,4 +1,4 @@
 #!/bin/bash
 set -ex
 cd kernel_module
-make
+make KERNELVERSION="$(../tests/kernel_version.sh)"

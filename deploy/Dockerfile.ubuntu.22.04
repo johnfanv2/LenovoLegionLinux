@@ -20,6 +20,10 @@ RUN apt-get install -y gcc-12
 RUN mkdir /opt/LinuxLegionLaptop
 WORKDIR /opt/LinuxLegionLaptop
 
+# See Dockerfile.ubuntu.24.04: build against this image's own kernel headers
+# rather than the host kernel the container shares.
+ENV KERNEL_HEADERS_PACKAGE=linux-headers-generic
+
 COPY ./deploy/dependencies/install_dependencies_ubuntu_22_04.sh ./deploy/dependencies/install_dependencies_ubuntu_22_04.sh
 RUN ./deploy/dependencies/install_dependencies_ubuntu_22_04.sh
 

@@ -20,6 +20,13 @@ RUN apt-get install -y gcc-12
 RUN mkdir /opt/LinuxLegionLaptop
 WORKDIR /opt/LinuxLegionLaptop
 
+# The container shares the host kernel, so `uname -r` in here is the CI
+# runner's kernel: a different one per runner, and not necessarily a kernel
+# whose headers this distribution still publishes. Build the module against
+# this image's own headers instead - tests/kernel_version.sh picks them up, and
+# the dependency layer stays valid when the runner kernel changes.
+ENV KERNEL_HEADERS_PACKAGE=linux-headers-generic
+
 COPY ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh
 RUN ./deploy/dependencies/install_dependencies_ubuntu_24_04.sh
 
