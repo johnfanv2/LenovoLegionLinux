@@ -579,6 +579,14 @@ sysfs fixture and the offscreen GUI, without writing to hardware. It also
 runs the WMI level tests: zero-RPM requests there must clamp to the driver's
 per-point minimum rather than produce a rejected level-0 write.
 
+## LOQ 15IAX9 (83GS, NECN)
+
+`model_necn_83gs` (DMI `83GS` + BIOS `NECN`). The EC3 fan curve is read back
+from the `EXT_*_BASE` block that the writer writes, not from
+`EXT_*_RPM_LSB`, so a read-modify-write (GUI/CLI/legiond) keeps the table.
+Check: in custom mode write a curve, then
+`sudo cat /sys/kernel/debug/legion/fancurve` must show the same table.
+
 ## Legion Y7000P IRX10 (83NN, S9CN)
 
 BIOS S9CN19WW, EC 0x5508 (fw 2b0), Intel Arrow Lake-HX + RTX 50
