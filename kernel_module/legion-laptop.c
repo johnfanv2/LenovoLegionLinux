@@ -282,6 +282,16 @@ struct model_config {
 	bool acpi_fanspeed_is_rpm;
 	/* fan_target registers hold duty-cycle (0-100); scale by 100 to approximate RPM */
 	bool fan_target_is_duty;
+	/* EXT_FAN*_RPM_LSB is a single byte in units of 100 RPM and there is
+	 * no MSB byte (QNCN FANS/FA2S).
+	 */
+	bool ec_fanspeed_unit_100rpm;
+	/* Bits of EXT_POWERMODE that hold the power mode; 0 = whole byte.
+	 * QNCN keeps SPMO in bits 0-3 and unrelated flags in bits 4-7.
+	 */
+	u8 ec_powermode_mask;
+	/* The EC has no fan target register: hide fan1_target/fan2_target. */
+	bool skip_fan_target;
 	bool has_four_fans;
 	/* hwmon fan3 is the firmware's fan 4, read through the WMI3 Other
 	 * Method feature OtherMethodFeature_FAN_SPEED_4 (Q7CN).
@@ -598,6 +608,30 @@ static const struct ec_register_offsets ec_register_offsets_nccn = {
 	.ECDEBUG = 0x2003,
 	.EXT_CPU_TEMP_INPUT = 0x07,
 	.EXT_GPU_TEMP_INPUT = 0x08,
+};
+
+// Legion 5 15IRX10 (83LY), BIOS QNCN38WW, EC 0x5508 (issue #491). The
+// DSDT's ERAX window at 0xFE0B0400 is EC 0xC400 (the port I/O and RAM
+// dumps match byte for byte). FANS @0xC406 and FA2S @0xC403 count in
+// units of 100 RPM, CPUT @0xC4B0 and GPUT @0xC4B4 are degrees Celsius,
+// and SPMO is bits 0-3 of 0xC420; all of them matched the WMI3 readings
+// on an 83LY. The v0 fan RPM bytes 0xC5E0..0xC5E3 are custom-mode CPU
+// power limits on this firmware (0x467D = 18045 "RPM"), and the
+// EC_TEMP_INPUT_CPU/GPU fallbacks are the GPU cTGP and the GPU
+// temperature limit NTCC. The firmware declares no fan target byte.
+// EXT_MAXIMUMFANSPEED keeps the v0 value; FNST is bit 0 of 0xC58B, which
+// ec_read_fanfullspeed() cannot express, and QNCN uses WMI3 for it.
+static const struct ec_register_offsets ec_register_offsets_qncn = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN1_RPM_LSB = 0xC406,
+	.EXT_FAN2_RPM_LSB = 0xC403,
+	.EXT_POWERMODE = 0xC420,
+	.EXT_MAXIMUMFANSPEED = 0xBD,
+	.EXT_CPU_TEMP_INPUT = 0xC4B0,
+	.EXT_GPU_TEMP_INPUT = 0xC4B4,
 };
 
 // Selects which per-model EXT_*_TEMP_INPUT offsets are trusted, see
@@ -1205,16 +1239,18 @@ static const struct model_config model_nscn_83fd = {
 //   0x03010001/2 (EC EACS/ETCS, set via WSMI 7/8, 9/0xA, same as
 //   model_q7cn) -> has_instant_boot.
 // - KBBACKLIGHT WMAF get(1)/set(2) drives the keyboard (light id 0x00)
-//   and the Y-logo (id 0x03); no IO-port light id exists.
+//   and the Y-logo (id 0x03); no IO-port light id exists
+//   -> skip_ioport_light.
 // - LENOVO_FAN_TABLE_DATA is WQA3 (15 rows: modes 1/2/3/0xE0/0xFF x
 //   fan 1 sensors 0x01/0x04 + fan 2 sensor 0x05, ladders ending at 4600
 //   or 5400 RPM), so the per-level RPM ladders are available.
 // - EC RAM window ERAX @0xFE0B0400 len 0xFF, F9FT/ECB2 at +0x100/+0x200,
-//   used only for the read-only ecmemoryram debugfs dump; the old guess
-//   0xFE00D400 misread the EC (garbage EC RPM like 18045 at ~4000 real).
+//   used only for the read-only ecmemoryram debugfs dump. The EC reads
+//   go through port I/O at EC 0xC400.., where the v0 offsets hit other
+//   variables (garbage EC RPM like 18045); see ec_register_offsets_qncn.
 // fan_fullspeed is gated behind custom power mode like model_q7cn.
 static const struct model_config model_qncn = {
-	.registers = &ec_register_offsets_v0,
+	.registers = &ec_register_offsets_qncn,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x5508,
 	.memoryio_physical_ec_start = 0xC400,
@@ -1233,6 +1269,12 @@ static const struct model_config model_qncn = {
 	.skip_lockfancontroller = true,
 	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
 	.skip_fan_maxspeed = true,
+	.skip_ioport_light = true,
+	/* CPUT/GPUT, FANS/FA2S and SPMO, see ec_register_offsets_qncn. */
+	.validated_temp_registers = TEMP_REGISTER_CPU | TEMP_REGISTER_GPU,
+	.ec_fanspeed_unit_100rpm = true,
+	.ec_powermode_mask = 0x0F,
+	.skip_fan_target = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x300,
@@ -5316,6 +5358,14 @@ static u16 temp_input_register(const struct model_config *model, u8 bit,
 	return fallback;
 }
 
+static int ec_read_fan_rpm(struct ecram *ecram,
+			   const struct model_config *model, u16 lsb, u16 msb)
+{
+	if (model->ec_fanspeed_unit_100rpm)
+		return 100 * ecram_read(ecram, lsb);
+	return ecram_read(ecram, lsb) + (((int)ecram_read(ecram, msb)) << 8);
+}
+
 static int ec_read_sensor_values(struct ecram *ecram,
 				 const struct model_config *model,
 				 struct sensor_values *values)
@@ -5332,13 +5382,11 @@ static int ec_read_sensor_values(struct ecram *ecram,
 		ecram_read(ecram, model->registers->EXT_FAN2_TARGET_RPM);
 
 	values->fan1_rpm =
-		ecram_read(ecram, model->registers->EXT_FAN1_RPM_LSB) +
-		(((int)ecram_read(ecram, model->registers->EXT_FAN1_RPM_MSB))
-		 << 8);
+		ec_read_fan_rpm(ecram, model, model->registers->EXT_FAN1_RPM_LSB,
+				model->registers->EXT_FAN1_RPM_MSB);
 	values->fan2_rpm =
-		ecram_read(ecram, model->registers->EXT_FAN2_RPM_LSB) +
-		(((int)ecram_read(ecram, model->registers->EXT_FAN2_RPM_MSB))
-		 << 8);
+		ec_read_fan_rpm(ecram, model, model->registers->EXT_FAN2_RPM_LSB,
+				model->registers->EXT_FAN2_RPM_MSB);
 
 	values->cpu_temp_celsius = ecram_read(
 		ecram, temp_input_register(model, TEMP_REGISTER_CPU,
@@ -5389,15 +5437,13 @@ static ssize_t ec_read_fanspeed(struct ecram *ecram,
 	unsigned long res;
 
 	if (fan_id == 0) {
-		res = ecram_read(ecram, model->registers->EXT_FAN1_RPM_LSB) +
-		      (((int)ecram_read(ecram,
-					model->registers->EXT_FAN1_RPM_MSB))
-		       << 8);
+		res = ec_read_fan_rpm(ecram, model,
+				      model->registers->EXT_FAN1_RPM_LSB,
+				      model->registers->EXT_FAN1_RPM_MSB);
 	} else if (fan_id == 1) {
-		res = ecram_read(ecram, model->registers->EXT_FAN2_RPM_LSB) +
-		      (((int)ecram_read(ecram,
-					model->registers->EXT_FAN2_RPM_MSB))
-		       << 8);
+		res = ec_read_fan_rpm(ecram, model,
+				      model->registers->EXT_FAN2_RPM_LSB,
+				      model->registers->EXT_FAN2_RPM_MSB);
 	} else {
 		// TODO: use all correct error codes
 		return -EEXIST;
@@ -6954,6 +7000,8 @@ static ssize_t ec_read_powermode(struct legion_private *priv, int *powermode)
 {
 	*powermode =
 		ecram_read(&priv->ecram, priv->conf->registers->EXT_POWERMODE);
+	if (priv->conf->ec_powermode_mask)
+		*powermode &= priv->conf->ec_powermode_mask;
 	return 0;
 }
 
@@ -10556,6 +10604,10 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 	     attr == &sensor_dev_attr_fan2_label.dev_attr.attr ||
 	     attr == &sensor_dev_attr_fan2_target.dev_attr.attr))
 		supported = false;
+
+	if (attr == &sensor_dev_attr_fan1_target.dev_attr.attr ||
+	    attr == &sensor_dev_attr_fan2_target.dev_attr.attr)
+		supported = supported && !priv->conf->skip_fan_target;
 
 	if (attr == &sensor_dev_attr_temp3_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_temp3_label.dev_attr.attr)
