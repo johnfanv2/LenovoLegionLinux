@@ -708,38 +708,84 @@ chassis:
   placeholder in extreme mode (ODV1 == 4; read the table in another
   mode). Unlike R3CN/T2CN the QNCN write path ignores the payload mode
   byte, so no mode-byte quirk is needed. `LENOVO_FAN_TABLE_DATA` (WQA3)
-  maps level 1..10 to 1800..5400 RPM (fan 1 sensors 0x01/0x04, fan 2
-  sensor 0x05, modes 1/2/3/0xE0/0xFF), so
-  `fan1_level_rpm_table`/`fan2_level_rpm_table` are available.
+  maps level 1..10 to 1800..4600 RPM, or to 1800..5400 RPM when the
+  BIOS byte GSKU is 0x08 (fan 1 sensors 0x01/0x04, fan 2 sensor 0x05,
+  modes 1/2/3/0xE0/0xFF). The 83LY reports the 4600 RPM ladder in
+  `fan1_level_rpm_table`/`fan2_level_rpm_table`.
 - The keyboard backlight and the Y-logo light are driven by the
-  KBBACKLIGHT WMI methods (`WMAF` get(1)/set(2), light ids 0x00/0x03);
-  no IO-port light id exists on this firmware.
-- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
-  exposed but writes require custom power mode; on this generation a
-  full-speed write through the wrong WMI method (old fallback config)
-  wedged the fans at maximum speed until reboot on the 83LT, so
-  validate with care and be ready to reboot.
+  KBBACKLIGHT WMI methods (`WMAF` get(1)/set(2), light ids 0x00/0x03).
+  No IO-port light id exists on this firmware, so `skip_ioport_light`
+  is set.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, bit 0 of 0xC58B)
+  needs custom power mode. In any other mode the write returns `EBUSY`.
+  On the 83LY, setting it took both fans from 2300 to 4700-4800 RPM
+  within 3 s, and clearing it let them ramp back down to the table
+  level. On this generation a full-speed write through the wrong WMI
+  method (old fallback config) once wedged the fans at maximum speed
+  until reboot on the 83LT.
 - Rapid charge and battery conservation use `VPC0.GBMD`/`SBMC` at
   `\_SB.PC00.LPCB.EC0`; instant boot (power on AC / USB-PD) uses WMAE
   `0x03010001`/`0x03010002` (EC `EACS`/`ETCS` via `WSMI` 7/8, 9/0xA).
 - `minifancurve`, `lockfancontroller` and `fan_maxspeed` (WMAB ids 3/4
-  are not implemented) are hidden; the EC RAM window (`ERAX
-  @0xFE0B0400`, len 0xFF; `F9FT`/`ECB2` at +0x100/+0x200) is only used
-  for the read-only `ecmemoryram` debugfs dump. The pre-QNCN38WW config
-  guessed `0xFE00D400` and misread the EC: its debugfs dump reported
-  ~18045/~16737 RPM at a real ~4000 RPM while the WMI3 values were
-  correct, matching `lenovo_wmi_other`.
+  are not implemented) are hidden. `fan1_target`/`fan2_target` are
+  hidden too (`skip_fan_target`): the firmware has no fan target byte,
+  and the v0 offsets read 9600 and 0 RPM.
+- The driver reads the EC through port I/O at EC 0xC400 and up, using
+  `ec_register_offsets_qncn`. The ERAX window at 0xFE0B0400 (len 0xFF;
+  `F9FT`/`ECB2` at +0x100/+0x200) is the same memory: the `ecmemory`
+  and `ecmemoryram` dumps match except for bytes that change between
+  the two reads. `FANS` 0xC406 and `FA2S` 0xC403 count in units of
+  100 RPM, `CPUT` 0xC4B0 and `GPUT` 0xC4B4 hold degrees Celsius, and
+  `SPMO` is bits 0-3 of 0xC420 (0 balanced, 1 performance, 2 quiet,
+  3 custom, 4 extreme). The v0 offsets hit other variables, so the old
+  RAM address was not what broke the EC columns. 0xC5E0..0xC5E3 hold the
+  custom-mode CPU power limits: 0x467D is PL1 70 W and PL2 125 W, the
+  "18045 RPM" in older dumps.
+- The GameZone WMI block is left to `lenovo-wmi-gamezone`
+  (`leave_gamezone_wmi_unbound`, as on Q7CN). While LLL held it,
+  `/sys/class/platform-profile` was empty and the `lenovo-wmi-other`
+  `ppt_pl1_spl`/`ppt_pl2_sppt` reads returned `EINVAL`. With the block
+  unbound, both work whichever module loads first, and `powermode` and
+  the native platform profile follow each other in both directions.
 
-Validation status: config derived from the reporter's QNCN38WW DSDT
-analysis plus runtime logs in issue #491 (WMI powermode, WMI3 fan RPM
-and temperatures verified against `lenovo_wmi_other`; the WMI fan-table
-read returned live levels 1,2,3,4,5,6,7,9,10,10 in custom mode). A
-custom-mode Fan_Set_Table write round trip is still pending on
-hardware - test with one small upward level change, then read back and
-restore the original table and mode, and report the result in issue
-#491. Verify locally with `sudo dmesg | grep -i legion` (no "not in
+Hardware validation on an 83LY (QNCN38WW, on AC, issue #491):
+
+- The fan table is one shared buffer. Quiet, balanced, performance and
+  custom read the same ten bytes, and extreme reads the 1..10
+  placeholder. After a cold boot it reads all zeros until custom mode
+  is entered, which seeds 1,2,3,4,5,6,7,8,8,8. The
+  1,2,3,4,5,6,7,9,10,10 readback earlier in the issue was taken in
+  performance mode.
+- The EC applies the table only in custom mode. All points at level 10
+  took both fans to 4600 RPM and all points at level 1 to 1800 RPM, the
+  two ends of `fan1_level_rpm_table`. A table written in balanced mode
+  reads back, but the fans keep following the balanced curve until
+  custom mode is entered. The EC ramps about 70 RPM/s up and 25 RPM/s
+  down.
+- The driver keeps points 9 and 10 at level 3 and level 5 or higher and
+  rejects level 0 with `EOPNOTSUPP`. The firmware does no range check
+  of its own.
+- Temperature axis: with the table set to 1..10 and the CPU loaded in
+  steps, the settled level was never below the level the WQA3 CPU row
+  gives for the CPU temperature (sensor 0x04, `CPUT`: 46 49 53 58 64 69
+  72 78 83 87 C), and it was above that level only while cooling down.
+  A 1 s spike to 95 C did not raise the level, so the EC filters the
+  temperature and has some downward hysteresis. No byte in the three EC
+  windows tracks the active point.
+- Rapid charge, battery conservation and both instant boot switches
+  read back what was written. Conservation also shows in
+  `ideapad_laptop`'s `conservation_mode` and as `Long_Life` in
+  `BAT0/charge_types`, and rapid charge shows as `Fast`. Turning rapid
+  charge on clears conservation.
+- The keyboard backlight (0..2) and Y-logo (0..1) LEDs read back each
+  written level.
+- Not tested yet: suspend/resume, and whether a custom table survives a
+  reboot.
+
+Verify locally with `sudo dmesg | grep -i legion` (no "not in
 allowlist", EC id 0x5508), `sensors`, and `sudo cat
-/sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in 1..10).
+/sys/kernel/debug/legion/fancurve` (`u` = 5, speed1 in 1..10; the EC
+columns match the WMI3 ones).
 
 ## Legion R9000P AFR10 (83F6, RECN)
 
