@@ -1275,6 +1275,11 @@ static const struct model_config model_qncn = {
 	.ec_fanspeed_unit_100rpm = true,
 	.ec_powermode_mask = 0x0F,
 	.skip_fan_target = true,
+	/* Same GameZone alias race as model_q7cn (issue #625): while LLL
+	 * holds the block, platform_profile is missing and the
+	 * lenovo-wmi-other PL1/PL2 attributes return -EINVAL on QNCN38WW.
+	 */
+	.leave_gamezone_wmi_unbound = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x300,
