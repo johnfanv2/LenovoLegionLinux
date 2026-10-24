@@ -140,6 +140,11 @@ class TemperatureRegisterFlagTest(unittest.TestCase):
                 # reads/writes them; hardware read-back validation is tracked
                 # in the issue.
                 "model_nccn": "TEMP_REGISTER_CPU | TEMP_REGISTER_GPU",
+                # Legion 5 15IRX10 (83LY, issue #491): the QNCN38WW DSDT
+                # reads CPUT/GPUT at ERAX+0xB0/+0xB4 (EC 0xC4B0/0xC4B4) in
+                # WMAE 0x05040000/0x05050000, and both bytes matched the
+                # WMI3 CPU/GPU temperatures on an 83LY at idle and under load.
+                "model_qncn": "TEMP_REGISTER_CPU | TEMP_REGISTER_GPU",
             },
             "a model may opt in only with validated register offsets; "
             "add one here only with its evidence documented",
