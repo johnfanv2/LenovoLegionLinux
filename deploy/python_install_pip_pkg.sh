@@ -20,6 +20,8 @@ fi
 cd "${REPODIR}/python/legion_linux"
 sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 
+# wheels left over from older builds would make installer get several files
+rm -rf dist
 python3 -m build --wheel --no-isolation
 
 python3 -m installer --destdir="/" dist/*.whl
