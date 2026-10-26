@@ -22,6 +22,8 @@ sed -i "s/version = _VERSION/version = ${TAG}/g" setup.cfg
 #mkdir $HOME/.config/lenovo_linux
 
 # Build and install python package with build and installer
+# wheels left over from older builds would make installer get several files
+rm -rf dist
 python3 -m build --wheel --no-isolation
 
 python3 -m installer --destdir="/" dist/*.whl
