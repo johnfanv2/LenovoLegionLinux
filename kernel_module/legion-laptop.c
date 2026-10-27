@@ -1309,7 +1309,7 @@ static const struct model_config model_lpcn = {
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
-	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.access_method_powerlimits = ACCESS_METHOD_WMI3,
 	/* Fan Method GZFD.WMB2 implements only ids 5/6 (fan table), so
 	 * Fan_Get/Set_MaxSpeed (ids 3/4) do not exist -> skip_fan_maxspeed.
