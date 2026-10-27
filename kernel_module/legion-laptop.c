@@ -1311,6 +1311,13 @@ static const struct model_config model_lpcn = {
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
 	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	/* Fan Method GZFD.WMB2 implements only ids 5/6 (fan table), so
+	 * Fan_Get/Set_MaxSpeed (ids 3/4) do not exist -> skip_fan_maxspeed.
+	 * Other Method 0x05010000 is the CPU socket temp (CPUS), not an IC
+	 * sensor, and WMI3 has no IC temp -> skip_ic_temp.
+	 */
+	.skip_fan_maxspeed = true,
+	.skip_ic_temp = true,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600,
