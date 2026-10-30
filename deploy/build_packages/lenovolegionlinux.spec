@@ -4,7 +4,7 @@
 
 Summary: Control Lenovo Legion laptop
 Name: python-%{srcname}
-Version: 0.1.4
+Version: 0.1.5
 Release: 0
 Source0: https://github.com/johnfanv2/LenovoLegionLinux/archive/refs/tags/v%{version}.tar.gz
 License: GPL-2.0
@@ -101,6 +101,8 @@ echo "Command: sudo cp -r /usr/share/legion_linux /etc/legion_linux"
 echo "After uninstall you can remover /etc/legion_linux to get rid of the configuration file!"
 
 %changelog
+* Fri Oct 30 2026 github-actions <actions@github.com> - 0.1.5
+- 0.1.5 release of LenovoLegionLinux.
 * Mon Oct 19 2026 github-actions <actions@github.com> - 0.1.4
 - 0.1.4 release of LenovoLegionLinux.
 * Wed Oct 14 2026 github-actions <actions@github.com> - 0.1.3
