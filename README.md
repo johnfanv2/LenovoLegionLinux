@@ -1112,6 +1112,16 @@ The software consists of the following parts:
 - SmartFan in the `extra/smartfan` folder:
   - A standalone shell-based fan daemon for Legion 7 Gen 10+ laptops that only needs `acpi_call` instead of the full kernel module.
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=johnfanv2%2Flenovolegionlinux&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=johnfanv2/lenovolegionlinux&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=johnfanv2/lenovolegionlinux&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=johnfanv2/lenovolegionlinux&type=date&legend=top-left" />
+ </picture>
+</a>
+
 ## Legal Matters
 
 Reference to any Lenovo products, services, processes, or other information and/or use of Lenovo Trademarks does not constitute or imply endorsement, sponsorship, or recommendation thereof by Lenovo.

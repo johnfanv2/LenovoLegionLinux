@@ -1135,6 +1135,16 @@ sudo cat /proc/driver/nvidia/gpus/0000:01:00.0/power
 - `extra/smartfan` 文件夹下的 SmartFan：
   - 一个独立的 shell 风扇守护进程，面向 Legion 7 Gen 10+ 机型，仅需 `acpi_call`，无需完整内核模块。
 
+## Star 历史
+
+<a href="https://www.star-history.com/?repos=johnfanv2%2Flenovolegionlinux&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=johnfanv2/lenovolegionlinux&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=johnfanv2/lenovolegionlinux&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=johnfanv2/lenovolegionlinux&type=date&legend=top-left" />
+ </picture>
+</a>
+
 ## 法律声明
 
 本项目中对任何联想产品、服务、流程或其它信息的引用，以及对联想商标的使用，并不构成或暗示联想对本项目的认可、赞助或推荐。
