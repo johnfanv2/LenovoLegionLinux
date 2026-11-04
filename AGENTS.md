@@ -26,7 +26,7 @@ Prefer conservative defaults and never enable risky behavior unconditionally.
 | `deploy/` | Packaging: RPM specs, Dockerfiles, per-distro dependency scripts | shell/spec |
 | `tests/` | Test/lint scripts — **these are exactly what CI runs** | bash |
 | `subprojects/` | AUR DKMS packaging | PKGBUILD |
-| `doc/` | Assets, `FEATURES_AND_TESTING.md`, `REVERSE_ENGINEER.md`, `TESTPLAN.md` | markdown |
+| `docs/` | User guides (installation, testing, usage, models, FAQ), `zh-hans/` translations, assets, `FEATURES_AND_TESTING.md`, `REVERSE_ENGINEER.md`, `TESTPLAN.md` | markdown |
 
 ## Build, test, lint — per component
 
@@ -106,8 +106,10 @@ shellcheck if available.
   (`feat(scope):`, `fix(scope):`, `docs:`). Keep unrelated changes in
   separate commits.
 - **Docs parity**: user-facing behavior changes must update **both**
-  `README.md` and `README_zh-hans.md` (they are kept in sync), plus
-  `doc/FEATURES_AND_TESTING.md` if a feature/test procedure changes.
+  languages (they are kept in sync): `README.md` / `README_zh-hans.md`
+  for the overview, or the matching guide in `docs/` and `docs/zh-hans/`
+  (installation, initial testing, usage, models, FAQ, known issues), plus
+  `docs/FEATURES_AND_TESTING.md` if a feature/test procedure changes.
 - **Adding a laptop model**: add a DMI allowlist entry in
   `kernel_module/legion-laptop.c` keyed on BIOS version prefix (e.g.
   `GKCN`, `N0CN`) with an appropriate existing `model_*` config as

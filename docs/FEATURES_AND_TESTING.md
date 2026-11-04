@@ -249,7 +249,7 @@ BIOS Q7CN78WW, EC 0x5508 (fw 1.78), Intel Arrow Lake-HX + RTX 50. DMI entry
   laptop should power on by itself.
 
 Validated on Linux 7.2.4 next to the in-tree `lenovo_wmi_*` drivers with
-`enable_platformprofile=0` (see the README's KDE/coexistence section):
+`enable_platformprofile=0` (see the KDE/coexistence entry in the [FAQ](faq.md)):
 `ecmemory`, `ecmemoryram` and the ACPI EC I/O space are byte-identical; the
 WMI table read `1,2,3,4,5,6,7,8,8,8` matches EC RAM `F9F0..F9F9`
 (`ecmemoryram` offset 0x180); `powermode` 3/2/3 and custom mode were
@@ -1196,7 +1196,7 @@ Fan table unit: **levels**, writes **disabled by default**
 - The LPCN59WW DSDT on that unit has the identical `WMB2` 5/6 handlers.
   Entering `max-power` (0xE0) on AC also issues `NCMD(0x8C)`, the same EC
   command that commits the fan table. That would explain the instant
-  power-off in max-power on LPCN65WW (see README) if percent bytes were
+  power-off in max-power on LPCN65WW (see [Known Issues](known-issues.md)) if percent bytes were
   already in the table. This is a hypothesis; `max-power` stays hidden.
 - Validated on the same 82WM/LPCN59WW through this driver (2026-10-12, AC,
   never max-power). Loaded with `allow_unvalidated_fancurve=1`, writing pwm

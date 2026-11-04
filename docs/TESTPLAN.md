@@ -1,7 +1,7 @@
 # Testplan
 
 ## Tests
-Perform tests from README.md and the following:
+Perform the tests from [Initial Usage Testing](initial-testing.md) and the following:
 
 
 ### Test: Read Sensor Values from hwmon interface

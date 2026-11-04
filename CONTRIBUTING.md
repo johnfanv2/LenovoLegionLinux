@@ -25,11 +25,11 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 ## Ways to Contribute
 
 - **Code**: fix bugs, add features, add support for your laptop model.
-- **Testing**: run the tests in the README on your hardware and report
+- **Testing**: run the tests in [docs/initial-testing.md](docs/initial-testing.md) on your hardware and report
   results (success *and* failure reports are valuable — include your exact
   model and BIOS version).
 - **Documentation**: keep the READMEs (`README.md` and `README_zh-hans.md`,
-  which are maintained in sync) and the files in `doc/` accurate.
+  which are maintained in sync) and the files in `docs/` accurate.
 
 An issue alone gives us very little to work with: we do not have access to
 your hardware. If at all possible, please try to fix the problem locally,
@@ -135,8 +135,9 @@ bash -n extra/smartfan/*.sh   # syntax check; run shellcheck if available
   (`feat(scope):`, `fix(scope):`, `docs:`). Keep unrelated changes in
   separate commits.
 - **Docs parity**: user-facing behavior changes must update **both**
-  `README.md` and `README_zh-hans.md`, plus `doc/FEATURES_AND_TESTING.md`
-  if a feature or test procedure changes.
+  `README.md` and `README_zh-hans.md` or the matching pages in `docs/` and
+  `docs/zh-hans/`, plus `docs/FEATURES_AND_TESTING.md` if a feature or test
+  procedure changes.
 - In the PR description, reference the issue you are fixing
   (e.g. `Fixes #123`) and describe how you verified the change on real
   hardware (commands run, observed output).
