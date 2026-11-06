@@ -67,6 +67,8 @@
 #include <linux/dmi.h>
 #include <linux/efi.h>
 #include <linux/leds.h>
+#include <linux/input.h>
+#include <linux/input/sparse-keymap.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/kernel.h>
@@ -9506,10 +9508,62 @@ struct legion_wmi_private {
 //	pr_info("WMI notify\n" );
 //    }
 
+
+/* =============================  */
+/* FN hotkeys (gamezone event)    */
+/* =============================  */
+/*
+ * The EC reports FN-key presses as the scancode in the payload of the
+ * GAMEZONE WMI event (the "8FC0DE0C-..." device on Legion 5/7). Only the
+ * event type used to be logged, so nothing reached userspace. Report the
+ * known scancodes as proper input keys; the desktop then decides what a
+ * refresh-rate toggle means.
+ */
+static const struct key_entry legion_fn_keymap[] = {
+	{ KE_KEY, 0x10, { KEY_REFRESH_RATE_TOGGLE } },	/* Fn+R on Legion 5/7 */
+	{ KE_KEY, 0x0a, { KEY_REFRESH_RATE_TOGGLE } },	/* Fn+R on some Yogas */
+	{ KE_END },
+};
+
+static struct input_dev *legion_fn_input;
+
+static void legion_fn_report(u32 scancode)
+{
+	int err;
+
+	if (!legion_fn_input) {
+		struct input_dev *idev = input_allocate_device();
+
+		if (!idev)
+			return;
+		idev->name = "Legion WMI hotkeys";
+		idev->phys = "legion/input0";
+		idev->id.bustype = BUS_HOST;
+
+		err = sparse_keymap_setup(idev, legion_fn_keymap, NULL);
+		if (err) {
+			input_free_device(idev);
+			return;
+		}
+		err = input_register_device(idev);
+		if (err) {
+			input_free_device(idev);
+			return;
+		}
+		legion_fn_input = idev;
+	}
+
+	sparse_keymap_report_event(legion_fn_input, scancode, 1, true);
+}
+
 static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 {
 	struct legion_wmi_private *wpriv;
 	struct legion_private *priv;
+	u32 scancode = 0;
+
+	if (data && data->type == ACPI_TYPE_INTEGER)
+		scancode = (u32)data->integer.value;
 
 	mutex_lock(&legion_shared_mutex);
 	priv = legion_shared;
@@ -9527,8 +9581,10 @@ static void legion_wmi_notify(struct wmi_device *wdev, union acpi_object *data)
 		//legion_platform_profile_notify();
 		break;
 	default:
-		pr_info("Event: legion type: %d;  acpi type: %d (%d=integer)",
-			wpriv->event, data->type, ACPI_TYPE_INTEGER);
+		pr_info("Event: legion type: %d;  acpi type: %d (%d=integer) scancode=0x%x",
+			wpriv->event, data ? data->type : -1, ACPI_TYPE_INTEGER, scancode);
+		if (wpriv->event == LEGION_WMI_EVENT_GAMEZONE)
+			legion_fn_report(scancode);
 		break;
 	}
 
@@ -11588,6 +11644,10 @@ module_init(legion_init);
 
 static void __exit legion_exit(void)
 {
+	if (legion_fn_input) {
+		input_unregister_device(legion_fn_input);
+		legion_fn_input = NULL;
+	}
 	platform_driver_unregister(&legion_driver);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
 	platform_device_unregister(_priv.platform_device);
