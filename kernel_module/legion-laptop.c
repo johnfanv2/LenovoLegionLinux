@@ -74,6 +74,7 @@
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 #include <linux/platform_profile.h>
+#include <linux/power_supply.h>
 #include <linux/types.h>
 #include <linux/wmi.h>
 #include <linux/version.h>
@@ -315,6 +316,22 @@ struct model_config {
 	bool skip_ioport_light;
 	// EC register holding the Y-Logo light state; 0 = not available
 	u16 ec_ylogo_register;
+	/*
+	 * EC byte holding the firmware's custom mode flags (J2CN: CTMD in
+	 * bit 0, CTPA in bit 1); 0 = not available. A custom request on
+	 * battery leaves the EC in balanced with CTPA ("custom pending for
+	 * AC") set, and the GameZone get method then reports custom. The
+	 * driver only reads this byte, to report such a parked request as
+	 * balanced.
+	 */
+	u16 ec_custom_mode_register;
+	/*
+	 * The firmware only enters custom mode on AC; on battery it parks
+	 * the request (see ec_custom_mode_register), and none of the other
+	 * mode requests clear it, so it fires when AC is plugged in later.
+	 * Refuse custom while the system runs on battery.
+	 */
+	bool custom_powermode_requires_ac;
 
 	bool acpi_check_dev;
 
@@ -722,6 +739,13 @@ static const struct model_config model_j2cn = {
 	.access_method_temperature = ACCESS_METHOD_EC,
 	.access_method_fancurve = ACCESS_METHOD_EC,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	/*
+	 * ERAX offset 0x1D (CTMD bit 0, CTPA bit 1) in the J2CN61WW DSDT;
+	 * ERAX starts at 0xC400, as SPMO (ERAX 0x20) is EXT_POWERMODE
+	 * 0xC420, which reads 0 in balanced and 2 in quiet here (#651).
+	 */
+	.ec_custom_mode_register = 0xC41D,
+	.custom_powermode_requires_ac = true,
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE00D400,
 	.ramio_size = 0x600,
@@ -7072,6 +7096,49 @@ static ssize_t wmi_write_powermode(u8 value)
 			    sizeof(value));
 }
 
+#define EC_CUSTOM_MODE_ACTIVE BIT(0) /* CTMD */
+#define EC_CUSTOM_MODE_PENDING_AC BIT(1) /* CTPA */
+
+/*
+ * A custom request the firmware parked for AC: custom not active, custom
+ * pending, and the EC running balanced. The GameZone get method reports
+ * custom for this state, but the EC runs balanced.
+ */
+static bool ec_custom_request_parked(u8 custom_mode, int ec_powermode)
+{
+	return !(custom_mode & EC_CUSTOM_MODE_ACTIVE) &&
+	       (custom_mode & EC_CUSTOM_MODE_PENDING_AC) &&
+	       ec_powermode == LEGION_EC_POWERMODE_BALANCED;
+}
+
+static void fixup_parked_custom_powermode(struct legion_private *priv,
+					  int *powermode)
+{
+	int ec_powermode;
+	u8 custom_mode;
+
+	if (!priv->conf->ec_custom_mode_register ||
+	    *powermode != LEGION_WMI_POWERMODE_CUSTOM)
+		return;
+
+	custom_mode =
+		ecram_read(&priv->ecram, priv->conf->ec_custom_mode_register);
+	ec_read_powermode(priv, &ec_powermode);
+	if (ec_custom_request_parked(custom_mode, ec_powermode))
+		*powermode = LEGION_WMI_POWERMODE_BALANCED;
+}
+
+/*
+ * The firmware cannot enter custom mode right now: it would only park the
+ * request (see custom_powermode_requires_ac). An unknown supply state
+ * (no power supply registered) does not block the request.
+ */
+static bool custom_powermode_blocked(struct legion_private *priv)
+{
+	return priv->conf->custom_powermode_requires_ac &&
+	       power_supply_is_system_supplied() == 0;
+}
+
 static ssize_t read_powermode(struct legion_private *priv, int *powermode)
 {
 	ssize_t res;
@@ -7084,7 +7151,10 @@ static ssize_t read_powermode(struct legion_private *priv, int *powermode)
 	case ACCESS_METHOD_ACPI:
 		return acpi_read_powermode(priv, powermode);
 	case ACCESS_METHOD_WMI:
-		return wmi_read_powermode(powermode);
+		res = wmi_read_powermode(powermode);
+		if (!res)
+			fixup_parked_custom_powermode(priv, powermode);
+		return res;
 	default:
 		pr_info("No access method for powermode: %d\n",
 			priv->conf->access_method_powermode);
@@ -7125,6 +7195,12 @@ static ssize_t write_powermode(struct legion_private *priv,
 
 	//TODO: remove again
 	pr_info("Set powermode\n");
+
+	if (value == LEGION_WMI_POWERMODE_CUSTOM &&
+	    custom_powermode_blocked(priv)) {
+		pr_info("Custom powermode needs AC on this model; the firmware would only park the request\n");
+		return -EOPNOTSUPP;
+	}
 
 	switch (priv->conf->access_method_powermode) {
 	case ACCESS_METHOD_EC:
@@ -7501,6 +7577,10 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_file_print_with_error(s, "powermode ACPI", err, powermode);
 	err = wmi_read_powermode(&powermode);
 	seq_file_print_with_error(s, "powermode WMI", err, powermode);
+	if (priv->conf->ec_custom_mode_register)
+		seq_printf(s, "EC custom mode flags: 0x%02x\n",
+			   ecram_read(&priv->ecram,
+				      priv->conf->ec_custom_mode_register));
 	seq_printf(s, "has custom powermode: %d\n",
 		   priv->conf->has_custom_powermode);
 
