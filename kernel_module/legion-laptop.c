@@ -2463,6 +2463,42 @@ static const struct model_config model_m3cn = {
 	},
 	.has_extreme_powermode = true
 };
+// Legion Slim 5 14APH8 2023
+static const struct model_config model_macn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFEEC2400,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
+	},
+	.wmi_fancurve_speed_only = true,
+	.has_fancurve_defaults = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.skip_ic_temp = true,
+	.skip_lockfancontroller = true,
+	.has_fn_lock = true,
+	.has_flip_to_start = true,
+	.has_instant_boot = true,
+	.fan_max_rpm = 6400,
+};
 static const struct model_config model_m3cn_8227 = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -3314,6 +3350,15 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "4GCN"),
 		},
 		.driver_data = (void *)&model_4gcn
+	},
+	{
+		// e.g. Legion Slim 5 14APH8 2023
+		.ident = "MACN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_BIOS_VERSION, "MACN"),
+		},
+		.driver_data = (void *)&model_macn
 	},
 	{
 		// e.g. Legion Slim 5 16APH8 2023
@@ -5775,6 +5820,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_macn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_lpcn	 ? FAN_SPEED_UNIT_LEVEL :
