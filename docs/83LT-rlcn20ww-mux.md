@@ -22,9 +22,10 @@ image confirms the following path:
    configuration, and may invoke `ResetSystem(EfiResetCold)` again.
 
 `WMAA(0x2A)` unconditionally returns ACPI Integer `0`; that acknowledgement
-is **not** proof that the MUX switched. The physical eDP GPIO/route is not yet
-traced. The separate `SetIGPUModeStatus` method must not be confused with this
-MUX-mode request.
+is **not** proof that the MUX switched. The actual internal eDP routing was
+verified across reboots using PCI/DRM, but the underlying MUX GPIO/register
+has not been traced. The separate `SetIGPUModeStatus` method must not be
+confused with this MUX-mode request.
 
 ## Linux interface and safeguards
 
@@ -60,7 +61,20 @@ mode. **A reboot is necessary** and firmware may reboot once more. Verify the
 internal eDP connector and PCI GPU identities after boot; DRM card numbering
 is not stable. Do not attempt raw SMI/EC writes.
 
-**Validation status:** Read-only status is confirmed on an 83LT/RLCN20WW in
-`discrete` mode. The guarded mode *write and reboot round trip* remains
-unverified; this feature should remain experimental until tested with BIOS
-recovery access. Related hardware support report: issue #445.
+**Validation status (83LT/RLCN20WW, 2026-11-08):** The guarded write and
+reboot round trip was verified on one machine:
+
+- Writing `hybrid` with both write guards explicitly enabled returned success.
+  After reboot, AMD Radeon 610M (`1002:164e`, PCI `05:00.0`) was a VGA
+  controller driven by `amdgpu`, and the internal connected eDP was on AMD's
+  `card0-eDP-1`. NVIDIA (`10de:2d58`) remained enumerated.
+- A one-shot safety timer subsequently read `Current mode: hybrid`, confirming
+  that the WMI mode readback agreed with AMD's eDP routing. It requested
+  `discrete` and rebooted. The next boot exposed AMD's `05:00.0` as a PCI
+  dummy function (`1022:14de`), while NVIDIA drove the connected eDP panel.
+- The temporary rollback timer and service have since been removed. The
+  module's firmware-write guard was restored after each request.
+
+This confirms the **boot-time** route change in both directions on this BIOS;
+it does not establish a live, reboot-free display switch or compatibility with
+other firmware revisions. Related hardware support report: issue #445.

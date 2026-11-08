@@ -297,9 +297,11 @@ Same firmware layout as the Q7CN (83F5) above, on the AMD chassis:
   bytes on the 0x5508 generation); the EC RAM window (`ERAX @0xFEEC2400`,
   len 0xFF) is only used for the read-only `ecmemoryram` debugfs dump.
 
-Validation status: config derived from the DSDT analysis in issue #445;
-runtime validation on the reporter's unit is in progress - check the
-issue for the results, and verify locally with
+Validation status: the general EC/fan configuration here was derived from
+the DSDT in issue #445 (RLCN31WW); validation of those features is separate
+and remains in progress. The GPU boot-mode switch was verified in both
+directions on an 83LT with RLCN20WW (see GSync below). To verify other
+features locally, use
 `sudo dmesg | grep -i legion` (no "not in allowlist", EC id 0x5508),
 `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve` (`u` = 5,
 speed1 in 1..10).
@@ -1532,28 +1534,30 @@ On Legion Pro 5 16ADR10 (83LT) with BIOS **RLCN20WW** only, the driver also
 exposes `graphics_mode` (`hybrid`/`discrete`). Writes through either
 `graphics_mode` or the legacy `gsync` attribute are **blocked by default**;
 load with `allow_rlcn20_mux_write=1` and without `ec_readonly=1` to explicitly
-permit firmware requests. This has not yet been validated by a post-reboot
-eDP routing test. See [83LT/RLCN20WW graphics mode](83LT-rlcn20ww-mux.md)
-and the [Chinese guide](zh-hans/83LT-rlcn20ww-mux.md).
+permit firmware requests. A guarded Hybrid → Discrete reboot round trip was
+verified on one 83LT/RLCN20WW (2026-11-08) using PCI and eDP routing; live
+switching and other BIOS versions remain unverified. See
+[83LT/RLCN20WW graphics mode](83LT-rlcn20ww-mux.md) and the
+[Chinese guide](zh-hans/83LT-rlcn20ww-mux.md).
 
 ```text
 WMI
 GUID: 887B54E3-DDDC-4B2C-8B88-68A26A8835D0
 Object ID: AA
 
-Getting state
+Getting state (RLCN20WW)
 Method ID: 0x29
 Args: None
-Returns: integer
-- 0: enabled
-- 1: not enabled
+Returns: integer (EC MSMF, currently active mode)
+- 0: hybrid (AMD drives internal eDP)
+- 1: discrete (NVIDIA drives internal eDP)
 
-Setting state
+Requesting the next-boot mode (RLCN20WW)
 Method ID: 0x2A
-Args: Buffer of u8
-Returns: integer
-- 0: enabled
-- 1: not enabled
+Args: four-byte UINT32 (little-endian)
+- 0: request hybrid (SMI 0xCA/0x25)
+- 1: request discrete (SMI 0xCA/0x26)
+Returns: ACPI Integer(0), unconditionally; not proof of MUX completion
 ```
 
 ### Change to Hybrid Mode
