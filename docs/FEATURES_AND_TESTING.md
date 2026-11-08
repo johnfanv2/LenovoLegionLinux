@@ -1527,6 +1527,15 @@ cat /proc/acpi/call; printf '\n'
 ```
 
 ### GSync
+
+On Legion Pro 5 16ADR10 (83LT) with BIOS **RLCN20WW** only, the driver also
+exposes `graphics_mode` (`hybrid`/`discrete`). Writes through either
+`graphics_mode` or the legacy `gsync` attribute are **blocked by default**;
+load with `allow_rlcn20_mux_write=1` and without `ec_readonly=1` to explicitly
+permit firmware requests. This has not yet been validated by a post-reboot
+eDP routing test. See [83LT/RLCN20WW graphics mode](83LT-rlcn20ww-mux.md)
+and the [Chinese guide](zh-hans/83LT-rlcn20ww-mux.md).
+
 ```text
 WMI
 GUID: 887B54E3-DDDC-4B2C-8B88-68A26A8835D0
