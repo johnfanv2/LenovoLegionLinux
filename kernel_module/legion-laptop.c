@@ -85,6 +85,12 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("johnfan");
 MODULE_DESCRIPTION("Lenovo Legion laptop extras");
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
+MODULE_IMPORT_NS("EFIVAR");
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+MODULE_IMPORT_NS(EFIVAR);
+#endif
+
 static bool force;
 module_param(force, bool, 0440);
 MODULE_PARM_DESC(
@@ -101,7 +107,13 @@ MODULE_PARM_DESC(
 static bool allow_rlcn20_mux_write;
 module_param(allow_rlcn20_mux_write, bool, 0440);
 MODULE_PARM_DESC(allow_rlcn20_mux_write,
-	"Allow 83LT/RLCN20WW hybrid/discrete requests through GameZone WMI (reboot required).");
+	"Allow 83LT/RLCN20WW firmware graphics mode requests (reboot required).");
+
+/* UMA-only is untested and may disable external display connectors. */
+static bool allow_rlcn20_uma_write;
+module_param(allow_rlcn20_uma_write, bool, 0440);
+MODULE_PARM_DESC(allow_rlcn20_uma_write,
+	"Additionally allow unverified 83LT/RLCN20WW UMA-only mode requests.");
 
 static bool enable_platformprofile = true;
 module_param(enable_platformprofile, bool, 0440);
@@ -8173,6 +8185,119 @@ static bool rlcn20_mux_supported(struct legion_private *priv)
 	       !strcmp(bios, "RLCN20WW");
 }
 
+#define RLCN20_SETUP_GUID \
+	EFI_GUID(0xA04A27F4, 0xDF00, 0x4D42, 0xB5, 0x52, 0x39, 0x51, 0x13, \
+		 0x02, 0x11, 0x3D)
+#define RLCN20_MUX_GUID \
+	EFI_GUID(0x6ACCE65D, 0xDA35, 0x4B39, 0xB6, 0x4B, 0x5E, 0xD9, 0x27, \
+		 0xA7, 0xDC, 0x7E)
+#define RLCN20_SETUP_SIZE 700
+#define RLCN20_GRAPHICS_OFFSET 0x259
+#define RLCN20_EFI_ATTRIBUTES (EFI_VARIABLE_NON_VOLATILE | \
+	EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS)
+
+enum rlcn20_graphics_mode {
+	RLCN20_UMA = 0,
+	RLCN20_DISCRETE = 1,
+	RLCN20_HYBRID = 4,
+};
+
+static int rlcn20_wmi_get_gsync(unsigned long *state);
+
+/* BIOS SetupUtility IFR: Graphics Device is Setup/SystemConfig byte 0x259.
+ * EC.MSMF is only one bit and cannot distinguish UMA from Hybrid.
+ */
+static int rlcn20_get_graphics_mode(u8 *mode)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+	u8 setup[RLCN20_SETUP_SIZE];
+	unsigned long size = sizeof(setup);
+	efi_status_t status;
+	u32 attributes;
+	int err;
+
+	if (!efivar_is_available())
+		return -EOPNOTSUPP;
+
+	err = efivar_lock();
+	if (err)
+		return err;
+	status = efivar_get_variable(L"Setup", &RLCN20_SETUP_GUID,
+				     &attributes, &size, setup);
+	efivar_unlock();
+	if (status != EFI_SUCCESS)
+		return -EIO;
+	if (size != sizeof(setup))
+		return -EPROTO;
+
+	*mode = setup[RLCN20_GRAPHICS_OFFSET];
+	if (*mode != RLCN20_UMA && *mode != RLCN20_DISCRETE &&
+	    *mode != RLCN20_HYBRID)
+		return -EIO;
+	return 0;
+#else
+	unsigned long state;
+	int err;
+
+	/* Older kernels lack the serialized efivar API. Preserve the existing
+	 * binary WMI behavior; UMA cannot be identified on these kernels.
+	 */
+	err = rlcn20_wmi_get_gsync(&state);
+	if (!err)
+		*mode = state ? RLCN20_DISCRETE : RLCN20_HYBRID;
+	return err;
+#endif
+}
+
+/* ChgBootSmm handles SMI 0xca/0x24 by writing this same EFI variable,
+ * and AppSwitchDisplayModeDxe consumes its second byte on the next boot.
+ * No GameZone WMI method on RLCN20WW exposes the UMA-only request.
+ */
+static int rlcn20_request_uma(void)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+	u8 request[2] = { 0 };
+	unsigned long size = sizeof(request);
+	efi_status_t status;
+	u32 attributes;
+	int err;
+
+	if (!efivar_is_available() || !efivar_supports_writes())
+		return -EOPNOTSUPP;
+
+	err = efivar_lock();
+	if (err)
+		return err;
+
+	status = efivar_get_variable(L"AppMuxSwitchModeChange",
+				     &RLCN20_MUX_GUID, &attributes,
+				     &size, request);
+	if (status != EFI_NOT_FOUND) {
+		if (status != EFI_SUCCESS) {
+			err = -EIO;
+			goto unlock;
+		}
+		if (size != sizeof(request) ||
+		    attributes != RLCN20_EFI_ATTRIBUTES) {
+			err = -EPROTO;
+			goto unlock;
+		}
+	}
+
+	request[1] = RLCN20_UMA;
+	status = efivar_set_variable_locked(L"AppMuxSwitchModeChange",
+				     &RLCN20_MUX_GUID,
+				     RLCN20_EFI_ATTRIBUTES,
+				     sizeof(request), request, false);
+	err = status == EFI_SUCCESS ? 0 : -EIO;
+unlock:
+	efivar_unlock();
+	return err;
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+
 /* RLCN20WW expects a 32-bit WMI argument and acknowledges with Integer(0).
  * The acknowledgement does not indicate that the physical MUX has switched.
  */
@@ -8212,26 +8337,37 @@ static int rlcn20_wmi_get_gsync(unsigned long *state)
 }
 
 static int rlcn20_request_graphics_mode(struct legion_private *priv,
-					bool discrete)
+					enum rlcn20_graphics_mode mode)
 {
 	unsigned long state;
+	u8 current_mode;
 	int err;
 
 	if (ec_readonly || !allow_rlcn20_mux_write)
 		return -EPERM;
+	if (mode == RLCN20_UMA && !allow_rlcn20_uma_write)
+		return -EPERM;
+	if (mode != RLCN20_UMA && mode != RLCN20_DISCRETE &&
+	    mode != RLCN20_HYBRID)
+		return -EINVAL;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = rlcn20_wmi_get_gsync(&state);
-	/* MSMF is the current mode, not the pending AppMuxSwitchModeChange.
-	 * Always submit explicit requests, even if MSMF already matches.
-	 */
-	if (!err)
-		err = rlcn20_wmi_set_gsync(discrete);
+	if (mode == RLCN20_UMA) {
+		err = rlcn20_get_graphics_mode(&current_mode);
+		if (!err)
+			err = rlcn20_request_uma();
+	} else {
+		err = rlcn20_wmi_get_gsync(&state);
+		/* MSMF is the current mode, not the pending request. */
+		if (!err)
+			err = rlcn20_wmi_set_gsync(mode == RLCN20_DISCRETE);
+	}
 	mutex_unlock(&priv->fancurve_mutex);
 	if (!err)
 		dev_notice(&priv->platform_device->dev,
 			   "Requested %s graphics mode; verify PCI and eDP routing after reboot\n",
-			   discrete ? "discrete" : "hybrid");
+			   mode == RLCN20_UMA ? "integrated" :
+			   mode == RLCN20_DISCRETE ? "discrete" : "hybrid");
 	return err;
 }
 
@@ -8239,19 +8375,21 @@ static ssize_t graphics_mode_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	unsigned long raw;
+	u8 raw;
 	int err;
 
 	if (!rlcn20_mux_supported(priv))
 		return -EOPNOTSUPP;
 
 	mutex_lock(&priv->fancurve_mutex);
-	err = rlcn20_wmi_get_gsync(&raw);
+	err = rlcn20_get_graphics_mode(&raw);
 	mutex_unlock(&priv->fancurve_mutex);
 	if (err)
 		return err;
 
-	return sysfs_emit(buf, "%s\n", raw ? "discrete" : "hybrid");
+	return sysfs_emit(buf, "%s\n",
+			  raw == RLCN20_UMA ? "integrated" :
+			  raw == RLCN20_DISCRETE ? "discrete" : "hybrid");
 }
 
 static ssize_t graphics_mode_store(struct device *dev,
@@ -8259,19 +8397,21 @@ static ssize_t graphics_mode_store(struct device *dev,
 				   const char *buf, size_t count)
 {
 	struct legion_private *priv = dev_get_drvdata(dev);
-	bool discrete;
+	enum rlcn20_graphics_mode mode;
 	int err;
 
 	if (!rlcn20_mux_supported(priv))
 		return -EOPNOTSUPP;
 	if (sysfs_streq(buf, "discrete"))
-		discrete = true;
+		mode = RLCN20_DISCRETE;
 	else if (sysfs_streq(buf, "hybrid"))
-		discrete = false;
+		mode = RLCN20_HYBRID;
+	else if (sysfs_streq(buf, "integrated"))
+		mode = RLCN20_UMA;
 	else
 		return -EINVAL;
 
-	err = rlcn20_request_graphics_mode(priv, discrete);
+	err = rlcn20_request_graphics_mode(priv, mode);
 	return err ? err : count;
 }
 
@@ -8280,6 +8420,21 @@ static DEVICE_ATTR_RW(graphics_mode);
 static ssize_t gsync_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+	u8 mode;
+	int err;
+
+	/* The legacy boolean cannot represent a third, UMA-only mode. */
+	if (rlcn20_mux_supported(priv)) {
+		mutex_lock(&priv->fancurve_mutex);
+		err = rlcn20_get_graphics_mode(&mode);
+		mutex_unlock(&priv->fancurve_mutex);
+		if (err)
+			return err;
+		if (mode == RLCN20_UMA)
+			return -EOPNOTSUPP;
+	}
+
 	return show_simple_wmi_attribute(dev, attr, buf,
 					 LEGION_WMI_GAMEZONE_GUID, 0,
 					 WMI_METHOD_ID_GETGSYNCSTATUS, true, 1);
@@ -8299,7 +8454,8 @@ static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
 		err = kstrtobool(buf, &hybrid);
 		if (err)
 			return err;
-		err = rlcn20_request_graphics_mode(priv, !hybrid);
+		err = rlcn20_request_graphics_mode(priv, hybrid ? RLCN20_HYBRID :
+							  RLCN20_DISCRETE);
 		return err ? err : count;
 	}
 

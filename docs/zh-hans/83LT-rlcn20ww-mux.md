@@ -20,6 +20,13 @@
    `Setup`、`AMD_PBS_SETUP`、`AmdSetupRPL`，同步 AMD 平台配置，
    必要时再次调用 `ResetSystem(EfiResetCold)`。
 
+此外，从 BIOS `SetupUtility` 的 HII/IFR 菜单确认，`Graphics Device` 位于
+`Setup` 偏移 `0x259`，有三个取值：`UMA Graphics = 0`（仅核显）、
+`Discrete Graphics = 1`、`Dynamic Graphics = 4`（默认混合）。`ChgBootSmm`
+还支持 `0xCA/0x24`，将 `AppMuxSwitchModeChange` 的第二字节设为 `0`。
+不过，本机的 `SetGSyncStatus` WMI 方法并没有调用该命令的第三个参数，
+传入 `2` 不能请求 UMA 模式。
+
 `WMAA(0x2A)` **无条件返回 ACPI 整数 0**，因此返回成功不代表 MUX 已经
 切换。实机已通过重启前后的 PCI/DRM 信息确认内屏 eDP 路由确实变化，
 但尚未逆向定位底层 MUX GPIO/寄存器；另一套
@@ -27,13 +34,27 @@
 
 ## Linux 接口与安全限制
 
-- `graphics_mode`：读取 `hybrid` 或 `discrete`，写入对应字符串请求
-  下一次启动的模式。
+- `graphics_mode`：读取 `integrated`（UMA 核显）、`hybrid`（混合）或
+  `discrete`（独显），写入对应字符串请求下一次启动的模式。读取时使用
+  BIOS `Setup` 偏移 `0x259`，避免一位宽的 EC `MSMF` 将 UMA 误判为混合。
 - 原有 `gsync` 保留项目历史的 **Hybrid 布尔语义**：`1` = 混合，
-  `0` = 独显；两者的写操作共用相同安全保护。
+  `0` = 独显；无法表达第三种 UMA 模式，进入 UMA 后读取会返回
+  `-EOPNOTSUPP`，而不是错误地报告独显。
 - 必须同时设置模块参数 `allow_rlcn20_mux_write=1` 和
   `ec_readonly=0` 才允许写入；**默认禁止**，其他 BIOS/机型不启用。
-- 写入使用 GameZone MOF 指定的四字节 `UINT32`，验证 WMI 整数 0 回执。
+- **核显请求还必须额外开启 `allow_rlcn20_uma_write=1`**（默认关闭）。
+  该路径通过 Linux EFI 变量接口设置固件待处理请求 `AppMuxSwitchModeChange`
+  的模式字节 `0`，不直接写 SMI 端口；保留原变量首字节，变量不存在时
+  以零初始化。三态 EFI 接口需要 Linux 6.3 或更新内核；较旧内核仍采用
+  原来的二态 WMI 读取，并拒绝 UMA 请求。固件 DXE 在目标模式已经生效、
+  或 `Setup+0x25c`（`IsS4Resume`）为 `1` 时会清除请求、跳过切换。
+  SMM 使用特权 SMM 变量协议，而 Linux 使用 EFI Runtime Services；
+  如果固件变量策略限制运行时写入，即使 SMM 路径可用，Linux 写入仍可能被拒绝。
+  **尚未完成 UMA 重启实测。**
+  BIOS 明确警告 UMA 可能导致 HDMI / Type-C 无显示，启用前务必确认
+  物理内屏和 BIOS 恢复手段。
+- Hybrid/Discrete 请求使用 GameZone MOF 指定的四字节 `UINT32`，验证
+  WMI 整数 0 回执；UMA 则使用上述单独的 EFI 变量接口。
   即使 `MSMF` 已报告目标模式，也会转发显式请求，因为待生效的 EFI
   请求可能不同于当前模式。
 - GameZone WMI 由内核主线 `lenovo-wmi-gamezone` 接管，避免与平台
@@ -53,8 +74,10 @@ lspci -nn | grep -Ei 'VGA|3D|Display|Dummy'
 ```
 
 显式重新加载模块并开启上述写入权限后，可以向 `graphics_mode` 写入
-`hybrid` 或 `discrete` 请求下一次启动的模式。**必须重启**，固件可能
-再重启一次。请按 GPU PCI 身份与 eDP 连接状态核对，而非依赖易变化的
+`hybrid` 或 `discrete` 请求下一次启动的模式。未经验证的核显请求还须在
+加载模块时额外开启 `allow_rlcn20_uma_write=1`，再写入 `integrated`。
+**必须重启**，固件可能再重启一次。请按 GPU PCI 身份与 eDP 连接状态核对，
+而非依赖易变化的
 `card0/card1` 编号。不要直接尝试 SMI/EC 端口写入。
 
 **验证状态（83LT/RLCN20WW，2026-11-08）：** 已在一台实机完成受保护写入、
@@ -69,5 +92,6 @@ lspci -nn | grep -Ei 'VGA|3D|Display|Dummy'
   NVIDIA 接管内屏 eDP。
 - 临时自动回退定时器、服务已经清理；每次请求后均恢复驱动的默认只读保护。
 
-这证实 **RLCN20WW 启动阶段的双向显示路由切换**，不代表 Linux 能在运行时
-无重启切换，也不保证其他 BIOS 版本兼容。原有机型讨论见 issue #445。
+这证实 **RLCN20WW 启动阶段 Hybrid ↔ Discrete 双向显示路由切换**；
+**UMA 核显请求尚未实机写入或重启验证**，也不代表运行时无重启切换、
+不保证其他 BIOS 版本兼容。原有机型讨论见 issue #445。
