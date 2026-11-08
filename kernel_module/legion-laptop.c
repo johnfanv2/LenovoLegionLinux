@@ -97,6 +97,12 @@ MODULE_PARM_DESC(
 	ec_readonly,
 	"Only read from embedded controller but do not write or change settings.");
 
+/* RLCN20WW GPU mode writes persist a request for the next firmware boot. */
+static bool allow_rlcn20_mux_write;
+module_param(allow_rlcn20_mux_write, bool, 0440);
+MODULE_PARM_DESC(allow_rlcn20_mux_write,
+	"Allow 83LT/RLCN20WW hybrid/discrete requests through GameZone WMI (reboot required).");
+
 static bool enable_platformprofile = true;
 module_param(enable_platformprofile, bool, 0440);
 MODULE_PARM_DESC(
@@ -2808,6 +2814,10 @@ static const struct model_config model_rlcn = {
 				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
 	.has_fancurve_defaults = true,
 	.wmi_fancurve_speed_only = true,
+	/* Leave GameZone WMI claimed by the mainline lenovo-wmi-gamezone
+	 * driver while still evaluating its firmware methods by GUID.
+	 */
+	.leave_gamezone_wmi_unbound = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 	.has_flip_to_start = true,
@@ -8150,6 +8160,123 @@ static ssize_t touchpad_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR_RW(touchpad);
 
+/* On 83LT/RLCN20WW WMAA 0x29 reads EC.MSMF and WMAA 0x2a issues
+ * SMI 0xca/0x25 (hybrid) or 0xca/0x26 (discrete). This is a request
+ * to firmware, not a live DRM connector switch; reboot to verify it.
+ */
+static bool rlcn20_mux_supported(struct legion_private *priv)
+{
+	const char *bios = dmi_get_system_info(DMI_BIOS_VERSION);
+
+	return priv->conf == &model_rlcn &&
+	       dmi_match(DMI_PRODUCT_NAME, "83LT") && bios &&
+	       !strcmp(bios, "RLCN20WW");
+}
+
+/* RLCN20WW expects a 32-bit WMI argument and acknowledges with Integer(0).
+ * The acknowledgement does not indicate that the physical MUX has switched.
+ */
+static int rlcn20_wmi_set_gsync(u32 discrete)
+{
+	__le32 input = cpu_to_le32(discrete);
+	struct acpi_buffer params = { sizeof(input), &input };
+	unsigned long acknowledgement;
+	int err;
+
+	err = wmi_exec_int(LEGION_WMI_GAMEZONE_GUID, 0,
+			   WMI_METHOD_ID_SETGSYNCSTATUS, &params,
+			   &acknowledgement);
+	if (err)
+		return err;
+	return acknowledgement == 0 ? 0 : -EIO;
+}
+
+static int rlcn20_wmi_get_gsync(unsigned long *state)
+{
+	unsigned long capability;
+	int err;
+
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+				 WMI_METHOD_ID_ISSUPPORTGSYNC, &capability);
+	if (err)
+		return err;
+	/* This BIOS implements WMAA(0x28) as a constant 0x02. */
+	if (capability != 2)
+		return -EOPNOTSUPP;
+
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
+				 WMI_METHOD_ID_GETGSYNCSTATUS, state);
+	if (err)
+		return err;
+	return *state <= 1 ? 0 : -EIO;
+}
+
+static int rlcn20_request_graphics_mode(struct legion_private *priv,
+					bool discrete)
+{
+	unsigned long state;
+	int err;
+
+	if (ec_readonly || !allow_rlcn20_mux_write)
+		return -EPERM;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = rlcn20_wmi_get_gsync(&state);
+	/* MSMF is the current mode, not the pending AppMuxSwitchModeChange.
+	 * Always submit explicit requests, even if MSMF already matches.
+	 */
+	if (!err)
+		err = rlcn20_wmi_set_gsync(discrete);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (!err)
+		dev_notice(&priv->platform_device->dev,
+			   "Requested %s graphics mode; verify PCI and eDP routing after reboot\n",
+			   discrete ? "discrete" : "hybrid");
+	return err;
+}
+
+static ssize_t graphics_mode_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	unsigned long raw;
+	int err;
+
+	if (!rlcn20_mux_supported(priv))
+		return -EOPNOTSUPP;
+
+	mutex_lock(&priv->fancurve_mutex);
+	err = rlcn20_wmi_get_gsync(&raw);
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
+
+	return sysfs_emit(buf, "%s\n", raw ? "discrete" : "hybrid");
+}
+
+static ssize_t graphics_mode_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool discrete;
+	int err;
+
+	if (!rlcn20_mux_supported(priv))
+		return -EOPNOTSUPP;
+	if (sysfs_streq(buf, "discrete"))
+		discrete = true;
+	else if (sysfs_streq(buf, "hybrid"))
+		discrete = false;
+	else
+		return -EINVAL;
+
+	err = rlcn20_request_graphics_mode(priv, discrete);
+	return err ? err : count;
+}
+
+static DEVICE_ATTR_RW(graphics_mode);
+
 static ssize_t gsync_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
@@ -8161,6 +8288,21 @@ static ssize_t gsync_show(struct device *dev, struct device_attribute *attr,
 static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
 			   const char *buf, size_t count)
 {
+	struct legion_private *priv = dev_get_drvdata(dev);
+	bool hybrid;
+	int err;
+
+	/* The existing GUI/CLI uses gsync as a Hybrid Mode boolean. Do not
+	 * let it bypass the RLCN20WW opt-in or accept non-boolean values.
+	 */
+	if (rlcn20_mux_supported(priv)) {
+		err = kstrtobool(buf, &hybrid);
+		if (err)
+			return err;
+		err = rlcn20_request_graphics_mode(priv, !hybrid);
+		return err ? err : count;
+	}
+
 	return store_simple_wmi_attribute(dev, attr, buf, count,
 					  LEGION_WMI_GAMEZONE_GUID, 0,
 					  WMI_METHOD_ID_SETGSYNCSTATUS, true,
@@ -9311,6 +9453,7 @@ static struct attribute *legion_sysfs_attributes[] = {
 	&dev_attr_winkey.attr,
 	&dev_attr_touchpad.attr,
 	&dev_attr_gsync.attr,
+	&dev_attr_graphics_mode.attr,
 	&dev_attr_powerchargemode.attr,
 	&dev_attr_overdrive.attr,
 	&dev_attr_cpumaxfrequency.attr,
@@ -9402,6 +9545,10 @@ static umode_t legion_sysfs_is_visible(struct kobject *kobj,
 
 	if (!priv)
 		return attr->mode;
+	if (attr == &dev_attr_graphics_mode.attr)
+		return rlcn20_mux_supported(priv) &&
+		       wmi_has_guid(LEGION_WMI_GAMEZONE_GUID) ?
+		       attr->mode : 0;
 
 	if (attr == &dev_attr_rapidcharge.attr)
 		return legion_rapidcharge_is_supported(priv) ? attr->mode : 0;
