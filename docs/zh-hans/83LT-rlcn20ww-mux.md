@@ -21,7 +21,8 @@
    必要时再次调用 `ResetSystem(EfiResetCold)`。
 
 `WMAA(0x2A)` **无条件返回 ACPI 整数 0**，因此返回成功不代表 MUX 已经
-切换。目前尚未定位最后的物理 eDP GPIO/路由；另一套
+切换。实机已通过重启前后的 PCI/DRM 信息确认内屏 eDP 路由确实变化，
+但尚未逆向定位底层 MUX GPIO/寄存器；另一套
 `SetIGPUModeStatus` 是独立的 iGPU 策略接口，不能与本功能混为一谈。
 
 ## Linux 接口与安全限制
@@ -56,6 +57,17 @@ lspci -nn | grep -Ei 'VGA|3D|Display|Dummy'
 再重启一次。请按 GPU PCI 身份与 eDP 连接状态核对，而非依赖易变化的
 `card0/card1` 编号。不要直接尝试 SMI/EC 端口写入。
 
-**验证状态：**83LT/RLCN20WW 已确认只读查询在 `discrete` 模式下可用；
-受保护的**写入及重启后模式往返测试尚未完成**，测试前应准备 BIOS 回退。
-原有机型支持讨论见 issue #445。
+**验证状态（83LT/RLCN20WW，2026-11-08）：** 已在一台实机完成受保护写入、
+重启及模式往返测试：
+
+- 显式开启写入保护开关后，请求 `hybrid` 成功。重启后 AMD Radeon 610M
+  （`1002:164e`，`05:00.0`）枚举为 VGA，由 `amdgpu` 驱动，内屏连接到 AMD
+  的 `card0-eDP-1`；NVIDIA（`10de:2d58`）仍正常枚举。
+- 随后一次性安全定时器读取 `Current mode: hybrid`，证实 WMI 状态读取与
+  AMD 的实际 eDP 路由一致，然后请求 `discrete` 并重启。
+  再次启动后 AMD `05:00.0` 为 PCI Dummy Function（`1022:14de`），
+  NVIDIA 接管内屏 eDP。
+- 临时自动回退定时器、服务已经清理；每次请求后均恢复驱动的默认只读保护。
+
+这证实 **RLCN20WW 启动阶段的双向显示路由切换**，不代表 Linux 能在运行时
+无重启切换，也不保证其他 BIOS 版本兼容。原有机型讨论见 issue #445。
