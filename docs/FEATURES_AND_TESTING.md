@@ -1536,11 +1536,10 @@ exposes `graphics_mode` (`integrated`/`hybrid`/`discrete`). Writes through eithe
 load with `allow_rlcn20_mux_write=1` and without `ec_readonly=1` to explicitly
 permit firmware requests. A guarded Hybrid → Discrete reboot round trip was
 verified on one 83LT/RLCN20WW (2026-11-08) using PCI and eDP routing.
-The BIOS also defines UMA Graphics (`Setup` byte `0x259` = 0): the
-`graphics_mode=integrated` path stages its next-boot EFI variable request only
-when an **additional** `allow_rlcn20_uma_write=1` parameter is set. UMA mode
-has **not** been reboot-tested; HDMI/Type-C displays may be unavailable.
-Live switching and other BIOS versions also remain unverified. See
+UMA (`integrated`) is read-only and is not supported as a write request.
+Three-state readback needs Linux 6.3 or newer with accessible EFI variables;
+the legacy `gsync` read falls back to WMI if EFI is unavailable and cannot
+then distinguish UMA. Live switching and other BIOS versions remain unverified. See
 [83LT/RLCN20WW graphics mode](83LT-rlcn20ww-mux.md) and the
 [Chinese guide](zh-hans/83LT-rlcn20ww-mux.md).
 

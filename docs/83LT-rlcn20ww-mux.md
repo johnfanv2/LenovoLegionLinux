@@ -36,38 +36,23 @@ confused with this MUX-mode request.
 
 ## Linux interface and safeguards
 
-- `graphics_mode`: read `integrated` (BIOS `UMA Graphics`), `hybrid` (BIOS
-  `Dynamic Graphics`), or `discrete`. Write a name to request the next-boot mode.
-  The read path uses the BIOS `Setup` variable's byte `0x259`, since the EC's
-  one-bit `MSMF` cannot distinguish integrated from hybrid.
-- Legacy `gsync`: keeps the existing project's inverted **hybrid** boolean
-  convention (`1` = hybrid, `0` = discrete). It cannot represent integrated:
-  reading `gsync` in UMA mode returns `-EOPNOTSUPP` instead of misleadingly
-  reporting the mode as discrete.
-- Writes require the module parameter `allow_rlcn20_mux_write=1` **and**
-  `ec_readonly=0`. They are disabled by default; no other models/BIOS versions
-  receive this feature.
-- **UMA-only writes additionally require `allow_rlcn20_uma_write=1`** (default
-  off). They use the synchronized Linux EFI-variable interface to stage
-  `AppMuxSwitchModeChange` with mode `0`, rather than issuing a raw software
-  SMI. The existing variable's first byte is preserved; a missing variable is
-  initialized with zero. This three-state EFI interface requires Linux 6.3 or
-  newer; older kernels retain the two-state WMI readback and reject UMA
-  requests. On the next boot, DXE deletes the pending request; it applies
-  the mode change only if the requested mode differs from the current mode
-  and `Setup+0x25c` (`IsS4Resume`) is not `1`.
-  The SMM handler uses a privileged SMM variable protocol, while Linux uses
-  EFI runtime variable services: firmware variable policy may reject a
-  runtime write even when the SMM request is accepted.
-  This path **has not been tested by a reboot**. The BIOS explicitly warns
-  that UMA mode may disable HDMI / Type-C display output. Do not enable the
-  extra option without local display access and a recovery plan.
-- Hybrid/Discrete requests use the GameZone MOF's four-byte `UINT32` parameter
-  and validate the WMI Integer(0) acknowledgement. Each explicit request is
-  forwarded even when `MSMF` already shows that mode: the pending EFI request
-  can differ. UMA requests instead use the separate EFI-variable path above.
-- The GameZone WMI device is left to `lenovo-wmi-gamezone` to avoid contention
-  with mainline firmware-attribute/platform-profile support.
+- `graphics_mode`: reads `integrated`, `hybrid`, or `discrete` from BIOS
+  `Setup` byte `0x259`. This requires Linux 6.3 or newer and accessible EFI
+  runtime variables. Otherwise the read fails rather than guessing from the
+  one-bit WMI state. Only `hybrid` and `discrete` can be requested; integrated
+  writes are not supported.
+- Legacy `gsync` retains the existing inverted hybrid boolean (`1` = hybrid,
+  `0` = discrete). When EFI readback identifies UMA, reading it returns
+  `-EOPNOTSUPP`. If EFI readback is unavailable, it falls back to the original
+  WMI behavior for compatibility; in that case UMA cannot be distinguished and
+  the result must not be interpreted as a reliable three-state readout.
+- Writes require `allow_rlcn20_mux_write=1` and `ec_readonly=0` and are disabled
+  by default. Hybrid/Discrete requests use the GameZone four-byte `UINT32`
+  parameter and check the WMI Integer(0) acknowledgement. Each request is
+  forwarded even if the current mode matches, as a pending request may differ.
+- No UMA request is implemented: writing EFI variables directly has not been
+  tested on hardware. Existing GameZone binding behavior is unchanged for all
+  RLCN firmware versions.
 
 Read-only inspection:
 
@@ -84,9 +69,7 @@ lspci -nn | grep -Ei 'VGA|3D|Display|Dummy'
 
 With a deliberately reloaded module and explicit opt-in, writing
 `hybrid`/`discrete` to `graphics_mode` requests the corresponding next-boot
-mode. For an **unverified** UMA-only request, `allow_rlcn20_uma_write=1` must
-also be set at module load, then `integrated` may be written to the same
-attribute. **A reboot is necessary** and firmware may reboot once more. Verify the
+mode. **A reboot is necessary** and firmware may reboot once more. Verify the
 internal eDP connector and PCI GPU identities after boot; DRM card numbering
 is not stable. Do not attempt raw SMI/EC writes.
 
