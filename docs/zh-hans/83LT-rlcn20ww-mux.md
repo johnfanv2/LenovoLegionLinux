@@ -34,31 +34,18 @@
 
 ## Linux 接口与安全限制
 
-- `graphics_mode`：读取 `integrated`（UMA 核显）、`hybrid`（混合）或
-  `discrete`（独显），写入对应字符串请求下一次启动的模式。读取时使用
-  BIOS `Setup` 偏移 `0x259`，避免一位宽的 EC `MSMF` 将 UMA 误判为混合。
-- 原有 `gsync` 保留项目历史的 **Hybrid 布尔语义**：`1` = 混合，
-  `0` = 独显；无法表达第三种 UMA 模式，进入 UMA 后读取会返回
-  `-EOPNOTSUPP`，而不是错误地报告独显。
-- 必须同时设置模块参数 `allow_rlcn20_mux_write=1` 和
-  `ec_readonly=0` 才允许写入；**默认禁止**，其他 BIOS/机型不启用。
-- **核显请求还必须额外开启 `allow_rlcn20_uma_write=1`**（默认关闭）。
-  该路径通过 Linux EFI 变量接口设置固件待处理请求 `AppMuxSwitchModeChange`
-  的模式字节 `0`，不直接写 SMI 端口；保留原变量首字节，变量不存在时
-  以零初始化。三态 EFI 接口需要 Linux 6.3 或更新内核；较旧内核仍采用
-  原来的二态 WMI 读取，并拒绝 UMA 请求。固件 DXE 在目标模式已经生效、
-  或 `Setup+0x25c`（`IsS4Resume`）为 `1` 时会清除请求、跳过切换。
-  SMM 使用特权 SMM 变量协议，而 Linux 使用 EFI Runtime Services；
-  如果固件变量策略限制运行时写入，即使 SMM 路径可用，Linux 写入仍可能被拒绝。
-  **尚未完成 UMA 重启实测。**
-  BIOS 明确警告 UMA 可能导致 HDMI / Type-C 无显示，启用前务必确认
-  物理内屏和 BIOS 恢复手段。
-- Hybrid/Discrete 请求使用 GameZone MOF 指定的四字节 `UINT32`，验证
-  WMI 整数 0 回执；UMA 则使用上述单独的 EFI 变量接口。
-  即使 `MSMF` 已报告目标模式，也会转发显式请求，因为待生效的 EFI
-  请求可能不同于当前模式。
-- GameZone WMI 由内核主线 `lenovo-wmi-gamezone` 接管，避免与平台
-  性能模式和固件属性驱动争用。
+- `graphics_mode` 读取 BIOS `Setup` 偏移 `0x259`，返回 `integrated`、
+  `hybrid` 或 `discrete`。读取需要 Linux 6.3 或更新版本以及可访问的 EFI
+  运行时变量；否则返回错误，不从一位宽的 WMI 状态猜测。只支持请求
+  `hybrid` 和 `discrete`，不支持写入 `integrated`。
+- 原有 `gsync` 保留历史的 Hybrid 布尔语义（`1` = 混合，`0` = 独显）。
+  EFI 读取识别出 UMA 时返回 `-EOPNOTSUPP`；EFI 读取不可用时为兼容旧版
+  回退到原有 WMI 读取，此时无法区分 UMA，不能视为可靠的三态状态。
+- 写入必须设置 `allow_rlcn20_mux_write=1` 和 `ec_readonly=0`，默认禁止。
+  Hybrid/Discrete 请求使用四字节 `UINT32`，验证 WMI 整数 0 回执；即使
+  当前模式相同也会转发请求，因为待生效的请求可能不同。
+- 不实现 UMA 写入：直接写 EFI 变量尚未经过实机验证。所有 RLCN 固件的
+  原有 GameZone 绑定行为保持不变。
 
 只读检查：
 
@@ -74,10 +61,8 @@ lspci -nn | grep -Ei 'VGA|3D|Display|Dummy'
 ```
 
 显式重新加载模块并开启上述写入权限后，可以向 `graphics_mode` 写入
-`hybrid` 或 `discrete` 请求下一次启动的模式。未经验证的核显请求还须在
-加载模块时额外开启 `allow_rlcn20_uma_write=1`，再写入 `integrated`。
-**必须重启**，固件可能再重启一次。请按 GPU PCI 身份与 eDP 连接状态核对，
-而非依赖易变化的
+`hybrid` 或 `discrete` 请求下一次启动的模式。**必须重启**，固件可能再
+重启一次。请按 GPU PCI 身份与 eDP 连接状态核对，而非依赖易变化的
 `card0/card1` 编号。不要直接尝试 SMI/EC 端口写入。
 
 **验证状态（83LT/RLCN20WW，2026-11-08）：** 已在一台实机完成受保护写入、
