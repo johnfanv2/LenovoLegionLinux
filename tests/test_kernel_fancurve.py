@@ -120,6 +120,7 @@ static struct legion_private *dev_get_drvdata(struct device *dev) { return dev->
 static ssize_t autopoint_show(struct device *dev, struct device_attribute *attr, char *buf) { return 0; }
 static bool have_guid = true;
 static bool wmi_has_guid(const char *guid) { return have_guid; }
+static bool rlcn20_mux_supported(struct legion_private *priv) { return false; }
 static bool legion_rapidcharge_is_supported(struct legion_private *priv) { return true; }
 static bool legion_attribute_uses_cpu_wmi(const struct attribute *attr) { return false; }
 static bool legion_attribute_uses_gpu_wmi(const struct attribute *attr) { return false; }
