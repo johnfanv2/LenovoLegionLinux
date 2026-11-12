@@ -448,11 +448,41 @@ which is a different chassis and keeps its own entry:
 - Power-limit/OC attributes stay hidden (`skip_oc_controls`); only
   `cpu_temperature_limit`, `cpu_l1_tau` and `gpu_power_target_offset`
   are visible, as on Q7CN/RLCN. Rapid charge uses `VPC0.GBMD`/`SBMC`.
+  PL1/PL2 come from the in-tree `lenovo-wmi-other` firmware-attributes
+  instead (see below).
+- The GameZone WMI block is left to `lenovo-wmi-gamezone`
+  (`leave_gamezone_wmi_unbound`, as on Q7CN/QNCN). While LLL held it,
+  `lenovo-wmi-gamezone` had no device and every `lenovo-wmi-other`
+  `current_value` (`ppt_pl1_spl`, `ppt_pl2_sppt`, ...) returned `EINVAL`.
 - The EC RAM window (`ERAX @0xFE500400`, `F9FT`/`ECB2` at +0x100/+0x200,
   `ramio_size` 0x300) is only used for the read-only `ecmemoryram`
   debugfs dump; raw EC reads return garbage on this generation (issue
   #491); the ACPI-path reads agree with the WMI3 ones (the DSDT wires
   both to the same EC fields), only direct EC/ramio reads are misaligned.
+
+Hardware validation of the GameZone/power-limit handling on an 83LU
+(Q6CN79WW, kernel 7.3, on AC):
+
+- Binding `legion_wmi` to the GameZone block (887B54E3) fails with
+  `ENODEV` and dmesg "Leaving GameZone WMI to lenovo-wmi-gamezone";
+  `lenovo_wmi_gamezone` binds it. Both platform-profile providers
+  (`lenovo-legion`, `lenovo-wmi-gamezone`) offer the same five choices.
+- `/sys/firmware/acpi/platform_profile`, both class profile devices and
+  `powermode` follow each other for all five modes, whichever is written.
+- `lenovo-wmi-other-0` reads: `ppt_pl1_spl` 50-135 W (default 70),
+  `ppt_pl2_sppt` 60-210 W (default 125), `ppt_cpu_cl` 30-70,
+  `cpu_temp` 85-105 °C. Writes return `EBUSY` outside custom mode; in
+  custom mode (entered through the `lenovo-wmi-gamezone` profile device)
+  they apply to the MMIO RAPL limit at once (70/125 W written, read back
+  in `intel-rapl-mmio:0`, then restored).
+- Entering custom from performance or quiet applies the stored custom
+  PL1/PL2 to MMIO RAPL; entering it from balanced keeps balanced's 70/125 W
+  until `ppt_pl1_spl`/`ppt_pl2_sppt` are written again (same value is
+  enough).
+- The firmware's per-mode defaults (`cpu_longterm_powerlimit_defaults`
+  `low-power:55 balanced:70 performance:125 max-power:130 custom:70`,
+  short-term `65/125/190/205/125`) are what `legiond`'s
+  `cpu_powerlimit_sync` writes; MMIO RAPL followed every profile change.
 
 Validation status: config derived from the DSDT and the validated reads
 in issue #337 (`legion_wmi_other` fan RPM 2400/2100 while raw EC/ACPI

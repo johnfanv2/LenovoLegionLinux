@@ -137,7 +137,7 @@ softdep legion_laptop pre: ideapad_laptop lenovo_wmi_gamezone lenovo_wmi_other l
 
 into `/etc/modprobe.d/legion_laptop.conf`; the `softdep` line loads the mainline drivers first so they bind the WMI devices both drivers list. The mainline `custom` profile is the same firmware mode as `powermode` 255; select it through `/sys/class/platform-profile/platform-profile-N/profile` of the device named `lenovo-wmi-gamezone`, because the legacy `/sys/firmware/acpi/platform_profile` file refuses `custom` by design. Verified on a Legion Pro 5 16IRX8 with kernel 7.2.
 
-On the Legion Pro 7 16IAX10H (83F5, Q7CN) and the Legion 5 15IRX10 (83LY, QNCN) none of this is needed for the power limits: `legion_laptop` leaves the GameZone WMI device to `lenovo_wmi_gamezone` whatever the load order, so `/sys/class/firmware-attributes/lenovo-wmi-other-0` (PL1/PL2, cTGP, ...) works next to it with the default options. Both drivers then register a platform-profile provider with the same five choices, so no profile is lost from the global list.
+On the Legion Pro 7 16IAX10H (83F5, Q7CN), the Legion Pro 5 16IAX10H (83LU, Q6CN) and the Legion 5 15IRX10 (83LY, QNCN) none of this is needed for the power limits: `legion_laptop` leaves the GameZone WMI device to `lenovo_wmi_gamezone` whatever the load order, so `/sys/class/firmware-attributes/lenovo-wmi-other-0` (PL1/PL2, cTGP, ...) works next to it with the default options. Both drivers then register a platform-profile provider with the same five choices, so no profile is lost from the global list.
 
 ## My Intel Legion is limited to about 30 W CPU power in every mode except custom. Why?
 
