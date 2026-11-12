@@ -2310,6 +2310,11 @@ static const struct model_config model_q6cn_lu = {
 	.skip_fan_maxspeed = true,
 	.skip_ylogo_light = true,
 	.skip_ioport_light = true,
+	/* Same GameZone alias race as model_q7cn (issue #625): while LLL
+	 * holds the block, lenovo-wmi-gamezone binds nothing and the
+	 * lenovo-wmi-other PL1/PL2 attributes return -EINVAL (Q6CN79WW).
+	 */
+	.leave_gamezone_wmi_unbound = true,
 	.acpi_check_dev = false,
 	.ramio_physical_start = 0xFE500400,
 	.ramio_size = 0x300,
