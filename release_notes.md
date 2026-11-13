@@ -1,39 +1,41 @@
 
-## What's Changed in v0.1.5 - 2026-10-30
+## What's Changed in v0.1.6 - 2026-11-13
 
-> **10 commits** by **4 contributors** — thanks everyone! 🎉
+> **12 commits** by **5 contributors** — thanks everyone! 🎉
 
 
 ### 🚀 Features
 
-* fix EC3 fan curve read-back on LOQ 15IAX9 (83GS) *(kernel)* by @st0nie in [5090420](https://github.com/johnfanv2/LenovoLegionLinux/commit/509042066ad10e73c6650741850acb5db096a84d) / [#640](https://github.com/johnfanv2/LenovoLegionLinux/pull/640)
+* support guarded RLCN20WW UMA graphics requests *(kernel)* by @XiaoTong6666 in [493ad4e](https://github.com/johnfanv2/LenovoLegionLinux/commit/493ad4e974505aa843102e20000bcc6d355f8014)
+* add guarded graphics mode requests for RLCN20WW *(kernel)* by @XiaoTong6666 in [05572cb](https://github.com/johnfanv2/LenovoLegionLinux/commit/05572cbe7b10c0011b8840325115af5acb4f511e)
+* add Legion Slim 5 14APH8 (MACN) *(kernel)* by @lelepozze in [d77ed84](https://github.com/johnfanv2/LenovoLegionLinux/commit/d77ed848af4f64540b14a13c9e8db6e326d99fdb) / [#653](https://github.com/johnfanv2/LenovoLegionLinux/pull/653)
+* report FN hotkeys from the gamezone WMI event *(kernel)* by @tingao in [ceea2b0](https://github.com/johnfanv2/LenovoLegionLinux/commit/ceea2b034e4d54efaba62d76f4f4b78be633592d) / [#652](https://github.com/johnfanv2/LenovoLegionLinux/pull/652)
 
 ### 🐛 Bug Fixes
 
-* use WMI3 for fan full speed on Legion Pro 5 16ARX8 (LPCN) *(kernel)* by @pragus in [41ab42f](https://github.com/johnfanv2/LenovoLegionLinux/commit/41ab42f7ca34d482393607509827ae45fcb99293) / [#644](https://github.com/johnfanv2/LenovoLegionLinux/pull/644)
-* skip fan_maxspeed and IC temp on Legion Pro 5 16ARX8 (LPCN) *(kernel)* by @pragus in [1ba1d8d](https://github.com/johnfanv2/LenovoLegionLinux/commit/1ba1d8d2e1d9abd536ab06d2aae6855c0f33ac92) / [#645](https://github.com/johnfanv2/LenovoLegionLinux/pull/645)
-* remove stale wheels before installing the python package *(deploy)* in [ff72e4c](https://github.com/johnfanv2/LenovoLegionLinux/commit/ff72e4c2b437ec605d5f2e34c5b34111c57c9cc0) / [#643](https://github.com/johnfanv2/LenovoLegionLinux/pull/643)
-* leave GameZone WMI to lenovo-wmi-gamezone on QNCN *(kernel)* by @TanelLaas in [711f91c](https://github.com/johnfanv2/LenovoLegionLinux/commit/711f91c5959192930cc02a7033c0ce0b46ca8606)
-* read the QNCN EC sensor bytes at their real offsets *(kernel)* by @TanelLaas in [cd81660](https://github.com/johnfanv2/LenovoLegionLinux/commit/cd816605866578a9183b8191441fd2ad55a95ecc)
-* build container module against the image's own headers *(ci)* by @st0nie in [f1f3e2a](https://github.com/johnfanv2/LenovoLegionLinux/commit/f1f3e2a9d4eeed09a770ab18842d9ea57187a7c0)
-* install linux-modules-extra only when it exists *(ci)* by @st0nie in [0b7495e](https://github.com/johnfanv2/LenovoLegionLinux/commit/0b7495edc96a64430611b4cb5abf1ee40bfe3762)
+* leave GameZone WMI to lenovo-wmi-gamezone on 83LU *(kernel)* by @Brunight in [837d38c](https://github.com/johnfanv2/LenovoLegionLinux/commit/837d38ce1b9bbbdd34c1b52d7272db1c8b849cf4)
+* stub RLCN20 graphics support *(tests)* by @st0nie in [4e49eed](https://github.com/johnfanv2/LenovoLegionLinux/commit/4e49eed18791701d432c819933f5a61b3b2d3f96)
+* restrict RLCN20 graphics requests *(kernel)* by @st0nie in [b33f104](https://github.com/johnfanv2/LenovoLegionLinux/commit/b33f104f1aef1e7786d07149395193af851f12e8) / [#655](https://github.com/johnfanv2/LenovoLegionLinux/pull/655)
+* stop parked custom mode reading back as custom *(kernel)* by @st0nie in [cba84b1](https://github.com/johnfanv2/LenovoLegionLinux/commit/cba84b1e2d4d9a63320ef9a7035277d534f34d31)
 
 ### 📖 Documentation
 
-* record the QNCN hardware validation by @TanelLaas in [3d081d9](https://github.com/johnfanv2/LenovoLegionLinux/commit/3d081d9503d524e242eedf67006dbc049aa8e4fc)
-
-### 📦 Other Changes
-
-* Merge pull request #642 from TanelLaas/qncn-ec-registers by @st0nie in [468d63e](https://github.com/johnfanv2/LenovoLegionLinux/commit/468d63e62e6fdb37286a9ff9fd139bb236029d7a) / [#642](https://github.com/johnfanv2/LenovoLegionLinux/pull/642)
+* record the 83LU GameZone and power-limit validation by @Brunight in [b9bcdbe](https://github.com/johnfanv2/LenovoLegionLinux/commit/b9bcdbe951fb173b8ac00e2a62c6d9e5e1489234) / [#656](https://github.com/johnfanv2/LenovoLegionLinux/pull/656)
+* verify RLCN20WW GPU mode round trip on 83LT by @XiaoTong6666 in [1d2132a](https://github.com/johnfanv2/LenovoLegionLinux/commit/1d2132a76ff51bfc9fa0d839a50094e566ec331b)
+* reorganize README into docs/ guides by @st0nie in [01c3640](https://github.com/johnfanv2/LenovoLegionLinux/commit/01c36408077bab002baaec7ec60ec5a3584e6f3c)
+* add star history chart to READMEs by @st0nie in [bac5a13](https://github.com/johnfanv2/LenovoLegionLinux/commit/bac5a138b07e5ddd224825f7c27a21d1a4bced59)
 
 ## ✨ New Contributors
 
-* @pragus made their first contribution in [#644](https://github.com/johnfanv2/LenovoLegionLinux/pull/644)
+* @Brunight made their first contribution in [#656](https://github.com/johnfanv2/LenovoLegionLinux/pull/656)
+* @XiaoTong6666 made their first contribution
+* @lelepozze made their first contribution in [#653](https://github.com/johnfanv2/LenovoLegionLinux/pull/653)
+* @tingao made their first contribution in [#652](https://github.com/johnfanv2/LenovoLegionLinux/pull/652)
 
 ## ❤️ Contributors
 
-Thanks to @pragus, @, @st0nie, @TanelLaas for making this release possible!
+Thanks to @Brunight, @st0nie, @XiaoTong6666, @lelepozze, @tingao for making this release possible!
 
 
-**Full Changelog**: https://github.com/johnfanv2/LenovoLegionLinux/compare/v0.1.4...v0.1.5
+**Full Changelog**: https://github.com/johnfanv2/LenovoLegionLinux/compare/v0.1.5...v0.1.6
 
