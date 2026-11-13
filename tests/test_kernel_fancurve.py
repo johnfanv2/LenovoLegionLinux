@@ -339,6 +339,47 @@ int main(void) {
     assert(!wmi_sfan_uses_thermal_mode(priv.conf));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
 
+    /* UACN (Legion 7 15ASH11 83V9, EC 0x5508, #657): the UACN23WW DSDT has
+     * the same WMAB 5/6 level table (F9F0..F9F9 + LECR(0xD0,1,1,2), no
+     * range check, mode byte ignored), so the unit selector must resolve
+     * it to levels. The laptop has no discrete GPU: the GPU temperature
+     * and every power-limit attribute stay hidden, and so do instant boot
+     * and flip to start, which this firmware does not back the way the
+     * driver drives them. Both fans and the CPU temperature stay. */
+    priv.conf = &model_uacn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(priv.conf->access_method_fanfullspeed == ACCESS_METHOD_WMI3);
+    assert(priv.conf->fanfullspeed_requires_custom_powermode);
+    assert(priv.conf->wmi_fancurve_speed_only);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    assert(!minifancurve_supported(priv.conf) && !lockfancontroller_supported(priv.conf));
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(fancurve_write_allowed(priv.conf) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan2_level_rpm_table.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_input.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_label.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp3_input.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan1_input.dev_attr.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan2_input.dev_attr.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan3_input.dev_attr.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_l1_tau.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_power_target_offset.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_longterm_powerlimit.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_ctgp_powerlimit.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_instant_boot_ac.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_flip_to_start.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_maxspeed.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_fullspeed.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_powermode.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_rapidcharge.attr, 0));
+    /* Only UACN hides the GPU temperature. */
+    priv.conf = &model_smcn;
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_input.dev_attr.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0));
+
     /* M2CN (82YA, EC 0x8227) is the Intel twin of M3CN_8227 (#584): the same
      * EC and the same WMI3 Fan_Set_Table, which takes levels 1..10 with no
      * range check. A percent-unit fallback therefore writes out-of-range
@@ -601,6 +642,39 @@ int main(void) {
     firmware_rows[2].fan_id = 4;
     fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
     assert(!priv.fantable_fan1_valid && priv.fantable_fan2_valid);
+
+    /* Fan 2 takes the (fan 2, GPU sensor) row whenever one exists; the
+     * (fan 2, sensor 0x01) row only fills in when it does not. UACN (#657)
+     * without a discrete GPU publishes fan 1 against sensors 0x01/0x04 and
+     * fan 2 against sensor 0x01 alone. Rows of another mode never count. */
+    struct wmi_fantable_row fan2_ic_row = valid_row, other_mode_row;
+    fan2_ic_row.mode = LEGION_WMI_POWERMODE_BALANCED;
+    fan2_ic_row.fan_id = 2; fan2_ic_row.sensor_id = FANTABLE_SENSOR_IC;
+    for (size_t i = 0; i < FANTABLE_MAX_LEVELS; i++) fan2_ic_row.fan_speed[i] += 300;
+    other_mode_row = fan2_ic_row;
+    other_mode_row.mode = LEGION_WMI_POWERMODE_LOW_POWER;
+    for (size_t i = 0; i < FANTABLE_MAX_LEVELS; i++) other_mode_row.fan_speed[i] += 50;
+    firmware_rows[0] = other_mode_row;
+    firmware_rows[1] = ic_row;
+    firmware_rows[2] = fan2_ic_row;
+    firmware_rows[3] = cpu_row;
+    fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
+    assert(priv.fantable_fan1_valid && priv.fantable_fan1.rpms[1] == valid_row.fan_speed[1]);
+    assert(priv.fantable_fan2_valid && priv.fantable_fan2.rpms[1] == fan2_ic_row.fan_speed[1]);
+    const struct wmi_fantable_row *fan2_orders[][4] = {
+        { &fan2_ic_row, &gpu_row, &cpu_row, &ic_row },  /* IC row first: GPU row still wins */
+        { &gpu_row, &fan2_ic_row, &cpu_row, &ic_row },  /* GPU row first */
+    };
+    for (size_t o = 0; o < 2; o++) {
+        for (size_t i = 0; i < 4; i++) firmware_rows[i] = *fan2_orders[o][i];
+        fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
+        assert(priv.fantable_fan2_valid && priv.fantable_fan2.rpms[1] == valid_row.fan_speed[1]);
+    }
+    /* Neither row for fan 2: still no data. */
+    firmware_rows[0] = cpu_row;
+    firmware_rows[1] = ic_row;
+    fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
+    assert(priv.fantable_fan1_valid && !priv.fantable_fan2_valid);
 
     /* A resize must publish the new size, or the store is a silent no-op: the
      * sentinel/replication blocks reshape points[] against the *old* size, and

@@ -279,6 +279,10 @@ struct model_config {
 	enum access_method access_method_powerlimits;
 	bool three_state_keyboard;
 	bool skip_ic_temp;
+	/* No discrete GPU: the firmware flags the GPU temperature feature
+	 * (0x05050000) unsupported and EC GPUT reads 0, so hide temp2.
+	 */
+	bool skip_gpu_temp;
 	bool skip_oc_controls;
 	/* The lockfancontroller attribute writes EC byte
 	 * EXT_LOCKFANCONTROLLER through Super-I/O port I/O regardless of
@@ -3103,6 +3107,114 @@ static const struct model_config model_smcn = {
 	.has_instant_boot = true,
 };
 
+// Legion 7 15ASH11 / Legion 7a 15" Gen 11 (83V9) - 2026, AMD Ryzen AI
+// Max+ 392 with integrated Radeon 8060S only (no discrete GPU).
+// BIOS: UACN23WW, EC 0x5508 (fw 2b0, both read on the unit, issue #657).
+// Facts below are from the UACN23WW DSDT (L = dsdt.dsl line, attachment
+// in issue #657); the WMA* methods live in \_SB.GZFD:
+// - Fan Method WMAB implements only Fan_Get_Table(5)/Fan_Set_Table(6)
+//   (L19194): get returns the 0x58-byte LFGT buffer with the live EC
+//   fields F9F0..F9F9 (static 1..10 placeholder when ODV1 == 4, i.e.
+//   extreme mode, L19212); set copies the ten speeds (bytes 0x06..0x18
+//   at even offsets) to F9F0..F9F9 and commits via LECR(0xD0,1,1,2)
+//   (L19266), no range check, mode/FSID bytes ignored. Identical
+//   semantics to Q7CN/RLCN/SMCN, so FAN_SPEED_UNIT_LEVEL (see
+//   wmi_read_fancurve_custom()) and only the speed attributes are
+//   exposed (wmi_fancurve_speed_only). The reporter's readback is ten
+//   zeros (table untouched since boot), which the write path replaces
+//   with levels 1..10 (fancurve_level_table_sanitize()).
+// - LENOVO_FAN_TABLE_DATA (WQA3, L13386) has two ladders, selected by
+//   the firmware flag GDMF: with GDMF == 0, 1900..6500 RPM on fan 1
+//   (sensors 0x01 and 0x04) and fan 2 (sensor 0x01 only); otherwise
+//   1700..5500 RPM on fan 1 (sensors 0x01/0x04) and fan 2 (sensor
+//   0x05). fan2_level_rpm_table therefore relies on the (fan 2, sensor
+//   0x01) fallback in fantable_refresh() on GDMF == 0 units.
+//   LENOVO_FAN_TEST_DATA (WQAB, L16664) lists fans 1 and 2 with
+//   1700..5700 RPM, which is what lenovo_wmi_other reports for fan1.
+// - Other Method WMAE Get(0x11)/Set(0x12) (L19332/L20239) implements
+//   the standard feature ids: fan RPM 0x04030001/2 (FANS/FA2S*0x64,
+//   L19901/L19913), CPU temp 0x05040000 (CPUT, L19958), full speed
+//   0x04020000 -> EC FNST (both directions, L19889/L20983).
+//   0x05010000 is the CPU socket temp (CPUS, L19946), not a labeled IC
+//   sensor -> skip_ic_temp. 0x05050000 returns EC GPUT (L19970), but
+//   capability data 00 (WQA9, L16473) flags it unsupported and it reads
+//   0 on the unit -> skip_gpu_temp. Capability data 00 also flags fan 2
+//   RPM (0x04030002, L16374) unsupported although WMAE implements it
+//   and the chassis has two fans; hwmon fan2 stays visible until
+//   someone reads it under load.
+// - Power mode: GameZone WMAA SmartFanMode set 0x2C / get 0x2D
+//   (L18664/L18535): quiet/balanced/performance, 0xFF custom, 0xE0
+//   extreme, mapped from EC ASMC and ODV1 (like model_rgcn);
+//   performance/custom/extreme are parked on battery (ACTY check).
+//   Validated on the unit: powermode WMI reads 2, platform profile
+//   switches.
+// - CPU Method WMAC only handles 0x0E/0x0F (AMD 0x414D44xx tuning via
+//   SWMI, L19271), which the driver never calls. The WMAE power-limit
+//   ids exist, but without a discrete GPU the GPU ones are meaningless
+//   and none is validated on this APU platform, so
+//   access_method_powerlimits stays unset and skip_oc_controls hides
+//   the rest; lenovo-wmi-other covers the firmware attributes.
+// - Lights: 1-zone RGB keyboard, no lid logo and no IO-port light
+//   (PSREF, issue #657 report). KBBACKLIGHT WMAF get(1)/set(2)
+//   (L21465) drives the keyboard level (id 0x00, LECR 0xDA levels
+//   1..3); the get returned a valid level on the unit (LED driver
+//   registered). Light id 0x03 answers although there is no logo and
+//   id 0x05 is unimplemented, so both light attributes are skipped.
+// - EC0 at \_SB.PCI0.LPC0.EC0 (L6987, PNP0C09, GPE 9, IO 0x62/0x66);
+//   EC RAM window ERAX @0xFEEC2400 len 0xFF (L7282; F9FT/ECB2 at
+//   +0x100/+0x200, L7152/L7036, ramio_size 0x300) is used only by the
+//   read-only debugfs ecmemoryram dump; EC register offsets are not
+//   trusted on the 0x5508 generation (issue #491) - raw EC reads were
+//   garbage on the unit (70/55 RPM, 0 C) while WMI3 matched k10temp and
+//   lenovo_wmi_other. VPC0 (VPC2004) _STA/_CFG (L9421/L9426) and
+//   GBMD/SBMC (L9586/L9803) present; GBMD bit 0x20 is BTSM and bit 0x04
+//   is QCHO, so rapidcharge and battery conservation are exposed.
+// - Not exposed: instant boot (capability data 00 flags the AC id
+//   0x03010001 unsupported, L16311) and flip to start (WMAE sets it
+//   through the SWMI BIOS-setting interface 0x0D010201, L20297; whether
+//   the FBSWIF EFI variable the driver uses still exists is unknown).
+// fan_fullspeed is gated behind custom power mode like model_q7cn/
+// model_rlcn: on this generation a full-speed write through the wrong
+// path can wedge the fans at maximum speed until reboot (model_rlcn).
+static const struct model_config model_uacn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI2,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_gpu_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFEEC2400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+};
+
 static const struct dmi_system_id denylist[] = { {} };
 
 static const struct dmi_system_id optimistic_allowlist[] = {
@@ -3809,6 +3921,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "SMCN"),
 		},
 		.driver_data = (void *)&model_smcn
+	},
+	{
+		// Legion 7 15ASH11 / Legion 7a 15" Gen 11 (83V9), BIOS UACN
+		// (issue #657); product-qualified in case the UACN BIOS line
+		// is shared by a chassis with a discrete GPU, which would
+		// need its own config (GPU temperature, power limits)
+		.ident = "UACN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83V9"),
+			DMI_MATCH(DMI_BIOS_VERSION, "UACN"),
+		},
+		.driver_data = (void *)&model_uacn
 	},
 	{
 		// e.g. Legion 5 16IRX9 (83DG)
@@ -5841,6 +5966,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_macn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_uacn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_lpcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m0cn	 ? FAN_SPEED_UNIT_LEVEL :
@@ -6023,8 +6149,8 @@ static bool fantable_row_matches_mode(const struct wmi_fantable_row *row,
 static void fantable_refresh(struct legion_private *priv, int powermode)
 {
 	struct wmi_fantable_row row;
-	struct fantable_ladder fan1_ic;
-	bool fan1_ic_valid = false;
+	struct fantable_ladder fan1_ic, fan2_ic;
+	bool fan1_ic_valid = false, fan2_ic_valid = false;
 	int rows, index;
 
 	priv->fantable_fan1_valid = false;
@@ -6064,12 +6190,23 @@ static void fantable_refresh(struct legion_private *priv, int powermode)
 		if (row.fan_id == 1 && row.sensor_id == FANTABLE_SENSOR_IC &&
 		    !fan1_ic_valid)
 			fan1_ic_valid = fantable_row_to_ladder(&row, &fan1_ic);
+		/* Units without a discrete GPU publish fan 2 against sensor 1
+		 * only (UACN WQA3 with GDMF == 0): there is no GPU row.
+		 */
+		if (row.fan_id == 2 && row.sensor_id == FANTABLE_SENSOR_IC &&
+		    !fan2_ic_valid)
+			fan2_ic_valid = fantable_row_to_ladder(&row, &fan2_ic);
 	}
 
 	/* Prefer the (fan 1, CPU sensor) row whenever the firmware has one. */
 	if (!priv->fantable_fan1_valid && fan1_ic_valid) {
 		priv->fantable_fan1 = fan1_ic;
 		priv->fantable_fan1_valid = true;
+	}
+	/* Likewise the (fan 2, GPU sensor) row. */
+	if (!priv->fantable_fan2_valid && fan2_ic_valid) {
+		priv->fantable_fan2 = fan2_ic;
+		priv->fantable_fan2_valid = true;
 	}
 
 	if (priv->fantable_fan1_valid) {
@@ -11032,6 +11169,10 @@ static umode_t legion_hwmon_sensor_is_visible(struct kobject *kobj,
 	if (attr == &sensor_dev_attr_temp3_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_temp3_label.dev_attr.attr)
 		supported = supported && !priv->conf->skip_ic_temp;
+
+	if (attr == &sensor_dev_attr_temp2_input.dev_attr.attr ||
+	    attr == &sensor_dev_attr_temp2_label.dev_attr.attr)
+		supported = supported && !priv->conf->skip_gpu_temp;
 
 	if (attr == &sensor_dev_attr_fan3_input.dev_attr.attr ||
 	    attr == &sensor_dev_attr_fan3_label.dev_attr.attr)

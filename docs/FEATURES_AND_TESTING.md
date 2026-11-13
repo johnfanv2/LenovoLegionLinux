@@ -721,6 +721,77 @@ with `sudo dmesg | grep -i legion` (no "not in allowlist", EC id
 including `fan3`), and `sudo cat /sys/kernel/debug/legion/fancurve`
 (`u` = 5, speed1 in 1..10).
 
+## Legion 7 15ASH11 (83V9, UACN)
+
+Legion 7a 15" Gen 11. BIOS UACN23WW, EC 0x5508 (fw 2b0), AMD Ryzen AI
+Max+ 392 with integrated Radeon 8060S only - no discrete GPU (issue
+#657). DMI entry `UACN` is qualified on product name `83V9`; config
+`model_uacn` in `kernel_module/legion-laptop.c` (the header comment
+cites the DSDT lines from the dsdt.dsl attached in issue #657).
+
+Same WMI-only firmware layout as the RLCN/RGCN/SMCN models above:
+
+- Everything goes through WMI: power mode via GameZone `WMAA` 0x2C/0x2D,
+  fan RPM / CPU temperature / fan full speed via Other Method `WMAE`,
+  fan table via Fan Method `WMAB` 5/6 with the same `F9F0..F9F9` +
+  `LECR(0xD0,1,1,2)` semantics; `FAN_SPEED_UNIT_LEVEL`, one table for all
+  fans, temperature axis fixed by the EC, static 1..10 placeholder in
+  extreme mode (ODV1 == 4; read the table in another mode). The table
+  reads ten zeros until something has written it since boot (seen in the
+  issue #657 dump); the first write sends levels 1..10 for unset points.
+- `LENOVO_FAN_TABLE_DATA` (WQA3) holds two ladders selected by the
+  firmware flag `GDMF`: 1900..6500 RPM when it is 0 (fan 1 against
+  sensors 0x01/0x04, fan 2 against sensor 0x01 only), otherwise
+  1700..5500 RPM (fan 2 against sensor 0x05). Which one this unit uses
+  is not known yet; `fan1_level_rpm_table`/`fan2_level_rpm_table` show
+  it. Fan 2 falls back to its sensor 0x01 row when there is no GPU row.
+- No GPU temperature: the firmware flags feature 0x05050000 unsupported
+  in capability data 00 and EC `GPUT` read 0 on the unit, so hwmon
+  `temp2` is hidden (`skip_gpu_temp`); `temp3` is hidden like on the
+  other 0x5508 models. Capability data 00 also flags the fan 2 RPM id
+  (0x04030002) unsupported, although `WMAE` implements it
+  (`FA2S`*100) and the chassis has two fans, so hwmon `fan2` is exposed
+  and still needs a reading under load.
+- The 1-zone RGB keyboard's brightness level goes through the
+  KBBACKLIGHT WMI methods (`WMAF`, LECR 0xDA, levels 1..3); the read
+  worked on the unit (LED driver registered), a write is not validated
+  yet. The laptop has no lid logo and no IO-port light (PSREF and issue
+  #657 report), so both light attributes are skipped.
+- `fan_fullspeed` (WMAE `0x04020000` -> EC `FNST`, set and clear) is
+  exposed but writes require custom power mode; on this generation a
+  full-speed write through the wrong WMI method (old fallback config)
+  wedged the fans at maximum speed until reboot on the 83LT, so validate
+  with care and be ready to reboot.
+- No power-limit/OC attributes at all (`skip_oc_controls`, no
+  `access_method_powerlimits`): the GPU ones have no meaning without a
+  discrete GPU and none is validated on this APU platform; the mainline
+  `lenovo_wmi_other` firmware attributes cover them. Rapid charge and
+  battery conservation use `VPC0.GBMD`/`SBMC` at `\_SB.PCI0.LPC0.EC0`
+  (GBMD bit 0x20 = BTSM, bit 0x04 = QCHO).
+- Instant boot and flip to start are not exposed: capability data 00
+  flags the AC instant-boot id (0x03010001) unsupported, and `WMAE` sets
+  flip to start through the SWMI BIOS-setting interface (0x0D010201)
+  rather than the `FBSWIF` EFI variable the driver uses. If
+  `ls /sys/firmware/efi/efivars | grep -i FBSWIF` lists the variable on
+  this laptop, report it in the issue so flip to start can be enabled.
+- `minifancurve` and `lockfancontroller` are hidden (undeclared EC bytes
+  on the 0x5508 generation); the EC RAM window (`ERAX @0xFEEC2400`, len
+  0xFF; `F9FT`/`ECB2` at +0x100/+0x200) is only used for the read-only
+  `ecmemoryram` debugfs dump. Raw EC reads are misaligned on this unit:
+  with the old fallback config the EC column reported 70/55 RPM and 0 C
+  while WMI3 matched `k10temp` and `lenovo_wmi_other` (issue #657).
+
+Validation status: config derived from the DSDT analysis and the
+reporter's force-loaded logs in issue #657 (WMI power mode switching,
+WMI3 CPU temperature and idle fan RPM confirmed there); runtime
+validation of the final config is in progress - check the issue for the
+results, and verify locally with `sudo dmesg | grep -i legion` (no "not
+in allowlist", "Using configuration for system: UACN", EC id 0x5508),
+`sensors` (legion_hwmon shows two fans and the CPU temperature, no GPU
+or IC temperature; fan 2 should spin up under load),
+`cat /sys/kernel/debug/legion/fancurve` as root (`u` = 5), and the two
+`fan*_level_rpm_table` attributes.
+
 ## Legion 5 15IRX10 (83LY, QNCN)
 
 BIOS QNCN38WW, EC 0x5508 (fw 2b0), Intel i7-13650HX + RTX 5070 Laptop
