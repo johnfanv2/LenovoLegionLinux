@@ -1,12 +1,46 @@
-# Legion Pro 5 16ADR10（83LT）/ RLCN20WW 显卡模式请求
+# Legion Pro 5 16ADR10（83LT）/ RLCN BIOS 显卡模式请求
 
-此功能仍为**实验性适配**，仅在 DMI 型号为 `83LT` 且 BIOS **恰好为
-`RLCN20WW`** 时启用。它请求下一次固件启动所采用的 GPU 模式，
+此功能仍为**实验性适配**，只支持 DMI 型号为 `83LT` 且 BIOS 版本**精确匹配
+以下十个版本之一**的设备。它请求下一次固件启动所采用的 GPU 模式，
 **不会在当前 Linux 会话中即时切换 eDP 物理连接**。
+
+### BIOS 精确白名单与固件分析
+
+| BIOS 版本 | 固件分析依据 |
+| --- | --- |
+| `RLCN20WW` | IFR、SMM/DXE；一台 83LT 完成 Hybrid ↔ Discrete 重启往返测试 |
+| `RLCN21WW`、`RLCN25WW`、`RLCN26WW`、`RLCN27WW` | IFR 一致，SMM/DXE 与 20WW 二进制相同 |
+| `RLCN29WW` | IFR、SMM/DXE 一致；83LT 实机 EFI Setup 只读核对 |
+| `RLCN31WW`、`RLCN32WW` | IFR 一致，SMM/DXE 与 20WW 二进制相同 |
+| `RLCN33WW`、`RLCN34WW` | IFR 一致，SMM/DXE 二进制变化，显卡模式关键分支保持对应 |
+
+十个联想官方固件的 `SystemConfig` GUID
+（`A04A27F4-DF00-4D42-B552-39511302113D`）、`Setup` 数据长度
+（700 字节）、`Graphics Device` 偏移（`0x259`）及模式值（UMA `0`、
+Discrete `1`、Dynamic `4`）一致；DXE 显卡模式判断核心代码逐字节相同。
+33WW/34WW 虽重新编译过 SMM/DXE，仍保留 `0xCA/0x25` 请求混合、
+`0xCA/0x26` 请求独显的对应分支。
+
+为了兼容已有配置，模块参数仍叫 `allow_rlcn20_mux_write`，但在所有
+列出的 BIOS 版本上均**默认关闭**。未知 BIOS 版本和其他机型无法使用
+此 `graphics_mode` 专用接口，不会根据 `RLCN` 前缀自动放行；原有通用
+WMI 功能不受影响。
+
+为方便第三方复核，固件 PE32 SHA-256 校验值如下：
+
+| 官方 BIOS 分组 | `ChgBootSmm` SHA-256 | `AppSwitchDisplayModeDxe` SHA-256 |
+| --- | --- | --- |
+| 20WW/21WW/25WW/26WW/27WW/29WW/31WW/32WW | `40b6934872477b9addc1fb816635ba0559813089aa6cc722a89c58b9be80bac1` | `02e61d626b2f8177166cb5bf9e85a7b31898b3f0f46cf3aab3d06a2476333139` |
+| 33WW/34WW | `d65b65a09dcecd354cd36ca9e47e3f9ad44f156f5a844a1937f00021f6993eb6` | `a8e8d74bbe7b3ef3f7d05b918806ba40a6e40dd29bac09bb32afdd85c978ef50` |
+
+固件来源为联想官方下载服务，例如
+[RLCN20WW](https://download.lenovo.com/consumer/mobiles/rlcn20ww.exe) 和
+[RLCN34WW](https://download.lenovo.com/consumer/mobiles/rlcn34ww.exe)。
+以上哈希针对提取出的 PE32 模块，**不是安装包 EXE** 的哈希。
 
 ## 固件分析依据
 
-通过实机 DSDT 和联想官方 RLCN20WW BIOS 镜像的静态逆向，确认如下调用链：
+通过实机 DSDT 和联想官方 RLCN BIOS 镜像的静态逆向，核对如下调用链：
 
 1. GameZone WMI `WMAA(0x28)` 返回能力值 `2`；`WMAA(0x29)` 读取 EC
    的 `MSMF`，反映当前报告的显卡模式。
@@ -78,5 +112,7 @@ lspci -nn | grep -Ei 'VGA|3D|Display|Dummy'
 - 临时自动回退定时器、服务已经清理；每次请求后均恢复驱动的默认只读保护。
 
 这证实 **RLCN20WW 启动阶段 Hybrid ↔ Discrete 双向显示路由切换**；
-**UMA 核显请求尚未实机写入或重启验证**，也不代表运行时无重启切换、
-不保证其他 BIOS 版本兼容。原有机型讨论见 issue #445。
+其余九个列出的 BIOS 版本以 IFR、SMM/DXE 固件分析作为兼容性依据，
+而非各版本独立的重启往返测试。**UMA 核显请求未开放写入**，
+运行时无重启切换不属于本功能范围。
+未在白名单中的其他 BIOS 版本没有通过验证。原有机型讨论见 issue #445。

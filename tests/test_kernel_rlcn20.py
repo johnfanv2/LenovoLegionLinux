@@ -79,6 +79,65 @@ int main(void) {
 }
 """
 
+ALLOWED_BIOS = (
+    "RLCN20WW", "RLCN21WW", "RLCN25WW", "RLCN26WW", "RLCN27WW",
+    "RLCN29WW", "RLCN31WW", "RLCN32WW", "RLCN33WW", "RLCN34WW",
+)
+
+BIOS_HARNESS = r"""
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
+#define DMI_BIOS_VERSION 1
+#define DMI_PRODUCT_NAME 2
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+struct model_config { int unused; };
+static const struct model_config model_rlcn = {0}, other_model = {0};
+struct legion_private { const struct model_config *conf; };
+static const char *current_bios, *current_product;
+static const char *dmi_get_system_info(int id) {
+    return id == DMI_BIOS_VERSION ? current_bios : NULL;
+}
+static bool dmi_match(int id, const char *expected) {
+    return id == DMI_PRODUCT_NAME && current_product &&
+           !strcmp(current_product, expected);
+}
+__TABLE__
+__FUNCTION__
+int main(void) {
+    struct legion_private priv = { .conf = &model_rlcn };
+    const char *allowed[] = {
+        "RLCN20WW", "RLCN21WW", "RLCN25WW", "RLCN26WW", "RLCN27WW",
+        "RLCN29WW", "RLCN31WW", "RLCN32WW", "RLCN33WW", "RLCN34WW",
+    };
+    const char *rejected[] = {
+        "RLCN19WW", "RLCN22WW", "RLCN24WW", "RLCN28WW", "RLCN30WW",
+        "RLCN35WW", "RLCN34WW-next", "RLCN34WW ", "ABCN34WW", "",
+    };
+    current_product = "83LT";
+    for (size_t i = 0; i < ARRAY_SIZE(allowed); i++) {
+        current_bios = allowed[i];
+        assert(rlcn20_mux_supported(&priv));
+    }
+    for (size_t i = 0; i < ARRAY_SIZE(rejected); i++) {
+        current_bios = rejected[i];
+        assert(!rlcn20_mux_supported(&priv));
+    }
+    current_bios = NULL;
+    assert(!rlcn20_mux_supported(&priv));
+    current_bios = "RLCN29WW";
+    current_product = "83LV";
+    assert(!rlcn20_mux_supported(&priv));
+    current_product = "83LT ";
+    assert(!rlcn20_mux_supported(&priv));
+    current_product = "83LT";
+    priv.conf = &other_model;
+    assert(!rlcn20_mux_supported(&priv));
+    return 0;
+}
+"""
+
 
 class Rlcn20Test(unittest.TestCase):
     def test_safeguards_and_legacy_fallback(self):
@@ -100,8 +159,15 @@ class Rlcn20Test(unittest.TestCase):
         source = SOURCE.read_text()
         supported = function(source, "rlcn20_mux_supported")
         self.assertIn('dmi_match(DMI_PRODUCT_NAME, "83LT")', supported)
-        self.assertIn('!strcmp(bios, "RLCN20WW")', supported)
-        self.assertIn("priv->conf == &model_rlcn", supported)
+        self.assertIn("priv->conf != &model_rlcn", supported)
+        self.assertIn("!strcmp(bios, rlcn_mux_bios_versions[i])", supported)
+        table = re.search(
+            r"static const char \* const rlcn_mux_bios_versions\[\] = \{(.*?)\};",
+            source,
+            re.S,
+        )
+        self.assertIsNotNone(table)
+        self.assertEqual(tuple(re.findall(r'"(RLCN\d+WW)"', table.group(1))), ALLOWED_BIOS)
         config = re.search(
             r"^static const struct model_config model_rlcn = \{.*?^\};",
             source,
@@ -114,6 +180,19 @@ class Rlcn20Test(unittest.TestCase):
         get = function(source, "rlcn20_get_graphics_mode")
         self.assertIn("return -EOPNOTSUPP;", get.split("#else")[1])
         self.assertNotIn("rlcn20_wmi_get_gsync", get)
+
+        code = BIOS_HARNESS.replace("__TABLE__", table.group(0)).replace(
+            "__FUNCTION__", supported
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            src, binary = Path(tmp) / "bios_test.c", Path(tmp) / "bios_test"
+            src.write_text(code)
+            subprocess.run(
+                ["gcc", "-std=gnu11", "-Wall", "-Wextra", "-Werror",
+                 str(src), "-o", str(binary)],
+                check=True,
+            )
+            subprocess.run([str(binary)], check=True)
 
 
 if __name__ == "__main__":

@@ -103,11 +103,11 @@ MODULE_PARM_DESC(
 	ec_readonly,
 	"Only read from embedded controller but do not write or change settings.");
 
-/* RLCN20WW GPU mode writes persist a request for the next firmware boot. */
+/* Allowlisted 83LT/RLCN GPU mode writes take effect after firmware reboot. */
 static bool allow_rlcn20_mux_write;
 module_param(allow_rlcn20_mux_write, bool, 0440);
 MODULE_PARM_DESC(allow_rlcn20_mux_write,
-	"Allow 83LT/RLCN20WW firmware graphics mode requests (reboot required).");
+	"Allow 83LT/allowlisted RLCN BIOS graphics requests (reboot required).");
 
 static bool enable_platformprofile = true;
 module_param(enable_platformprofile, bool, 0440);
@@ -8304,17 +8304,29 @@ static ssize_t touchpad_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR_RW(touchpad);
 
-/* On 83LT/RLCN20WW WMAA 0x29 reads EC.MSMF and WMAA 0x2a issues
- * SMI 0xca/0x25 (hybrid) or 0xca/0x26 (discrete). This is a request
- * to firmware, not a live DRM connector switch; reboot to verify it.
+/* On allowlisted 83LT/RLCN BIOS versions, WMAA 0x29 reads EC.MSMF;
+ * WMAA 0x2a issues SMI 0xca/0x25 (hybrid) or 0xca/0x26 (discrete).
+ * This requests a next-boot mode, not a live DRM connector switch.
  */
+static const char * const rlcn_mux_bios_versions[] = {
+	"RLCN20WW", "RLCN21WW", "RLCN25WW", "RLCN26WW", "RLCN27WW",
+	"RLCN29WW", "RLCN31WW", "RLCN32WW", "RLCN33WW", "RLCN34WW",
+};
+
 static bool rlcn20_mux_supported(struct legion_private *priv)
 {
 	const char *bios = dmi_get_system_info(DMI_BIOS_VERSION);
+	size_t i;
 
-	return priv->conf == &model_rlcn &&
-	       dmi_match(DMI_PRODUCT_NAME, "83LT") && bios &&
-	       !strcmp(bios, "RLCN20WW");
+	if (priv->conf != &model_rlcn ||
+	    !dmi_match(DMI_PRODUCT_NAME, "83LT") || !bios)
+		return false;
+
+	for (i = 0; i < ARRAY_SIZE(rlcn_mux_bios_versions); i++)
+		if (!strcmp(bios, rlcn_mux_bios_versions[i]))
+			return true;
+
+	return false;
 }
 
 #define RLCN20_SETUP_GUID \
@@ -8366,7 +8378,7 @@ static int rlcn20_get_graphics_mode(u8 *mode)
 #endif
 }
 
-/* RLCN20WW expects a 32-bit WMI argument and acknowledges with Integer(0).
+/* These RLCN BIOSes expect a 32-bit WMI argument and Integer(0) acknowledgement.
  * The acknowledgement does not indicate that the physical MUX has switched.
  */
 static int rlcn20_wmi_set_gsync(u32 discrete)
@@ -8508,7 +8520,7 @@ static ssize_t gsync_store(struct device *dev, struct device_attribute *attr,
 	int err;
 
 	/* The existing GUI/CLI uses gsync as a Hybrid Mode boolean. Do not
-	 * let it bypass the RLCN20WW opt-in or accept non-boolean values.
+	 * let it bypass the RLCN BIOS opt-in or accept non-boolean values.
 	 */
 	if (rlcn20_mux_supported(priv)) {
 		err = kstrtobool(buf, &hybrid);
