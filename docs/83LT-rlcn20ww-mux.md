@@ -1,13 +1,49 @@
-# RLCN20WW GPU mode requests on Legion Pro 5 16ADR10 (83LT)
+# GPU mode requests on Legion Pro 5 16ADR10 (83LT, RLCN BIOS)
 
-This **experimental** integration is restricted to DMI product `83LT` with
-BIOS **exactly `RLCN20WW`**. It requests a GPU mode for the next firmware boot;
-it does **not** switch the eDP connector while Linux is running.
+This **experimental** integration is restricted to DMI product `83LT` and the
+**ten exact RLCN BIOS versions** listed below. It requests a GPU mode for the
+next firmware boot; it does **not** switch the eDP connector while Linux runs.
+
+### Exact BIOS allowlist and firmware analysis
+
+| Firmware | Firmware evidence |
+| --- | --- |
+| `RLCN20WW` | IFR, SMM/DXE; Hybrid ↔ Discrete reboot round trip passed on one 83LT |
+| `RLCN21WW`, `RLCN25WW`, `RLCN26WW`, `RLCN27WW` | Matching IFR and SMM/DXE binaries with 20WW |
+| `RLCN29WW` | Matching IFR and SMM/DXE; EFI Setup readback on an 83LT |
+| `RLCN31WW`, `RLCN32WW` | Matching IFR and SMM/DXE binaries with 20WW |
+| `RLCN33WW`, `RLCN34WW` | Matching IFR; updated SMM/DXE binaries with corresponding GPU-mode branches |
+
+For every listed version, official Lenovo firmware images have the same
+`SystemConfig` GUID (`A04A27F4-DF00-4D42-B552-39511302113D`), 700-byte
+`Setup` data, `Graphics Device` offset `0x259`, and option values
+UMA `0` / Discrete `1` / Dynamic `4`. The relevant DXE mode decision block is
+byte-identical across all ten. The 33WW/34WW SMM binaries differ from older
+versions, but still map software SMI `0xCA/0x25` to Hybrid and `0xCA/0x26`
+to Discrete.
+
+The module parameter retains its original name, `allow_rlcn20_mux_write`, for
+backward compatibility. It remains **off by default** for *every* version;
+unknown versions and other chassis cannot use this special `graphics_mode`
+path even if their BIOS name begins with `RLCN` (the normal legacy WMI handling
+outside this special path is unchanged).
+
+For auditability, the extracted PE32 SHA-256 values are:
+
+| Official BIOS group | `ChgBootSmm` SHA-256 | `AppSwitchDisplayModeDxe` SHA-256 |
+| --- | --- | --- |
+| 20WW/21WW/25WW/26WW/27WW/29WW/31WW/32WW | `40b6934872477b9addc1fb816635ba0559813089aa6cc722a89c58b9be80bac1` | `02e61d626b2f8177166cb5bf9e85a7b31898b3f0f46cf3aab3d06a2476333139` |
+| 33WW/34WW | `d65b65a09dcecd354cd36ca9e47e3f9ad44f156f5a844a1937f00021f6993eb6` | `a8e8d74bbe7b3ef3f7d05b918806ba40a6e40dd29bac09bb32afdd85c978ef50` |
+
+Source packages and per-release notes are available from Lenovo's official
+download server, e.g. [RLCN20WW](https://download.lenovo.com/consumer/mobiles/rlcn20ww.exe)
+and [RLCN34WW](https://download.lenovo.com/consumer/mobiles/rlcn34ww.exe).
+These hashes refer to extracted PE32 sections, **not** the installer EXEs.
 
 ## Firmware evidence
 
-Static analysis of the machine's ACPI DSDT and Lenovo's official RLCN20WW BIOS
-image confirms the following path:
+Static analysis of the machine's ACPI DSDT and Lenovo's official RLCN BIOS
+images confirms the following firmware path on the listed versions:
 
 1. GameZone WMI `WMAA(0x28)` returns capability `2`; `WMAA(0x29)` reads
    EC `MSMF` for the currently reported mode.
@@ -87,7 +123,7 @@ reboot round trip was verified on one machine:
 - The temporary rollback timer and service have since been removed. The
   module's firmware-write guard was restored after each request.
 
-This confirms the **boot-time** route change in both directions on this BIOS;
-it does not validate UMA-only writes, a live, reboot-free display switch, or
-compatibility with other firmware revisions. Related hardware support report:
-issue #445.
+This confirms the **boot-time** route change in both directions on RLCN20WW.
+For the remaining nine listed BIOS revisions, compatibility is supported by
+firmware IFR and SMM/DXE analysis rather than an independent reboot round trip.
+UMA-only writes and live, reboot-free display switching are outside this feature. Related hardware support report: issue #445.

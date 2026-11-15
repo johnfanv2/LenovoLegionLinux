@@ -1631,7 +1631,9 @@ cat /proc/acpi/call; printf '\n'
 
 ### GSync
 
-On Legion Pro 5 16ADR10 (83LT) with BIOS **RLCN20WW** only, the driver also
+On Legion Pro 5 16ADR10 (83LT) with an **exactly allowlisted** BIOS
+(`RLCN20WW`, `RLCN21WW`, `RLCN25WW`, `RLCN26WW`, `RLCN27WW`,
+`RLCN29WW`, `RLCN31WW`, `RLCN32WW`, `RLCN33WW`, `RLCN34WW`), the driver
 exposes `graphics_mode` (`integrated`/`hybrid`/`discrete`). Writes through either
 `graphics_mode` or the legacy `gsync` attribute are **blocked by default**;
 load with `allow_rlcn20_mux_write=1` and without `ec_readonly=1` to explicitly
@@ -1640,7 +1642,9 @@ verified on one 83LT/RLCN20WW (2026-11-08) using PCI and eDP routing.
 UMA (`integrated`) is read-only and is not supported as a write request.
 Three-state readback needs Linux 6.3 or newer with accessible EFI variables;
 the legacy `gsync` read falls back to WMI if EFI is unavailable and cannot
-then distinguish UMA. Live switching and other BIOS versions remain unverified. See
+then distinguish UMA. Only RLCN20WW has passed a real reboot round trip;
+the other nine versions have matching static firmware layouts and untested
+runtime switching. Live switching remains unsupported. See
 [83LT/RLCN20WW graphics mode](83LT-rlcn20ww-mux.md) and the
 [Chinese guide](zh-hans/83LT-rlcn20ww-mux.md).
 
@@ -1649,14 +1653,14 @@ WMI
 GUID: 887B54E3-DDDC-4B2C-8B88-68A26A8835D0
 Object ID: AA
 
-Getting state (RLCN20WW)
+Getting state (allowlisted 83LT/RLCN firmware)
 Method ID: 0x29
 Args: None
 Returns: integer (EC MSMF, currently active mode)
 - 0: hybrid (AMD drives internal eDP)
 - 1: discrete (NVIDIA drives internal eDP)
 
-Requesting the next-boot mode (RLCN20WW)
+Requesting the next-boot mode (allowlisted 83LT/RLCN firmware)
 Method ID: 0x2A
 Args: four-byte UINT32 (little-endian)
 - 0: request hybrid (SMI 0xCA/0x25)
