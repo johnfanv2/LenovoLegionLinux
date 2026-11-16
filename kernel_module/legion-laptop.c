@@ -728,6 +728,40 @@ static const struct model_config model_v0 = {
 				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" }
 };
 
+// Legion Y7000 2021 (82JK), BIOS H1CN, EC chip 0x8227. Same register map
+// as model_v0, but the H1CN49WW DSDT puts the EC under \_SB.PC00.LPCB.EC0
+// instead of \_SB.PCI0.LPC0.EC0 (LPC0 does not exist in that table at all),
+// so the v0 ACPI paths never resolve with AE_NOT_FOUND (-5): the probe was
+// aborted on kernels < 7.0 and rapidcharge stayed hidden on 7.x.
+// DSDT references (H1CN49WW): Scope (\_SB.PC00.LPCB) at L20615, Device
+// (EC0) at L20627, Scope (\_SB.PC00.LPCB.EC0) at L21745 with Device (VPC0)
+// (_HID "VPC2004") at L21747, _STA at L21753 (returns 0x0F), _CFG at
+// L21758 (returns _VPC = 0x7C0DF516), GBMD at L21908 and SBMC at L22128.
+static const struct model_config model_h1cn_8227 = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_EC,
+	.access_method_temperature = ACCESS_METHOD_EC,
+	.access_method_fancurve = ACCESS_METHOD_EC,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE00D400,
+	.ramio_size = 0x600,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" }
+};
+
 static const struct model_config model_efcn = {
 	.registers = &ec_register_offsets_v0,
 	.check_embedded_controller_id = true,
@@ -3425,6 +3459,18 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "HHCN"),
 		},
 		.driver_data = (void *)&model_v0
+	},
+	{
+		// Legion Y7000 2021 (82JK), BIOS H1CN, EC 0x8227: the EC lives at
+		// \_SB.PC00.LPCB.EC0, so the v0 ACPI paths (PCI0.LPC0) fail with
+		// AE_NOT_FOUND. Must stay before the generic H1CN entry below.
+		.ident = "Legion Y7000 2021 (82JK) - EC 0x8227",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "82JK"),
+			DMI_MATCH(DMI_BIOS_VERSION, "H1CN"),
+		},
+		.driver_data = (void *)&model_h1cn_8227
 	},
 	{
 		// Release year: 2022

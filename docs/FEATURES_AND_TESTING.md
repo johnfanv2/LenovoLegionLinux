@@ -619,6 +619,65 @@ from the `EXT_*_BASE` block that the writer writes, not from
 Check: in custom mode write a curve, then
 `sudo cat /sys/kernel/debug/legion/fancurve` must show the same table.
 
+## Legion Y7000 2021 (82JK, H1CN)
+
+BIOS H1CN49WW, EC 0x8227 (fw 2a4), Intel Tiger Lake-H. The DMI entry
+`Legion Y7000 2021 (82JK) - EC 0x8227` is qualified on product name `82JK`
+and BIOS `H1CN`, and it deliberately sits **before** the generic `H1CN`
+entry, which keeps `model_v0`: `dmi_first_match()` uses the first match, so
+the more specific entry has to come first or it is shadowed (the #601 trap).
+
+Where it differs: the H1CN49WW DSDT puts the EC at `\_SB.PC00.LPCB.EC0`, not
+at the `\_SB.PCI0.LPC0.EC0` of `model_v0` — the string `LPC0` does not occur
+in that table at all, so every v0 ACPI path failed with AE_NOT_FOUND (-5):
+
+- kernels < 7.0: `acpi_init()` is fatal there, so the whole driver refused
+to probe — `legion PNP0C09:00: probe with driver legion failed with error
+-5`, no hwmon, no LEDs, no fancurve. This is the same failure that commit
+`643cd36` chose to tolerate on 7.x only, so on 6.x the laptop was simply
+unsupported despite the `H1CN` allowlist entry;
+- kernels >= 7.0: the probe survives without ACPI, so everything except
+`rapidcharge` and `battery_conservation` worked, and both attributes stayed
+hidden because they are the only features that need the ACPI path.
+
+Config: `model_h1cn_8227` in `kernel_module/legion-laptop.c` — `model_v0`
+registers and features, with the four ACPI paths moved to
+`\_SB.PC00.LPCB.EC0.VPC0`. DSDT references (H1CN49WW): `Scope
+(\_SB.PC00.LPCB)` L20615, `Device (EC0)` L20627, `Scope
+(\_SB.PC00.LPCB.EC0)` L21745, `Device (VPC0)` (`_HID` "VPC2004") L21747,
+`_STA` L21753 (returns 0x0F), `_CFG` L21758 (returns `_VPC` = 0x7C0DF516),
+`GBMD` L21908, `SBMC` L22128.
+
+Verified on H1CN49WW with three module loads: kernel 6.18.63 (LTS) with
+this patch stashed (`probe with driver legion failed with error -5`), the
+same kernel with it applied, and kernel 7.3.4 with the stock DKMS build
+compared against the patched one:
+
+- probe: `Using configuration for system: Legion Y7000 2021 (82JK) - EC
+0x8227`, `ACPI CFG error: 0`, `ACPI CFG: 2081289494` (0x7C0DF516) and
+`legion_laptop loaded for this device`, instead of `Could not init ACPI
+access: -5` + `probe with driver legion failed with error -5`;
+- `rapidcharge` and `battery_conservation` nodes appear on both kernels.
+The write goes through `SBMC` and the read-back through `GBMD` (QCHO, bit
+2), so the `0 -> 1 -> 0` sequence after `Set rapidcharge to 1 by calling 7:
+result: 0` / `... to 0 by calling 8: result: 0` reports EC state read by a
+different method than the one that wrote it;
+- rapid-charge A/B on AC at 44-47 % state of charge: `power_now` 34.25 W
+with rapid charge off vs 83.46 W with it on;
+- no regression on 7.3.4 with the patched build: `powermode` 2,
+`platform_profile` balanced, `fancurve_speed_unit` = rpm with the same
+4-point EC curve as the stock build (pwm 0/40/45/53, CPU 0/65/75/85/127,
+IC 0/46/50/54/127), `fan_fullspeed` 0, `lockfancontroller` 0, plus the
+`legion_hwmon` fan and temperature readings, keyboard backlight and
+Y-logo/IO-port LEDs.
+
+Notes: rapid charge is stored in the EC, so an enabled setting survives a
+module reload and a reboot. `fan_unlock` stays unavailable, since
+`model_v0` has no `has_fan_unlock` and the ACPI fix does not add one. The GPU temperature reads 0 while the
+dGPU is runtime-suspended and matches `nvidia-smi` once it is woken. The WMI
+fan table is not implemented on this generation (`WMI fancurve error: -1`),
+the EC curve is used.
+
 ## Legion Y7000P IRX10 (83NN, S9CN)
 
 BIOS S9CN19WW, EC 0x5508 (fw 2b0), Intel Arrow Lake-HX + RTX 50

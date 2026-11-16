@@ -12,6 +12,7 @@
 - 联想拯救者 5 15ARH05A（BIOS FSCN14WW），第五代：传感器、风扇曲线
 - 联想拯救者 5 15ARH05H（BIOS FSCN14WW 或 FSCN26WW），第五代：传感器、风扇曲线、电源配置
 - 联想拯救者 5 15ITH6H（BIOS H1CN49WW，Intel）：传感器、风扇曲线、电源配置
+- 联想拯救者 Y7000 2021（82JK，BIOS H1CN49WW），第六代（Intel）：传感器、风扇曲线、电源配置、快速充电、电池养护、键盘背光与 Y 型 Logo/IO 口灯；H1CN49WW 的 DSDT 把 EC 放在 `\_SB.PC00.LPCB.EC0`，因此该机型需要自己的 ACPI 路径（`model_h1cn_8227`）——修复前在 kernel < 7.0 上驱动完全无法绑定，在 7.x 上 `rapidcharge` 一直被隐藏，详见 [H1CN 说明](../FEATURES_AND_TESTING.md#legion-y7000-2021-82jk-h1cn)
 - 联想拯救者 5 15ARH7H（BIOS JUCN55WW），第七代：传感器、风扇曲线、电源配置
 - 联想拯救者 5 15ACH6（BIOS HHCN31WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 S7 16ARHA7（BIOS KFCN32WW）：传感器、风扇曲线（无mini风扇曲线）、电源配置
