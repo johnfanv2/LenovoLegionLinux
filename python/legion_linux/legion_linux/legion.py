@@ -1126,6 +1126,11 @@ class FanCurveIO(Feature):
         file_path = self.hwmon_path + self.fan2_max
         return int(self._read_file(file_path))
 
+    def _count_point_files(self):
+        if self.hwmon_path is None:
+            return 0
+        return len(glob.glob(self.hwmon_path + self.pwm1_fan_speed.format("*")))
+
     def get_auto_points_size(self):
         if self.hwmon_path is None:
             return None
@@ -1134,14 +1139,33 @@ class FanCurveIO(Feature):
             return None
         return self._read_file(file_path)
 
-    def get_point_count(self):
-        """Use the driver's active size, or count PWM attrs on older WMI modules."""
+    def has_writable_auto_points_size(self):
+        """True when auto_points_size can resize the active curve (EC backend)."""
+        if self.hwmon_path is None:
+            return False
+        file_path = self.hwmon_path + self.auto_points_size
+        try:
+            mode = os.stat(file_path).st_mode
+        except OSError:
+            return False
+        return bool(mode & 0o222)
+
+    def get_active_point_count(self):
+        """Number of points currently active in hardware."""
         count = self.get_auto_points_size()
         if count is not None:
             return count
-        if self.hwmon_path is None:
-            return 0
-        return len(glob.glob(self.hwmon_path + self.pwm1_fan_speed.format("*")))
+        return self._count_point_files()
+
+    def get_point_count(self):
+        """Maximum number of curve points this backend accepts."""
+        slot_count = self._count_point_files()
+        if self.has_writable_auto_points_size():
+            return slot_count
+        count = self.get_auto_points_size()
+        if count is not None:
+            return count
+        return slot_count
 
     def set_fan_1_speed_pwm(self, point_id, value):
         point_id = self._validate_point_id(point_id)
@@ -1359,15 +1383,33 @@ class FanCurveIO(Feature):
             self._check_level_table_pwm(point_id, fan1_pwm, level_table)
             if fan2_pwm is not None:
                 self._check_level_table_pwm(point_id, fan2_pwm, level_table)
+        point_plan = self._fancurve_write_plan(
+            entries,
+            speeds,
+            temperature_fields,
+            has_fan_2_speed,
+            has_acceleration_curve,
+        )
         try:
             log.info("Trying to set minifancurve using fancurve profile to: %s", str(fan_curve.enable_minifancurve))
             self.set_minifancuve(fan_curve.enable_minifancurve)
         except Exception as error:  # pylint: disable=broad-exception-caught
             log.error(str(error))
+        plan, snapshot_paths, size_path, clobbered_paths = self._prepare_resize_plan(
+            point_plan,
+            len(entries),
+            point_count,
+            temperature_fields=temperature_fields,
+            has_fan_2_speed=has_fan_2_speed,
+            has_acceleration_curve=has_acceleration_curve,
+        )
         try:
             self._write_fancurve_plan(
-                self._fancurve_write_plan(entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve),
+                plan,
                 restore_filter=self._is_level_safe_restore if level_table else None,
+                snapshot_paths=snapshot_paths,
+                size_path=size_path,
+                clobbered_paths=clobbered_paths,
             )
         except PermissionError:
             log.error(
@@ -1376,6 +1418,36 @@ class FanCurveIO(Feature):
             )
             raise
 
+    def _prepare_resize_plan(
+        self, point_plan, target_size, point_count, *, temperature_fields, has_fan_2_speed, has_acceleration_curve
+    ):
+        """Prepend an auto_points_size update and rollback metadata when resizing an EC curve."""
+        if not self.has_writable_auto_points_size():
+            return point_plan, None, None, ()
+        previous_active_size = self.get_auto_points_size()
+        if previous_active_size == target_size:
+            return point_plan, None, None, ()
+        size_path = self.hwmon_path + self.auto_points_size
+        plan = [(size_path, self._validate_point_id(target_size)), *point_plan]
+        old_count = max(0, min(previous_active_size or 0, point_count))
+        snapshot_paths = [size_path]
+        for point_id in range(1, old_count + 1):
+            snapshot_paths.extend(
+                self._point_attr_paths(point_id, temperature_fields, has_fan_2_speed, has_acceleration_curve)
+            )
+        clobbered_paths = (
+            [
+                path
+                for point_id in range(min(old_count, target_size), old_count + 1)
+                for path in self._point_attr_paths(
+                    point_id, temperature_fields, has_fan_2_speed, has_acceleration_curve
+                )
+            ]
+            if old_count >= 1
+            else ()
+        )
+        return plan, snapshot_paths, size_path, clobbered_paths
+
     def _check_fancurve_range(self, label, value, limits):
         """Return value if the driver would accept it, else raise."""
         low, high = limits
@@ -1383,7 +1455,22 @@ class FanCurveIO(Feature):
             raise ValueError(f"{label}={value} is outside the range the driver accepts ({low}-{high})")
         return value
 
-    def _fancurve_write_plan(self, entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve):
+    def _point_attr_paths(self, point_id, temperature_fields, has_fan_2_speed, has_acceleration_curve):
+        point_id = self._validate_point_id(point_id)
+        paths = [self.hwmon_path + self.pwm1_fan_speed.format(point_id)]
+        if has_fan_2_speed:
+            paths.append(self.hwmon_path + self.pwm2_fan_speed.format(point_id))
+        for name, pattern in self.temperature_files.items():
+            if name in temperature_fields:
+                paths.append(self.hwmon_path + pattern.format(point_id))
+        if has_acceleration_curve:
+            paths.append(self.hwmon_path + self.pwm1_accel.format(point_id))
+            paths.append(self.hwmon_path + self.pwm1_decel.format(point_id))
+        return paths
+
+    def _fancurve_write_plan(
+        self, entries, speeds, temperature_fields, has_fan_2_speed, has_acceleration_curve, *, resize_points=False
+    ):
         """Resolve every fan curve sysfs write before any of them reaches the hardware.
 
         Returns an ordered list of (file_path, value) pairs for the whole curve.
@@ -1392,6 +1479,8 @@ class FanCurveIO(Feature):
         point 1 is written rather than part way through.
         """
         plan = []
+        if resize_points:
+            plan.append((self.hwmon_path + self.auto_points_size, self._validate_point_id(len(entries))))
         for index, entry in enumerate(entries):
             point_id = self._validate_point_id(index + 1)
             plan.append((self.hwmon_path + self.pwm1_fan_speed.format(point_id), speeds[index][0]))
@@ -1416,7 +1505,21 @@ class FanCurveIO(Feature):
                 )
         return plan
 
-    def _write_fancurve_plan(self, plan, restore_filter=None):
+    @staticmethod
+    def _build_restore_paths(written, size_path=None, clobbered_paths=()):
+        if size_path is None or size_path not in written:
+            return list(reversed(written))
+        seen = {size_path}
+        ordered = [size_path]
+        for file_path in list(reversed(written)) + list(clobbered_paths):
+            if file_path not in seen:
+                seen.add(file_path)
+                ordered.append(file_path)
+        return ordered
+
+    def _write_fancurve_plan(
+        self, plan, restore_filter=None, *, snapshot_paths=None, size_path=None, clobbered_paths=()
+    ):
         """Apply a whole fan curve, putting the previous values back if a write fails.
 
         Each point is an independent sysfs attribute, so a failure part way
@@ -1425,8 +1528,9 @@ class FanCurveIO(Feature):
         A previous value rejected by restore_filter (e.g. an out-of-range level
         left by an older module) is not written back.
         """
+        paths_to_snapshot = [file_path for file_path, _ in plan] if snapshot_paths is None else snapshot_paths
         previous = {}
-        for file_path, _ in plan:
+        for file_path in paths_to_snapshot:
             if file_path not in previous:
                 previous[file_path] = self._read_file_or(file_path, None)
         written = []
@@ -1436,8 +1540,8 @@ class FanCurveIO(Feature):
                 written.append(file_path)
         except Exception as error:  # pylint: disable=broad-exception-caught
             log.error("Fan curve write failed (%s), restoring %d previous values", error, len(written))
-            for file_path in reversed(written):
-                if previous[file_path] is None:
+            for file_path in self._build_restore_paths(written, size_path, clobbered_paths):
+                if previous.get(file_path) is None:
                     continue
                 if restore_filter is not None and not restore_filter(file_path, previous[file_path]):
                     log.error("Not restoring %s to unsafe value %s", file_path, previous[file_path])
@@ -1455,7 +1559,8 @@ class FanCurveIO(Feature):
         has_fan_2_speed = self.has_fan_2_speed()
         has_acceleration_curve = self.has_acceleration_curve()
         tables = self.level_tables
-        for point_id in range(1, self.get_point_count() + 1):
+        active_count = min(self.get_active_point_count(), self.get_point_count())
+        for point_id in range(1, active_count + 1):
             fan1_speed = self._get_speed_rpm(point_id, 0, tables)
             fan2_speed = (
                 self._get_speed_rpm(point_id, 1, tables) if (has_fan_2_speed or tables is not None) else fan1_speed

@@ -1410,8 +1410,12 @@ The hwmon curve schema follows the fields the active backend actually writes:
 
 Unsupported fields are absent, not writable zero-valued placeholders. Userspace
 handles partial temperature support per field, including EC2's missing IC fields,
-and respects the driver's point count. `auto_points_size` is read-only unless the
-backend supports changing it. This does not select new EC layouts or change any
+and distinguishes the active curve length (`auto_points_size`) from the backend's
+maximum editable point count: `auto_points_size` is read-only on fixed-length
+backends (EC2/EC3/WMI3), whereas on EC backends where `auto_points_size` is
+writable (`0644`), all 10 slots remain editable and applying a curve resizes
+`auto_points_size` automatically (rolling back the previous size and clobbered
+points if a sysfs write fails). This does not select new EC layouts or change any
 model's access method. Unmapped minifancurve/controller-lock registers in the
 IdeaPad and LOQ maps are marked unavailable and guarded even in diagnostic reads.
 Native curve reads initialize the whole result and model-specific RPM scale before

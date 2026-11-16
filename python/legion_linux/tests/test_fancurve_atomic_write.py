@@ -172,5 +172,227 @@ class FancurveAtomicWriteTest(unittest.TestCase):
         )
 
 
+FULL_POINT_FILES = (
+    "pwm1_auto_point{}_pwm",
+    "pwm2_auto_point{}_pwm",
+    "pwm1_auto_point{}_temp",
+    "pwm1_auto_point{}_temp_hyst",
+    "pwm2_auto_point{}_temp",
+    "pwm2_auto_point{}_temp_hyst",
+    "pwm3_auto_point{}_temp",
+    "pwm3_auto_point{}_temp_hyst",
+    "pwm1_auto_point{}_accel",
+    "pwm1_auto_point{}_decel",
+)
+
+MAX_TEMP_ATTRS = (
+    "pwm1_auto_point{}_temp",
+    "pwm2_auto_point{}_temp",
+    "pwm3_auto_point{}_temp",
+)
+
+
+class FancurveResizeTest(unittest.TestCase):
+    """Regression tests for EC auto_points_size resizing vs fixed-size curves (#654)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.hwmon = pathlib.Path(self.tmp.name)
+        (self.hwmon / "fan1_max").write_text("10000\n", encoding="UTF-8")
+        (self.hwmon / "fan2_max").write_text("10000\n", encoding="UTF-8")
+        (self.hwmon / "minifancurve").write_text("1", encoding="UTF-8")
+        for point in range(1, 11):
+            for pattern in FULL_POINT_FILES:
+                (self.hwmon / pattern.format(point)).write_text("0", encoding="UTF-8")
+
+    def make_io(self):
+        io = legion.FanCurveIO(expect_hwmon=False)
+        io.hwmon_path = str(self.hwmon) + "/"
+        io.use_legion_cli_to_write = False
+        return io
+
+    def write_point(self, point, pwm, *, upper_temp=60, accel=3, decel=3):
+        values = {
+            "pwm1_auto_point{}_pwm": pwm,
+            "pwm2_auto_point{}_pwm": pwm,
+            "pwm1_auto_point{}_temp": upper_temp,
+            "pwm1_auto_point{}_temp_hyst": 40,
+            "pwm2_auto_point{}_temp": upper_temp,
+            "pwm2_auto_point{}_temp_hyst": 40,
+            "pwm3_auto_point{}_temp": upper_temp,
+            "pwm3_auto_point{}_temp_hyst": 35,
+            "pwm1_auto_point{}_accel": accel,
+            "pwm1_auto_point{}_decel": decel,
+        }
+        for pattern, val in values.items():
+            (self.hwmon / pattern.format(point)).write_text(str(val), encoding="UTF-8")
+
+    def make_kernel_ec_writer(self, fail_on=None):
+        """Mirror legion-laptop.c's autopoint_store + ec_write_fancurve_legion behaviour."""
+
+        def kernel_write(file_path, value):
+            path = pathlib.Path(file_path)
+            if fail_on is not None and path.name == fail_on:
+                raise OSError("simulated sysfs write failure")
+            if path.name == "auto_points_size":
+                old_size = int(path.read_text(encoding="UTF-8"))
+                new_size = int(value)
+                if not 1 <= new_size <= 10:
+                    raise OSError("EINVAL")
+                if new_size < old_size:
+                    for pattern in MAX_TEMP_ATTRS:
+                        (self.hwmon / pattern.format(new_size)).write_text("127", encoding="UTF-8")
+                    for cleared in range(new_size + 1, 11):
+                        for pattern in FULL_POINT_FILES:
+                            (self.hwmon / pattern.format(cleared)).write_text("0", encoding="UTF-8")
+                elif new_size > old_size:
+                    src = max(1, old_size)
+                    for grown in range(old_size + 1, new_size + 1):
+                        for pattern in FULL_POINT_FILES:
+                            copied = (self.hwmon / pattern.format(src)).read_text(encoding="UTF-8")
+                            (self.hwmon / pattern.format(grown)).write_text(copied, encoding="UTF-8")
+                path.write_text(str(new_size), encoding="UTF-8")
+                return
+            for prefix in ("pwm1_auto_point", "pwm2_auto_point"):
+                if path.name.startswith(prefix) and path.name.endswith("_pwm"):
+                    point_id = int(path.name.removeprefix(prefix).removesuffix("_pwm"))
+                    active_size = int((self.hwmon / "auto_points_size").read_text(encoding="UTF-8"))
+                    if point_id > active_size:
+                        raise OSError(f"point {point_id} exceeds active size {active_size}")
+            path.write_text(str(value), encoding="UTF-8")
+
+        return kernel_write
+
+    def snapshot(self):
+        return {path.name: path.read_text(encoding="UTF-8") for path in sorted(self.hwmon.iterdir())}
+
+    def test_writable_auto_points_size_reads_active_4_and_resizes_to_10_on_write(self):
+        size_file = self.hwmon / "auto_points_size"
+        size_file.write_text("4", encoding="UTF-8")
+        size_file.chmod(0o644)
+        # Active 4-point cool minifancurve on EFCN59WW (including firmware decel=7).
+        for point in range(1, 5):
+            self.write_point(point, point * 25, upper_temp=110 if point == 4 else 60, accel=5, decel=7)
+
+        io = self.make_io()
+        with mock.patch.object(type(io), "speed_unit", "rpm"), mock.patch.object(
+            io, "percent_unit_on_level_table", return_value=False
+        ):
+            self.assertTrue(io.has_writable_auto_points_size())
+            self.assertEqual(io.get_active_point_count(), 4)
+            self.assertEqual(io.get_point_count(), 10)
+            active_curve = io.read_fan_curve()
+            self.assertEqual(len(active_curve.entries), 4)
+            self.assertEqual(active_curve.entries[0].deceleration, 7)
+
+            ten_point_curve = legion.FanCurve(
+                "performance-ac",
+                [
+                    entry(point, fan1_speed=point * 400, fan2_speed=point * 400, cpu_upper_temp=45 + point * 5)
+                    for point in range(1, 11)
+                ],
+                enable_minifancurve=False,
+            )
+            with mock.patch.object(io, "_write_file", side_effect=self.make_kernel_ec_writer()):
+                io.write_fan_curve(ten_point_curve)
+
+            self.assertEqual(size_file.read_text(encoding="UTF-8"), "10")
+            self.assertEqual((self.hwmon / "minifancurve").read_text(encoding="UTF-8"), "0")
+            updated_curve = io.read_fan_curve()
+            self.assertEqual(len(updated_curve.entries), 10)
+            self.assertEqual(updated_curve.entries[9].fan1_speed, 4000)
+
+    def test_readonly_auto_points_size_trims_to_fixed_hardware_limit(self):
+        size_file = self.hwmon / "auto_points_size"
+        size_file.write_text("8", encoding="UTF-8")
+        size_file.chmod(0o444)
+        self.addCleanup(size_file.chmod, 0o644)
+
+        io = self.make_io()
+        ten_point_curve = legion.FanCurve(
+            "custom",
+            [entry(point, fan1_speed=point * 300, fan2_speed=point * 300) for point in range(1, 11)],
+            enable_minifancurve=False,
+        )
+        with mock.patch.object(type(io), "speed_unit", "rpm"), mock.patch.object(
+            io, "percent_unit_on_level_table", return_value=False
+        ):
+            self.assertFalse(io.has_writable_auto_points_size())
+            self.assertEqual(io.get_active_point_count(), 8)
+            self.assertEqual(io.get_point_count(), 8)
+            io.write_fan_curve(ten_point_curve)
+
+        self.assertEqual(size_file.read_text(encoding="UTF-8"), "8")
+        self.assertNotEqual((self.hwmon / "pwm1_auto_point8_pwm").read_text(encoding="UTF-8"), "0")
+        self.assertEqual((self.hwmon / "pwm1_auto_point9_pwm").read_text(encoding="UTF-8"), "0")
+        self.assertEqual((self.hwmon / "pwm1_auto_point10_pwm").read_text(encoding="UTF-8"), "0")
+
+    def test_failed_shrink_and_grow_resize_restore_previous_curve_atomically(self):
+        size_file = self.hwmon / "auto_points_size"
+        size_file.write_text("10", encoding="UTF-8")
+        size_file.chmod(0o644)
+        io = self.make_io()
+
+        with self.subTest("shrink_10_to_6_rolls_back"):
+            size_file.write_text("10", encoding="UTF-8")
+            for point in range(1, 11):
+                self.write_point(point, point * 20, upper_temp=50 + point * 5, accel=2, decel=3)
+            before = self.snapshot()
+            six_point_curve = legion.FanCurve(
+                "six",
+                [entry(point, fan1_speed=2500, fan2_speed=2500) for point in range(1, 7)],
+                enable_minifancurve=True,
+            )
+            with mock.patch.object(type(io), "speed_unit", "rpm"), mock.patch.object(
+                io, "percent_unit_on_level_table", return_value=False
+            ), mock.patch.object(
+                io, "_write_file", side_effect=self.make_kernel_ec_writer(fail_on="pwm1_auto_point2_temp")
+            ):
+                with self.assertRaises(OSError):
+                    io.write_fan_curve(six_point_curve)
+            self.assertEqual(self.snapshot(), before)
+
+        with self.subTest("grow_4_to_10_rolls_back"):
+            size_file.write_text("4", encoding="UTF-8")
+            for point in range(1, 5):
+                self.write_point(point, point * 25, upper_temp=110 if point == 4 else 60, accel=5, decel=5)
+            for point in range(5, 11):
+                for pattern in FULL_POINT_FILES:
+                    (self.hwmon / pattern.format(point)).write_text("0", encoding="UTF-8")
+            before = self.snapshot()
+            ten_point_curve = legion.FanCurve(
+                "ten",
+                [entry(point, fan1_speed=3000, fan2_speed=3000) for point in range(1, 11)],
+                enable_minifancurve=True,
+            )
+            with mock.patch.object(type(io), "speed_unit", "rpm"), mock.patch.object(
+                io, "percent_unit_on_level_table", return_value=False
+            ), mock.patch.object(
+                io, "_write_file", side_effect=self.make_kernel_ec_writer(fail_on="pwm1_auto_point6_pwm")
+            ):
+                with self.assertRaises(OSError):
+                    io.write_fan_curve(ten_point_curve)
+            self.assertEqual(self.snapshot(), before)
+
+    def test_invalid_curve_is_rejected_before_minifancurve_or_size_is_written(self):
+        size_file = self.hwmon / "auto_points_size"
+        size_file.write_text("4", encoding="UTF-8")
+        size_file.chmod(0o644)
+        before = self.snapshot()
+        io = self.make_io()
+        bad_curve = legion.FanCurve(
+            "bad",
+            [entry(1), entry(2, deceleration=7)],
+            enable_minifancurve=False,
+        )
+        with mock.patch.object(type(io), "speed_unit", "rpm"), mock.patch.object(
+            io, "percent_unit_on_level_table", return_value=False
+        ):
+            with self.assertRaises(ValueError):
+                io.write_fan_curve(bad_curve)
+        self.assertEqual(self.snapshot(), before)
+
+
 if __name__ == "__main__":
     unittest.main()

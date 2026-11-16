@@ -377,11 +377,9 @@ class GuiStartupTest(unittest.TestCase):
             entry_view.fan_speed1_edit.setText("2000")
             entry_view.accel_edit.setText("1")
             entry_view.decel_edit.setText("2")
-            with patch.object(
-                controller.model.fancurve_io, "has_acceleration_curve", return_value=True
-            ), patch.object(QMessageBox, "warning"), patch.object(
-                controller.model, "write_fancurve_to_hw"
-            ) as mock_write:
+            with patch.object(controller.model.fancurve_io, "has_acceleration_curve", return_value=True), patch.object(
+                QMessageBox, "warning"
+            ), patch.object(controller.model, "write_fancurve_to_hw") as mock_write:
                 controller.on_write_fan_curve_to_hw()
                 mock_write.assert_not_called()
         finally:
@@ -395,9 +393,7 @@ class GuiStartupTest(unittest.TestCase):
             controller.init(read_from_hw=False)
             with patch.object(
                 controller.model, "write_fancurve_to_hw", side_effect=RuntimeError("legion_cli failed")
-            ), patch.object(
-                controller.model, "read_fancurve_from_hw"
-            ) as mock_read, patch.object(
+            ), patch.object(controller.model, "read_fancurve_from_hw") as mock_read, patch.object(
                 controller, "update_fancurve_gui"
             ) as mock_update, patch.object(
                 QMessageBox, "warning"
@@ -417,11 +413,14 @@ class GuiStartupTest(unittest.TestCase):
             hwmon.mkdir(parents=True)
             for name in (FanCurveIO.fan1_max, FanCurveIO.fan2_max):
                 (hwmon / name).write_text("10000\n")
-            (hwmon / FanCurveIO.auto_points_size).write_text(str(point_count))
+            size_file = hwmon / FanCurveIO.auto_points_size
+            size_file.write_text(str(point_count))
+            size_file.chmod(0o444)
+            self.addCleanup(size_file.chmod, 0o644)
             Path(directory, legion.FANCURVE_SPEED_UNIT_FILE).write_text("rpm\n")
             patterns = [FanCurveIO.pwm1_fan_speed, FanCurveIO.pwm2_fan_speed]
             patterns.extend(FanCurveIO.temperature_files[name] for name in temperature_fields)
-            for point_id in range(1, point_count + 1):
+            for point_id in range(1, 11):
                 for pattern in patterns:
                     (hwmon / pattern.format(point_id)).write_text("0\n")
 
@@ -559,13 +558,9 @@ class GuiStartupTest(unittest.TestCase):
             entry_view.fan_speed1_edit.setText("2000")
             entry_view.accel_edit.setText("0")
             entry_view.decel_edit.setText("0")
-            with patch.object(
-                controller.model.fancurve_io, "has_acceleration_curve", return_value=False
-            ), patch.object(
+            with patch.object(controller.model.fancurve_io, "has_acceleration_curve", return_value=False), patch.object(
                 controller.model, "write_fancurve_to_hw"
-            ) as mock_write, patch.object(
-                controller.model, "read_fancurve_from_hw"
-            ), patch.object(
+            ) as mock_write, patch.object(controller.model, "read_fancurve_from_hw"), patch.object(
                 controller, "update_fancurve_gui"
             ):
                 controller.on_write_fan_curve_to_hw()
@@ -573,6 +568,103 @@ class GuiStartupTest(unittest.TestCase):
         finally:
             window.deleteLater()
             self.app.processEvents()
+
+    def test_ec_cool_minifancurve_keeps_all_ten_points_editable_and_resizes_on_apply(self):
+        with tempfile.TemporaryDirectory() as directory:
+            hwmon = Path(directory, "hwmon", "hwmon0")
+            presets = Path(directory, "presets")
+            hwmon.mkdir(parents=True)
+            presets.mkdir(parents=True)
+            for name in (FanCurveIO.fan1_max, FanCurveIO.fan2_max):
+                (hwmon / name).write_text("10000\n")
+            size_file = hwmon / FanCurveIO.auto_points_size
+            size_file.write_text("4\n")
+            size_file.chmod(0o644)
+            (hwmon / FanCurveIO.minifancurve).write_text("1\n")
+            Path(directory, legion.FANCURVE_SPEED_UNIT_FILE).write_text("rpm\n")
+            patterns = [
+                FanCurveIO.pwm1_fan_speed,
+                FanCurveIO.pwm2_fan_speed,
+                FanCurveIO.pwm1_accel,
+                FanCurveIO.pwm1_decel,
+                *FanCurveIO.temperature_files.values(),
+            ]
+            for point_id in range(1, 11):
+                for pattern in patterns:
+                    (hwmon / pattern.format(point_id)).write_text("0\n")
+            # Active 4-point cool curve from EFCN59WW (#654), with firmware decel=7.
+            for point_id in range(1, 5):
+                (hwmon / FanCurveIO.pwm1_fan_speed.format(point_id)).write_text(str(point_id * 25))
+                (hwmon / FanCurveIO.pwm2_fan_speed.format(point_id)).write_text(str(point_id * 25))
+                (hwmon / FanCurveIO.pwm1_accel.format(point_id)).write_text("5")
+                (hwmon / FanCurveIO.pwm1_decel.format(point_id)).write_text("7")
+                (hwmon / FanCurveIO.pwm3_temp.format(point_id)).write_text(str(32 + point_id * 4))
+            preset_curve = FanCurve(
+                name="performance-ac",
+                entries=[
+                    FanCurveEntry(
+                        fan1_speed=point_id * 400,
+                        fan2_speed=point_id * 400,
+                        cpu_lower_temp=35 + point_id * 4,
+                        cpu_upper_temp=127 if point_id == 10 else 45 + point_id * 4,
+                        gpu_lower_temp=35 + point_id * 4,
+                        gpu_upper_temp=127 if point_id == 10 else 45 + point_id * 4,
+                        ic_lower_temp=30,
+                        ic_upper_temp=127,
+                        acceleration=2,
+                        deceleration=2,
+                    )
+                    for point_id in range(1, 11)
+                ],
+                enable_minifancurve=False,
+            )
+            preset_curve.save_to_file(str(presets / "performance-ac.yaml"))
+
+            def write_kernel_ec(file_path, value):
+                path = Path(file_path)
+                self.assertTrue(path.is_file(), file_path)
+                for prefix in ("pwm1_auto_point", "pwm2_auto_point"):
+                    if path.name.startswith(prefix) and path.name.endswith("_pwm"):
+                        point_id = int(path.name.removeprefix(prefix).removesuffix("_pwm"))
+                        active = int(size_file.read_text())
+                        if point_id > active:
+                            raise OSError(f"point {point_id} exceeds active size {active}")
+                path.write_text(str(value))
+
+            with patch.object(legion, "LEGION_SYS_BASEPATH", directory), patch.object(
+                FanCurveIO, "hwmon_dir_pattern", str(hwmon)
+            ), patch.object(FanCurveIO, "_write_file", side_effect=write_kernel_ec), patch.object(
+                FileFeature, "_write_file", side_effect=AssertionError("Must not write to real hardware")
+            ), patch.object(
+                legion, "is_root_user", return_value=True
+            ), patch.object(
+                QMessageBox, "warning"
+            ) as warning:
+                controller = LegionController(self.app, expect_hwmon=True, use_legion_cli_to_write=False)
+                controller.model.set_preset_folder(str(presets))
+                window = MainWindow(controller, QIcon())
+                try:
+                    controller.init(read_from_hw=True)
+                    self.assertEqual(controller.model.fancurve_io.get_active_point_count(), 4)
+                    self.assertEqual(controller.model.fancurve_io.get_point_count(), 10)
+                    for entry_view in controller.view_fancurve.entry_edits:
+                        self.assertTrue(entry_view.fan_speed1_edit.isEnabled())
+                    # Firmware decel=7 on an untouched read must not block profile refresh.
+                    self.assertFalse(controller._fancurve_view_has_unsaved_edits())
+
+                    controller.view_fancurve.preset_combobox.setCurrentText("performance-ac")
+                    controller.on_load_from_preset()
+                    for entry_view in controller.view_fancurve.entry_edits:
+                        self.assertTrue(entry_view.fan_speed1_edit.isEnabled())
+                    controller.on_write_fan_curve_to_hw()
+                    warning.assert_not_called()
+                    self.assertEqual(int(size_file.read_text()), 10)
+                    self.assertEqual(int((hwmon / FanCurveIO.minifancurve).read_text()), 0)
+                    self.assertEqual(len(controller.model.fan_curve.entries), 10)
+                    self.assertTrue(controller.view_fancurve.entry_edits[9].fan_speed1_edit.isEnabled())
+                finally:
+                    window.deleteLater()
+                    self.app.processEvents()
 
 
 class FanCurveRefreshTest(unittest.TestCase):

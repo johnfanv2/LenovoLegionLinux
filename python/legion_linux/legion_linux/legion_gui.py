@@ -1005,10 +1005,10 @@ class LegionController:
         """Whether the table differs from the last curve read from HW or loaded.
 
         Trailing all-zero rows are EC padding and are ignored, since
-        get_fancurve() always returns a full table.
+        get_raw_fancurve() always returns a full table.
         """
         try:
-            viewed = self.view_fancurve.get_fancurve()
+            viewed = self.view_fancurve.get_raw_fancurve()
         except ValueError:
             # Unparseable entries are unsaved work; never overwrite them.
             return True
@@ -1248,11 +1248,13 @@ class FanCurveTab(QWidget):
         if not self._updating_preview:
             self.curve_plot.update()
 
+    def get_raw_fancurve(self) -> FanCurve:
+        entries = [entry_view.get() for entry_view in self.entry_edits]
+        return FanCurve(name="unknown", entries=entries, enable_minifancurve=self.minfancurve_check.isChecked())
+
     def get_fancurve(self) -> FanCurve:
-        entries = []
-        for entry_view in self.entry_edits:
-            entry = entry_view.get()
-            entries.append(entry)
+        fancurve = self.get_raw_fancurve()
+        entries = fancurve.entries
         # Trailing all-zero entries are EC padding (issue #493) and are
         # never written to hardware (trimmed in FanCurveIO.write_fan_curve,
         # issue #511). Only range-check acceleration/deceleration on the
@@ -1270,7 +1272,7 @@ class FanCurveTab(QWidget):
                         "acceleration and deceleration time must be between 2 and 5 "
                         "(the fan controller rejects other values)."
                     )
-        return FanCurve(name="unknown", entries=entries, enable_minifancurve=self.minfancurve_check.isChecked())
+        return fancurve
 
     def create_fancurve_entry_view(self, layout, point_id):
         self.entry_edits.append(FanCurveEntryView(point_id, layout))
@@ -1296,6 +1298,11 @@ class FanCurveTab(QWidget):
         self.accel_label = QLabel("Acceleration  Time [s]")
         self.decel_label = QLabel("Deceleration Time [s]")
         self.minfancurve_check = QCheckBox("Minifancurve if too cold")
+        self.minfancurve_check.setToolTip(
+            "When enabled, the embedded controller switches to a built-in 4-point fan curve "
+            "after staying cool for several minutes. Uncheck and click Apply to HW to keep "
+            "your full fan curve active at all temperatures."
+        )
         self.lockfancontroller_check = QCheckBox(
             "Lock fan controller, lock temperature sensors, and lock current fan speed"
         )

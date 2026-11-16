@@ -182,9 +182,9 @@ echo balanced-performance > /sys/firmware/acpi/platform_profile
 
 ## 启用或禁用迷你风扇曲线
 
-如果笔记本长时间保持低温，会启用“迷你风扇曲线”，这是一种只包含少量节点的特殊风扇曲线，通常会让风扇持续转动。你可以选择启用或禁用它。如果你希望始终使用自己配置的风扇曲线，请将其禁用。并非所有机型都支持迷你风扇曲线（如果不支持，运行 `cat /sys/kernel/debug/legion/fancurve` 时会看到相关错误）。
+如果笔记本长时间保持低温，嵌入式控制器（EC）可能会切换到内置的 4 节点“迷你风扇曲线”（此时 `auto_points_size` 变为 4，且 `/sys/kernel/debug/legion/fancurve` 显示 `EC minifancurve on cool: true`）。如果你希望在低温下也始终保持完整的自定义风扇曲线，请禁用迷你风扇曲线。并非所有机型都支持此功能（不支持的机型会隐藏 `minifancurve`，或在运行 `cat /sys/kernel/debug/legion/fancurve` 时报告错误）。
 
-在 GUI 中，通过勾选或取消 `Minifancurve if cold` 选项并点击 `Apply to HW` 按钮来启用或禁用迷你风扇曲线。
+在 GUI 中，通过勾选或取消勾选 `Minifancurve if too cold` 并点击 `Apply to HW` 即可启用或禁用迷你风扇曲线（如果启用了 `legiond` 自动切换预设，也请在取消勾选后重新保存到对应预设）。
 
 ---
 

@@ -180,9 +180,9 @@ Unfortunately, the `power-profile-deamon` or `powerprofilesctl` currently do not
 
 ## Enable or disable the mini fan curve
 
-If the laptop stays cool for a longer time, it will enable the "mini fan curve", a special fan curve with only a few points. It will usually spin the fans. You can enable or disable that. If you want to use your configured fan curve in any case, disable it. The mini fan curve is not available on all models (you will see error for mini fan curve when running `cat /sys/kernel/debug/legion/fancurve`).
+If the laptop stays cool for a longer time, the embedded controller can switch to a built-in "mini fan curve" with only 4 points (`auto_points_size` drops to 4 and `EC minifancurve on cool: true` appears in `/sys/kernel/debug/legion/fancurve`). If you want the EC to keep using your configured full fan curve even when cool, disable the mini fan curve. Not all models support this feature (unsupported models either hide `minifancurve` or report an error in `cat /sys/kernel/debug/legion/fancurve`).
 
-With the GUI, the mini fan curve is enabled/disabled by checking/unchecking the box `Minifancurve if cold` and pressing `Apply to HW`.
+With the GUI, enable or disable the mini fan curve by checking or unchecking `Minifancurve if too cold` and pressing `Apply to HW` (also save your presets with it unchecked if `legiond` manages your fan curves).
 
 ## Lenovo Legion Laptop Support Daemon(legiond)
 
