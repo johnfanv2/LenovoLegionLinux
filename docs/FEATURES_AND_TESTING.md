@@ -1160,6 +1160,62 @@ not yet validated on this chassis. Verify with `sudo dmesg | grep -i legion`
 custom mode, back up the curve, apply one small change, compare the
 level/RPM readback and `sensors`, then restore the backup.
 
+## Legion Y9000X IAH7 / Slim 7 16IAH7 (82TF, JYCN)
+
+BIOS `JYCN*` (tested on `JYCN34WW` and `JYCN58WW`), EC `0x8227`, Intel 12th Gen
++ NVIDIA RTX 3050 Ti / 3060 (issues [#86](https://github.com/johnfanv2/LenovoLegionLinux/issues/86),
+[#141](https://github.com/johnfanv2/LenovoLegionLinux/issues/141), PR
+[#659](https://github.com/johnfanv2/LenovoLegionLinux/pull/659)). DMI entry
+`JYCN` uses `model_jycn` (earlier versions mapped `JYCN` to `model_v2022`,
+whose v0 EC map left temperatures at 0, fan RPM stuck on unrelated bytes,
+`ecmemoryram` reading `0xFF`, and `minifancurve` failing with `-EIO`).
+
+Facts from the `JYCN34WW` DSDT and runtime EC dumps on `82TF`:
+
+- `OperationRegion (ECF2, SystemMemory, 0xFE0B0400, 0xFF)` maps byte-for-byte
+  to EC `0xC400..0xC4FF`:
+  - Fan 1 / Fan 2 RPM: little-endian `u16` `F1LO`/`F1HI` at `0xC406`/`0xC407`
+    and `F2LO`/`F2HI` at `0xC408`/`0xC409` (also read in `GZFD.WMAC` id 7).
+  - CPU / GPU temperatures: `TSR2` at `0xC418` (`GZFD.WMAD` id `0x0A`) and
+    `TSR3` at `0xC419` (`GZFD.WMAE` id `0x08` and `H_EC.THMC`). No labeled IC
+    sensor exists (`skip_ic_temp`).
+  - The v0 multi-point EC curve (`0xC535`), `minifancurve` (`0xC536`) and
+    `lockfancontroller` (`0xC4AB`, unmapped in `ECF2`) are absent and hidden.
+- `LENOVO_FAN_METHOD` (`GZFD.WMAC`, `92549549-4BDE-4F06-AC04-CE8BF898DBAA`)
+  declares `CreateDWordField (FANT, 0x08, FMS2)` on a 10-byte buffer at method
+  scope, so WMI evaluation aborts with `AE_AML_BUFFER_LIMIT` before reaching
+  `Fan_Set_Table` (id 6) or completing `Fan_Set_FullSpeed` (id 2); id 5
+  (`Fan_Get_Table`) is absent, ids 3/4 are stubs, and `WMB0` (`DC2A8805-…`)
+  implements only legacy ids `1..0x0B` -> `fan_fullspeed` and `fan_maxspeed`
+  are hidden.
+- Custom fan **levels** (`FAN_SPEED_UNIT_LEVEL`, `wmi_fancurve_speed_only`):
+  reads and writes go through the same EC fields `WMAC` id 6 and `H_EC.THMC`
+  use — `F9F0..F9F9` (`0xC4D0..0xC4D9`), `F9FA` (`0xC4DA`, `SFMD` `1..3`;
+  custom `0xFF` maps to balanced `2`), and `CUFT` (`0xC4DF` bit 1) — serialized
+  under `\_SB.PC00.LPCB.H_EC.ECMT`. Writes stay gated behind
+  `allow_unvalidated_fancurve=1` (`fancurve_write_unvalidated`). Custom mode
+  (`0xFF`) in `WMAA` `0x2C` requires AC power (`ACTY() == 1`).
+- `LENOVO_FAN_TABLE_DATA` (`WQA4`, `87FB2A6D-…`) publishes 3 mode-agnostic
+  72-byte `FACT` rows sharing one 10-level RPM ladder (`1700, 2000, 2200, 2500,
+  2900, 3300, 3500, 4100, 4300, 4500` RPM), exposed via `fan1_level_rpm_table`
+  and `fan2_level_rpm_table`.
+- `WMAD`/`WMAE` implement CPU PL1/PL2 (`cpu_longterm_powerlimit`,
+  `cpu_shortterm_powerlimit`) and GPU PPAB/cTGP (`gpu_ppab_powerlimit`,
+  `gpu_ctgp_powerlimit`); unimplemented or incompatible OC/default/peak/APU/
+  GPU-temp-limit/boost-clock nodes are hidden (`skip_unusable_oc_attrs`), as is
+  the unimplemented Y-logo LED (`skip_ylogo_light`).
+
+Verification on real hardware:
+
+```bash
+cd kernel_module && make && sudo make reloadmodule
+sudo dmesg | grep -i legion
+sensors   # legion_hwmon CPU/GPU temps and fan1/fan2 RPM
+sudo cat /sys/kernel/debug/legion/fancurve
+# Optional level-write test (on AC, custom power mode 255, watch temperatures):
+#   sudo modprobe legion_laptop allow_unvalidated_fancurve=1
+```
+
 ## Legion Y530-15ICH (81FV, 8JCN)
 
 BIOS 8JCN56WW, EC 0x8226 (fw 1a2 per issue #16), Intel 8th gen + NVIDIA.

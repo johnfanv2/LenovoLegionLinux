@@ -14,6 +14,7 @@
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve (no minifancurve), power profile
+- Lenovo Legion Y9000X IAH7 / Slim 7 16IAH7 (82TF, BIOS JYCN34WW/JYCN58WW), Gen 7 (Intel): CPU/GPU temperatures and fan RPM via EC, power profile, keyboard backlight, rapid charge and battery conservation, CPU/GPU power limits (PL1/PL2/PPAB/cTGP); custom fan curve reads/writes 10 shared speed **levels** (`1700..4500 RPM` ladder) via the `ECF2` `F9F0` EC table under `ECMT` (writes disabled by default unless loaded with `allow_unvalidated_fancurve=1`, custom mode on AC; [#86](https://github.com/johnfanv2/LenovoLegionLinux/issues/86), [#659](https://github.com/johnfanv2/LenovoLegionLinux/pull/659)). See [JYCN notes](FEATURES_AND_TESTING.md#legion-y9000x-iah7--slim-7-16iah7-82tf-jycn)
 - Lenovo Legion 5 Pro 16ITH6 (BIOS H1CN52WW (there was an error in CPU temp with H1CN51WW)): sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6A (BIOS G9CN30WW), all AMD variant: sensors, fan curve (with mini fan curve), power profile
 - Lenovo Legion 5 17ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile

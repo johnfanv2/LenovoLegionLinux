@@ -54,6 +54,7 @@ typedef unsigned short umode_t;
 #define print_hex_dump(...) ((void)0)
 #define pr_warn_once(...) ((void)0)
 static bool allow_unvalidated_fancurve;
+static bool ec_readonly;
 """
         ]
         for name, value in re.findall(r"^#define (\w+)\s+([^\n]+)", source, re.M):
@@ -68,6 +69,7 @@ static bool allow_unvalidated_fancurve;
                     "FANTABLE_SENSOR_",
                     "MAX_FAN_LEVEL",
                     "TEMP_REGISTER_",
+                    "JYCN_",
                     "WMI_METHOD_ID_FAN_SET_TABLE",
                     "WMI_METHOD_ID_GETTHERMALMODE",
                     "WMI_METHOD_ID_ISSUPPORTOD",
@@ -124,7 +126,12 @@ static bool rlcn20_mux_supported(struct legion_private *priv) { return false; }
 static bool legion_rapidcharge_is_supported(struct legion_private *priv) { return true; }
 static bool legion_attribute_uses_cpu_wmi(const struct attribute *attr) { return false; }
 static bool legion_attribute_uses_gpu_wmi(const struct attribute *attr) { return false; }
-static ssize_t wmi_read_fancurve_custom(const struct model_config *model, struct fancurve *curve) { return -EIO; }
+static int jycn_read_fancurve_levels(struct ecram *ecram, const struct model_config *model, struct fancurve *fancurve);
+static ssize_t wmi_read_fancurve_custom(struct legion_private *priv, struct fancurve *curve) {
+    if (priv->conf == &model_jycn)
+        return jycn_read_fancurve_levels(&priv->ecram, priv->conf, curve);
+    return -EIO;
+}
 static int power_mode, power_error, power_reads, thermal_reads, wmi_calls;
 static unsigned long thermal_mode;
 static u8 last_payload[0x40];
@@ -155,9 +162,23 @@ static int wmi_exec_arg(const char *guid, int instance, int method, u8 *data, si
     wmi_calls++;
     return 0;
 }
-static int io_count;
-static int ecram_read(struct ecram *ram, u16 offset) { io_count++; return 0; }
-static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
+static int io_count, jycn_lock_err, jycn_locks, jycn_unlocks;
+static u8 ec_space[0x10000];
+static int jycn_ec_lock(bool *locked) {
+    if (jycn_lock_err) { *locked = false; return jycn_lock_err; }
+    *locked = true;
+    jycn_locks++;
+    return 0;
+}
+static void jycn_ec_unlock(bool locked) {
+    if (locked) jycn_unlocks++;
+}
+static int ecram_read(struct ecram *ram, u16 offset) { io_count++; return ec_space[offset]; }
+static void ecram_write(struct ecram *ram, u16 offset, u8 value) {
+    if (ec_readonly) return;
+    io_count++;
+    ec_space[offset] = value;
+}
 """
         )
         names = (
@@ -167,6 +188,8 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "ec_read_fancurve_legion",
             "ec_read_fancurve_ideapad",
             "ec_read_fancurve_loq",
+            "jycn_read_fancurve_levels",
+            "jycn_write_fancurve_levels",
             "read_fancurve",
             "wmi_fancurve_speed_unit",
             "fancurve_write_allowed",
@@ -177,6 +200,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) { io_count++; }
             "wmi_fancurve_mode",
             "fanfullspeed_write_allowed",
             "fantable_row_matches_mode",
+            "fantable_mode_agnostic",
             "fantable_refresh",
             "sync_powermode_locked",
             "fantable_ensure",
@@ -718,6 +742,95 @@ int main(void) {
     firmware_rows[1] = ic_row;
     fantable_refresh(&priv, LEGION_WMI_POWERMODE_BALANCED);
     assert(priv.fantable_fan1_valid && !priv.fantable_fan2_valid);
+
+    /* JYCN (Legion Y9000X IAH7 / Slim 7 16IAH7 82TF, EC 0x8227, #86/#141/#659):
+     * ECF2 @0xFE0B0400 maps TSR2/TSR3 @0xC418/0xC419 and fan RPM @0xC406/0xC408,
+     * WQA4 publishes mode-agnostic FACT rows (1700..4500 RPM), broken OC/default
+     * WMI nodes stay hidden while PL1/PL2/PPAB/cTGP remain visible, and custom
+     * fan levels read/write F9F0..F9F9 + F9FA + CUFT under ECMT. */
+    {
+        struct fancurve jycn_curve;
+        struct wmi_fantable_row wqa4_row = {
+            .mode = 0, .fan_id = 0, .fan_table_len = FANTABLE_MAX_LEVELS,
+            .fan_speed = {1700, 2000, 2200, 2500, 2900, 3300, 3500, 4100, 4300, 4500},
+            .sensor_id = 3, .current_fan_max_speed = 4500,
+        };
+        int calls = wmi_calls;
+
+        priv.conf = &model_jycn;
+        priv.fancurve_valid = false;
+        assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+        assert(priv.conf->access_method_fanfullspeed == ACCESS_METHOD_NO_ACCESS);
+        assert(priv.conf->access_method_temperature == ACCESS_METHOD_EC);
+        assert(priv.conf->access_method_fanspeed == ACCESS_METHOD_EC);
+        assert(priv.conf->ramio_physical_start == 0xFE0B0400);
+        assert(!minifancurve_supported(priv.conf) && !lockfancontroller_supported(priv.conf));
+        assert(priv.conf->skip_ylogo_light && priv.conf->skip_unusable_oc_attrs);
+        fancurve_speed_unit_show(&dev, NULL, unit);
+        assert(strcmp(unit, "level\n") == 0);
+        assert(fancurve_write_allowed(priv.conf) == -EPERM);
+        assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_input.dev_attr.attr, 0));
+        assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp3_input.dev_attr.attr, 0) == 0);
+        assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan1_input.dev_attr.attr, 0));
+        assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan2_input.dev_attr.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan2_level_rpm_table.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_fullspeed.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_maxspeed.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_lockfancontroller.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_shortterm_powerlimit.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_longterm_powerlimit.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_ppab_powerlimit.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_ctgp_powerlimit.attr, 0));
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_oc.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_oc.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_peak_powerlimit.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_default_powerlimit.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_apu_sppt_powerlimit.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_cross_loading_powerlimit.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_default_ppab_ctrgp_powerlimit.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_temperature_limit.attr, 0) == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_boost_clock.attr, 0) == 0);
+
+        for (size_t i = 0; i < 4; i++) firmware_rows[i] = wqa4_row;
+        fantable_refresh(&priv, LEGION_WMI_POWERMODE_CUSTOM);
+        assert(priv.fantable_fan1_valid && priv.fantable_fan2_valid);
+        assert(priv.fantable_fan1.rpms[0] == 1700 && priv.fantable_fan2.rpms[9] == 4500);
+
+        memset(ec_space, 0, sizeof(ec_space));
+        ec_space[JYCN_FLAG_ADDR] = 0x20; /* LERR bit preserved across CUFT set */
+        jycn_locks = jycn_unlocks = 0;
+        assert(read_fancurve(&priv, &jycn_curve) == 0);
+        assert(jycn_curve.points[0].speed1 == 1 && jycn_curve.points[9].speed1 == 10);
+        assert(jycn_locks == 1 && jycn_unlocks == 1);
+
+        jycn_curve.points[1].speed1 = 1;
+        jycn_curve.points[5].speed1 = 50; /* clamped into 1..10 */
+        power_mode = LEGION_WMI_POWERMODE_CUSTOM;
+        assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == -EPERM);
+        allow_unvalidated_fancurve = true;
+        ec_readonly = true;
+        assert(wmi_write_fancurve_custom(&priv, &jycn_curve) == -EPERM);
+        ec_readonly = false;
+        jycn_lock_err = -EBUSY;
+        assert(wmi_write_fancurve_custom(&priv, &jycn_curve) == -EBUSY);
+        jycn_lock_err = 0;
+        power_mode = LEGION_WMI_POWERMODE_MAX_POWER;
+        assert(wmi_write_fancurve_custom(&priv, &jycn_curve) == -EOPNOTSUPP);
+        power_mode = LEGION_WMI_POWERMODE_CUSTOM;
+        assert(wmi_write_fancurve_custom(&priv, &jycn_curve) == 0);
+        assert(wmi_calls == calls);
+        assert(ec_space[JYCN_F9F0_ADDR + 1] == 1 && ec_space[JYCN_F9F0_ADDR + 5] == MAX_FAN_LEVEL);
+        assert(ec_space[JYCN_F9FA_ADDR] == LEGION_WMI_POWERMODE_BALANCED);
+        assert(ec_space[JYCN_FLAG_ADDR] == (0x20 | JYCN_CUFT_BIT));
+        assert(read_fancurve(&priv, &jycn_curve) == 0);
+        assert(jycn_curve.points[1].speed1 == 1 && jycn_curve.points[5].speed1 == MAX_FAN_LEVEL);
+        assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == 0);
+        assert(ec_space[JYCN_F9F0_ADDR + 5] == 6);
+        allow_unvalidated_fancurve = false;
+        memset(ec_space, 0, sizeof(ec_space));
+        io_count = 0;
+    }
 
     /* A resize must publish the new size, or the store is a silent no-op: the
      * sentinel/replication blocks reshape points[] against the *old* size, and

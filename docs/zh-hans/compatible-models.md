@@ -15,6 +15,7 @@
 - 联想拯救者 5 15ARH7H（BIOS JUCN55WW），第七代：传感器、风扇曲线、电源配置
 - 联想拯救者 5 15ACH6（BIOS HHCN31WW）：传感器、风扇曲线、电源配置
 - 联想拯救者 S7 16ARHA7（BIOS KFCN32WW）：传感器、风扇曲线（无mini风扇曲线）、电源配置
+- 联想拯救者 Y9000X IAH7 / Slim 7 16IAH7（82TF，BIOS JYCN34WW/JYCN58WW），第七代（Intel）：通过 EC 读取 CPU/GPU 温度与风扇转速、电源配置、键盘背光、快速充电与电池养护、CPU/GPU 功耗限制（PL1/PL2/PPAB/cTGP）；自定义风扇曲线在 `ECMT` 保护下通过 `ECF2` `F9F0` EC 表读写 10 档共享速度**等级**（`1700..4500 RPM` 梯度；默认禁止写入，需携带 `allow_unvalidated_fancurve=1` 加载模块并在插电自定义模式下测试；[#86](https://github.com/johnfanv2/LenovoLegionLinux/issues/86)、[#659](https://github.com/johnfanv2/LenovoLegionLinux/pull/659)）。详见 [JYCN 说明](../FEATURES_AND_TESTING.md#legion-y9000x-iah7--slim-7-16iah7-82tf-jycn)
 - 联想拯救者 5 Pro 16ITH6（BIOS H1CN52WW（H1CN51WW的CPU温度有误））：传感器、风扇曲线、电源配置
 - 联想拯救者 5 15ACH6A（BIOS G9CN30WW），全AMD版本：传感器、风扇曲线（含mini风扇曲线）、电源配置
 - 联想拯救者 5 17ACH6（BIOS HHCN31WW）：传感器、风扇曲线、电源配置

@@ -134,6 +134,12 @@ class TemperatureRegisterFlagTest(unittest.TestCase):
         self.assertEqual(
             opted_in,
             {
+                # Legion Y9000X IAH7 / Slim 7 16IAH7 (82TF, issues #86, #141,
+                # PR #659): the JYCN34WW DSDT declares TSR2/TSR3 at ECF2+0x18/
+                # +0x19 (EC 0xC418/0xC419), read as CPU/GPU temperatures in
+                # GZFD.WMAD id 0x0A, GZFD.WMAE id 0x08 and H_EC.THMC, and
+                # confirmed in 82TF runtime dumps while 0xC5E6/0xC5E7 read 0.
+                "model_jycn": "TEMP_REGISTER_CPU | TEMP_REGISTER_GPU",
                 # Yoga Pro 7 14AHP9 (83E3, issue #630): the NCCN DSDT declares
                 # TCPU/TGPU at EC RAM 0x07/0x08 in the ERAM window and the
                 # firmware's own thermal (SSDT22) and GPU (SSDT4) code
