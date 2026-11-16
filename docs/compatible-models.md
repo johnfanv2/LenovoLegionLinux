@@ -11,6 +11,7 @@
 - Lenovo Legion 5 15ARH05A (BIOS FSCN14WW), Gen 5: sensors, fan curve
 - Lenovo Legion 5 15ARH05H (BIOS FSCN14WW or FSCN26WW), Gen 5: sensors, fan curve, power profile
 - Lenovo Legion 5 15ITH6H (BIOS H1CN49WW, Intel): sensors, fan curve, power profile
+- Lenovo Legion Y7000 2021 (82JK, BIOS H1CN49WW), Gen 6 (Intel): sensors, fan curve, power profile, rapid charge, battery conservation, keyboard backlight and Y-logo/IO-port lights; the H1CN49WW DSDT puts the EC at `\_SB.PC00.LPCB.EC0`, so this unit needs its own ACPI paths (`model_h1cn_8227`) — before that the driver did not bind at all on kernels < 7.0 and `rapidcharge` stayed hidden on 7.x, see [H1CN notes](FEATURES_AND_TESTING.md#legion-y7000-2021-82jk-h1cn)
 - Lenovo Legion 5 15ARH7H (BIOS JUCN55WW), Gen7: sensors, fan curve, power profile
 - Lenovo Legion 5 15ACH6 (BIOS HHCN31WW): sensors, fan curve, power profile
 - Lenovo Legion S7 16ARHA7 (BIOS KFCN32WW): sensors, fan curve (no minifancurve), power profile
