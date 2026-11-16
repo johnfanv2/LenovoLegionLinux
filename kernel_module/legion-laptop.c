@@ -1772,28 +1772,89 @@ static const struct model_config model_nzcn = {
 	.has_fancurve_defaults = true
 };
 
-// LOQ 15AHP10
+// LOQ 15AHP10 (83JG) - 2025, AMD Ryzen 7 250 + RTX 5050
+// BIOS: R8CN23WW (#384) / R8CN25WW (#650), EC 0x5508 (fw 2b0, read on both
+// units). Facts below are from the R8CN25WW DSDT (L = dsdt.dsl line,
+// attachment in issue #650); the WMA* methods live in \_SB.GZFD:
+// - Fan Method WMAB (L27767) implements only Fan_Get_Table(5)/
+//   Fan_Set_Table(6) via GFAN (L24833) / SFAN (L24904): ten shared fan
+//   LEVELS 1..10 in EC F101..F10A (EFAN @0xFEEC2F00 + 0xE0, L13072/L13261),
+//   with a static 1..10 placeholder (EFST) in extreme mode (GZ44 == 0x07)
+//   and INIF(2) re-init when F10A == 0. SFAN selects an FNT0/FNT1 ladder
+//   from the payload mode byte F000 (1/2/3/0xFF/0xE0; mode 0 leaves the
+//   row local unset), writes CRP/GRP/ERP = FNT[level + 2] / 100 plus the
+//   FI00..FI09 temperature rows into EFAN and sets CMRD = 1 (L25202);
+//   WMAB 6 drops writes while GZ44 == 0x07. Identical GFAN/SFAN semantics
+//   to model_t2cn / model_nscn_83fd, so FAN_SPEED_UNIT_LEVEL,
+//   wmi_fancurve_speed_only and wmi_sfan_uses_thermal_mode (GameZone 0x37
+//   reads live GZ44; 0x2D reads saved CMOS RXMS(0x76)). WMAB ids 1..4 do
+//   not exist -> skip_fan_maxspeed.
+// - LENOVO_FAN_TABLE_DATA (_WDG instance A7, L26663) is WQA7 -> SFTW
+//   (L26743/L24697): 15 rows from FNT0/FNT1 (modes 1/2/3/0xFF/0xE0, fan 1
+//   sensors 0x04/0x01 and fan 2 sensor 0x05; level 1 is 0 RPM, max
+//   4500/4600 RPM on FNT1 or 5500/5700 RPM on FNT0), so
+//   fan1_level_rpm_table/fan2_level_rpm_table appear automatically.
+// - Power mode: GameZone WMAA (L26808) SmartFanMode set 0x2C (L27157) /
+//   get 0x2D (L27297) and GetThermalMode 0x37 (L27517): quiet (1),
+//   balanced (2), performance (3), custom (0xFF) and extreme (0xE0).
+// - Other Method WMAE Get(0x11)/Set(0x12) (L27800/L28594): fan RPM DEV 4
+//   FEA 3 (FA1S/FA2S * 100, L28474), full speed DEV 4 FEA 2 -> EC FFON
+//   (get L28469, set L29136), CPU/GPU temps DEV 5 FEA 4/5 -> EC CTML/SKTC
+//   (L28507/L28512); DEV 5 FEA 1 (IC temp) returns constant Zero (L28492)
+//   -> skip_ic_temp. WMAC (L27787) and WMAD (L27795) are Return (Zero)
+//   stubs; PL/OC controls stay hidden (skip_oc_controls) until validated.
+//   fan_fullspeed is gated behind custom power mode like model_r3cn/
+//   model_rgcn (0x5508 wedge risk).
+// - Lights: KBBACKLIGHT WMAF get(1)/set(2) (L29582 -> GLT1/SLT2
+//   L25564/L25612) drives the white keyboard backlight (id 0x00, EC KLEN,
+//   levels 1..3; LED driver init confirmed in #650 dmesg). Light id 0x03
+//   (Y-logo) is absent ("unsupported light_id=3" in #650 dmesg) and id
+//   0x05 (IO-port) is an empty case -> skip_ylogo_light, skip_ioport_light.
+// - EC0 at \_SB.PCI0.LPC0.EC0 (L10018, _STA L11073); VPC0 at
+//   \_SB.PCI0.LPC0.EC0.VPC0 (L11615, _STA L11621, _CFG L11626, GBMD/SBMC
+//   L11892/L11985 with FCGM bit 0x04 and BTSM bit 0x20) - fixes the
+//   PC00.LPCB paths that caused -5 errors in #650. Read-only debugfs
+//   ecmemoryram maps the EFAN window at 0xFEEC2F00 (L13072; ECMM is at
+//   0xFEEC2400, L10048) instead of the Intel 0xFE0B0F00 address.
+//   Minifancurve and lockfancontroller have no mapped registers on this
+//   firmware ("EC minifancurve on cool: error" in #384/#650) and stay
+//   hidden.
 static const struct model_config model_r8cn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
 	.embedded_controller_id = 0x5508,
 	.memoryio_physical_ec_start = 0xC400,
 	.memoryio_size = 0x300,
-	.has_minifancurve = true,
+	.has_minifancurve = false,
 	.has_custom_powermode = true,
 	.has_extreme_powermode = true,
 	.access_method_powermode = ACCESS_METHOD_WMI,
 	.access_method_keyboard = ACCESS_METHOD_WMI2,
 	.access_method_fanspeed = ACCESS_METHOD_WMI3,
 	.access_method_temperature = ACCESS_METHOD_WMI3,
-	.access_method_fancurve = ACCESS_METHOD_EC3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
 	.acpi_check_dev = false,
-	.ramio_physical_start = 0xFE0B0F00,
+	.ramio_physical_start = 0xFEEC2F00,
 	.ramio_size = 0x600,
-	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
-			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
-	.has_fancurve_defaults = true
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
 };
 
 // Legion 5 15AHP11 (83Q7, AMD Ryzen 7 250 + RTX 5050) - same platform as
@@ -3646,10 +3707,14 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_nzcn
 	},
 	{
-		// e.g. LOQ 15AHP10 (AMD Ryzen 7 250 + RTX 5050)
+		// LOQ 15AHP10 (83JG, AMD Ryzen 7 250 + RTX 5050), BIOS R8CN
+		// (issues #384/#650); EC 0x5508, DSDT-validated WMI3 level
+		// fan table like model_t2cn below. Product-qualified in case
+		// the R8CN BIOS line is shared by other chassis.
 		.ident = "R8CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83JG"),
 			DMI_MATCH(DMI_BIOS_VERSION, "R8CN"),
 		},
 		.driver_data = (void *)&model_r8cn
@@ -5961,6 +6026,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_rlcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_rgcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_r3cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_r8cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
@@ -6239,7 +6305,8 @@ static int wmi_fancurve_mode(struct legion_private *priv);
  */
 static bool wmi_sfan_uses_thermal_mode(const struct model_config *conf)
 {
-	return conf == &model_t2cn || conf == &model_nscn_83fd;
+	return conf == &model_t2cn || conf == &model_nscn_83fd ||
+	       conf == &model_r8cn;
 }
 
 /*

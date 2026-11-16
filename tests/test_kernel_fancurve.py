@@ -318,6 +318,36 @@ int main(void) {
     assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
     assert(wmi_sfan_uses_thermal_mode(priv.conf) && !wmi_sfan_uses_thermal_mode(&model_nscn));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    /* R8CN (LOQ 15AHP10 83JG, EC 0x5508, #650): R8CN25WW DSDT confirms the
+     * same WMAB 5/6 -> GFAN/SFAN + WQA7/SFTW level table as T2CN, PCI0.LPC0
+     * VPC0 paths (including GBMD/SBMC), EFAN @0xFEEC2F00, and no IC sensor,
+     * minifancurve, controller-lock, fan_maxspeed, Y-logo or IO-port light. */
+    priv.conf = &model_r8cn;
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(priv.conf->access_method_fanfullspeed == ACCESS_METHOD_WMI3);
+    assert(priv.conf->fanfullspeed_requires_custom_powermode);
+    assert(priv.conf->wmi_fancurve_speed_only);
+    assert(wmi_sfan_uses_thermal_mode(priv.conf));
+    assert(!minifancurve_supported(priv.conf) && !lockfancontroller_supported(priv.conf));
+    assert(priv.conf->skip_ylogo_light && priv.conf->skip_ioport_light);
+    assert(priv.conf->ramio_physical_start == 0xFEEC2F00);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_CFG], "\\_SB.PCI0.LPC0.EC0.VPC0._CFG") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_READ_RAPIDCHARGE], "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_WRITE_RAPIDCHARGE], "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC") == 0);
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(fancurve_write_allowed(priv.conf) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan2_level_rpm_table.attr, 0));
+    assert(priv.conf->access_method_temperature == ACCESS_METHOD_WMI3);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_input.dev_attr.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp3_input.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan1_input.dev_attr.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan2_input.dev_attr.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_maxspeed.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_fullspeed.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_rapidcharge.attr, 0));
     priv.conf = &model_m3cn_8227; /* Level calibration does not require default-reset support. */
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
@@ -535,7 +565,7 @@ int main(void) {
     priv.conf = &model_m3cn_8227;
     assert(wmi_write_fancurve_custom(&priv, &requested) == -EIO);
     power_error = 0;
-    /* 83FD: payload follows live GZ44, writes refused in extreme mode. */
+    /* 83FD & 83JG (R8CN): payload follows live GZ44, writes refused in extreme mode. */
     priv.conf = &model_nscn_83fd;
     power_mode = LEGION_WMI_POWERMODE_CUSTOM;
     thermal_mode = LEGION_WMI_POWERMODE_MAX_POWER;
@@ -544,6 +574,19 @@ int main(void) {
     thermal_mode = LEGION_WMI_POWERMODE_PERFORMANCE;
     assert(wmi_write_fancurve_custom(&priv, &requested) == 0);
     assert(wmi_calls == 2 && last_payload[0] == LEGION_WMI_POWERMODE_PERFORMANCE);
+    wmi_calls = 1;
+    priv.conf = &model_r8cn;
+    power_mode = LEGION_WMI_POWERMODE_CUSTOM;
+    thermal_mode = LEGION_WMI_POWERMODE_MAX_POWER;
+    assert(wmi_write_fancurve_custom(&priv, &requested) == -EOPNOTSUPP);
+    assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == -EOPNOTSUPP);
+    assert(fanfullspeed_write_allowed(&priv, true) == -EBUSY);
+    assert(fanfullspeed_write_allowed(&priv, false) == 0);
+    assert(wmi_calls == 1);
+    thermal_mode = LEGION_WMI_POWERMODE_CUSTOM;
+    assert(fanfullspeed_write_allowed(&priv, true) == 0);
+    assert(wmi_write_fancurve_custom(&priv, &requested) == 0);
+    assert(wmi_calls == 2 && last_payload[0] == LEGION_WMI_POWERMODE_CUSTOM);
     wmi_calls = 1;
     priv.conf = &model_m3cn_8227;
     power_mode = LEGION_WMI_POWERMODE_BALANCED;

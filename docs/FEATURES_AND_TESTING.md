@@ -1071,6 +1071,66 @@ one small conservative change, compare the level/RPM readback and `sensors`,
 and restore the backup. Do not write while in extreme mode or change power mode
 partway through Apply to HW.
 
+## LOQ 15AHP10 (83JG, R8CN)
+
+BIOS R8CN23WW ([#384](https://github.com/johnfanv2/LenovoLegionLinux/issues/384))
+/ R8CN25WW ([#650](https://github.com/johnfanv2/LenovoLegionLinux/issues/650)),
+EC 0x5508 (fw 2b0, read on both units), AMD Ryzen 7 250 + NVIDIA RTX 5050. DMI
+entry `R8CN` is qualified on product name `83JG`; config `model_r8cn` in
+`kernel_module/legion-laptop.c`. The firmware dump attached in issue #650
+contains 51 ACPI tables; the DSDT SHA-256 is
+`9444592a9087204990128bfb3594a5d7983b51c83de7c1eaced98ffcdc6d72e4`.
+
+Same AMD platform and `\_SB.GZFD` firmware layout as the Legion 5 15AHP11
+(83Q7, T2CN) above, on EC 0x5508 instead of 0x5509:
+
+- Fan Method `WMAB` implements only 5/6 (`GFAN`/`SFAN`): ten shared fan
+  **levels** 1..10 in EC `F101..F10A` (`EFAN` @`0xFEEC2F00 + 0xE0`), replacing
+  the unvalidated `ec_register_offsets_loq_v1` EC3 path (#650). `SFAN` selects
+  an `FNT0`/`FNT1` ladder from the first payload byte (`F000`, modes
+  `1/2/3/0xFF/0xE0`; mode 0 leaves the row local unset), writes
+  `CRP/GRP/ERP = FNT[level + 2] / 100` plus the `FI00..FI09` temperature rows
+  into `EFAN`, and sets `CMRD = 1`. `WMAB` 6 drops writes while `GZ44 == 0x07`
+  (extreme mode), and `GFAN` returns a static 1..10 placeholder there. Both
+  the SFAN payload byte and the RPM calibration therefore use live
+  `GetThermalMode` (`0x37`, EC `GZ44`) rather than saved `GetSmartFanMode`
+  (`0x2D`, CMOS `RXMS(0x76)`), and writes/default resets are rejected in
+  extreme mode (`wmi_sfan_uses_thermal_mode`).
+- `LENOVO_FAN_TABLE_DATA` (`WQA7` -> `SFTW`, 15 rows) exports `FNT0`/`FNT1`
+  verbatim: level 1 is `0 RPM` (preserved at index 1), rising to 4500/4600 RPM
+  on `FNT1` or 5500/5700 RPM on `FNT0` for fan 1 / fan 2.
+- Power mode via GameZone `WMAA` `0x2C`/`0x2D` and `0x37` (quiet, balanced,
+  performance, custom `0xFF`, extreme `0xE0`); fan RPM (`0x04030001`/`2` ->
+  `FA1S`/`FA2S * 100`), CPU/GPU temperatures (`0x05040000`/`0x05050000` ->
+  `CTML`/`SKTC`) and `fan_fullspeed` (`0x04020000` -> EC `FFON`, gated behind
+  custom power mode) go through Other Method `WMAE`. Feature `0x05010000`
+  (IC temperature) returns constant 0 and `WMAB` 1..4 are absent, so hwmon
+  `temp3` and `fan_maxspeed` are hidden; `WMAC`/`WMAD` are `Return (Zero)`
+  stubs and PL/OC controls stay hidden (`skip_oc_controls`) until validated.
+- White keyboard backlight (levels 1..3, EC `KLEN`) is driven via KBBACKLIGHT
+  `WMAF` (`GLT1`/`SLT2` case 0; LED driver init confirmed in #650 `dmesg`).
+  Light id `0x03` (Y-logo) is absent (`WMI returned 0 for unsupported
+  light_id=3` in #650) and id `0x05` (IO-port) is an empty case, so both light
+  attributes are skipped.
+- `VPC0` lives at `\_SB.PCI0.LPC0.EC0.VPC0` (`_STA`, `_CFG`, and `GBMD`/`SBMC`
+  with rapid-charge bit `0x04` and conservation bit `0x20`), fixing the Intel
+  `PC00.LPCB` paths that returned `-5` in #650; read-only `debugfs`
+  `ecmemoryram` maps `EFAN` at `0xFEEC2F00` instead of `0xFE0B0F00`.
+  `minifancurve` and `lockfancontroller` have no mapped registers on this
+  firmware (`EC minifancurve on cool: error` in #384/#650) and are hidden.
+
+Validation status: WMI power mode, `platform_profile`, WMI3 fan RPM (1600/1700
+RPM) and CPU/GPU temperatures (36/38 C in #384, 40/41 C in #650), and keyboard
+backlight LED init are confirmed on hardware; WMI3 fan-curve reads/writes and
+`GBMD`/`SBMC` rapid charge / battery conservation are DSDT-validated and need
+an on-device round trip. Verify with `sudo dmesg | grep -i legion` (config
+`R8CN`, no `light_id=3` error), `sensors`, and
+`sudo cat /sys/kernel/debug/legion/fancurve` (`ACPI CFG error: 0`,
+`ACPI rapidcharge error: 0`, WMI fan curve populated with `u` = 5 and levels
+1..10). To test curve writes: on AC, switch to custom mode, back up the curve,
+apply one small conservative change, check the level/RPM readback and
+`sensors`, and restore the backup; do not write in extreme mode.
+
 ## LOQ 15APH8 (82XT, LYCN)
 
 BIOS LYCN50WW, EC 0x8227 (fw 2a4, read on the unit), AMD Ryzen 7 7840HS +
