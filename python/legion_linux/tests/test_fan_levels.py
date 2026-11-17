@@ -308,14 +308,16 @@ class LevelTableBiosGuardTest(unittest.TestCase):
         return legion.FanCurveIO(expect_hwmon=False)
 
     def test_percent_byte_above_level_10_is_refused(self):
-        io = self.make_io("percent", "LPCN59WW")
-        self.assertTrue(io.percent_unit_on_level_table())
-        with mock.patch.object(io, "_write_file") as write:
-            io.set_fan_1_speed_pwm(1, 28)  # stored as 10
-            write.assert_called_once_with(mock.ANY, 28)
-        with mock.patch.object(io, "_write_file") as write, self.assertRaises(ValueError):
-            io.set_fan_1_speed_pwm(1, 128)  # stored as 50: the byte that powered an LPCN59WW off
-        write.assert_not_called()
+        for bios in ("LPCN59WW", "N0CN35WW"):
+            with self.subTest(bios=bios):
+                io = self.make_io("percent", bios)
+                self.assertTrue(io.percent_unit_on_level_table())
+                with mock.patch.object(io, "_write_file") as write:
+                    io.set_fan_1_speed_pwm(1, 28)  # stored as 10
+                    write.assert_called_once_with(mock.ANY, 28)
+                with mock.patch.object(io, "_write_file") as write, self.assertRaises(ValueError):
+                    io.set_fan_1_speed_pwm(1, 128)  # stored as 50: the byte that powered an LPCN59WW off
+                write.assert_not_called()
 
     def test_whole_curve_is_refused_before_any_write(self):
         io = self.make_io("percent", "LPCN65WW")
@@ -329,7 +331,7 @@ class LevelTableBiosGuardTest(unittest.TestCase):
             mini.assert_not_called()
 
     def test_other_firmware_and_level_unit_are_unaffected(self):
-        for unit, bios in (("percent", "N2CN30WW"), ("level", "LPCN59WW")):
+        for unit, bios in (("percent", "N2CN30WW"), ("level", "LPCN59WW"), ("level", "N0CN35WW")):
             with self.subTest(unit=unit, bios=bios):
                 io = self.make_io(unit, bios)
                 self.assertFalse(io.percent_unit_on_level_table())

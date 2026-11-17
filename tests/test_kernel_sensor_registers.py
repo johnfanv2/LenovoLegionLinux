@@ -140,6 +140,11 @@ class TemperatureRegisterFlagTest(unittest.TestCase):
                 # GZFD.WMAD id 0x0A, GZFD.WMAE id 0x08 and H_EC.THMC, and
                 # confirmed in 82TF runtime dumps while 0xC5E6/0xC5E7 read 0.
                 "model_jycn": "TEMP_REGISTER_CPU | TEMP_REGISTER_GPU",
+                # Legion Pro 5 16IRX9 (83DF, issue #497): the N0CN DSDT
+                # declares CPUT/GPUT at ERAX+0xB0/+0xB4 (EC 0xC4B0/0xC4B4,
+                # L28329/L28333) and reads them in WMAE 0x05040000/0x05050000
+                # (L43679/L43691), matching the WMI3 temperatures on N0CN35WW.
+                "model_n0cn": "TEMP_REGISTER_CPU | TEMP_REGISTER_GPU",
                 # Yoga Pro 7 14AHP9 (83E3, issue #630): the NCCN DSDT declares
                 # TCPU/TGPU at EC RAM 0x07/0x08 in the ERAM window and the
                 # firmware's own thermal (SSDT22) and GPU (SSDT4) code

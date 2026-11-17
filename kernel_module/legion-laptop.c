@@ -697,6 +697,24 @@ static const struct ec_register_offsets ec_register_offsets_jycn = {
 	.EXT_MAXIMUMFANSPEED = 0xBD,
 };
 
+// Legion Pro 5 16IRX9 (83DF), BIOS N0CN, EC 0x5507 (issue #497). ERAX
+// @0xFE0B0400 maps to EC 0xC400..0xC4FF: FANS @0xC406 and FA2S @0xC4FE count
+// in units of 100 RPM, SPMO is bits 0-3 of 0xC420, and CPUT @0xC4B0 / GPUT
+// @0xC4B4 are degrees Celsius. On v0 offsets 0xC5E0..0xC5E3 hit F9FT+0x20..0x23
+// (F5E0/CCP1/F5E2/CCP2 CPU power/temp limits, yielding bogus 18039/14177 RPM).
+static const struct ec_register_offsets ec_register_offsets_n0cn = {
+	.ECHIPID1 = 0x2000,
+	.ECHIPID2 = 0x2001,
+	.ECHIPVER = 0x2002,
+	.ECDEBUG = 0x2003,
+	.EXT_FAN1_RPM_LSB = 0xC406,
+	.EXT_FAN2_RPM_LSB = 0xC4FE,
+	.EXT_POWERMODE = 0xC420,
+	.EXT_MAXIMUMFANSPEED = 0xBD,
+	.EXT_CPU_TEMP_INPUT = 0xC4B0,
+	.EXT_GPU_TEMP_INPUT = 0xC4B4,
+};
+
 // Selects which per-model EXT_*_TEMP_INPUT offsets are trusted, see
 // model_config.validated_temp_registers.
 #define TEMP_REGISTER_CPU (1 << 0)
@@ -1058,6 +1076,76 @@ static const struct model_config model_g8cn = {
 	.acpi_check_dev = true,
 	.ramio_physical_start = 0xFE0B0400,
 	.ramio_size = 0x600
+};
+
+// Legion Pro 5 16IRX9 (83DF) - 2024, Intel Core i7-14700HX / i9-14900HX + RTX
+// 4070; BIOS N0CN32WW/N0CN35WW, EC 0x5507 (fw 2a4; issue #497, dsdt.dat SHA-256
+// f7c43f2ae53206432ab2a5322587aa734edd65e3b1ae3a5cdf08c2af83e4d8d1):
+// - Fan Method \_SB.GZFD.WMAB (L43424) implements only Fan_Get_Table(5) and
+//   Fan_Set_Table(6): ten shared fan LEVELS 1..10 in EC F9F0..F9F9 (F9FT
+//   @0xFE0B05C0 + 0x30), committed via NCMD(0x8C, 0) with no range check and
+//   ignoring FSTM; get returns a static 1..10 placeholder when EXMF == 1.
+//   WMAB ids 1..4 are absent -> skip_fan_maxspeed, WMI3 fan_fullspeed. Keep
+//   fancurve_write_unvalidated like model_lpcn/model_m0cn until a level write
+//   is confirmed on 83DF hardware.
+// - LENOVO_FAN_TABLE_DATA is WQA3 (L35785, 15 rows, modes 1/2/3/0xFF/0xE0):
+//   1700..5400 RPM ladders on fan 1 (sensors 0x01/0x04) and fan 2 (0x05).
+// - Other Method WMAE (L43514): fan RPM 0x04030001/2 (FANS/FA2S * 100), full
+//   speed 0x04020000 -> EC FNST (get/set), CPU/GPU temps 0x05040000/0x05050000
+//   (CPUT/GPUT); 0x05010000 is CPU socket temp CPUS -> skip_ic_temp; flip to
+//   start 0x00030000 (FLBT) and instant boot 0x03010001/2 (EACS/ETCS).
+//   WMAC (L43510) is an empty stub and GPU Method GUID is absent -> WMI3 power
+//   limits with skip_oc_controls and leave_gamezone_wmi_unbound.
+// - KBBACKLIGHT WMAF (L44759): white kbd id 0x00 (KBLT == 0; RGB SKUs return 0
+//   and skip cleanly) and Y-logo id 0x03; no IO-port id -> skip_ioport_light.
+// - VPC0 lives at \_SB.PC00.LPCB.EC0.VPC0 (_STA/_CFG/GBMD/SBMC/HALS/SALS,
+//   L29463-29915), fixing the -5 _CFG/rapidcharge failure on v0 PCI0.LPC0.
+static const struct model_config model_n0cn = {
+	.registers = &ec_register_offsets_n0cn,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	.skip_fan_maxspeed = true,
+	.skip_ioport_light = true,
+	.validated_temp_registers = TEMP_REGISTER_CPU | TEMP_REGISTER_GPU,
+	.ec_fanspeed_unit_100rpm = true,
+	.ec_powermode_mask = 0x0F,
+	.skip_fan_target = true,
+	.leave_gamezone_wmi_unbound = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC",
+			[ACPI_PATH_READ_FNLOCK] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.HALS",
+			[ACPI_PATH_WRITE_FNLOCK] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SALS" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	.fancurve_write_unvalidated = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = true,
+	.has_flip_to_start = true,
+	.has_instant_boot = true,
 };
 
 static const struct model_config model_n2cn = {
@@ -3880,13 +3968,14 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_nzcn
 	},
 	{
-		// e.g. Legion Pro 5 16IRX9 (83DF)
+		// Legion Pro 5 16IRX9 (83DF), BIOS N0CN (issue #497)
 		.ident = "N0CN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83DF"),
 			DMI_MATCH(DMI_BIOS_VERSION, "N0CN"),
 		},
-		.driver_data = (void *)&model_g8cn
+		.driver_data = (void *)&model_n0cn
 	},
 	{
 		// Legion Pro 7 16IRX9H (83DE)
@@ -6245,6 +6334,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_nrcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nmcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_jycn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_n0cn	 ? FAN_SPEED_UNIT_LEVEL :
 					   FAN_SPEED_UNIT_PERCENT;
 }
 

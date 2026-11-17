@@ -372,6 +372,54 @@ int main(void) {
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0) == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_fullspeed.attr, 0));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_rapidcharge.attr, 0));
+    /* N0CN (Legion Pro 5 16IRX9 83DF, EC 0x5507, #497): 83DF DSDT confirms
+     * WMAB 5/6 -> F9F0..F9F9 + NCMD(0x8C) level table (gated behind
+     * fancurve_write_unvalidated), WQA3 ladders, PC00.LPCB VPC0 paths, ERAX
+     * @0xFE0B0400 EC sensor map, and WMI3 fan_fullspeed / power limits. */
+    priv.conf = &model_n0cn;
+    assert(priv.conf->registers == &ec_register_offsets_n0cn);
+    assert(priv.conf->registers->EXT_FAN1_RPM_LSB == 0xC406);
+    assert(priv.conf->registers->EXT_FAN2_RPM_LSB == 0xC4FE);
+    assert(priv.conf->registers->EXT_CPU_TEMP_INPUT == 0xC4B0);
+    assert(priv.conf->registers->EXT_GPU_TEMP_INPUT == 0xC4B4);
+    assert(priv.conf->ec_fanspeed_unit_100rpm && priv.conf->ec_powermode_mask == 0x0F);
+    assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
+    assert(priv.conf->access_method_fanfullspeed == ACCESS_METHOD_WMI3);
+    assert(priv.conf->access_method_powerlimits == ACCESS_METHOD_WMI3);
+    assert(priv.conf->fanfullspeed_requires_custom_powermode);
+    assert(priv.conf->wmi_fancurve_speed_only && priv.conf->has_fancurve_defaults);
+    assert(priv.conf->leave_gamezone_wmi_unbound);
+    assert(!wmi_sfan_uses_thermal_mode(priv.conf));
+    assert(!minifancurve_supported(priv.conf) && !lockfancontroller_supported(priv.conf));
+    assert(!priv.conf->skip_ylogo_light && priv.conf->skip_ioport_light);
+    assert(priv.conf->ramio_physical_start == 0xFE0B0400 && priv.conf->ramio_size == 0x300);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_CFG], "\\_SB.PC00.LPCB.EC0.VPC0._CFG") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_READ_RAPIDCHARGE], "\\_SB.PC00.LPCB.EC0.VPC0.GBMD") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_WRITE_RAPIDCHARGE], "\\_SB.PC00.LPCB.EC0.VPC0.SBMC") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_READ_FNLOCK], "\\_SB.PC00.LPCB.EC0.VPC0.HALS") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_WRITE_FNLOCK], "\\_SB.PC00.LPCB.EC0.VPC0.SALS") == 0);
+    fancurve_speed_unit_show(&dev, NULL, unit);
+    assert(strcmp(unit, "level\n") == 0);
+    assert(fancurve_write_allowed(priv.conf) == -EPERM);
+    assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == -EPERM);
+    allow_unvalidated_fancurve = true;
+    assert(fancurve_write_allowed(priv.conf) == 0);
+    allow_unvalidated_fancurve = false;
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan2_level_rpm_table.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_input.dev_attr.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp3_input.dev_attr.attr, 0) == 0);
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan1_input.dev_attr.attr, 0));
+    assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_fan2_input.dev_attr.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_maxspeed.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_oc.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_oc.attr, 0) == 0);
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_fullspeed.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_rapidcharge.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_fn_lock.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_flip_to_start.attr, 0));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_instant_boot_ac.attr, 0));
     priv.conf = &model_m3cn_8227; /* Level calibration does not require default-reset support. */
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
