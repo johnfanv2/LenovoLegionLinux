@@ -143,6 +143,21 @@ raise an issue.
 | [Test Plan](docs/TESTPLAN.md) | Manual test plan |
 | [Credits](docs/credits.md) | Basis of this work, contributors and tools based on LLL |
 
+## :art: Community Frontends
+
+Alternative graphical frontends built on top of LLL. They are maintained
+separately, so please report their bugs in their own repositories.
+
+- **[Legion Linux Frontend](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend)**
+  is a Flutter desktop app, available as an AppImage or a Nix package. It
+  offers a dashboard for power modes, temperatures and fan speeds, a fan curve
+  editor, battery and Fn-lock toggles, keyboard lighting (Spectrum HID or
+  OpenRGB) and NVIDIA dGPU monitoring. It drives `legion_cli` through a Polkit
+  helper. It is currently an alpha prerelease tested on a single model, and
+  testers are welcome.
+- **PlasmaVantage** (KDE) and **CinnamonVantage** (Cinnamon) are panel widgets.
+  See [Credits](docs/credits.md#tools-that-are-based-on-lenovolegionlinux).
+
 ## :handshake: Contributing
 
 **Pull requests are very welcome!** Filing an issue alone is helpful, but there is only so much developers can do without access to your hardware — especially for "does not work on my model" reports. If you can, please try to fix it yourself:

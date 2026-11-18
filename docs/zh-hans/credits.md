@@ -25,6 +25,9 @@
 
 ## 基于 Lenovo Legion Linux 的工具
 
+### Legion Linux Frontend
+Legion Linux Frontend 是一个 Flutter 桌面应用，是 LenovoLegionLinux 的替代 GUI，涵盖电源模式、风扇曲线、电池、键盘灯光和独显监控。可在 [Releases](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/releases) 下载 AppImage，源码见 [这里](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend)。目前为 alpha 预发布版本（见 [#662](https://github.com/johnfanv2/LenovoLegionLinux/issues/662)）。
+
 ### Plasma Vantage
 PlasmaVantage 是 KDE 的一个 Plasma 小部件，是 Lenovo Legion Linux 内核模块的替代 GUI。可在 [KDE 商店](https://store.kde.org/p/2150610/)获取，源码见 [这里](https://gitlab.com/Scias/plasmavantage)。
 

@@ -27,6 +27,9 @@ Thank you for your contribution for the Linux support:
 Also please tell me if it works or does not work on your laptop.
 
 ## Tools that are based on LenovoLegionLinux
+### Legion Linux Frontend
+Legion Linux Frontend is a Flutter desktop app and an alternative GUI for LenovoLegionLinux. It covers power modes, fan curves, battery, keyboard lighting and dGPU monitoring. Download it from [Releases](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/releases) (AppImage) or get the source [here](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend). It is an alpha prerelease (see [#662](https://github.com/johnfanv2/LenovoLegionLinux/issues/662)).
+
 ### PlasmaVantage
 PlasmaVantage is a Plasma Widget for KDE. It is an alternative GUI for the LenovoLegionLinux kernel module. It is available in the [KDE store](https://store.kde.org/p/2150610/) or with source [here](https://gitlab.com/Scias/plasmavantage).
 

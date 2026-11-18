@@ -148,6 +148,17 @@ sudo make reloadmodule
 | [Test Plan](docs/TESTPLAN.md)（英文） | 手动测试计划 |
 | [鸣谢](docs/zh-hans/credits.md) | 本项目基础、贡献者及基于 LLL 的工具 |
 
+## :art: 社区前端
+
+以下是基于 LLL 的第三方图形前端。它们由各自的作者独立维护，相关问题请到对应仓库反馈。
+
+- **[Legion Linux Frontend](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend)**
+  是一个 Flutter 桌面应用，提供 AppImage 和 Nix 包。它包含显示电源模式、温度和风扇转速的仪表盘，
+  以及风扇曲线编辑器、电池与 Fn 锁开关、键盘灯光（Spectrum HID 或 OpenRGB）和 NVIDIA 独显监控。
+  它通过 Polkit 辅助程序调用 `legion_cli`。目前是 alpha 预发布版本，只在一款机型上测试过，欢迎参与测试。
+- **PlasmaVantage**（KDE）和 **CinnamonVantage**（Cinnamon）是面板小部件，详见
+  [鸣谢](docs/zh-hans/credits.md#基于-lenovo-legion-linux-的工具)。
+
 ## :handshake: 参与贡献
 
 **非常欢迎提交 PR！** 只提 issue 虽然也有帮助，但开发者手头没有你的硬件，能做的事情非常有限 —— 尤其是“在我的机型上无法使用”这类报告。如果条件允许，请尝试自己动手修复：
