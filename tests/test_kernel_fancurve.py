@@ -373,9 +373,10 @@ int main(void) {
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan_fullspeed.attr, 0));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_rapidcharge.attr, 0));
     /* N0CN (Legion Pro 5 16IRX9 83DF, EC 0x5507, #497): 83DF DSDT confirms
-     * WMAB 5/6 -> F9F0..F9F9 + NCMD(0x8C) level table (gated behind
-     * fancurve_write_unvalidated), WQA3 ladders, PC00.LPCB VPC0 paths, ERAX
-     * @0xFE0B0400 EC sensor map, and WMI3 fan_fullspeed / power limits. */
+     * WMAB 5/6 -> F9F0..F9F9 + NCMD(0x8C) level table, WQA3 ladders,
+     * PC00.LPCB VPC0 paths, ERAX @0xFE0B0400 EC sensor map, and WMI3
+     * fan_fullspeed / power limits. A level write was confirmed on N0CN32WW
+     * hardware, so writes are not gated. */
     priv.conf = &model_n0cn;
     assert(priv.conf->registers == &ec_register_offsets_n0cn);
     assert(priv.conf->registers->EXT_FAN1_RPM_LSB == 0xC406);
@@ -400,11 +401,8 @@ int main(void) {
     assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_WRITE_FNLOCK], "\\_SB.PC00.LPCB.EC0.VPC0.SALS") == 0);
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
-    assert(fancurve_write_allowed(priv.conf) == -EPERM);
-    assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == -EPERM);
-    allow_unvalidated_fancurve = true;
+    assert(!priv.conf->fancurve_write_unvalidated);
     assert(fancurve_write_allowed(priv.conf) == 0);
-    allow_unvalidated_fancurve = false;
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan2_level_rpm_table.attr, 0));
     assert(legion_hwmon_sensor_is_visible(&kobj, &sensor_dev_attr_temp2_input.dev_attr.attr, 0));

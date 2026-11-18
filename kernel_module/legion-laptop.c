@@ -1085,9 +1085,13 @@ static const struct model_config model_g8cn = {
 //   Fan_Set_Table(6): ten shared fan LEVELS 1..10 in EC F9F0..F9F9 (F9FT
 //   @0xFE0B05C0 + 0x30), committed via NCMD(0x8C, 0) with no range check and
 //   ignoring FSTM; get returns a static 1..10 placeholder when EXMF == 1.
-//   WMAB ids 1..4 are absent -> skip_fan_maxspeed, WMI3 fan_fullspeed. Keep
-//   fancurve_write_unvalidated like model_lpcn/model_m0cn until a level write
-//   is confirmed on 83DF hardware.
+//   WMAB ids 1..4 are absent -> skip_fan_maxspeed, WMI3 fan_fullspeed. The
+//   table reads ten zeros until custom mode is first entered (factory
+//   1,2,3,4,5,6,7,8,8,8 afterwards) and the EC only follows it in custom
+//   mode. A level write (1..10 via hwmon, custom mode on AC) was confirmed
+//   on N0CN32WW: the fans ramped to levels 9/10 under load (issue #497), so
+//   writes are not gated; fancurve_level_table_sanitize() keeps every byte
+//   inside the level range.
 // - LENOVO_FAN_TABLE_DATA is WQA3 (L35785, 15 rows, modes 1/2/3/0xFF/0xE0):
 //   1700..5400 RPM ladders on fan 1 (sensors 0x01/0x04) and fan 2 (0x05).
 // - Other Method WMAE (L43514): fan RPM 0x04030001/2 (FANS/FA2S * 100), full
@@ -1141,7 +1145,6 @@ static const struct model_config model_n0cn = {
 				"\\_SB.PC00.LPCB.EC0.VPC0.SALS" },
 	.has_fancurve_defaults = true,
 	.wmi_fancurve_speed_only = true,
-	.fancurve_write_unvalidated = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = true,
 	.has_flip_to_start = true,

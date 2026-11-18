@@ -1115,16 +1115,24 @@ cross-checked against the N0CN32WW and N0CN35WW runtime dumps:
   EC `F9F0..F9F9` (`F9FT` @`0xFE0B05C0 + 0x30`, L28033/28063), committed via
   `NCMD(0x8C, 0)` (L43502) with no range check and ignoring the `FSTM` mode
   byte; `Fan_Get_Table` returns a static `1..10` placeholder while `EXMF == 1`
-  (extreme mode). The factory custom-mode table read on N0CN35WW is
-  `1,2,3,4,5,6,7,8,8,8` (all zeros before custom mode is initialized on
-  N0CN32WW). Earlier `model_g8cn` mapped those level bytes as
-  `FAN_SPEED_UNIT_PERCENT` (`pwm = 2..20`), and because points 7..10 cap at
-  level 8 (3400/3500 RPM at 80/65 °C, 3700 RPM max), custom mode stayed around
-  3400–3500 RPM under load unless raised to levels 9–10. Because `F9F0..F9F9` +
+  (extreme mode). On N0CN32WW the table reads ten zeros in `low-power`,
+  `balanced` and `performance` until custom mode is first entered, which loads
+  the factory table `1,2,3,4,5,6,7,8,8,8` (the same table read on N0CN35WW).
+  The EC follows the table only in custom mode: on N0CN35WW, with `1..8,8,8`
+  loaded, performance mode still ramped to level 9 (4400–4600 RPM). The driver
+  sends zeros as the default `1..10` and clamps every point into
+  `fancurve_level_min..10` before writing. Earlier `model_g8cn` mapped those
+  level bytes as `FAN_SPEED_UNIT_PERCENT` (`pwm = 2..20`), and because points
+  7..10 cap at level 8 (3400/3500 RPM at 80/65 °C, 3700 RPM max), custom mode
+  stayed around 3400–3500 RPM under load unless raised to levels 9–10. The
+  83DF config first shipped with
+  writes gated behind `fancurve_write_unvalidated` because `F9F0..F9F9` +
   `NCMD(0x8C)` is the same EC 0x5507 transport where percent bytes caused a
-  hard power-off on `model_lpcn` and persisted in EC RAM on `model_m0cn`, fan
-  curve writes stay gated behind `fancurve_write_unvalidated`
-  (`allow_unvalidated_fancurve=1`) until a level write is confirmed on 83DF.
+  hard power-off on `model_lpcn`. A level write (`1..10` through the
+  `legion_hwmon` `pwm1_auto_point*_pwm` attributes, custom mode on AC) was
+  then confirmed on N0CN32WW: the fans ramped past 3500 RPM to levels 9/10
+  under load ([#497](https://github.com/johnfanv2/LenovoLegionLinux/issues/497)),
+  so fan curve writes are enabled by default on `model_n0cn`.
 - `LENOVO_FAN_TABLE_DATA` (`WQA3`, L35785–36026, 15 rows across modes
   `1/2/3/0xFF/0xE0`) exports static 10-level ladders ending at 5400 RPM:
   `1700, 1900, 2100, 2300, 2500, 2900, 3400, 3700, 4400, 5400` RPM on fan 1
@@ -1169,18 +1177,21 @@ cross-checked against the N0CN32WW and N0CN35WW runtime dumps:
   (`0x03010001`/`2` `EACS`/`ETCS`) are implemented in `WMAE` and exposed.
 
 Validation status: WMI power mode, `platform_profile`, and WMI3 fan RPM and
-CPU/GPU temperatures are confirmed on N0CN32WW/N0CN35WW hardware; WMI3 level
-table calibration, `fan_fullspeed`, `VPC0` rapid charge / conservation / Fn
-lock, flip to start and instant boot are DSDT-validated. Verify read-only first
+CPU/GPU temperatures are confirmed on N0CN32WW/N0CN35WW hardware, and a WMI3
+level fan curve write in custom mode is confirmed on N0CN32WW; the level RPM
+ladders, `fan_fullspeed`, `VPC0` rapid charge / conservation / Fn lock, flip
+to start and instant boot are DSDT-validated. Verify read-only first
 with `sudo dmesg | grep -i legion` (`Using configuration for system: N0CN`),
 `cat /sys/devices/platform/legion/fancurve_speed_unit` (`level`),
 `cat /sys/devices/platform/legion/fan1_level_rpm_table`, `sensors` (`fan1_max`
 / `fan2_max` = `5400`), and `sudo cat /sys/kernel/debug/legion/fancurve` (`ACPI
 CFG error: 0`, `ACPI rapidcharge error: 0`, matching EC and WMI3 readings). To
-test level writes on AC in custom mode, reload with
-`sudo modprobe legion_laptop allow_unvalidated_fancurve=1`, raise points 8–10
-from level 8 to level 9 or 10, check `sensors` and readback, and report the
-result in [#497](https://github.com/johnfanv2/LenovoLegionLinux/issues/497).
+raise the custom-mode ceiling, switch to custom mode (Fn+Q, purple) on AC,
+raise points 8–10 from level 8 to level 9 or 10 (pwm `level * 255 / 10`, e.g.
+`echo 255 | sudo tee /sys/class/hwmon/hwmonN/pwm1_auto_point10_pwm` on the
+`legion_hwmon` device), then check the readback in the debugfs dump and the
+fan RPM in `sensors` under load. Report results on N0CN35WW or other BIOS
+revisions in [#497](https://github.com/johnfanv2/LenovoLegionLinux/issues/497).
 
 ## Legion 5 15AHP11 (83Q7, T2CN)
 
