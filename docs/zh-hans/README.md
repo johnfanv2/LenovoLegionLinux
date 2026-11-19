@@ -16,7 +16,7 @@
 
 ## 参考与开发
 
-- [Features and Testing](../FEATURES_AND_TESTING.md)（英文）：各机型、各功能的说明与硬件测试步骤。
+- [功能与测试（部分翻译）](FEATURES_AND_TESTING.md)：各机型、各功能的说明与硬件测试步骤。
 - [开发者概览](developers.md)：本项目的组成部分。
 - [Reverse Engineering](../REVERSE_ENGINEER.md)（英文）：为新机型收集 WMI/ACPI/EC 数据。
 - [Test Plan](../TESTPLAN.md)（英文）：手动测试计划。
