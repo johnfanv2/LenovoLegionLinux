@@ -15,7 +15,7 @@ Then upload files.
 ## Disassembling ACPI tables
 
 ```bash
-# Install requiered tools
+# Install required tools
 sudo apt install acpica-tools
 ```
 
@@ -35,7 +35,7 @@ iasl -e SSDT* -d DSDT
 Then upload files.
 
 
-## Gaterhing WMI info in Windows
+## Gathering WMI info in Windows
 Open powershell as admin in Windows and run the following script. It will list all available lenovo WMI methods. Copy output to a file and upload.
 ```powershell
 $wmi_classes = Get-WmiObject -Namespace 'ROOT/WMI' -List -Class "*LENOVO*"
