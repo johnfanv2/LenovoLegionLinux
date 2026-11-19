@@ -18,7 +18,7 @@
 
 - [Features and Testing](../FEATURES_AND_TESTING.md)（英文）：各机型、各功能的说明与硬件测试步骤。
 - [开发者概览](developers.md)：本项目的组成部分。
-- [Reverse Engineering](../REVERSE_ENGINEER.md)（英文）：为新机型收集 WMI/ACPI/EC 数据。
-- [Test Plan](../TESTPLAN.md)（英文）：手动测试计划。
+- [逆向工程指南](REVERSE_ENGINEER.md)：为新机型收集 WMI/ACPI/EC 数据。
+- [测试计划](TESTPLAN.md)：手动测试计划。
 - [Contributing](../../CONTRIBUTING.md) 与 [AGENTS.md](../../AGENTS.md)（英文）：构建、检查与贡献约定。
 - [鸣谢](credits.md)：本项目基础、贡献者及基于 LLL 的工具。
