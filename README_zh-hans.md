@@ -144,8 +144,8 @@ sudo make reloadmodule
 | [已知问题](docs/zh-hans/known-issues.md) | 风扇曲线接口的固件限制 |
 | [功能与测试](docs/zh-hans/FEATURES_AND_TESTING.md)（部分翻译） | 各机型、各功能的说明与硬件测试步骤 |
 | [开发者概览](docs/zh-hans/developers.md) | 本项目的组成部分 |
-| [Reverse Engineering](docs/REVERSE_ENGINEER.md)（英文） | 为新机型收集 WMI/ACPI/EC 数据 |
-| [Test Plan](docs/TESTPLAN.md)（英文） | 手动测试计划 |
+| [逆向工程指南](docs/zh-hans/REVERSE_ENGINEER.md) | 为新机型收集 WMI/ACPI/EC 数据 |
+| [测试计划](docs/zh-hans/TESTPLAN.md) | 手动测试计划 |
 | [鸣谢](docs/zh-hans/credits.md) | 本项目基础、贡献者及基于 LLL 的工具 |
 
 ## :art: 社区前端
