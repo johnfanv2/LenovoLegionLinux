@@ -1339,26 +1339,28 @@ speed unit by model, so a copied struct falls back to percent (debugfs
 
 Validation status: probe, EC id, WMI fan RPM and temperatures, power mode,
 and the factory level table (`1 2 3 4 5 6 7 8 8 8` in custom mode) were read
-on hardware in #666 with a local config. Rapid charge, battery conservation
-and `fan_fullspeed` are DSDT-validated only. No curve has been written yet,
-so fan curve writes fail with `EPERM` unless the module is loaded with
-`allow_unvalidated_fancurve=1` (`fancurve_write_unvalidated`).
+on hardware in #666. A level write was confirmed on SUCN15WW: on AC in custom
+mode, `echo 230` to `pwm1_auto_point8_pwm` read back as level 9 (pwm 229) from
+the EC table, the fans ramped from 1100 to 4300 RPM under a CPU load, and
+writing 204 restored the factory table. Fan curve writes are therefore not
+gated (no `allow_unvalidated_fancurve` needed); the module still clamps every
+byte into the level range. Rapid charge, battery conservation and
+`fan_fullspeed` are DSDT-validated only.
 
 Verify with `sudo dmesg | grep -i legion` (config `SUCN`, EC ID `0x5508`,
 `2000..5000 RPM` fan table), `sensors`, and
 `sudo cat /sys/kernel/debug/legion/fancurve` (`ACPI CFG error: 0`,
 `ACPI rapidcharge error: 0`, `u` = 5, and in custom mode `speed1[pwm]`
-`25 51 76 ...` for levels `1 2 3 ...`). To check one curve write:
+`25 51 76 ...` for levels `1 2 3 ...`). To repeat the write check:
 
 1. On AC, set custom mode (`powermode` 255) and save the
    `sudo cat /sys/kernel/debug/legion/fancurve` output.
-2. Reload the module with `allow_unvalidated_fancurve=1`.
-3. Raise one point by one level through the `legion_hwmon` device (pwm is
+2. Raise one point by one level through the `legion_hwmon` device (pwm is
    rounded to `level * 255 / 10`), for example point 8 from level 8 to 9:
    `echo 230 | sudo tee /sys/class/hwmon/hwmonN/pwm1_auto_point8_pwm`.
-4. Read the table again (level 9 at point 8) and watch `sensors` under load.
-5. Write the saved level back, return to balanced mode, and reload without
-   the parameter. Do not write in extreme mode.
+3. Read the table again (level 9 at point 8) and watch `sensors` under load.
+4. Write the saved level back (`echo 204`) and return to balanced mode. Do
+   not write in extreme mode.
 
 ## LOQ 15APH8 (82XT, LYCN)
 

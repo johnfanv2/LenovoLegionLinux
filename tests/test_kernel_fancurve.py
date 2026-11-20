@@ -534,8 +534,9 @@ int main(void) {
      * extreme-mode drop), not the R8CN GFAN/SFAN path. A config copied
      * from model_r8cn fell back to percent (pwm 2 5 7 ... for levels
      * 1 2 3 ...), so the unit must be level; PCI0.LPC0 VPC0 paths, ERAX
-     * @0xFEEC2400, firmware-only keyboard backlight, and writes refused
-     * until a level write is validated on hardware. */
+     * @0xFEEC2400 and a firmware-only keyboard backlight. A level write
+     * (point 8 -> level 9, read back from the EC) was confirmed on SUCN15WW
+     * hardware, so writes are not gated. */
     priv.conf = &model_sucn;
     assert(priv.conf->embedded_controller_id == 0x5508);
     assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
@@ -554,24 +555,23 @@ int main(void) {
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
-    assert(fancurve_write_allowed(&model_sucn) == -EPERM);
+    assert(!priv.conf->fancurve_write_unvalidated);
+    assert(fancurve_write_allowed(&model_sucn) == 0);
     {
-        struct fancurve factory = { .fan_speed_unit = FAN_SPEED_UNIT_LEVEL };
+        struct fancurve tested = { .fan_speed_unit = FAN_SPEED_UNIT_LEVEL };
         int calls = wmi_calls;
         size_t i;
 
-        assert(wmi_write_fancurve_defaults(&priv, LEGION_WMI_POWERMODE_CUSTOM) == -EPERM);
-        assert(wmi_calls == calls);
+        /* The #666 hardware test: factory 1..8,8,8 with point 8 raised to 9. */
         for (i = 0; i < MAXFANCURVESIZE; i++)
-            factory.points[i].speed1 = i < 8 ? i + 1 : 8;
-        allow_unvalidated_fancurve = true;
-        assert(wmi_write_fancurve_custom(&priv, &factory) == 0);
+            tested.points[i].speed1 = i < 8 ? i + 1 : 8;
+        tested.points[7].speed1 = 9;
+        assert(wmi_write_fancurve_custom(&priv, &tested) == 0);
         assert(wmi_calls == calls + 1);
-        /* FSTM stays 0 (WMAB 6 ignores it); the factory levels go out as is. */
+        /* FSTM stays 0 (WMAB 6 ignores it); the levels go out as is. */
         assert(last_payload[0] == 0);
         for (i = 0; i < MAXFANCURVESIZE; i++)
-            assert(last_payload[0x06 + 2 * i] == factory.points[i].speed1);
-        allow_unvalidated_fancurve = false;
+            assert(last_payload[0x06 + 2 * i] == tested.points[i].speed1);
         wmi_calls = calls;
         memset(last_payload, 0, sizeof(last_payload));
     }

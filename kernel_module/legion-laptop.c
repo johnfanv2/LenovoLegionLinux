@@ -2069,8 +2069,12 @@ static const struct model_config model_r8cn = {
 //   get returns a static 1..10 placeholder in extreme mode (ODV1 == 4,
 //   L21715). Hence FAN_SPEED_UNIT_LEVEL, wmi_fancurve_speed_only and no
 //   wmi_sfan_uses_thermal_mode. WMAB ids 1..4 are absent ->
-//   skip_fan_maxspeed. No curve write has been made on hardware yet, so
-//   writes need allow_unvalidated_fancurve (fancurve_write_unvalidated).
+//   skip_fan_maxspeed. The table reads factory 1,2,3,4,5,6,7,8,8,8 in
+//   custom mode. A level write was confirmed on SUCN15WW (issue #666): on
+//   AC in custom mode, raising point 8 to level 9 via hwmon read back as 9
+//   from F9F7, the fans ramped under load, and the restore read back the
+//   factory table, so writes are not gated;
+//   fancurve_level_table_sanitize() keeps every byte inside the level range.
 // - LENOVO_FAN_TABLE_DATA is WQA3 (L16718, 15 rows, modes 1/2/3/0xFF/0xE0):
 //   one 2000..5000 RPM ladder for fan 1 (sensors 0x01/0x04) and fan 2
 //   (0x05) in every mode; matches "10 levels, 2000..5000 RPM" in #666.
@@ -2131,8 +2135,6 @@ static const struct model_config model_sucn = {
 				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
 	.has_fancurve_defaults = true,
 	.wmi_fancurve_speed_only = true,
-	/* Level table, but no curve write validated on 83S0 hardware yet. */
-	.fancurve_write_unvalidated = true,
 	.has_fan_unlock = false,
 	.has_fn_lock = false,
 };
