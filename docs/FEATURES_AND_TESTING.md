@@ -1284,6 +1284,82 @@ an on-device round trip. Verify with `sudo dmesg | grep -i legion` (config
 apply one small conservative change, check the level/RPM readback and
 `sensors`, and restore the backup; do not write in extreme mode.
 
+## LOQ 15ARP10E (83S0, SUCN)
+
+BIOS SUCN15WW ([#666](https://github.com/johnfanv2/LenovoLegionLinux/issues/666)),
+EC 0x5508 (fw 2b0), AMD Ryzen 7 7735HS + NVIDIA RTX 4050. DMI entry `SUCN`
+is qualified on product name `83S0`; config `model_sucn` in
+`kernel_module/legion-laptop.c`. The DSDT from the acpidump attached in #666
+has SHA-256
+`6cab1909c8383bf2c1e402d5c0580f6e243a1ffb1783ba827da8c98f355ec373`; all
+`\_SB.GZFD` methods live in the DSDT (the SSDTs only reference it).
+
+This model has the same EC chip as the LOQ 15AHP10 (83JG, R8CN) above, but
+its GameZone firmware is different. The fan table is the `F9F0` level table
+of the Legion Pro 5 16IRX9 (83DF, N0CN), not the R8CN `GFAN`/`SFAN` ladder.
+A config copied from `model_r8cn` is wrong here: the driver picks the fan
+speed unit by model, so a copied struct falls back to percent (debugfs
+`speed1[pwm]` reads `2 5 7 10 ...` for levels `1 2 3 4 ...`).
+
+- Fan Method `WMAB` implements only 5/6: ten shared fan **levels** in EC
+  `F9F0..F9F9` (`F9FT` @`0xFEEC2500 + 0x80`). `Fan_Set_Table` copies
+  `FSS0..FSS9` with no range check, ignores `FSTM`/`FSID`, and commits with
+  EC command `LECR(0xD0, 1, 1)`. `Fan_Get_Table` returns a static 1..10
+  placeholder in extreme mode (`ODV1 == 4`). Hence `FAN_SPEED_UNIT_LEVEL`,
+  speed-only attributes, and a payload mode byte of 0. `WMAB` 1..4 are
+  absent, so `fan_maxspeed` is hidden.
+- `LENOVO_FAN_TABLE_DATA` (`WQA3`, 15 static rows, modes `1/2/3/0xFF/0xE0`)
+  holds one ladder for fan 1 (sensors `0x01`/`0x04`) and fan 2 (`0x05`) in
+  every mode: 2000, 2100, 2300, 2500, 2900, 3300, 3900, 4300, 4600, 5000 RPM.
+  This is the `fan table data: ... 10 levels, 2000..5000 RPM` line in the
+  #666 `dmesg`.
+- Power mode goes through GameZone `WMAA` `0x2C`/`0x2D`/`0x37`: quiet,
+  balanced, performance, custom `0xFF` and extreme `0xE0`. The firmware
+  enters custom and extreme only on AC. On battery it keeps running balanced
+  and remembers the request, so `0x2D` reports custom/extreme while `0x37`
+  reports balanced. There is no fan unlock (`0x0D`).
+- Other Method `WMAE`: fan RPM `0x04030001` and `0x04030002` **both** return
+  `FANS * 100`, so hwmon `fan2_input` mirrors `fan1_input` on this firmware.
+  `fan_fullspeed` (`0x04020000` -> EC `FNST`) is gated behind custom power
+  mode, like R8CN. CPU/GPU temperatures `0x05040000`/`0x05050000` read
+  `CPUT`/`GPUT`. `0x05010000` is the CPU socket temperature (`CPUS`), so hwmon
+  `temp3` is hidden. `WMAC` handles only AMD tuning ids and there is no GPU
+  Method GUID, so power-limit and OC attributes stay hidden.
+- Keyboard: KBBACKLIGHT `WMAF` sends EC command `0xDA` for the white
+  backlight. On the #666 unit neither that call nor writing EC RAM `0xC48A`
+  changes the light, which follows only Fn+Space, and the keyboard is PS/2
+  (no HID fallback). The module leaves the backlight alone
+  (`ACCESS_METHOD_NO_ACCESS`) and hides the Y-logo and IO-port light
+  attributes.
+- `VPC0` is `\_SB.PCI0.LPC0.EC0.VPC0` (`_STA`, `_CFG`, and `GBMD`/`SBMC` with
+  rapid-charge bit `0x04` and conservation bit `0x20`). Read-only `debugfs`
+  `ecmemoryram` maps `ERAX` at `0xFEEC2400` for `0x300` bytes, so the `F9F0`
+  table is at offset `0x180`. `minifancurve` and `lockfancontroller` have no
+  mapped registers and are hidden.
+
+Validation status: probe, EC id, WMI fan RPM and temperatures, power mode,
+and the factory level table (`1 2 3 4 5 6 7 8 8 8` in custom mode) were read
+on hardware in #666 with a local config. Rapid charge, battery conservation
+and `fan_fullspeed` are DSDT-validated only. No curve has been written yet,
+so fan curve writes fail with `EPERM` unless the module is loaded with
+`allow_unvalidated_fancurve=1` (`fancurve_write_unvalidated`).
+
+Verify with `sudo dmesg | grep -i legion` (config `SUCN`, EC ID `0x5508`,
+`2000..5000 RPM` fan table), `sensors`, and
+`sudo cat /sys/kernel/debug/legion/fancurve` (`ACPI CFG error: 0`,
+`ACPI rapidcharge error: 0`, `u` = 5, and in custom mode `speed1[pwm]`
+`25 51 76 ...` for levels `1 2 3 ...`). To check one curve write:
+
+1. On AC, set custom mode (`powermode` 255) and save the
+   `sudo cat /sys/kernel/debug/legion/fancurve` output.
+2. Reload the module with `allow_unvalidated_fancurve=1`.
+3. Raise one point by one level through the `legion_hwmon` device (pwm is
+   rounded to `level * 255 / 10`), for example point 8 from level 8 to 9:
+   `echo 230 | sudo tee /sys/class/hwmon/hwmonN/pwm1_auto_point8_pwm`.
+4. Read the table again (level 9 at point 8) and watch `sensors` under load.
+5. Write the saved level back, return to balanced mode, and reload without
+   the parameter. Do not write in extreme mode.
+
 ## LOQ 15APH8 (82XT, LYCN)
 
 BIOS LYCN50WW, EC 0x8227 (fw 2a4, read on the unit), AMD Ryzen 7 7840HS +

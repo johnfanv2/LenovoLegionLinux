@@ -2057,6 +2057,86 @@ static const struct model_config model_r8cn = {
 	.has_fn_lock = false,
 };
 
+// LOQ 15ARP10E (83S0) - 2025, AMD Ryzen 7 7735HS + RTX 4050
+// BIOS SUCN15WW, EC 0x5508 (fw 2b0; issue #666). Facts below are from the
+// SUCN15WW DSDT (L = dsdt.dsl line, acpidump attached in #666, dsdt.dat
+// SHA-256 6cab1909c8383bf2c1e402d5c0580f6e243a1ffb1783ba827da8c98f355ec373).
+// Same EC chip as model_r8cn, but NOT the R8CN GFAN/SFAN firmware:
+// - Fan Method \_SB.GZFD.WMAB (L21697) implements only Fan_Get_Table(5)/
+//   Fan_Set_Table(6) like model_n0cn: ten shared fan LEVELS in EC
+//   F9F0..F9F9 (F9FT @0xFEEC2500 + 0x80, L11072), written with no range
+//   check, FSTM/FSID ignored and committed via LECR(0xD0, 1, 1) (L21769);
+//   get returns a static 1..10 placeholder in extreme mode (ODV1 == 4,
+//   L21715). Hence FAN_SPEED_UNIT_LEVEL, wmi_fancurve_speed_only and no
+//   wmi_sfan_uses_thermal_mode. WMAB ids 1..4 are absent ->
+//   skip_fan_maxspeed. No curve write has been made on hardware yet, so
+//   writes need allow_unvalidated_fancurve (fancurve_write_unvalidated).
+// - LENOVO_FAN_TABLE_DATA is WQA3 (L16718, 15 rows, modes 1/2/3/0xFF/0xE0):
+//   one 2000..5000 RPM ladder for fan 1 (sensors 0x01/0x04) and fan 2
+//   (0x05) in every mode; matches "10 levels, 2000..5000 RPM" in #666.
+// - Power mode: GameZone WMAA (L21008) get 0x2D (L21010), thermal mode 0x37
+//   (L21097) and set 0x2C (L21139) with quiet, balanced, performance,
+//   custom (0xFF) and extreme (0xE0); custom and extreme are only entered
+//   on AC (ACTY, L21215/L21243). No fan unlock id 0x0D.
+// - Other Method WMAE Get(0x11)/Set(0x12) (L21813): fan RPM 0x04030001 and
+//   0x04030002 both return FANS * 100 (L22276/L22288), so hwmon fan2
+//   mirrors fan1 on this firmware; full speed 0x04020000 -> EC FNST
+//   (get L22264, set L22880), gated behind custom mode like model_r8cn;
+//   CPU/GPU temps 0x05040000/0x05050000 -> CPUT/GPUT (L22328/L22340);
+//   0x05010000 is the CPU socket temp CPUS (L22316) -> skip_ic_temp. WMAC
+//   (L21774) only handles AMD tuning ids and there is no GPU Method GUID:
+//   PL/OC controls stay hidden (skip_oc_controls).
+// - Lights: KBBACKLIGHT WMAF (L23238) sends EC command 0xDA for id 0x00,
+//   but on hardware it never changes the white backlight, which follows
+//   only Fn+Space (#666) -> keyboard ACCESS_METHOD_NO_ACCESS. The Y-logo
+//   id 0x03 is unverified and there is no IO-port id -> skip_ylogo_light,
+//   skip_ioport_light.
+// - EC0 at \_SB.PCI0.LPC0.EC0 (L10933); VPC0 at \_SB.PCI0.LPC0.EC0.VPC0
+//   (L13206: _STA L13212, _CFG L13217, GBMD L13379 with rapid-charge bit
+//   0x04 and conservation bit 0x20, SBMC L13596). Read-only debugfs
+//   ecmemoryram maps ERAX @0xFEEC2400 (L11170) through the F9F0 table.
+//   Minifancurve and lockfancontroller have no mapped registers and stay
+//   hidden, as on model_r8cn.
+static const struct model_config model_sucn = {
+	.registers = &ec_register_offsets_loq_v1,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5508,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.has_extreme_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_NO_ACCESS,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_oc_controls = true,
+	.skip_lockfancontroller = true,
+	/* Fan Method WMAB implements only ids 5/6 (see the header comment). */
+	.skip_fan_maxspeed = true,
+	.skip_ylogo_light = true,
+	.skip_ioport_light = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFEEC2400,
+	.ramio_size = 0x300,
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PCI0.LPC0.EC0.VPC0.SBMC" },
+	.has_fancurve_defaults = true,
+	.wmi_fancurve_speed_only = true,
+	/* Level table, but no curve write validated on 83S0 hardware yet. */
+	.fancurve_write_unvalidated = true,
+	.has_fan_unlock = false,
+	.has_fn_lock = false,
+};
+
 // Legion 5 15AHP11 (83Q7, AMD Ryzen 7 250 + RTX 5050) - same platform as
 // LOQ 15AHP10, BIOS T2CN33WW, EC chip 0x5509 (issue #504).
 // EC port I/O is blocked by the firmware (vendor EC RAM reads return 0).
@@ -3930,6 +4010,18 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 			DMI_MATCH(DMI_BIOS_VERSION, "R8CN"),
 		},
 		.driver_data = (void *)&model_r8cn
+	},
+	{
+		// LOQ 15ARP10E (83S0, AMD Ryzen 7 7735HS + RTX 4050), BIOS SUCN
+		// (issue #666); EC 0x5508 like R8CN but a DSDT-validated
+		// F9F0 level table like model_n0cn. Product-qualified like R8CN.
+		.ident = "SUCN",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "83S0"),
+			DMI_MATCH(DMI_BIOS_VERSION, "SUCN"),
+		},
+		.driver_data = (void *)&model_sucn
 	},
 	{
 		// e.g. Legion 5 15AHP11 (83Q7, AMD Ryzen 7 250 + RTX 5050) - same
@@ -6324,6 +6416,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_rgcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_r3cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_r8cn	 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_sucn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :

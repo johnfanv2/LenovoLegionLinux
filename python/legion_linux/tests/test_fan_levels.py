@@ -308,7 +308,7 @@ class LevelTableBiosGuardTest(unittest.TestCase):
         return legion.FanCurveIO(expect_hwmon=False)
 
     def test_percent_byte_above_level_10_is_refused(self):
-        for bios in ("LPCN59WW", "N0CN35WW"):
+        for bios in ("LPCN59WW", "N0CN35WW", "SUCN15WW"):
             with self.subTest(bios=bios):
                 io = self.make_io("percent", bios)
                 self.assertTrue(io.percent_unit_on_level_table())
@@ -331,7 +331,12 @@ class LevelTableBiosGuardTest(unittest.TestCase):
             mini.assert_not_called()
 
     def test_other_firmware_and_level_unit_are_unaffected(self):
-        for unit, bios in (("percent", "N2CN30WW"), ("level", "LPCN59WW"), ("level", "N0CN35WW")):
+        for unit, bios in (
+            ("percent", "N2CN30WW"),
+            ("level", "LPCN59WW"),
+            ("level", "N0CN35WW"),
+            ("level", "SUCN15WW"),
+        ):
             with self.subTest(unit=unit, bios=bios):
                 io = self.make_io(unit, bios)
                 self.assertFalse(io.percent_unit_on_level_table())

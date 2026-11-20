@@ -878,7 +878,7 @@ FANCURVE_MAX_TEMP_C = 127
 # modules before the LPCN fix report it as "percent". On a Legion Pro 5 16ARX8
 # (LPCN59WW) a percent byte above MAX_FAN_LEVEL hard-powered-off the laptop, so
 # with such a module only bytes the firmware can read as a level are written.
-LEVEL_TABLE_BIOS_PREFIXES = ("LPCN", "N0CN")
+LEVEL_TABLE_BIOS_PREFIXES = ("LPCN", "N0CN", "SUCN")
 DMI_BIOS_VERSION_FILE = "/sys/class/dmi/id/bios_version"
 
 
