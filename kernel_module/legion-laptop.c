@@ -2801,7 +2801,12 @@ static const struct model_config model_s2cn = {
 	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
 	.has_fancurve_defaults = true,
-	.wmi_fancurve_speed_only = true
+	.wmi_fancurve_speed_only = true,
+	/* Same GameZone alias race as model_q7cn (issue #625): while LLL
+	 * holds the block, lenovo-wmi-gamezone binds nothing and the
+	 * lenovo-wmi-other PL1/PL2 attributes return -EINVAL (S2CN26WW).
+	 */
+	.leave_gamezone_wmi_unbound = true
 };
 
 static const struct model_config model_m3cn = {
