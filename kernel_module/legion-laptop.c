@@ -6252,9 +6252,18 @@ static ssize_t wmi_read_temperature_other(int sensor_id, int *temperature)
 	}
 
 	err = wmi_other_method_get_value(featured_id, &res);
-	if (!err)
-		*temperature = res;
-	return err;
+	if (err)
+		return err;
+	/*
+	 * The firmware returns the EC's GPU temperature byte, which stays 0
+	 * while the dGPU idles and nothing has queried it recently (S2CN26WW:
+	 * filled for ~20 s after an nvidia-smi query, issue #668). Report no
+	 * data instead of a 0 degC reading.
+	 */
+	if (sensor_id == 1 && res == 0)
+		return -ENODATA;
+	*temperature = res;
+	return 0;
 }
 
 static ssize_t read_fanspeed(struct legion_private *priv, int fan_id,
