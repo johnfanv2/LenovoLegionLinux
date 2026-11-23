@@ -2780,6 +2780,18 @@ static const struct model_config model_q6cn_f3 = {
 // in another mode. WMI3 temps/fans/powermode and monitoring are confirmed
 // on the unit (#475, gauthier1024 in #491); the EC3 offsets borrowed from
 // model_r3cn are wrong for this chassis and unsafe to write.
+// Legion 5 15IAX10 (83N2, S2CN26WW, PR #669):
+// - The table reads ten zeros until custom mode is first entered (factory
+//   1,2,3,4,5,6,7,8,8,8 afterwards) and the EC only follows it in custom
+//   mode. A level write was confirmed on S2CN26WW: on AC in custom mode,
+//   raising points 1-5 to level 6 via hwmon read back as 6 from
+//   F9F0..F9F4, both fans ramped to 3000 RPM (level 6 of the 1800..4600
+//   ladder), and the restore read back the factory table, so writes are
+//   not gated; fancurve_level_table_sanitize() keeps every byte inside the
+//   level range.
+// - EC RAM window ERAX @0xFE500400 (len 0xFF; F9FT/ECB2 at +0x100/+0x200,
+//   ramio_size 0x300) is used only by the read-only debugfs ecmemoryram
+//   dump; the 0xFE0B0F00 window used before reads back all 0xFF on 83N2.
 static const struct model_config model_s2cn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
@@ -2796,8 +2808,8 @@ static const struct model_config model_s2cn = {
 	.access_method_fancurve = ACCESS_METHOD_WMI3,
 	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
 	.acpi_check_dev = false,
-	.ramio_physical_start = 0xFE0B0F00,
-	.ramio_size = 0x600,
+	.ramio_physical_start = 0xFE500400,
+	.ramio_size = 0x300,
 	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
 			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG" },
 	.has_fancurve_defaults = true,
