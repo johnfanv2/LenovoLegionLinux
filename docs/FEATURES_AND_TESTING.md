@@ -534,6 +534,41 @@ verify locally with `sudo dmesg | grep -i legion` (no "not in allowlist",
 EC id 0x5508), `sensors`, and `sudo cat /sys/kernel/debug/legion/fancurve`
 (`u` = 5, speed1 in 1..10).
 
+## Legion 5 15IAX10 (83N2, S2CN)
+
+BIOS S2CN26WW, EC 0x5508 (fw 2b0, EC firmware 1.22), Intel Core Ultra 7
+255HX + RTX 5070 Laptop. DMI entry `S2CN`, config `model_s2cn` in
+`kernel_module/legion-laptop.c`. Validated on an 83N2 with kernel 7.3.5
+(CachyOS), on AC.
+
+- Everything goes through WMI, as on Q7CN/Q6CN: fan RPM and CPU/GPU
+  temperature through Other Method `WMAE`, the fan table through Fan
+  Method `WMAB` 5/6 (`F9F0..F9F9`, ten levels; `fan1_level_rpm_table`
+  reads 1800 2000 2100 2300 2500 3000 3300 3500 4000 4600 RPM).
+- The GameZone WMI block is left to `lenovo-wmi-gamezone`
+  (`leave_gamezone_wmi_unbound`). With `legion_laptop` loaded before it,
+  `legion_wmi` took 887B54E3 and `ppt_pl1_spl`, `ppt_pl2_sppt`,
+  `gpu_nv_ac_offset` and `gpu_temp` returned `EINVAL`; with the flag both
+  platform-profile providers list the same five choices and the
+  attributes read 70/125/55/87.
+- GPU temperature: `WMAE 0x05050000` returns the EC byte `GPUT`
+  (`ERAX + 0xB4`). It is 0 while the dGPU idles and nothing has queried
+  it, and follows `nvidia-smi` for about 20 s after a query, so
+  `temp2_input` reports `ENODATA` (N/A in `sensors`) in between
+  (issue #668). Use `nvidia-smi`/`nvtop` for a continuous GPU reading.
+- Fan curve: in balanced mode `F9F0..F9F9` are all 0. Entering custom
+  mode loads the firmware table `1 2 3 4 5 6 7 8 8 8`. At idle (CPU
+  about 55 degC) the EC sits on point 3 (2100 RPM). Writing
+  `pwm1_auto_point{1..5}_pwm` = 153 (level 6) landed in `F9F0..F9F4`,
+  read back, and ramped both fans 2300 -> 3000 RPM (level 6). Writing
+  the saved values back and returning to balanced restored the fans.
+  Only raising the curve was tested.
+- The EC RAM window is `ERAX @0xFE500400` (`F9FT`/`ECB2` at
+  +0x100/+0x200, `ramio_size` 0x300); the `ecmemoryram` dump matches
+  `/dev/mem` byte for byte. It is only used by that debugfs dump.
+- The power button LED shows the power mode; it turns purple in custom
+  mode.
+
 ## LOQ 15IRX10 (83JE, R3CN)
 
 BIOS R3CN, EC 0x5508, Intel + RTX 50. DMI entry `R3CN` matches the BIOS
