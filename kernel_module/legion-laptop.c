@@ -3667,6 +3667,17 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_v0
 	},
 	{
+		// Legion 5 15ITH6H (82JH), BIOS H1CN, EC 0x8227: same
+		// PC00.LPCB ACPI path as 82JK.
+		.ident = "Legion 5 15ITH6H (82JH) - EC 0x8227",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "82JH"),
+			DMI_MATCH(DMI_BIOS_VERSION, "H1CN"),
+		},
+		.driver_data = (void *)&model_h1cn_8227
+	},
+	{
 		// Legion Y7000 2021 (82JK), BIOS H1CN, EC 0x8227: the EC lives at
 		// \_SB.PC00.LPCB.EC0, so the v0 ACPI paths (PCI0.LPC0) fail with
 		// AE_NOT_FOUND. Must stay before the generic H1CN entry below.
