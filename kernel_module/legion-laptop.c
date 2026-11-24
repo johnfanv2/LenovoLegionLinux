@@ -2792,6 +2792,20 @@ static const struct model_config model_q6cn_f3 = {
 // - EC RAM window ERAX @0xFE500400 (len 0xFF; F9FT/ECB2 at +0x100/+0x200,
 //   ramio_size 0x300) is used only by the read-only debugfs ecmemoryram
 //   dump; the 0xFE0B0F00 window used before reads back all 0xFF on 83N2.
+// - The CPU WMI method block exists but model_s2cn sets no
+//   access_method_powerlimits, so legion_laptop's cpu_*_powerlimit and
+//   cpu_oc read 0 on 83N2. Hide the PL/OC attributes (skip_oc_controls)
+//   in favour of the in-tree lenovo-wmi-other firmware-attributes
+//   (PL1/PL2, cTGP, PPAB, temperature limits), as on model_q7cn.
+// - Instant boot 0x03010001/2 (EC EACS/ETCS, set via WSMI 7/8, 9/0xA,
+//   same as model_q7cn) -> has_instant_boot. WMAE get L54673/L54685, set
+//   L55510/L55526; capdata00 (WQA9, L52687) flags both 0x07. Verified on
+//   S2CN26WW: both read 0 by default and each one is independent. With
+//   only instant_boot_ac set, the laptop stayed off when shut down on the
+//   barrel charger and powered on by itself when it was unplugged and
+//   plugged in again; with only instant_boot_usb_pd set, the same worked
+//   with a 100 W USB-C PD charger (barrel unplugged). Both flags survived
+//   the cold boot.
 static const struct model_config model_s2cn = {
 	.registers = &ec_register_offsets_loq_v1,
 	.check_embedded_controller_id = true,
@@ -2818,7 +2832,9 @@ static const struct model_config model_s2cn = {
 	 * holds the block, lenovo-wmi-gamezone binds nothing and the
 	 * lenovo-wmi-other PL1/PL2 attributes return -EINVAL (S2CN26WW).
 	 */
-	.leave_gamezone_wmi_unbound = true
+	.leave_gamezone_wmi_unbound = true,
+	.skip_oc_controls = true,
+	.has_instant_boot = true
 };
 
 static const struct model_config model_m3cn = {
