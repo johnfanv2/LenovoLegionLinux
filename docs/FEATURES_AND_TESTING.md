@@ -568,6 +568,21 @@ BIOS S2CN26WW, EC 0x5508 (fw 2b0, EC firmware 1.22), Intel Core Ultra 7
   `/dev/mem` byte for byte. It is only used by that debugfs dump.
 - The power button LED shows the power mode; it turns purple in custom
   mode.
+- `legion_laptop`'s own PL/OC attributes are hidden (`skip_oc_controls`):
+  the CPU WMI method block exists but no `access_method_powerlimits` is
+  set, so `cpu_oc`, `cpu_shortterm_powerlimit`, `cpu_longterm_powerlimit`
+  and `cpu_default_powerlimit` read 0. Use the in-tree
+  `lenovo-wmi-other` firmware-attributes instead (PL1/PL2, cTGP, PPAB,
+  temperature limits), which read 70/125/65/15 on this unit.
+- Instant Boot (`has_instant_boot`): WMAE 0x03010001/0x03010002 read EC
+  `EACS`/`ETCS` and set through `WSMI(7)`/`WSMI(8)`, `WSMI(9)`/`WSMI(0xA)`,
+  as on Q7CN; capdata00 (`WQA9`) flags both ids 0x07. Both read 0 by
+  default and the two are independent. With only `instant_boot_ac` set,
+  the laptop stayed off when shut down on the barrel charger and powered
+  on by itself when the charger was unplugged and plugged in again. With
+  only `instant_boot_usb_pd` set, the same worked with a 100 W USB-C PD
+  charger and the barrel charger unplugged. Both flags survived the cold
+  boot and were written back to 0 afterwards.
 
 ## LOQ 15IRX10 (83JE, R3CN)
 
