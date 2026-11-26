@@ -1186,36 +1186,41 @@ static const struct model_config model_n2cn = {
 	.require_unlocked_fan_controller = true
 };
 
-static const struct model_config
-	model_nmcn = { .registers = &ec_register_offsets_v0,
-		       .check_embedded_controller_id = true,
-		       .embedded_controller_id = 0x5507,
-		       .memoryio_physical_ec_start = 0xC400,
-		       .memoryio_size = 0x300,
-		       .has_minifancurve = false,
-		       .has_custom_powermode = true,
-		       .access_method_powermode = ACCESS_METHOD_WMI,
-		       .access_method_keyboard = ACCESS_METHOD_WMI,
-		       .access_method_fanspeed = ACCESS_METHOD_WMI3,
-		       .access_method_temperature = ACCESS_METHOD_WMI3,
-		       .access_method_fancurve = ACCESS_METHOD_WMI3,
-		       .access_method_fanfullspeed = ACCESS_METHOD_WMI3,
-		       .access_method_powerlimits = ACCESS_METHOD_WMI3,
-		       .wmi_fancurve_speed_only = true,
-		       .fanfullspeed_requires_custom_powermode = true,
-		       .skip_ic_temp = true,
-		       .skip_fan_maxspeed = true,
-		       .has_fancurve_defaults = true,
-		       .acpi_check_dev = false,
-		       .ramio_physical_start = 0xFE0B0400,
-		       .ramio_size = 0x600,
-		       .acpi_paths = {
-			       /* rapidcharge EC at \_SB.PC00.LPCB.EC0, not v0 \_SB.PCI0.LPC0.EC0 */
-			       [ACPI_PATH_READ_RAPIDCHARGE] =
-				       "\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
-			       [ACPI_PATH_WRITE_RAPIDCHARGE] =
-				       "\\_SB.PC00.LPCB.EC0.VPC0.SBMC",
-		       } };
+static const struct model_config model_nmcn = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x5507,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	/* v0 lockfancontroller (0xC4AB) reads a constant 0x08 ("true") on
+	 * NMCN30WW/NMCN32WW (EC 0x5507, issue #676); hide like model_n0cn.
+	 */
+	.has_minifancurve = false,
+	.skip_lockfancontroller = true,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.access_method_powerlimits = ACCESS_METHOD_WMI3,
+	.wmi_fancurve_speed_only = true,
+	.fanfullspeed_requires_custom_powermode = true,
+	.skip_ic_temp = true,
+	.skip_fan_maxspeed = true,
+	.has_fancurve_defaults = true,
+	.acpi_check_dev = false,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	/* VPC0 lives at \_SB.PC00.LPCB.EC0.VPC0, not v0 \_SB.PCI0.LPC0.EC0 */
+	.acpi_paths = { [ACPI_PATH_STA] = "\\_SB.PC00.LPCB.EC0.VPC0._STA",
+			[ACPI_PATH_CFG] = "\\_SB.PC00.LPCB.EC0.VPC0._CFG",
+			[ACPI_PATH_READ_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.GBMD",
+			[ACPI_PATH_WRITE_RAPIDCHARGE] =
+				"\\_SB.PC00.LPCB.EC0.VPC0.SBMC" }
+};
 
 static const struct model_config model_nxcn = {
 	.registers = &ec_register_offsets_v0,
@@ -4397,7 +4402,7 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_uacn
 	},
 	{
-		// e.g. Legion 5 16IRX9 (83DG)
+		// e.g. Legion 5 16IRX9 / Legion Y7000P IRX9 (83DG)
 		.ident = "NMCN",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),

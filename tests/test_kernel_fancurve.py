@@ -603,12 +603,21 @@ int main(void) {
         }
     }
 
-    /* NMCN (Legion 5 16IRX9 83DG, EC 0x5507) uses the WMI3 level fan table
-     * like LPCN instead of the removed EC4 direct-EC layout. */
+    /* NMCN (Legion 5 16IRX9 / Legion Y7000P IRX9 83DG, EC 0x5507, #676) uses
+     * the WMI3 level fan table like LPCN instead of the removed EC4 direct-EC
+     * layout, hides the unmapped v0 lockfancontroller byte (0xC4AB), and
+     * points VPC0 _STA/_CFG/GBMD/SBMC at \_SB.PC00.LPCB.EC0.VPC0. */
     priv.conf = &model_nmcn;
     assert(priv.conf->access_method_fancurve == ACCESS_METHOD_WMI3);
     assert(priv.conf->access_method_fanfullspeed == ACCESS_METHOD_WMI3);
     assert(priv.conf->wmi_fancurve_speed_only);
+    assert(!priv.conf->has_minifancurve && priv.conf->skip_lockfancontroller);
+    assert(!minifancurve_supported(priv.conf) && !lockfancontroller_supported(priv.conf));
+    assert(legion_sysfs_is_visible(&kobj, &dev_attr_lockfancontroller.attr, 0) == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_STA], "\\_SB.PC00.LPCB.EC0.VPC0._STA") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_CFG], "\\_SB.PC00.LPCB.EC0.VPC0._CFG") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_READ_RAPIDCHARGE], "\\_SB.PC00.LPCB.EC0.VPC0.GBMD") == 0);
+    assert(strcmp(priv.conf->acpi_paths[ACPI_PATH_WRITE_RAPIDCHARGE], "\\_SB.PC00.LPCB.EC0.VPC0.SBMC") == 0);
     fancurve_speed_unit_show(&dev, NULL, unit);
     assert(strcmp(unit, "level\n") == 0);
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
