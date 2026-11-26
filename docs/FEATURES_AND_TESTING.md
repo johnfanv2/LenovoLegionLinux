@@ -1414,15 +1414,22 @@ Verify with `sudo dmesg | grep -i legion` (config `SUCN`, EC ID `0x5508`,
 
 ## LOQ 15APH8 (82XT, LYCN)
 
-BIOS LYCN50WW, EC 0x8227 (fw 2a4, read on the unit), AMD Ryzen 7 7840HS +
-RTX 4050 (issue #602). DMI entry `LOQ 15APH8 (82XT) - EC 0x8227` is qualified
-on product name `82XT` and BIOS prefix `LYCN` and reuses `model_m3cn_8227`
-from the Legion R7000P APH8 (82Y9, M3CN) in `kernel_module/legion-laptop.c`:
-same AMD Phoenix platform, same EC 0x8227, and the reporter's force-loaded
-debugfs dump shows the same signature — EC-direct temperature/fan reads
-return 0 while WMI3 returns correct live values (CPU 38 C, GPU 42 C, fan1
-1400 RPM) and the EC fan curve table is fully populated.
+BIOS LYCN46WW / LYCN50WW, EC 0x8227 (fw 2a4, read on the unit), AMD Ryzen 7
+7840HS + RTX 4050 (issues #602, #677). DMI entry `LOQ 15APH8 (82XT) - EC 0x8227`
+is qualified on product name `82XT` and BIOS prefix `LYCN` and uses
+`model_lycn_82xt` in `kernel_module/legion-laptop.c` — the same AMD Phoenix + EC
+0x8227 layout as `model_m3cn_8227` from the Legion R7000P APH8 (82Y9, M3CN),
+with `wmi_powermode_uses_thermal_mode` enabled:
 
+- Power mode via GameZone `WMAA` `0x2C` (`SetSmartFanMode`) and `0x37`
+  (`GetThermalMode`, live EC `GZ44`: `1` quiet, `2` balanced, `3` performance,
+  `0xFF` custom, `0xE0` extreme). On `LYCN` DSDTs, `WMAA` `0x2D`
+  (`GetSmartFanMode`, saved CMOS `RXMS(0x76)`) calls `SSFM(1, 0)` on every read,
+  emitting `Notify(PEGP, 0xC0)` + `Sleep(0x64)` (100 ms) + `Notify(NPCF, 0xC0)`
+  (which in turn triggers `NVDB()` and a second `Notify(PEGP, 0xC0)`), flooding
+  NVIDIA `NVRM` logs when `/sys/firmware/acpi/platform_profile` is polled (#677).
+  Reading `0x37` (`GZ44`) avoids all ACPI notifications and sleep, and reports
+  the active `balanced` fallback on battery.
 - Fan Method `WMAB` implements 5/6 (`GFAN`/`SFAN`): a 10-entry fan table
   (`CFST[0..9]`, EC fields `F101..F10A` on `\_SB.PCI0.LPC0.EC0`). As on
   82Y9 the speeds are fan **levels** (`FAN_SPEED_UNIT_LEVEL`) and only the
@@ -1433,10 +1440,10 @@ return 0 while WMI3 returns correct live values (CPU 38 C, GPU 42 C, fan1
   behind custom power mode. The extreme platform-profile choice stays
   hidden, as on 82Y9.
 
-Validation status: config matched from the reporter's runtime evidence in
-issue #602 (EC id, WMI3 reads, populated curve); fan table **writes** are
-not yet validated on this chassis. Verify with `sudo dmesg | grep -i legion`
-(config `LOQ 15APH8 (82XT) - EC 0x8227`) and
+Validation status: WMI3 sensor reads, populated curve and `platform_profile`
+behavior confirmed in issues #602 and #677; fan table **writes** are not yet
+validated on this chassis. Verify with `sudo dmesg | grep -i legion` (config
+`LOQ 15APH8 (82XT) - EC 0x8227`) and
 `sudo cat /sys/kernel/debug/legion/fancurve`. To test writes: on AC, select
 custom mode, back up the curve, apply one small change, compare the
 level/RPM readback and `sensors`, then restore the backup.

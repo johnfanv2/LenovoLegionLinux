@@ -72,6 +72,7 @@ static bool ec_readonly;
                     "JYCN_",
                     "WMI_METHOD_ID_FAN_SET_TABLE",
                     "WMI_METHOD_ID_GETTHERMALMODE",
+                    "WMI_METHOD_ID_GETSMARTFANMODE",
                     "WMI_METHOD_ID_ISSUPPORTOD",
                     "LEGION_WMI_GAMEZONE_GUID",
                 )
@@ -132,7 +133,7 @@ static ssize_t wmi_read_fancurve_custom(struct legion_private *priv, struct fanc
         return jycn_read_fancurve_levels(&priv->ecram, priv->conf, curve);
     return -EIO;
 }
-static int power_mode, power_error, power_reads, thermal_reads, wmi_calls;
+static int power_mode, power_error, power_reads, smartfan_reads, thermal_reads, wmi_calls;
 static unsigned long thermal_mode;
 static u8 last_payload[0x40];
 static struct wmi_fantable_row firmware_rows[4];
@@ -151,6 +152,11 @@ static ssize_t read_powermode(struct legion_private *priv, int *mode) {
 static bool powerlimit_defaults_available(const struct legion_private *priv, enum OtherMethodFeature feature) { return false; }
 static int wmi_exec_noarg_int(const char *guid, int instance, int method, unsigned long *mode) {
     if (method == WMI_METHOD_ID_ISSUPPORTOD) return -EIO;
+    if (method == WMI_METHOD_ID_GETSMARTFANMODE) {
+        smartfan_reads++;
+        *mode = power_mode;
+        return power_error;
+    }
     assert(method == WMI_METHOD_ID_GETTHERMALMODE);
     thermal_reads++;
     *mode = thermal_mode;
@@ -196,6 +202,7 @@ static void ecram_write(struct ecram *ram, u16 offset, u8 value) {
             "fantable_row_to_ladder",
             "fancurve_level_table_sanitize",
             "wmi_sfan_uses_thermal_mode",
+            "wmi_read_powermode",
             "read_fan_control_mode",
             "wmi_fancurve_mode",
             "fanfullspeed_write_allowed",
@@ -992,6 +999,40 @@ int main(void) {
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_temperature_limit.attr, 0));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_cpu_l1_tau.attr, 0));
     assert(legion_sysfs_is_visible(&kobj, &dev_attr_gpu_power_target_offset.attr, 0));
+    /* 82XT (LYCN, #677): wmi_read_powermode must query GetThermalMode (0x37)
+     * instead of GetSmartFanMode (0x2D, which triggers SSFM(1, 0) dGPU 0xC0
+     * notifies and a 100 ms sleep), while preserving level unit and SFAN
+     * active-mode payload behavior from model_m3cn_8227. */
+    {
+        struct fancurve lycn_req = { .fan_speed_unit = FAN_SPEED_UNIT_LEVEL };
+        int pm = -1;
+        for (size_t p = 0; p < MAXFANCURVESIZE; p++)
+            lycn_req.points[p].speed1 = 2;
+        smartfan_reads = thermal_reads = 0;
+        power_mode = LEGION_WMI_POWERMODE_PERFORMANCE;
+        thermal_mode = LEGION_WMI_POWERMODE_BALANCED;
+        power_error = 0;
+        assert(wmi_read_powermode(&model_m3cn_8227, &pm) == 0);
+        assert(pm == LEGION_WMI_POWERMODE_PERFORMANCE);
+        assert(smartfan_reads == 1 && thermal_reads == 0);
+        assert(wmi_read_powermode(&model_lycn_82xt, &pm) == 0);
+        assert(pm == LEGION_WMI_POWERMODE_BALANCED);
+        assert(smartfan_reads == 1 && thermal_reads == 1);
+        power_error = -EIO;
+        pm = LEGION_WMI_POWERMODE_LOW_POWER;
+        assert(wmi_read_powermode(&model_lycn_82xt, &pm) == -EIO);
+        assert(pm == LEGION_WMI_POWERMODE_LOW_POWER);
+        power_error = 0;
+        have_guid = true;
+        priv.conf = &model_lycn_82xt;
+        fancurve_speed_unit_show(&dev, NULL, unit);
+        assert(strcmp(unit, "level\n") == 0);
+        assert(legion_sysfs_is_visible(&kobj, &dev_attr_fan1_level_rpm_table.attr, 0));
+        int calls_before = wmi_calls;
+        power_mode = LEGION_WMI_POWERMODE_CUSTOM;
+        assert(wmi_write_fancurve_custom(&priv, &lycn_req) == 0);
+        assert(wmi_calls == calls_before + 1 && last_payload[0] == LEGION_WMI_POWERMODE_CUSTOM);
+    }
     printf("PASS: %zu point-attribute cases, unit gates and guarded EC controls\n", cases);
     return 0;
 }

@@ -115,6 +115,44 @@ class KernelPowermodeTest(unittest.TestCase):
         read = function(source, "read_powermode")
         self.assertIn("fixup_parked_custom_powermode(priv, powermode);", read)
 
+    def test_lycn_82xt_uses_thermal_mode_and_platform_profile_syncs_cache(self):
+        source = SOURCE.read_text()
+        configs = re.findall(
+            r"^static const struct model_config (\w+) = \{(?:(?!^\};).)*?\.wmi_powermode_uses_thermal_mode",
+            source,
+            re.M | re.S,
+        )
+        self.assertEqual(configs, ["model_lycn_82xt"])
+        dmi_82xt = re.search(
+            r'\.ident\s*=\s*"LOQ 15APH8 \(82XT\) - EC 0x8227".*?\.driver_data\s*=\s*\(void\s*\*\)&(\w+)',
+            source,
+            re.S,
+        )
+        self.assertIsNotNone(dmi_82xt)
+        self.assertEqual(dmi_82xt.group(1), "model_lycn_82xt")
+
+        pp_get = re.search(
+            r"^static int legion_platform_profile_get\(.*?^\}",
+            source,
+            re.M | re.S,
+        )
+        self.assertIsNotNone(pp_get)
+        self.assertIn("err = sync_powermode_locked(priv);", pp_get[0])
+        self.assertRegex(pp_get[0], r"if \(err\)\s+return err;")
+
+        pp_set = re.search(
+            r"^static int legion_platform_profile_set\(.*?^\}",
+            source,
+            re.M | re.S,
+        )
+        self.assertIsNotNone(pp_set)
+        self.assertIn("priv->current_powermode = powermode;", pp_set[0])
+
+        add_fn = function(source, "legion_add")
+        self.assertGreater(
+            add_fn.index("read_powermode(priv, &priv->current_powermode);"),
+            add_fn.index("ecram_init(&priv->ecram"),
+        )
 
 if __name__ == "__main__":
     unittest.main()

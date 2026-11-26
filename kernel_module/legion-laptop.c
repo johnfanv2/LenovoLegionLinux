@@ -357,6 +357,14 @@ struct model_config {
 	 * Refuse custom while the system runs on battery.
 	 */
 	bool custom_powermode_requires_ac;
+	/*
+	 * Read the live power mode through GameZone GetThermalMode (0x37, EC
+	 * GZ44) instead of GetSmartFanMode (0x2D, saved CMOS request). On 82XT
+	 * (LYCN), 0x2D calls SSFM(1, 0) on every read: Sleep(100 ms) plus
+	 * Notify(PEGP, 0xC0) and Notify(NPCF, 0xC0), flooding the NVIDIA log
+	 * when platform_profile is polled (issue #677).
+	 */
+	bool wmi_powermode_uses_thermal_mode;
 
 	bool acpi_check_dev;
 
@@ -2935,6 +2943,43 @@ static const struct model_config model_m3cn_8227 = {
 	.wmi_fancurve_speed_only = true,
 	.skip_lockfancontroller = true,
 };
+
+/*
+ * Lenovo LOQ 15APH8 (82XT), BIOS LYCN, EC 0x8227 (issues #602, #677):
+ * same AMD Phoenix + EC 0x8227 layout as model_m3cn_8227, plus LYCN DSDT
+ * WMAA(0x2D) GetSmartFanMode invokes SSFM(1, 0) (100 ms sleep + PEGP/NPCF
+ * 0xC0 notifies) on every read, whereas WMAA(0x37) GetThermalMode reads
+ * live EC GZ44 (1/2/3/0xFF/0xE0) with no side effects.
+ */
+static const struct model_config model_lycn_82xt = {
+	.registers = &ec_register_offsets_v0,
+	.check_embedded_controller_id = true,
+	.embedded_controller_id = 0x8227,
+	.memoryio_physical_ec_start = 0xC400,
+	.memoryio_size = 0x300,
+	.has_minifancurve = false,
+	.has_custom_powermode = true,
+	.access_method_powermode = ACCESS_METHOD_WMI,
+	.wmi_powermode_uses_thermal_mode = true,
+	.access_method_keyboard = ACCESS_METHOD_WMI,
+	.access_method_fanspeed = ACCESS_METHOD_WMI3,
+	.access_method_temperature = ACCESS_METHOD_WMI3,
+	.access_method_fancurve = ACCESS_METHOD_WMI3,
+	.access_method_fanfullspeed = ACCESS_METHOD_WMI3,
+	.fanfullspeed_requires_custom_powermode = true,
+	.acpi_check_dev = true,
+	.ramio_physical_start = 0xFE0B0400,
+	.ramio_size = 0x600,
+	.acpi_paths = {
+		[ACPI_PATH_STA] = "\\_SB.PCI0.LPC0.EC0.VPC0._STA",
+		[ACPI_PATH_CFG] = "\\_SB.PCI0.LPC0.EC0.VPC0._CFG",
+		[ACPI_PATH_READ_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.GBMD",
+		[ACPI_PATH_WRITE_RAPIDCHARGE] = "\\_SB.PCI0.LPC0.EC0.VPC0.SBMC",
+	},
+	.has_extreme_powermode = false,
+	.wmi_fancurve_speed_only = true,
+	.skip_lockfancontroller = true,
+};
 // LOQ 15IAX9E
 static const struct model_config model_q8cn = {
 	.registers = &ec_register_offsets_loq_v0,
@@ -3616,19 +3661,19 @@ static const struct dmi_system_id optimistic_allowlist[] = {
 		.driver_data = (void *)&model_m3cn_8227
 	},
 	{
-		// Lenovo LOQ 15APH8 (82XT), BIOS LYCN (issue #602); same AMD
-		// Phoenix + EC 0x8227 platform as the Legion R7000P APH8
-		// (82Y9, M3CN) above. The reporter's debugfs dump shows EC
-		// chip 0x8227, correct WMI3 temperatures/fan RPM and zeroed
-		// EC-direct reads, matching model_m3cn_8227. Product-qualified
-		// in case the LYCN BIOS line is shared by other chassis.
+		// Lenovo LOQ 15APH8 (82XT), BIOS LYCN (issues #602, #677);
+		// same AMD Phoenix + EC 0x8227 platform as the Legion R7000P
+		// APH8 (82Y9, M3CN) above, using GetThermalMode (0x37) so
+		// powermode reads do not trigger LYCN's SSFM(1, 0) dGPU
+		// notifies. Product-qualified in case the LYCN BIOS line is
+		// shared by other chassis.
 		.ident = "LOQ 15APH8 (82XT) - EC 0x8227",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "82XT"),
 			DMI_MATCH(DMI_BIOS_VERSION, "LYCN"),
 		},
-		.driver_data = (void *)&model_m3cn_8227
+		.driver_data = (void *)&model_lycn_82xt
 	},
 	{
 		// Release year: 2020
@@ -6475,6 +6520,7 @@ wmi_fancurve_speed_unit(const struct model_config *model)
 	       model == &model_t2cn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_nscn_83fd ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_m3cn_8227 ? FAN_SPEED_UNIT_LEVEL :
+	       model == &model_lycn_82xt ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_macn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_smcn	 ? FAN_SPEED_UNIT_LEVEL :
 	       model == &model_uacn	 ? FAN_SPEED_UNIT_LEVEL :
@@ -6893,9 +6939,8 @@ static int wmi_fancurve_mode(struct legion_private *priv)
 	 * aborts \_SB.GZFD.SFAN with AE_AML_OPERAND_TYPE when it is 0 (PR #584
 	 * for m3cn_8227, issue #582 for the 82Y9 twin of this EC).
 	 */
-	if (priv->conf != &model_m3cn_8227 &&
-	    priv->conf != &model_m2cn &&
-	    priv->conf != &model_jycn &&
+	if (priv->conf != &model_m3cn_8227 && priv->conf != &model_lycn_82xt &&
+	    priv->conf != &model_m2cn && priv->conf != &model_jycn &&
 	    !wmi_sfan_uses_thermal_mode(priv->conf) &&
 	    priv->conf != &model_r3cn && priv->conf != &model_nmcn)
 		return 0;
@@ -7842,13 +7887,16 @@ static ssize_t acpi_read_powermode(struct legion_private *priv, int *powermode)
 	return err;
 }
 
-static ssize_t wmi_read_powermode(int *powermode)
+static ssize_t wmi_read_powermode(const struct model_config *conf,
+				  int *powermode)
 {
-	int err;
+	int method = (conf && conf->wmi_powermode_uses_thermal_mode) ?
+			     WMI_METHOD_ID_GETTHERMALMODE :
+			     WMI_METHOD_ID_GETSMARTFANMODE;
 	unsigned long res;
+	int err;
 
-	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0,
-				 WMI_METHOD_ID_GETSMARTFANMODE, &res);
+	err = wmi_exec_noarg_int(LEGION_WMI_GAMEZONE_GUID, 0, method, &res);
 
 	if (!err)
 		*powermode = res;
@@ -7925,7 +7973,7 @@ static ssize_t read_powermode(struct legion_private *priv, int *powermode)
 	case ACCESS_METHOD_ACPI:
 		return acpi_read_powermode(priv, powermode);
 	case ACCESS_METHOD_WMI:
-		res = wmi_read_powermode(powermode);
+		res = wmi_read_powermode(priv->conf, powermode);
 		if (!res)
 			fixup_parked_custom_powermode(priv, powermode);
 		return res;
@@ -7937,19 +7985,17 @@ static ssize_t read_powermode(struct legion_private *priv, int *powermode)
 }
 
 /*
- * powermode_store() is the only mode write that also updates
- * priv->current_powermode; the mode changes without it too:
- * legion_platform_profile_set() writes it directly (platform_profile
- * sysfs, power-profiles-daemon), the mainline lenovo-wmi-gamezone
- * driver owns the platform profile when legion_laptop runs with
- * enable_platformprofile=0, and Fn+Q goes through lenovo-wmi-events
- * when both are loaded. So anything that selects per-mode firmware
- * data (capability rows for clamping, the fan table ladders) refreshes
- * the cache through this helper first. Caller holds fancurve_mutex, as
- * does powermode_store() when it writes the cache. On a read error the
- * cached value is kept. Consumers sync right before they use the value,
- * so a read that lands in the firmware's settling window after a mode
- * write only affects that one call.
+ * powermode_store() and legion_platform_profile_set() update
+ * priv->current_powermode, and the mode changes without them too: the
+ * mainline lenovo-wmi-gamezone driver owns the platform profile when
+ * legion_laptop runs with enable_platformprofile=0, and Fn+Q or AC
+ * transitions change it in firmware. So anything that selects per-mode
+ * firmware data (capability rows for clamping, the fan table ladders)
+ * refreshes the cache through this helper first. Caller holds
+ * fancurve_mutex, as do the mode writers when they update the cache. On
+ * a read error the cached value is kept. Consumers sync right before
+ * they use the value, so a read that lands in the firmware's settling
+ * window after a mode write only affects that one call.
  */
 static int sync_powermode_locked(struct legion_private *priv)
 {
@@ -8349,7 +8395,7 @@ static int debugfs_fancurve_show(struct seq_file *s, void *unused)
 	seq_file_print_with_error(s, "powermode EC", err, powermode);
 	err = acpi_read_powermode(priv, &powermode);
 	seq_file_print_with_error(s, "powermode ACPI", err, powermode);
-	err = wmi_read_powermode(&powermode);
+	err = wmi_read_powermode(priv->conf, &powermode);
 	seq_file_print_with_error(s, "powermode WMI", err, powermode);
 	if (priv->conf->ec_custom_mode_register)
 		seq_printf(s, "EC custom mode flags: 0x%02x\n",
@@ -10747,16 +10793,22 @@ static int legion_platform_profile_get(struct platform_profile_handler *pprof,
 				       enum platform_profile_option *profile)
 #endif
 {
-	int powermode;
 	struct legion_private *priv;
+	int powermode;
+	int err;
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	priv = dev_get_drvdata(dev);
 #else
 	priv = container_of(pprof, struct legion_private,
 			    platform_profile_handler);
 #endif
-	read_powermode(priv, &powermode);
-
+	mutex_lock(&priv->fancurve_mutex);
+	err = sync_powermode_locked(priv);
+	powermode = priv->current_powermode;
+	mutex_unlock(&priv->fancurve_mutex);
+	if (err)
+		return err;
 	switch (powermode) {
 	case LEGION_WMI_POWERMODE_BALANCED:
 		*profile = PLATFORM_PROFILE_BALANCED;
@@ -10793,8 +10845,9 @@ static int legion_platform_profile_set(struct platform_profile_handler *pprof,
 				       enum platform_profile_option profile)
 #endif
 {
-	int powermode;
 	struct legion_private *priv;
+	int powermode;
+	int err;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	priv = dev_get_drvdata(dev);
@@ -10826,7 +10879,12 @@ static int legion_platform_profile_set(struct platform_profile_handler *pprof,
 		return -EOPNOTSUPP;
 	}
 
-	return write_powermode(priv, powermode);
+	mutex_lock(&priv->fancurve_mutex);
+	err = write_powermode(priv, powermode);
+	if (!err)
+		priv->current_powermode = powermode;
+	mutex_unlock(&priv->fancurve_mutex);
+	return err;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
@@ -12380,8 +12438,6 @@ static int legion_add(struct platform_device *pdev)
 		}
 	}
 
-	read_powermode(priv, &priv->current_powermode);
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	err = acpi_init(priv, ACPI_COMPANION(&pdev->dev));
 	if (err) {
@@ -12440,6 +12496,8 @@ static int legion_add(struct platform_device *pdev)
 		dev_info(&pdev->dev,
 			 "Skipped checking embedded controller id\n");
 	}
+
+	read_powermode(priv, &priv->current_powermode);
 
 	dev_info(&pdev->dev, "Creating debugfs interface\n");
 	legion_debugfs_init(priv);
